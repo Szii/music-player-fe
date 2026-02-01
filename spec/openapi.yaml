@@ -1,0 +1,1189 @@
+openapi: 3.0.3
+info:
+  title: Music Player API
+  description: API for managing music playlists (groups), tracks, and playback board
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+tags:
+  - name: MusicTracks
+    description: Operations related to music tracks
+  - name: MusicGroups
+    description: Operations related to user groups
+  - name: MusicBoards
+    description: Operations related to user boards
+  - name: Users
+    description: User authentication and profile operations
+  - name: Playback
+    description: Playback control operations for a specific board
+  - name: Share
+    description: Share operations for sharing and subscribing to tracks
+
+components:
+  parameters:
+      TrackId:
+        name: trackId
+        in: path
+        description: ID of the track
+        required: true
+        schema:
+          type: integer
+          format: int64
+          example: 1
+
+      WindowId:
+        name: windowId
+        in: path
+        description: ID of the track window
+        required: true
+        schema:
+          type: integer
+          format: int64
+          example: 1
+
+      UserId:
+        name: userId
+        in: path
+        description: ID of the user
+        required: true
+        schema:
+          type: integer
+          format: int64
+          example: 1
+
+      BoardId:
+        name: boardId
+        in: path
+        description: ID of the board
+        required: true
+        schema:
+          type: integer
+          format: int64
+          example: 1
+
+      GroupId:
+        name: groupId
+        in: path
+        description: ID of the group
+        required: true
+        schema:
+          type: integer
+          format: int64
+          example: 1
+
+  schemas:
+    User:
+      type: object
+      description: Basic user representation
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier of the user
+          example: 1
+        name:
+          type: string
+          description: Unique username
+          example: "bruno"
+
+    UserRegisterRequest:
+      type: object
+      description: Request to register a new user
+      required:
+        - name
+        - password
+      properties:
+        name:
+          type: string
+          description: Desired username (must be unique)
+          example: "bruno"
+        password:
+          type: string
+          format: password
+          description: Plain-text password to be hashed on the server
+          example: "secret123"
+
+    UserLoginRequest:
+      type: object
+      description: Request to log in an existing user
+      required:
+        - name
+        - password
+      properties:
+        name:
+          type: string
+          description: Username
+          example: "bruno"
+        password:
+          type: string
+          format: password
+          description: Plain-text password to be checked on the server
+          example: "secret123"
+
+    UserAuthDTO:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+
+    AuthResponse:
+      type: object
+      description: Authentication response with user details and token
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        token:
+          type: string
+          description: Authentication token (e.g., JWT) used for subsequent requests
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+    Track:
+      type: object
+      description: A music track
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier (auto-generated)
+          example: 1
+        trackName:
+          type: string
+          description: Name or title of the track
+          example: "Sample Song"
+        trackOriginalName:
+          type: string
+          description: Original title of the track
+          example: "Sample Song"
+        trackLink:
+          type: string
+          description: URL or link to the track audio
+          example: "https://example.com/track.mp3"
+        duration:
+          type: integer
+          description: Duration of the track in seconds
+          example: 215
+        ownerId:
+          type: integer
+          format: int64
+          description: ID of the user who owns this track
+          example: 1
+        groupIds:
+          type: array
+          description: IDs of groups this track belongs to
+          items:
+            type: integer
+            format: int64
+          example: [3, 7, 12]
+        trackWindows:
+          type: array
+          description: Windows of interest for the track
+          items:
+            $ref: '#/components/schemas/TrackWindow'
+
+    TrackWindow:
+      type: object
+      description: Window of interest in track
+      properties:
+          id:
+            type: integer
+            format: int64
+            description: Unique identifier (auto-generated)
+          name:
+              type: string
+              description: name for window
+          positionFrom:
+            type: integer
+            description: Start of track window
+          positionTo:
+            type: integer
+            description: End of track window
+          fadeIn:
+            type: boolean
+            description: window makes a fade in
+          fadeOut:
+            type: boolean
+            description: window makes a fade out
+
+    TrackRequest:
+      type: object
+      description: New track request
+      required:
+        - trackLink
+      properties:
+        trackName:
+          type: string
+          description: Name or title of the track. If not set, default is used
+          example: "Sample Song"
+        trackLink:
+          type: string
+          description: URL or link to the track audio
+          example: "https://example.com/track.mp3"
+
+    TrackWindowRequest:
+      type: object
+      description: Window of interest in track
+      properties:
+        positionFrom:
+          type: integer
+          description: Start position of window in seconds
+        positionTo:
+          type: integer
+          description: End position of window in seconds
+        name:
+          type: string
+          description: name for window
+        fadeIn:
+          type: boolean
+          description: window makes a fade in
+        fadeOut:
+          type: boolean
+          description: window makes a fade out
+
+    PublishTrackRequest:
+      type: object
+      properties:
+        description:
+          type: string
+          description: Description of the shared track
+          example: "Great track for studying"
+
+    SubscribeRequest:
+      type: object
+      required:
+        - shareCode
+      properties:
+        shareCode:
+          type: string
+          description: Share code of the track to subscribe to
+          example: "550e8400-e29b-41d4-a716-446655440000"
+
+    TrackShareResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        description:
+          type: string
+        shareCode:
+          type: string
+        track:
+          $ref: '#/components/schemas/Track'
+
+
+    Group:
+      type: object
+      description: A playlist or group of tracks
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier (auto-generated)
+          example: 1
+        listName:
+          type: string
+          description: Name of the playlist or group
+          example: "My Favorites"
+        ownerId:
+          type: integer
+          format: int64
+          description: ID of the user who owns this group
+          example: 1
+        tracks:
+          type: array
+          description: Tracks in this group
+          items:
+            $ref: '#/components/schemas/Track'
+
+    GroupRequest:
+      type: object
+      description: Request to create or update a group
+      required:
+        - listName
+      properties:
+        listName:
+          type: string
+          description: Name of the playlist or group
+          example: "My Favorites"
+        ownerId:
+          type: integer
+          format: int64
+          description: owner id of group
+          example: 1
+        tracks:
+          type: array
+          description: Tracks in this group
+          items:
+            $ref: '#/components/schemas/Track'
+
+    Board:
+      type: object
+      description: A playback board
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier (auto-generated)
+          readOnly: true
+          example: 1
+        userId:
+          type: integer
+          format: int64
+          description: ID of the owning user
+          readOnly: true
+          example: 1
+        name:
+          type: string
+          description: Name of the board
+          example: "Default Playback"
+        selectedTrack:
+          $ref: '#/components/schemas/Track'
+        selectedGroup:
+          $ref: '#/components/schemas/Group'
+        availableTracks:
+          type: array
+          description: Tracks available to select on this board
+          items:
+            $ref: '#/components/schemas/Track'
+        volume:
+          type: integer
+          description: Playback volume (0-100)
+          minimum: 0
+          maximum: 100
+          example: 50
+        repeat:
+          type: boolean
+          description: Repeat playback mode
+          example: false
+        overplay:
+          type: boolean
+          description: Overplay/overlay mode
+          example: false
+        ownerId:
+          type: integer
+          format: int64
+          description: owner id of group
+          example: 1
+
+
+    BoardCreateRequest:
+      type: object
+      description: Request to create a new board
+      required: []
+      properties:
+        name:
+          type: string
+          description: Name of the board
+          example: "Default Playback"
+        selectedTrack:
+          $ref: '#/components/schemas/Track'
+        selectedGroup:
+          $ref: '#/components/schemas/Group'
+        volume:
+          type: integer
+          description: Playback volume (0-100)
+          minimum: 0
+          maximum: 100
+          example: 50
+        repeat:
+          type: boolean
+          description: Repeat playback mode
+          example: false
+        overplay:
+          type: boolean
+          description: Overplay/overlay mode
+          example: false
+
+    BoardUpdateRequest:
+      type: object
+      description: Update for a board
+      required: []
+      properties:
+        selectedTrack:
+          $ref: '#/components/schemas/Track'
+        selectedGroup:
+         $ref: '#/components/schemas/Group'
+        volume:
+          type: integer
+          description: Playback volume (0-100)
+          minimum: 0
+          maximum: 100
+          example: 50
+        name:
+          type: string
+          description: Name of the board
+          example: "Default Playback"
+        repeat:
+          type: boolean
+          description: Repeat playback mode
+          example: false
+        overplay:
+          type: boolean
+          description: Overplay/overlay mode
+          example: false
+
+
+    PlayRequest:
+      type: object
+      description: >
+        Request to start playback on a board. If track window is omitted, play whole selected track
+      properties:
+        windowId:
+          type: integer
+          format: int64
+          nullable: true
+          description: Track window to play
+          example: 1
+
+    SeekRequest:
+      type: object
+      description: Request to seek within the currently playing track
+      required:
+        - positionS
+      properties:
+        positionS:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Target position in seconds from start of track
+          example: 60
+
+    WindowRequest:
+      type: object
+      description: Request to limit playback to a window
+      required:
+        - startS
+      properties:
+        startS:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Start position in seconds
+          example: 30
+        endS:
+          type: integer
+          format: int64
+          minimum: 0
+          nullable: true
+          description: Optional end position in seconds (null = play until track ends)
+          example: 90
+
+    PlaybackStatus:
+      type: string
+      description: Current playback state of the board
+      enum:
+        - STOPPED
+        - PLAYING
+        - PAUSED
+        - BUFFERING
+        - ERROR
+
+    PlaybackState:
+      type: object
+      description: Runtime playback state for a board
+      required:
+        - boardId
+        - status
+      properties:
+        boardId:
+          type: integer
+          format: int64
+          example: 1
+        status:
+          $ref: '#/components/schemas/PlaybackStatus'
+        trackId:
+          type: integer
+          format: int64
+          nullable: true
+          description: Currently loaded/playing track id
+          example: 1
+        positionS:
+          type: integer
+          format: int64
+          nullable: true
+          description: Current playback position in seconds (if known)
+          example: 12
+        windowStartS:
+          type: integer
+          format: int64
+          nullable: true
+          description: Active window start in seconds (if set)
+          example: 30
+        windowEndS:
+          type: integer
+          format: int64
+          nullable: true
+          description: Active window end in seconds (if set)
+          example: 90
+        volume:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 100
+          example: 50
+        repeat:
+          type: boolean
+          nullable: true
+          example: false
+        overplay:
+          type: boolean
+          nullable: true
+          example: false
+
+paths:
+  /auth/register:
+    post:
+      tags:
+        - Users
+      summary: Register a new user
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegisterRequest'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid input
+        '409':
+          description: Username already exists
+
+  /auth/login:
+    post:
+      tags:
+        - Users
+      summary: Log in an existing user
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid username or password
+  /users/me:
+    get:
+      tags:
+        - Users
+      summary: Get the currently authenticated user
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: Current user information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: User not authenticated
+
+  /tracks:
+    post:
+      tags:
+        - MusicTracks
+      summary: Create a new track
+      operationId: createTrack
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrackRequest'
+      responses:
+        '201':
+          description: Track created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Track'
+        '400':
+          description: Invalid input
+        '409':
+          description: Conflict (e.g., duplicate track link)
+    get:
+      tags:
+        - MusicTracks
+      summary: Get list of tracks for a user
+      operationId: getUserTracks
+      responses:
+        '200':
+          description: List of tracks for the user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Track'
+        '404':
+          description: User not found
+  /tracks/{trackId}:
+    put:
+      tags:
+        - MusicTracks
+      summary: Update an existing track
+      operationId: updateTrack
+      parameters:
+          - $ref: '#/components/parameters/TrackId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrackRequest'
+      responses:
+        '200':
+          description: Track updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Track'
+        '400':
+          description: Invalid input
+        '404':
+          description: Track not found
+    delete:
+      tags:
+        - MusicTracks
+      summary: Delete a track
+      operationId: deleteTrack
+      parameters:
+          - $ref: '#/components/parameters/TrackId'
+      responses:
+        '204':
+          description: Track deleted successfully
+        '404':
+          description: Track not found
+  /tracks/{trackId}/windows:
+    post:
+      tags:
+         - MusicTracks
+      summary: Create a track window
+      description: Adds a new window of interest to the specified track
+      operationId: createTrackWindow
+      parameters:
+          - $ref: '#/components/parameters/TrackId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrackWindowRequest'
+      responses:
+        '200':
+          description: Update track with adding an new window
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Track'
+        '400':
+          description: Bad request (validation error, etc.)
+        '500':
+          description: Server error
+  /tracks/{trackId}/windows/{windowId}:
+    patch:
+      tags:
+        - MusicTracks
+      summary: Update a track window
+      description: Partially updates the specified track window
+      operationId: updateTrackWindow
+      parameters:
+        - $ref: '#/components/parameters/TrackId'
+        - $ref: '#/components/parameters/WindowId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrackWindowRequest'
+      responses:
+        '200':
+          description: Updated track with the modified windows
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Track'
+        '400':
+          description: Bad request (validation error, not found, etc.)
+        '500':
+          description: Server error
+    delete:
+      tags:
+        - MusicTracks
+      summary: Delete a track window
+      description: Removes the specified window from the track
+      operationId: deleteTrackWindow
+      parameters:
+        - $ref: '#/components/parameters/TrackId'
+        - $ref: '#/components/parameters/WindowId'
+      responses:
+        '200':
+          description: Removed window from a track
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Track'
+        '400':
+          description: Bad request (not found, etc.)
+        '500':
+          description: Server error
+
+  /boards:
+    get:
+      tags:
+        - MusicBoards
+      summary: Get all boards for a user
+      operationId: getUserBoards
+      responses:
+        '200':
+          description: Successful response with list of boards
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Board'
+        '404':
+          description: User not found
+    post:
+      tags:
+        - MusicBoards
+      summary: Create a new board for a user
+      operationId: createUserBoard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BoardCreateRequest'
+      responses:
+        '201':
+          description: Board created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Board'
+        '400':
+          description: Invalid input
+        '404':
+          description: User not found
+
+  /boards/{boardId}:
+    get:
+      tags:
+        - MusicBoards
+      summary: Get a specific board
+      operationId: getUserBoard
+      parameters:
+        - $ref: '#/components/parameters/BoardId'
+      responses:
+        '200':
+          description: Successful response with board details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Board'
+        '404':
+          description: Board or user not found
+    put:
+      tags:
+        - MusicBoards
+      summary: Update a board (partial updates supported)
+      operationId: updateUserBoard
+      parameters:
+        - $ref: '#/components/parameters/BoardId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BoardUpdateRequest'
+      responses:
+        '200':
+          description: Board updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Board'
+        '400':
+          description: Invalid input
+        '404':
+          description: Board or user not found
+    delete:
+      tags:
+        - MusicBoards
+      summary: Delete a board
+      operationId: deleteUserBoard
+      parameters:
+        - $ref: '#/components/parameters/BoardId'
+      responses:
+        '204':
+          description: Board deleted successfully
+        '404':
+          description: Board or user not found
+
+  /groups:
+    get:
+      tags:
+        - MusicGroups
+      summary: Get all groups for a user
+      operationId: getUserGroups
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Group'
+        '404':
+          description: User not found
+    post:
+      tags:
+        - MusicGroups
+      summary: Create a new group
+      operationId: createGroup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupRequest'
+      responses:
+        '201':
+          description: Group created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+
+  /groups/{groupId}:
+    delete:
+      tags:
+        - MusicGroups
+      summary: Delete a group
+      operationId: deleteGroup
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      responses:
+        '204':
+          description: Group deleted
+        '404':
+          description: Group not found
+    put:
+      tags:
+        - MusicGroups
+      summary: Update a group
+      operationId: updateGroup
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupRequest'
+      responses:
+        '200':
+          description: Group updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+        '404':
+          description: Group not found
+
+  /boards/{boardId}/playback/play:
+    post:
+      tags:
+        - Playback
+      summary: Start playback on a board
+      description: >
+        Starts playback on the given board. If trackId is omitted, plays the board's selectedTrack.
+        The board must belong to the authenticated user.
+      operationId: playBoard
+      parameters:
+        - $ref: '#/components/parameters/BoardId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlayRequest'
+      responses:
+        '200':
+          description: Playback started (or restarted) successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaybackState'
+        '400':
+          description: Invalid input
+        '401':
+          description: User not authenticated
+        '403':
+          description: Forbidden (board not owned by user or track not accessible)
+        '404':
+          description: Board or track not found
+        '409':
+          description: No track selected on board (and no trackId provided)
+
+  /boards/{boardId}/playback/stop:
+    post:
+      tags:
+        - Playback
+      summary: Stop playback on a board
+      operationId: stopBoard
+      parameters:
+        - $ref: '#/components/parameters/BoardId'
+      responses:
+        '200':
+          description: Playback stopped successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaybackState'
+        '401':
+          description: User not authenticated
+        '403':
+          description: Forbidden (board not owned by user)
+        '404':
+          description: Board not found
+        '409':
+          description: Action not valid in current playback state
+
+  /boards/{boardId}/playback/pause:
+    post:
+      tags:
+        - Playback
+      summary: Pause playback on a board
+      operationId: pauseBoard
+      parameters:
+        - $ref: '#/components/parameters/BoardId'
+      responses:
+        '200':
+          description: Playback paused successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaybackState'
+        '401':
+          description: User not authenticated
+        '403':
+          description: Forbidden (board not owned by user)
+        '404':
+          description: Board not found
+        '409':
+          description: Action not valid in current playback state
+
+  /boards/{boardId}/playback/resume:
+    post:
+      tags:
+        - Playback
+      summary: Resume playback on a board
+      operationId: resumeBoard
+      parameters:
+        - $ref: '#/components/parameters/BoardId'
+      responses:
+        '200':
+          description: Playback resumed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaybackState'
+        '401':
+          description: User not authenticated
+        '403':
+          description: Forbidden (board not owned by user)
+        '404':
+          description: Board not found
+        '409':
+          description: Action not valid in current playback state
+
+  /boards/{boardId}/playback/seek:
+    post:
+      tags:
+        - Playback
+      summary: Seek within the current track on a board
+      description: Seeks to the given position in seconds from start of track.
+      operationId: seekBoard
+      parameters:
+        - $ref: '#/components/parameters/BoardId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SeekRequest'
+      responses:
+        '200':
+          description: Seek applied successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaybackState'
+        '400':
+          description: Invalid input (negative position, etc.)
+        '401':
+          description: User not authenticated
+        '403':
+          description: Forbidden (board not owned by user)
+        '404':
+          description: Board not found
+        '409':
+          description: Action not valid in current playback state
+
+  /boards/{boardId}/playback/state:
+    get:
+      tags:
+        - Playback
+      summary: Get current playback state of a board
+      operationId: getBoardPlaybackState
+      parameters:
+        - $ref: '#/components/parameters/BoardId'
+      responses:
+        '200':
+          description: Current playback state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaybackState'
+        '401':
+          description: User not authenticated
+        '403':
+          description: Forbidden (board not owned by user)
+        '404':
+          description: Board not found
+
+  /boards/{boardId}/stream:
+    get:
+      tags:
+        - Playback
+      summary: Stream audio for a board
+      description: >
+        Streams the currently playing board audio as an MP3 stream.
+        Requires authentication. Board must belong to the authenticated user.
+      operationId: streamBoardAudio
+      parameters:
+        - $ref: '#/components/parameters/BoardId'
+      responses:
+        '200':
+          description: MP3 audio stream
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: User not authenticated
+        '403':
+          description: Forbidden (board not owned by user)
+        '404':
+          description: Board not found
+        '409':
+          description: Board is not playing
+
+  /share/tracks/{trackId}/publish:
+    post:
+      tags:
+        - Share
+      summary: Publish a track
+      operationId: publishTrack
+      parameters:
+        - $ref: '#/components/parameters/TrackId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishTrackRequest'
+      responses:
+        '201':
+          description: Track published successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackShareResponse'
+        '400':
+          description: Invalid input
+        '404':
+          description: Track not found
+        '409':
+          description: Track already published
+    delete:
+      tags:
+        - Share
+      summary: Unpublish a track
+      operationId: unpublishTrack
+      parameters:
+        - $ref: '#/components/parameters/TrackId'
+      responses:
+        '204':
+          description: Track unpublished successfully
+        '404':
+          description: Track not found
+
+  /share/subscribe:
+    post:
+      tags:
+        - Share
+      summary: Subscribe to a shared track
+      operationId: subscribeToTrack
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscribeRequest'
+      responses:
+        '201':
+          description: Successfully subscribed to track
+        '400':
+          description: Invalid share code
+        '404':
+          description: Track not found
+
+  /share/tracks/{trackId}/unsubscribe:
+    delete:
+      tags:
+        - Share
+      summary: Unsubscribe from a track
+      operationId: unsubscribeFromTrack
+      parameters:
+        - $ref: '#/components/parameters/TrackId'
+      responses:
+        '204':
+          description: Successfully unsubscribed from track
+        '404':
+          description: Track not found
+
+
+
+
+
+
+
+
