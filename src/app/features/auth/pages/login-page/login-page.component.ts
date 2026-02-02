@@ -2,10 +2,7 @@ import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-
 import { SessionService } from '../../../../core/auth/session.service';
-
-// ✅ generated imports (adjust the path if yours differs)
 import { UsersService, UserLoginRequest, AuthResponse } from '../../../../api/generated';
 
 @Component({
@@ -74,6 +71,7 @@ export class LoginPageComponent {
       next: (res: AuthResponse) => {
         if (res.token) this.session.setToken(res.token);
         this.router.navigateByUrl('/');
+        alert('Login sucessfull');
       },
       error: (err: unknown) => {
         console.error(err);
@@ -84,4 +82,3 @@ export class LoginPageComponent {
     });
   }
 }
-
