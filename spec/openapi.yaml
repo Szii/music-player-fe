@@ -88,6 +88,20 @@ components:
           description: Unique username
           example: "bruno"
 
+    UserInfoLite:
+      type: object
+      description: Basic user representation
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier of the user
+          example: 1
+        name:
+          type: string
+          description: Unique username
+          example: "bruno"
+
     UserRegisterRequest:
       type: object
       description: Request to register a new user
@@ -170,11 +184,8 @@ components:
           type: integer
           description: Duration of the track in seconds
           example: 215
-        ownerId:
-          type: integer
-          format: int64
-          description: ID of the user who owns this track
-          example: 1
+        owner:
+            $ref: '#/components/schemas/UserInfoLite'
         groupIds:
           type: array
           description: IDs of groups this track belongs to
@@ -278,7 +289,6 @@ components:
         track:
           $ref: '#/components/schemas/Track'
 
-
     Group:
       type: object
       description: A playlist or group of tracks
@@ -292,11 +302,8 @@ components:
           type: string
           description: Name of the playlist or group
           example: "My Favorites"
-        ownerId:
-          type: integer
-          format: int64
-          description: ID of the user who owns this group
-          example: 1
+        owner:
+            $ref: '#/components/schemas/UserInfoLite'
         tracks:
           type: array
           description: Tracks in this group
@@ -313,16 +320,11 @@ components:
           type: string
           description: Name of the playlist or group
           example: "My Favorites"
-        ownerId:
-          type: integer
-          format: int64
-          description: owner id of group
-          example: 1
-        tracks:
+        trackIds:
           type: array
-          description: Tracks in this group
           items:
-            $ref: '#/components/schemas/Track'
+            type: integer
+            format: int64
 
     Board:
       type: object
@@ -332,12 +334,6 @@ components:
           type: integer
           format: int64
           description: Unique identifier (auto-generated)
-          readOnly: true
-          example: 1
-        userId:
-          type: integer
-          format: int64
-          description: ID of the owning user
           readOnly: true
           example: 1
         name:
@@ -367,11 +363,8 @@ components:
           type: boolean
           description: Overplay/overlay mode
           example: false
-        ownerId:
-          type: integer
-          format: int64
-          description: owner id of group
-          example: 1
+        owner:
+            $ref: '#/components/schemas/UserInfoLite'
 
 
     BoardCreateRequest:
@@ -383,10 +376,12 @@ components:
           type: string
           description: Name of the board
           example: "Default Playback"
-        selectedTrack:
-          $ref: '#/components/schemas/Track'
-        selectedGroup:
-          $ref: '#/components/schemas/Group'
+        selectedTrackId:
+          type: integer
+          format: int64
+        selectedGroupId:
+          type: integer
+          format: int64
         volume:
           type: integer
           description: Playback volume (0-100)
@@ -407,10 +402,12 @@ components:
       description: Update for a board
       required: []
       properties:
-        selectedTrack:
-          $ref: '#/components/schemas/Track'
-        selectedGroup:
-         $ref: '#/components/schemas/Group'
+        selectedTrackId:
+          type: integer
+          format: int64
+        selectedGroupId:
+          type: integer
+          format: int64
         volume:
           type: integer
           description: Playback volume (0-100)
@@ -1179,11 +1176,4 @@ paths:
           description: Successfully unsubscribed from track
         '404':
           description: Track not found
-
-
-
-
-
-
-
-
+          

@@ -69,9 +69,13 @@ export class LoginPageComponent {
 
     this.usersApi.loginUser({ userLoginRequest: body }).subscribe({
       next: (res: AuthResponse) => {
-        if (res.token) this.session.setToken(res.token);
-        this.router.navigateByUrl('/');
-        alert('Login sucessfull');
+        console.log('login response', res);
+
+        if (res.token) {
+          this.session.setToken(res.token);
+        }
+
+        void this.router.navigateByUrl('/');
       },
       error: (err: unknown) => {
         console.error(err);

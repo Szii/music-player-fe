@@ -5,7 +5,6 @@ import { Router, RouterLink } from '@angular/router';
 
 import { SessionService } from '../../../../core/auth/session.service';
 
-// ✅ use generated types + service (adjust import path/name based on your generated files)
 import { UsersService, UserRegisterRequest, AuthResponse } from '../../../../api/generated';
 
 @Component({
@@ -72,8 +71,7 @@ export class RegisterPageComponent {
 
   this.usersApi.registerUser({ userRegisterRequest: body }).subscribe({
     next: (res) => {
-      if (res.token) this.session.setToken(res.token);
-      this.router.navigateByUrl('/');
+      void this.router.navigateByUrl('/login');
     },
     error: (err) => {
       console.error(err);

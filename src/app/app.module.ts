@@ -5,10 +5,8 @@ import { RegisterPageComponent } from './features/auth/pages/register-page/regis
 
 @NgModule({
   declarations: [
-    AppComponent,
-    RegisterPageComponent
   ],
   imports: [BrowserModule],
-  bootstrap: [AppComponent]
+  bootstrap: []
 })
 export class AppModule {}
