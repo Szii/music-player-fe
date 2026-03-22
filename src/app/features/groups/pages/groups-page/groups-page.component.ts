@@ -120,6 +120,9 @@ export class GroupsPageComponent implements OnInit {
   errorMessage = '';
   creating = false;
 
+  private ownTracks: Track[] = [];
+  private subscribedTracks: Track[] = [];
+
   editingGroupId: number | null = null;
   editingName = '';
   updatingGroupId: number | null = null;
@@ -138,7 +141,8 @@ export class GroupsPageComponent implements OnInit {
 
     let groupsDone = false;
     let tracksDone = false;
-    const done = () => { if (groupsDone && tracksDone) this.loading = false; };
+    let subscribedDone = false;
+    const done = () => { if (groupsDone && tracksDone && subscribedDone) this.loading = false; };
 
     this.groupsApi.getUserGroups().subscribe({
       next: (data) => { this.groups = data ?? []; },
@@ -147,9 +151,15 @@ export class GroupsPageComponent implements OnInit {
     });
 
     this.tracksApi.getUserTracks().subscribe({
-      next: (data) => { this.tracks = data ?? []; },
+      next: (data) => { this.ownTracks = data ?? []; this.mergeTracks(); },
       error: (err) => { console.error('getUserTracks failed', err); this.errorMessage = this.errorMessage || 'Loading tracks failed.'; tracksDone = true; done(); },
       complete: () => { tracksDone = true; done(); },
+    });
+
+    this.tracksApi.getUserSubscribedTracks().subscribe({
+      next: (data) => { this.subscribedTracks = data ?? []; this.mergeTracks(); },
+      error: (err) => { console.error('getUserSubscribedTracks failed', err); subscribedDone = true; done(); },
+      complete: () => { subscribedDone = true; done(); },
     });
   }
 
@@ -203,7 +213,6 @@ export class GroupsPageComponent implements OnInit {
     this.updateGroup(groupId, newName, trackIds, () => this.cancelRename());
   }
 
-
   isTrackInGroup(group: Group, track: Track): boolean {
     if (!group.tracks || track.id == null) return false;
     return group.tracks.some(t => t.id === track.id);
@@ -225,7 +234,6 @@ export class GroupsPageComponent implements OnInit {
 
     this.updateGroup(groupId, group.listName ?? '', newIds);
   }
-
 
   private updateGroup(groupId: number, listName: string, trackIds: number[], onSuccess?: () => void): void {
     this.updatingGroupId = groupId;
@@ -255,5 +263,17 @@ export class GroupsPageComponent implements OnInit {
     return (group.tracks ?? [])
       .map(t => t.id)
       .filter((id): id is number => id != null);
+  }
+
+  private mergeTracks(): void {
+    const seen = new Set<number>();
+    const merged: Track[] = [];
+    for (const t of [...this.ownTracks, ...this.subscribedTracks]) {
+      if (t.id != null && !seen.has(t.id)) {
+        seen.add(t.id);
+        merged.push(t);
+      }
+    }
+    this.tracks = merged;
   }
 }

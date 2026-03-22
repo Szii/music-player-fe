@@ -23,21 +23,16 @@ import { CommonModule } from '@angular/common';
         <span class="text-muted small">{{ localStatus }}</span>
       </div>
 
-      <div class="position-relative mb-1" style="height: 24px;">
-        <div class="position-absolute w-100" style="top: 8px; height: 8px; background: #e9ecef; border-radius: 4px;">
-          <div
-            [style.width.%]="downloadedPercent"
-            style="height: 100%; background: #adb5bd; border-radius: 4px; transition: width 0.3s;">
-          </div>
-        </div>
+      <div class="mb-1">
         <input
+          #slider
           type="range"
-          class="form-range position-absolute w-100"
-          style="top: 0; margin: 0;"
+          class="player-slider"
           min="0"
-          [max]="seekableMaxS"
+          [max]="fullDurationS"
           [value]="displayPositionS"
-          [disabled]="!hasTrack || seekableMaxS <= 0 || localStatus === 'STOPPED'"
+          [disabled]="!hasTrack || fullDurationS <= 0 || localStatus === 'STOPPED'"
+          [style.background]="sliderBackground"
           (input)="onSliderInput($any($event.target).value)"
           (change)="onSliderCommit($any($event.target).value)"
         />
@@ -45,9 +40,9 @@ import { CommonModule } from '@angular/common';
 
       <div class="mb-3 text-center">
         <small>
-          {{ formatTime(displayPositionS) }} / {{ formatTime(durationS ?? 0) }}
-          <span class="text-muted ms-2" *ngIf="localStatus !== 'STOPPED'">
-            ({{ streamComplete ? 'fully loaded' : 'downloading ' + downloadedPercent.toFixed(0) + '%' }})
+          {{ formatTime(displayPositionS) }} / {{ formatTime(fullDurationS) }}
+          <span class="text-muted ms-2" *ngIf="hasWindow">
+            window: {{ formatTime(effectiveStartS) }} – {{ formatTime(effectiveEndS) }}
           </span>
         </small>
       </div>
@@ -77,6 +72,49 @@ import { CommonModule } from '@angular/common';
       </audio>
     </div>
   `,
+  styles: [`
+    .player-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 10px;
+      border-radius: 5px;
+      outline: none;
+      cursor: pointer;
+      border: 1px solid #ced4da;
+    }
+    .player-slider:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    /* Thumb */
+    .player-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #0d6efd;
+      border: 2px solid #fff;
+      box-shadow: 0 0 2px rgba(0,0,0,0.3);
+      cursor: pointer;
+    }
+    .player-slider::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #0d6efd;
+      border: 2px solid #fff;
+      box-shadow: 0 0 2px rgba(0,0,0,0.3);
+      cursor: pointer;
+    }
+    /* Firefox track */
+    .player-slider::-moz-range-track {
+      height: 10px;
+      border-radius: 5px;
+      background: transparent;
+    }
+  `],
 })
 export class BoardPlayerComponent implements OnChanges, OnDestroy {
   @Input() title = '';
@@ -84,6 +122,8 @@ export class BoardPlayerComponent implements OnChanges, OnDestroy {
   @Input() status = 'STOPPED';
   @Input() streamUrl: string | null = null;
   @Input() durationS: number | null = null;
+  @Input() windowStartS: number | null = null;
+  @Input() windowEndS: number | null = null;
   @Input() repeat = false;
 
   @Output() playRequested = new EventEmitter<void>();
@@ -98,6 +138,38 @@ export class BoardPlayerComponent implements OnChanges, OnDestroy {
   downloadedPercent = 0;
   streamComplete = false;
   seekableMaxS = 0;
+
+  get hasWindow(): boolean { return this.windowStartS != null && this.windowEndS != null; }
+  get effectiveStartS(): number { return this.windowStartS ?? 0; }
+  get effectiveEndS(): number { return this.windowEndS ?? this.durationS ?? 0; }
+  get effectiveDurationS(): number { return Math.max(0, this.effectiveEndS - this.effectiveStartS); }
+  get fullDurationS(): number { return this.durationS ?? 0; }
+
+  get sliderBackground(): string {
+    const dur = this.fullDurationS;
+    if (dur <= 0) return '#e0e0e0';
+
+    const loadedPct = Math.min((this.seekableMaxS / dur) * 100, 100);
+
+    if (!this.hasWindow) {
+      return `linear-gradient(to right, #5b9bd5 ${loadedPct}%, #e0e0e0 ${loadedPct}%)`;
+    }
+
+    const winStartPct = Math.max(0, (this.effectiveStartS / dur) * 100);
+    const winEndPct = Math.min(100, (this.effectiveEndS / dur) * 100);
+    const loadedClampedPct = Math.min(loadedPct, winEndPct);
+
+    const solidLayer = `linear-gradient(to right, `
+      + `transparent 0%, transparent ${winStartPct}%, `
+      + `#5b9bd5 ${winStartPct}%, #5b9bd5 ${loadedClampedPct}%, `
+      + `#e0e0e0 ${loadedClampedPct}%, #e0e0e0 ${winEndPct}%, `
+      + `transparent ${winEndPct}%, transparent 100%)`;
+
+    const stripeLayer = `repeating-linear-gradient(`
+      + `-45deg, #ccc, #ccc 3px, #b0b0b0 3px, #b0b0b0 6px)`;
+
+    return `${solidLayer}, ${stripeLayer}`;
+  }
 
   private isScrubbing = false;
   private suppressNextError = false;
@@ -149,12 +221,20 @@ export class BoardPlayerComponent implements OnChanges, OnDestroy {
 
   onSliderInput(value: string): void {
     this.isScrubbing = true;
-    this.displayPositionS = Math.floor(Number(value));
+    this.displayPositionS = this.clampToPlayable(Math.floor(Number(value)));
   }
 
   onSliderCommit(value: string): void {
     this.isScrubbing = false;
-    this.seekLocal(Math.floor(Number(value)));
+    const clamped = this.clampToPlayable(Math.floor(Number(value)));
+    this.displayPositionS = clamped;
+    this.seekLocal(clamped);
+  }
+
+  private clampToPlayable(posS: number): number {
+    const minS = this.effectiveStartS;
+    const maxS = Math.min(this.seekableMaxS, this.effectiveEndS);
+    return Math.max(minS, Math.min(posS, maxS));
   }
 
   onAudioEnded(): void {
@@ -163,7 +243,7 @@ export class BoardPlayerComponent implements OnChanges, OnDestroy {
       if (audio) {
         audio.currentTime = 0;
         audio.play().catch(err => console.warn('repeat play failed', err));
-        this.displayPositionS = 0;
+        this.displayPositionS = this.effectiveStartS;
         this.localStatus = 'PLAYING';
         return;
       }
@@ -197,27 +277,27 @@ export class BoardPlayerComponent implements OnChanges, OnDestroy {
     const audio = this.audioRef?.nativeElement;
     if (!audio) return;
 
-    // Clamp to downloaded extent
-    const downloadedS = this.estimateDownloadedDurationS();
-    const clamped = Math.min(Math.max(0, targetS), downloadedS);
+    const clamped = this.clampToPlayable(targetS);
+
+    const audioTime = clamped - this.effectiveStartS;
 
     if (this.usingBlob) {
-      if (!this.streamComplete && !this.isBlobSeekable(clamped, audio)) {
-        this.switchToBlob(clamped);
+      if (!this.streamComplete && !this.isBlobSeekable(audioTime, audio)) {
+        this.switchToBlob(audioTime);
       } else {
-        audio.currentTime = clamped;
+        audio.currentTime = audioTime;
         this.displayPositionS = clamped;
       }
       return;
     }
 
-    if (this.isInMseBuffer(clamped, audio)) {
-      audio.currentTime = clamped;
+    if (this.isInMseBuffer(audioTime, audio)) {
+      audio.currentTime = audioTime;
       this.displayPositionS = clamped;
       return;
     }
 
-    this.switchToBlob(clamped);
+    this.switchToBlob(audioTime);
   }
 
   private isInMseBuffer(targetS: number, audio: HTMLAudioElement): boolean {
@@ -251,7 +331,7 @@ export class BoardPlayerComponent implements OnChanges, OnDestroy {
     this.suppressNextError = true;
     audio.src = this.blobObjectUrl;
     audio.currentTime = targetS;
-    this.displayPositionS = targetS;
+    this.displayPositionS = this.effectiveStartS + targetS;
 
     if (wasPlaying) {
       audio.play().catch(err => console.warn('play after blob switch failed', err));
@@ -260,7 +340,6 @@ export class BoardPlayerComponent implements OnChanges, OnDestroy {
       this.localStatus = 'PAUSED';
     }
   }
-
 
   private connectStream(url: string): void {
     const audio = this.audioRef?.nativeElement;
@@ -272,7 +351,8 @@ export class BoardPlayerComponent implements OnChanges, OnDestroy {
     this.streamComplete = false;
     this.cachedBlob = null;
     this.usingBlob = false;
-    this.seekableMaxS = 0;
+    this.seekableMaxS = this.effectiveStartS;
+    this.displayPositionS = this.effectiveStartS;
 
     const abort = new AbortController();
     this.fetchAbortController = abort;
@@ -332,7 +412,7 @@ export class BoardPlayerComponent implements OnChanges, OnDestroy {
           this.zone.run(() => {
             this.streamComplete = true;
             this.downloadedPercent = 100;
-            this.seekableMaxS = this.durationS ?? Math.floor(this.totalStoredBytes / 24000);
+            this.seekableMaxS = this.effectiveEndS;
             this.cachedBlob = new Blob(this.storedChunks, { type: 'audio/mpeg' });
           });
 
@@ -356,7 +436,7 @@ export class BoardPlayerComponent implements OnChanges, OnDestroy {
 
         this.zone.run(() => {
           this.downloadedPercent = this.estimateDownloadedPercent();
-          this.seekableMaxS = Math.floor(this.estimateDownloadedDurationS());
+          this.seekableMaxS = Math.floor(this.estimateDownloadedAbsoluteS());
         });
 
         if (!this.usingBlob && this.sourceBuffer && this.mediaSource?.readyState === 'open') {
@@ -368,6 +448,7 @@ export class BoardPlayerComponent implements OnChanges, OnDestroy {
               sb.appendBuffer(chunkBuffer);
             }
           } catch (e) {
+
             if ((e as DOMException)?.name !== 'QuotaExceededError') {
               console.warn('appendBuffer error', e);
             }
@@ -402,27 +483,28 @@ export class BoardPlayerComponent implements OnChanges, OnDestroy {
     const audio = this.audioRef?.nativeElement;
     if (!audio) return;
     if (!this.isScrubbing) {
-      this.displayPositionS = Math.floor(audio.currentTime);
+      this.displayPositionS = Math.floor(this.effectiveStartS + audio.currentTime);
     }
     if (!this.streamComplete) {
       this.downloadedPercent = this.estimateDownloadedPercent();
-      this.seekableMaxS = Math.floor(this.estimateDownloadedDurationS());
+      this.seekableMaxS = Math.floor(this.estimateDownloadedAbsoluteS());
     }
   }
 
   private estimateDownloadedPercent(): number {
-    const dur = this.durationS ?? 0;
-    if (dur <= 0 || this.totalStoredBytes === 0) return 0;
+    const effDur = this.effectiveDurationS;
+    if (effDur <= 0 || this.totalStoredBytes === 0) return 0;
     if (this.streamComplete) return 100;
-    const estimatedTotal = 24000 * dur; 
+    const estimatedTotal = 24000 * effDur; // 192kbps = 24000 bytes/s
     return Math.min(99, (this.totalStoredBytes / estimatedTotal) * 100);
   }
 
-  private estimateDownloadedDurationS(): number {
-    if (this.streamComplete) return this.durationS ?? this.totalStoredBytes / 24000;
-    if (this.totalStoredBytes === 0) return 0;
-    return this.totalStoredBytes / 24000; // 192kbps
+  private estimateDownloadedAbsoluteS(): number {
+    if (this.streamComplete) return this.effectiveEndS;
+    if (this.totalStoredBytes === 0) return this.effectiveStartS;
+    return this.effectiveStartS + (this.totalStoredBytes / 24000);
   }
+
 
   private tearDown(): void {
     this.stopPositionTimer();
@@ -470,6 +552,7 @@ export class BoardPlayerComponent implements OnChanges, OnDestroy {
       this.blobObjectUrl = null;
     }
   }
+
 
   private waitForUpdateEnd(sb: SourceBuffer, signal: AbortSignal): Promise<void> {
     return new Promise((resolve) => {

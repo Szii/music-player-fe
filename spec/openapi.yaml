@@ -207,6 +207,8 @@ components:
           description: Windows of interest for the track
           items:
             $ref: '#/components/schemas/TrackWindow'
+        trackShare:
+          $ref: '#/components/schemas/TrackShareResponse'
 
     TrackWindow:
       type: object
@@ -295,8 +297,6 @@ components:
           type: string
         shareCode:
           type: string
-        track:
-          $ref: '#/components/schemas/Track'
 
     Group:
       type: object
@@ -650,6 +650,43 @@ paths:
                   $ref: '#/components/schemas/Track'
         '404':
           description: User not found
+
+  /tracks/subscribed:
+    get:
+      tags:
+        - MusicTracks
+      summary: Get list of subscribed tracks
+      operationId: getUserSubscribedTracks
+      responses:
+        '200':
+          description: List of subscribed tracks for the user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Track'
+        '404':
+          description: User not found
+
+  /tracks/published:
+    get:
+      tags:
+        - MusicTracks
+      summary: Get list of all published tracks
+      operationId: getPublishedTracks
+      responses:
+        '200':
+          description: List of all published tracks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Track'
+        '404':
+          description: User not found
+
   /tracks/{trackId}:
     put:
       tags:
@@ -1178,7 +1215,7 @@ paths:
         '404':
           description: Track not found
 
-  /share/tracks/{trackId}/unsubscribe:
+  /share/unsubscribe/{trackId}:
     delete:
       tags:
         - Share
@@ -1191,3 +1228,11 @@ paths:
           description: Successfully unsubscribed from track
         '404':
           description: Track not found
+
+
+
+
+
+
+
+

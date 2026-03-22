@@ -38,5 +38,12 @@ export const routes: Routes = [
     import('./features/groups/pages/groups-page/groups-page.component')
       .then(m => m.GroupsPageComponent),
 },
+  {
+  path: 'workshop',
+  canActivate: [authGuard],
+  loadComponent: () =>
+    import('./features/workshop/pages/workshop-page/workshop-page.component')
+      .then(m => m.WorkshopPageComponent),
+},
   { path: '**', redirectTo: '' },
 ];

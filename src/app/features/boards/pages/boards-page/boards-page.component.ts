@@ -178,6 +178,8 @@ import { BoardPlayerComponent } from '../../components/board-player/board-player
                 [status]="getBoardStatus(board)"
                 [streamUrl]="getStreamUrl(board)"
                 [durationS]="board.selectedTrack?.duration ?? null"
+                [windowStartS]="getSelectedWindow(board)?.positionFrom ?? null"
+                [windowEndS]="getSelectedWindow(board)?.positionTo ?? null"
                 [repeat]="board.repeat ?? false"
                 (playRequested)="playBoardTrack(board)"
                 (stopRequested)="stopBoardTrack(board)"
@@ -205,6 +207,9 @@ export class BoardsPageComponent implements OnInit {
   errorMessage = '';
   createBoardSubmitting = false;
 
+  private ownTracks: Track[] = [];
+  private subscribedTracks: Track[] = [];
+
   private streamUrlsByBoard = new Map<number, string>();
   private boardStatuses = new Map<number, string>();
   selectedWindowByBoard = new Map<number, number | null>();
@@ -224,9 +229,10 @@ export class BoardsPageComponent implements OnInit {
 
     let boardsLoaded = false;
     let tracksLoaded = false;
+    let subscribedLoaded = false;
     let groupsLoaded = false;
     const finishIfDone = () => {
-      if (boardsLoaded && tracksLoaded && groupsLoaded) this.loading = false;
+      if (boardsLoaded && tracksLoaded && subscribedLoaded && groupsLoaded) this.loading = false;
     };
 
     this.boardsApi.getUserBoards().subscribe({
@@ -248,14 +254,30 @@ export class BoardsPageComponent implements OnInit {
     });
 
     this.tracksApi.getUserTracks().subscribe({
-      next: (tracks: Track[]) => { this.tracks = tracks ?? []; },
+      next: (tracks: Track[]) => {
+        this.ownTracks = tracks ?? [];
+        this.mergeTracks();
+      },
       error: (err: unknown) => {
         console.error(err);
-        this.errorMessage = this.errorMessage || 'Loading owned tracks failed.';
+        this.errorMessage = this.errorMessage || 'Loading tracks failed.';
         tracksLoaded = true;
         finishIfDone();
       },
       complete: () => { tracksLoaded = true; finishIfDone(); },
+    });
+
+    this.tracksApi.getUserSubscribedTracks().subscribe({
+      next: (tracks: Track[]) => {
+        this.subscribedTracks = tracks ?? [];
+        this.mergeTracks();
+      },
+      error: (err: unknown) => {
+        console.error(err);
+        subscribedLoaded = true;
+        finishIfDone();
+      },
+      complete: () => { subscribedLoaded = true; finishIfDone(); },
     });
 
     this.groupsApi.getUserGroups().subscribe({
@@ -551,10 +573,23 @@ export class BoardsPageComponent implements OnInit {
     return this.selectedWindowByBoard.get(board.id) ?? null;
   }
 
+  getSelectedWindow(board: Board): any | null {
+    if (board.id == null) return null;
+    const windowId = this.selectedWindowByBoard.get(board.id);
+    if (windowId == null) return null;
+    const windows = board.selectedTrack?.trackWindows ?? [];
+    return windows.find((w: any) => w.id === windowId) ?? null;
+  }
+
   onWindowSelectionChange(board: Board, rawValue: string): void {
     if (board.id == null) return;
+    const boardId = board.id;
     const windowId = rawValue === '' ? null : Number(rawValue);
-    this.selectedWindowByBoard.set(board.id, windowId);
+    this.selectedWindowByBoard.set(boardId, windowId);
+
+    if (this.isBoardActive(boardId)) {
+      this.playBoardTrack(board);
+    }
   }
 
   formatTime(totalSeconds: number): string {
@@ -595,5 +630,18 @@ export class BoardsPageComponent implements OnInit {
     const base = environment.apiUrl.replace(/\/$/, '');
     const path = streamUrl.startsWith('/') ? streamUrl : `/${streamUrl}`;
     return `${base}${path}`;
+  }
+
+
+  private mergeTracks(): void {
+    const seen = new Set<number>();
+    const merged: Track[] = [];
+    for (const t of [...this.ownTracks, ...this.subscribedTracks]) {
+      if (t.id != null && !seen.has(t.id)) {
+        seen.add(t.id);
+        merged.push(t);
+      }
+    }
+    this.tracks = merged;
   }
 }

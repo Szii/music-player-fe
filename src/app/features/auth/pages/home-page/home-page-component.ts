@@ -26,6 +26,9 @@ import {
           <div class="d-flex gap-2 mb-2">
             <a routerLink="/groups" class="btn btn-outline-primary">Groups</a>
           </div>
+          <div class="d-flex gap-2 mb-2">
+            <a routerLink="/workshop" class="btn btn-outline-primary">Workshop</a>
+          </div>
           <h1 class="mb-1">Home</h1>
           <p class="mb-0">You are logged in.</p>
         </div>
