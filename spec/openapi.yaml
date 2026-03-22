@@ -23,55 +23,64 @@ tags:
 
 components:
   parameters:
-      TrackId:
-        name: trackId
-        in: path
-        description: ID of the track
-        required: true
-        schema:
-          type: integer
-          format: int64
-          example: 1
+    TrackId:
+      name: trackId
+      in: path
+      required: true
+      description: ID of the track
+      schema:
+        type: integer
+        format: int64
+        example: 1
 
-      WindowId:
-        name: windowId
-        in: path
-        description: ID of the track window
-        required: true
-        schema:
-          type: integer
-          format: int64
-          example: 1
+    WindowId:
+      name: windowId
+      in: path
+      required: true
+      description: ID of the track window
+      schema:
+        type: integer
+        format: int64
+        example: 1
 
-      UserId:
-        name: userId
-        in: path
-        description: ID of the user
-        required: true
-        schema:
-          type: integer
-          format: int64
-          example: 1
+    UserId:
+      name: userId
+      in: path
+      required: true
+      description: ID of the user
+      schema:
+        type: integer
+        format: int64
+        example: 1
 
-      BoardId:
-        name: boardId
-        in: path
-        description: ID of the board
-        required: true
-        schema:
-          type: integer
-          format: int64
-          example: 1
+    BoardId:
+      name: boardId
+      in: path
+      required: true
+      description: ID of the board
+      schema:
+        type: integer
+        format: int64
+        example: 1
 
-      GroupId:
-        name: groupId
-        in: path
-        description: ID of the group
-        required: true
-        schema:
-          type: integer
-          format: int64
-          example: 1
+    StreamToken:
+      name: streamToken
+      in: query
+      required: true
+      description: Stream token for authenticating the audio stream request
+      schema:
+        type: string
+        example: "abc123"
+
+    GroupId:
+      name: groupId
+      in: path
+      required: true
+      description: ID of the group
+      schema:
+        type: integer
+        format: int64
+        example: 1
 
   schemas:
     User:
@@ -490,6 +499,11 @@ components:
         - boardId
         - status
       properties:
+        streamUrl:
+          type: string
+          nullable: true
+          description: URL to stream the currently playing audio for the board
+          example: "/boards/1/stream?streamToken=abc123"
         boardId:
           type: integer
           format: int64
@@ -1086,6 +1100,7 @@ paths:
       operationId: streamBoardAudio
       parameters:
         - $ref: '#/components/parameters/BoardId'
+        - $ref: '#/components/parameters/StreamToken'
       responses:
         '200':
           description: MP3 audio stream
@@ -1176,4 +1191,3 @@ paths:
           description: Successfully unsubscribed from track
         '404':
           description: Track not found
-          
