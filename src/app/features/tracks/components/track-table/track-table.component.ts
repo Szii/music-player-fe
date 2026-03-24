@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output,  } from '@angular/core';
 import { Track } from '../../../../api/generated';
 
 @Component({

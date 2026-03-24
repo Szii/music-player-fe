@@ -1,6 +1,5 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
 import {
@@ -11,10 +10,13 @@ import {
   Track,
 } from '../../../../api/generated';
 
+import { CreateGroupFormComponent } from '../../components/create-group-form/create-group-form.component';
+import { GroupCardComponent, TrackToggleEvent, RenameEvent } from '../../components/group-card/group-card.component';
+
 @Component({
   selector: 'app-groups-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [CommonModule, RouterLink, CreateGroupFormComponent, GroupCardComponent],
   template: `
     <div class="container py-4">
       <div class="d-flex justify-content-between align-items-center mb-4">
@@ -23,24 +25,10 @@ import {
 
       <h1 class="mb-4">Groups</h1>
 
-      <div class="card mb-4">
-        <div class="card-body">
-          <h2 class="h5 mb-3">Create group</h2>
-          <form [formGroup]="createForm" (ngSubmit)="createGroup()">
-            <div class="mb-3">
-              <label class="form-label">Group name</label>
-              <input class="form-control" formControlName="listName" type="text" />
-            </div>
-            <button
-              class="btn btn-primary"
-              type="submit"
-              [disabled]="creating || !createForm.value.listName?.trim()"
-            >
-              {{ creating ? 'Creating...' : 'Create group' }}
-            </button>
-          </form>
-        </div>
-      </div>
+      <app-create-group-form
+        #createForm
+        (groupCreateRequested)="createGroup($event)"
+      />
 
       <div *ngIf="errorMessage" class="alert alert-danger">{{ errorMessage }}</div>
       <div *ngIf="loading">Loading...</div>
@@ -48,69 +36,22 @@ import {
 
       <div *ngIf="!loading" class="row g-3">
         <div class="col-12" *ngFor="let group of groups; trackBy: trackByGroupId">
-          <div class="card">
-            <div class="card-body">
-
-              <div class="d-flex justify-content-between align-items-start mb-3">
-                <div>
-                  <div *ngIf="editingGroupId !== group.id">
-                    <h2 class="h5 mb-0">{{ group.listName || ('Group #' + group.id) }}</h2>
-                  </div>
-                  <div *ngIf="editingGroupId === group.id" class="d-flex gap-2 align-items-center">
-                    <input
-                      class="form-control form-control-sm"
-                      style="width: 200px;"
-                      [value]="editingName"
-                      (input)="editingName = $any($event.target).value"
-                      (keydown.enter)="saveRename(group)"
-                      (keydown.escape)="cancelRename()"
-                    />
-                    <button class="btn btn-sm btn-outline-success" (click)="saveRename(group)">Save</button>
-                    <button class="btn btn-sm btn-outline-secondary" (click)="cancelRename()">Cancel</button>
-                  </div>
-                </div>
-                <div class="d-flex gap-2">
-                  <button
-                    *ngIf="editingGroupId !== group.id"
-                    class="btn btn-outline-secondary btn-sm"
-                    (click)="startRename(group)"
-                  >Rename</button>
-                  <button
-                    class="btn btn-outline-danger btn-sm"
-                    (click)="deleteGroup(group)"
-                  >Delete</button>
-                </div>
-              </div>
-
-              <div *ngIf="tracks.length > 0">
-                <strong class="d-block mb-2">Tracks:</strong>
-                <div *ngFor="let track of tracks" class="form-check">
-                  <input
-                    class="form-check-input"
-                    type="checkbox"
-                    [id]="'g' + group.id + '-t' + track.id"
-                    [checked]="isTrackInGroup(group, track)"
-                    (change)="onTrackToggle(group, track, $any($event.target).checked)"
-                    [disabled]="updatingGroupId === group.id"
-                  />
-                  <label class="form-check-label" [for]="'g' + group.id + '-t' + track.id">
-                    {{ track.trackName || track.trackOriginalName || ('Track #' + track.id) }}
-                  </label>
-                </div>
-              </div>
-              <div *ngIf="tracks.length === 0" class="text-muted small">
-                No tracks available. Create some tracks first.
-              </div>
-
-            </div>
-          </div>
+          <app-group-card
+            [group]="group"
+            [tracks]="tracks"
+            [updating]="updatingGroupId === group.id"
+            (deleteRequested)="deleteGroup($event)"
+            (renameRequested)="renameGroup($event)"
+            (trackToggled)="onTrackToggle($event)"
+          />
         </div>
       </div>
     </div>
   `,
 })
 export class GroupsPageComponent implements OnInit {
-  private fb = inject(FormBuilder);
+  @ViewChild('createForm') createFormRef?: CreateGroupFormComponent;
+
   private groupsApi = inject(MusicGroupsService);
   private tracksApi = inject(MusicTracksService);
 
@@ -118,18 +59,10 @@ export class GroupsPageComponent implements OnInit {
   tracks: Track[] = [];
   loading = false;
   errorMessage = '';
-  creating = false;
+  updatingGroupId: number | null = null;
 
   private ownTracks: Track[] = [];
   private subscribedTracks: Track[] = [];
-
-  editingGroupId: number | null = null;
-  editingName = '';
-  updatingGroupId: number | null = null;
-
-  createForm = this.fb.group({
-    listName: [''],
-  });
 
   ngOnInit(): void {
     this.loadData();
@@ -142,42 +75,37 @@ export class GroupsPageComponent implements OnInit {
     let groupsDone = false;
     let tracksDone = false;
     let subscribedDone = false;
-    const done = () => { if (groupsDone && tracksDone && subscribedDone) this.loading = false; };
+
+    const done = () => {
+      if (groupsDone && tracksDone && subscribedDone) this.loading = false;
+    };
 
     this.groupsApi.getUserGroups().subscribe({
       next: (data) => { this.groups = data ?? []; },
-      error: (err) => { console.error('getUserGroups failed', err); this.errorMessage = 'Loading groups failed.'; groupsDone = true; done(); },
+      error: (err) => { console.error(err); this.errorMessage = 'Loading groups failed.'; groupsDone = true; done(); },
       complete: () => { groupsDone = true; done(); },
     });
 
     this.tracksApi.getUserTracks().subscribe({
       next: (data) => { this.ownTracks = data ?? []; this.mergeTracks(); },
-      error: (err) => { console.error('getUserTracks failed', err); this.errorMessage = this.errorMessage || 'Loading tracks failed.'; tracksDone = true; done(); },
+      error: (err) => { console.error(err); this.errorMessage = this.errorMessage || 'Loading tracks failed.'; tracksDone = true; done(); },
       complete: () => { tracksDone = true; done(); },
     });
 
     this.tracksApi.getUserSubscribedTracks().subscribe({
       next: (data) => { this.subscribedTracks = data ?? []; this.mergeTracks(); },
-      error: (err) => { console.error('getUserSubscribedTracks failed', err); subscribedDone = true; done(); },
+      error: (err) => { console.error(err); subscribedDone = true; done(); },
       complete: () => { subscribedDone = true; done(); },
     });
   }
 
-  createGroup(): void {
-    const listName = this.createForm.value.listName?.trim();
-    if (!listName) return;
-
-    this.creating = true;
-    const body: GroupRequest = { listName };
-
-    this.groupsApi.createGroup({ groupRequest: body }).subscribe({
+  createGroup(req: GroupRequest): void {
+    this.groupsApi.createGroup({ groupRequest: req }).subscribe({
       next: (created) => {
-        console.log('createGroup response', created);
-        this.createForm.reset({ listName: '' });
         this.groups = [...this.groups, created];
+        this.createFormRef?.reset();
       },
-      error: (err) => { console.error('createGroup failed', err); alert('Creating group failed.'); },
-      complete: () => { this.creating = false; },
+      error: (err) => { console.error(err); alert('Creating group failed.'); this.createFormRef?.reset(); },
     });
   }
 
@@ -188,75 +116,40 @@ export class GroupsPageComponent implements OnInit {
     const groupId = group.id;
     this.groupsApi.deleteGroup({ groupId }).subscribe({
       next: () => { this.groups = this.groups.filter(g => g.id !== groupId); },
-      error: (err) => { console.error('deleteGroup failed', err); alert('Deleting group failed.'); },
+      error: (err) => { console.error(err); alert('Deleting group failed.'); },
     });
   }
 
-  startRename(group: Group): void {
-    this.editingGroupId = group.id ?? null;
-    this.editingName = group.listName ?? '';
-  }
-
-  cancelRename(): void {
-    this.editingGroupId = null;
-    this.editingName = '';
-  }
-
-  saveRename(group: Group): void {
+  renameGroup({ group, newName }: RenameEvent): void {
     if (group.id == null) return;
-    const newName = this.editingName.trim();
-    if (!newName) return;
-
-    const groupId = group.id;
     const trackIds = this.getTrackIds(group);
-
-    this.updateGroup(groupId, newName, trackIds, () => this.cancelRename());
+    this.updateGroup(group.id, newName, trackIds);
   }
 
-  isTrackInGroup(group: Group, track: Track): boolean {
-    if (!group.tracks || track.id == null) return false;
-    return group.tracks.some(t => t.id === track.id);
-  }
-
-  onTrackToggle(group: Group, track: Track, checked: boolean): void {
+  onTrackToggle({ group, track, checked }: TrackToggleEvent): void {
     if (group.id == null || track.id == null) return;
-
-    const groupId = group.id;
     const currentIds = this.getTrackIds(group);
-    let newIds: number[];
-
-    if (checked) {
-      if (currentIds.includes(track.id)) return;
-      newIds = [...currentIds, track.id];
-    } else {
-      newIds = currentIds.filter(id => id !== track.id);
-    }
-
-    this.updateGroup(groupId, group.listName ?? '', newIds);
-  }
-
-  private updateGroup(groupId: number, listName: string, trackIds: number[], onSuccess?: () => void): void {
-    this.updatingGroupId = groupId;
-    const body: GroupRequest = { listName, trackIds };
-
-    console.log('updateGroup request', { groupId, body });
-
-    this.groupsApi.updateGroup({ groupId, groupRequest: body }).subscribe({
-      next: (updated) => {
-        console.log('updateGroup response', updated);
-        this.groups = this.groups.map(g => g.id === groupId ? updated : g);
-        onSuccess?.();
-      },
-      error: (err) => {
-        console.error('updateGroup failed', err);
-        alert('Updating group failed. Check console for details.');
-      },
-      complete: () => { this.updatingGroupId = null; },
-    });
+    const newIds = checked
+      ? [...new Set([...currentIds, track.id])]
+      : currentIds.filter(id => id !== track.id);
+    this.updateGroup(group.id, group.listName ?? '', newIds);
   }
 
   trackByGroupId(_index: number, group: Group): number {
     return group.id ?? 0;
+  }
+
+  private updateGroup(groupId: number, listName: string, trackIds: number[]): void {
+    this.updatingGroupId = groupId;
+    const body: GroupRequest = { listName, trackIds };
+
+    this.groupsApi.updateGroup({ groupId, groupRequest: body }).subscribe({
+      next: (updated) => {
+        this.groups = this.groups.map(g => g.id === groupId ? updated : g);
+      },
+      error: (err) => { console.error(err); alert('Updating group failed.'); },
+      complete: () => { this.updatingGroupId = null; },
+    });
   }
 
   private getTrackIds(group: Group): number[] {

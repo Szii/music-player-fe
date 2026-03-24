@@ -1,6 +1,5 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { forkJoin, Observable, of } from 'rxjs';
 import { catchError, switchMap, tap } from 'rxjs/operators';
@@ -21,12 +20,13 @@ import {
   Track,
 } from '../../../../api/generated';
 
-import { BoardPlayerComponent } from '../../components/board-player/board-player.component';
+import { CreateBoardFormComponent, CreateBoardEvent } from '../../components/create-board-form/create-board-form.component';
+import { BoardCardComponent } from '../../components/board-card/board-card.component';
 
 @Component({
   selector: 'app-boards-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink, BoardPlayerComponent],
+  imports: [CommonModule, RouterLink, CreateBoardFormComponent, BoardCardComponent],
   template: `
     <div class="container py-4">
       <div class="d-flex justify-content-between align-items-center mb-4">
@@ -37,36 +37,11 @@ import { BoardPlayerComponent } from '../../components/board-player/board-player
 
       <h1 class="mb-4">Boards</h1>
 
-      <div class="card mb-4">
-        <div class="card-body">
-          <h2 class="h5 mb-3">Create board</h2>
-
-          <form [formGroup]="createBoardForm" (ngSubmit)="createBoard()">
-            <div class="mb-3">
-              <label class="form-label">Board name</label>
-              <input class="form-control" formControlName="name" type="text" />
-            </div>
-
-            <div class="mb-3">
-              <label class="form-label">Current track</label>
-              <select class="form-select" formControlName="selectedTrackId">
-                <option [ngValue]="null">-- no track selected --</option>
-                <option *ngFor="let track of tracks" [ngValue]="track.id">
-                  {{ track.trackName || track.trackOriginalName || ('Track #' + track.id) }}
-                </option>
-              </select>
-            </div>
-
-            <button
-              class="btn btn-primary"
-              type="submit"
-              [disabled]="createBoardSubmitting"
-            >
-              {{ createBoardSubmitting ? 'Creating...' : 'Create board' }}
-            </button>
-          </form>
-        </div>
-      </div>
+      <app-create-board-form
+        [tracks]="tracks"
+        [submitting]="createBoardSubmitting"
+        (create)="createBoard($event)"
+      ></app-create-board-form>
 
       <div *ngIf="errorMessage" class="alert alert-danger">
         {{ errorMessage }}
@@ -80,124 +55,29 @@ import { BoardPlayerComponent } from '../../components/board-player/board-player
 
       <div *ngIf="!loading" class="row g-3">
         <div class="col-12" *ngFor="let board of boards; trackBy: trackByBoardId">
-          <div class="card">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-start mb-3">
-                <div>
-                  <h2 class="h5 mb-1">{{ board.name || ('Board #' + board.id) }}</h2>
-                  <div class="text-muted">Owner: {{ board.owner?.name || '-' }}</div>
-                </div>
-
-                <button
-                  type="button"
-                  class="btn btn-outline-danger btn-sm"
-                  (click)="deleteBoard(board)"
-                >
-                  Delete
-                </button>
-              </div>
-
-              <div class="mb-3">
-                <label class="form-label">Group</label>
-                <select
-                  class="form-select"
-                  [ngModel]="board.selectedGroup?.id ?? null"
-                  [ngModelOptions]="{ standalone: true }"
-                  (ngModelChange)="onGroupSelectionChange(board, $event)"
-                >
-                  <option [ngValue]="null">-- all tracks --</option>
-                  <option *ngFor="let group of getGroupsForBoard(board)" [ngValue]="group.id">
-                    {{ group.listName || ('Group #' + group.id) }}
-                  </option>
-                </select>
-              </div>
-
-              <div class="mb-3">
-                <label class="form-label">Current track</label>
-                <select
-                  class="form-select"
-                  [ngModel]="board.selectedTrack?.id ?? null"
-                  [ngModelOptions]="{ standalone: true }"
-                  (ngModelChange)="onTrackSelectionChange(board, $event)"
-                >
-                  <option [ngValue]="null">-- no track selected --</option>
-                  <option *ngFor="let track of getTracksForBoard(board)" [ngValue]="track.id">
-                    {{ track.trackName || track.trackOriginalName || ('Track #' + track.id) }}
-                  </option>
-                </select>
-              </div>
-
-              <div *ngIf="board.selectedTrack as selectedTrack" class="mb-3">
-                <strong>Current track:</strong>
-                {{ selectedTrack.trackName || selectedTrack.trackOriginalName || ('Track #' + selectedTrack.id) }}
-              </div>
-
-              <div *ngIf="getWindowsForBoard(board).length > 0" class="mb-3">
-                <label class="form-label">Track window</label>
-                <select
-                  class="form-select"
-                  [ngModel]="getSelectedWindowId(board)"
-                  [ngModelOptions]="{ standalone: true }"
-                  (ngModelChange)="onWindowSelectionChange(board, $event)"
-                >
-                  <option [ngValue]="null">-- whole track --</option>
-                  <option *ngFor="let win of getWindowsForBoard(board)" [ngValue]="win.id">
-                    {{ win.name || ('Window #' + win.id) }}
-                    ({{ formatTime(win.positionFrom ?? 0) }} – {{ formatTime(win.positionTo ?? 0) }})
-                  </option>
-                </select>
-              </div>
-
-              <div class="d-flex gap-3 mb-3">
-                <div class="form-check">
-                  <input
-                    class="form-check-input"
-                    type="checkbox"
-                    [id]="'repeat-' + board.id"
-                    [checked]="board.repeat ?? false"
-                    (change)="toggleRepeat(board)"
-                  />
-                  <label class="form-check-label" [for]="'repeat-' + board.id">
-                    Loop
-                  </label>
-                </div>
-                <div class="form-check">
-                  <input
-                    class="form-check-input"
-                    type="checkbox"
-                    [id]="'overplay-' + board.id"
-                    [checked]="board.overplay ?? false"
-                    (change)="toggleOverplay(board)"
-                  />
-                  <label class="form-check-label" [for]="'overplay-' + board.id">
-                    Overplay
-                  </label>
-                </div>
-              </div>
-
-              <app-board-player
-                [title]="board.name || ('Board #' + board.id)"
-                [hasTrack]="!!board.selectedTrack"
-                [status]="getBoardStatus(board)"
-                [streamUrl]="getStreamUrl(board)"
-                [durationS]="board.selectedTrack?.duration ?? null"
-                [windowStartS]="getSelectedWindow(board)?.positionFrom ?? null"
-                [windowEndS]="getSelectedWindow(board)?.positionTo ?? null"
-                [repeat]="board.repeat ?? false"
-                (playRequested)="playBoardTrack(board)"
-                (stopRequested)="stopBoardTrack(board)"
-                (ended)="onAudioEnded(board)"
-                (audioError)="onAudioError(board)"
-              ></app-board-player>
-            </div>
-          </div>
+          <app-board-card
+            [board]="board"
+            [availableGroups]="getGroupsForBoard(board)"
+            [status]="getBoardStatus(board)"
+            [streamUrl]="getStreamUrl(board)"
+            [selectedWindowId]="getSelectedWindowId(board)"
+            (delete)="deleteBoard(board)"
+            (groupChange)="onGroupSelectionChange(board, $event)"
+            (trackChange)="onTrackSelectionChange(board, $event)"
+            (windowChange)="onWindowSelectionChange(board, $event)"
+            (toggleRepeat)="toggleRepeat(board)"
+            (toggleOverplay)="toggleOverplay(board)"
+            (play)="playBoardTrack(board)"
+            (stop)="stopBoardTrack(board)"
+            (ended)="onAudioEnded(board)"
+            (audioError)="onAudioError(board)"
+          ></app-board-card>
         </div>
       </div>
     </div>
   `,
 })
 export class BoardsPageComponent implements OnInit {
-  private fb = inject(FormBuilder);
   private boardsApi = inject(MusicBoardsService);
   private groupsApi = inject(MusicGroupsService);
   private tracksApi = inject(MusicTracksService);
@@ -213,11 +93,6 @@ export class BoardsPageComponent implements OnInit {
   private streamUrlsByBoard = new Map<number, string>();
   private boardStatuses = new Map<number, string>();
   selectedWindowByBoard = new Map<number, number | null>();
-
-  createBoardForm = this.fb.group({
-    name: [''],
-    selectedTrackId: [null as number | null],
-  });
 
   ngOnInit(): void {
     this.loadData();
@@ -277,17 +152,15 @@ export class BoardsPageComponent implements OnInit {
     });
   }
 
-  createBoard(): void {
+  createBoard(event: CreateBoardEvent): void {
     this.createBoardSubmitting = true;
-    const { name, selectedTrackId } = this.createBoardForm.getRawValue();
     const body: BoardCreateRequest = {
-      name: name || undefined,
-      selectedTrackId: selectedTrackId ?? undefined,
+      name: event.name || undefined,
+      selectedTrackId: event.selectedTrackId ?? undefined,
     };
 
     this.boardsApi.createUserBoard({ boardCreateRequest: body }).subscribe({
       next: (created: Board) => {
-        this.createBoardForm.reset({ name: '', selectedTrackId: null });
         this.boards = [...this.boards, created];
         if (created.id != null) this.boardStatuses.set(created.id, 'STOPPED');
       },
@@ -431,7 +304,7 @@ export class BoardsPageComponent implements OnInit {
     this.selectedWindowByBoard.delete(boardId);
 
     const previousTrack = board.selectedTrack;
-    const selectedTrack = this.getTracksForBoard(board).find(t => t.id === selectedId) ?? undefined;
+    const selectedTrack = (board.availableTracks ?? []).find(t => t.id === selectedId) ?? undefined;
 
     const doUpdate = () => {
       board.selectedTrack = selectedTrack;
@@ -548,6 +421,16 @@ export class BoardsPageComponent implements OnInit {
     alert('Audio stream failed.');
   }
 
+  onWindowSelectionChange(board: Board, windowId: number | null): void {
+    if (board.id == null) return;
+    const boardId = board.id;
+    this.selectedWindowByBoard.set(boardId, windowId);
+
+    if (this.isBoardActive(boardId)) {
+      this.playBoardTrack(board);
+    }
+  }
+
   trackByBoardId(_index: number, board: Board): number {
     return board.id ?? 0;
   }
@@ -575,48 +458,9 @@ export class BoardsPageComponent implements OnInit {
       : [selectedGroup, ...baseGroups];
   }
 
-  getTracksForBoard(board: Board): Track[] {
-    return board.availableTracks ?? [];
-  }
-
-  getWindowsForBoard(board: Board): any[] {
-    return board.selectedTrack?.trackWindows ?? [];
-  }
-
   getSelectedWindowId(board: Board): number | null {
     if (board.id == null) return null;
     return this.selectedWindowByBoard.get(board.id) ?? null;
-  }
-
-  getSelectedWindow(board: Board): any | null {
-    if (board.id == null) return null;
-    const windowId = this.selectedWindowByBoard.get(board.id);
-    if (windowId == null) return null;
-    const windows = board.selectedTrack?.trackWindows ?? [];
-    return windows.find((w: any) => w.id === windowId) ?? null;
-  }
-
-  onWindowSelectionChange(board: Board, windowId: number | null): void {
-    if (board.id == null) return;
-    const boardId = board.id;
-    this.selectedWindowByBoard.set(boardId, windowId);
-
-    if (this.isBoardActive(boardId)) {
-      this.playBoardTrack(board);
-    }
-  }
-
-  formatTime(totalSeconds: number): string {
-    const safe = Math.max(0, Math.floor(totalSeconds));
-    const h = Math.floor(safe / 3600);
-    const m = Math.floor((safe % 3600) / 60);
-    const s = safe % 60;
-
-    if (h > 0) {
-      return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-    }
-
-    return `${m}:${s.toString().padStart(2, '0')}`;
   }
 
   private applyPlaybackState(boardId: number, state: PlaybackState | null): void {
