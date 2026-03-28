@@ -9,123 +9,50 @@ import {
   Output,
   SimpleChanges,
   ViewChild,
-  ChangeDetectionStrategy,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { AudioStreamManager } from '../../../../shared/features/audio-stream-manager/audio-stream-manager';
+import { PlayerControlsComponent } from '../player-controls/player-controls.component';
+
+type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 
 @Component({
   selector: 'app-board-player',
-  changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, PlayerControlsComponent],
   template: `
-    <div class="border rounded p-3">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <strong>{{ title || 'Player' }}</strong>
-        <span class="text-muted small">{{ localStatus }}</span>
-      </div>
+    <app-player-controls
+      [title]="title"
+      [hasTrack]="hasTrack"
+      [status]="localStatus"
+      [positionS]="displayPositionS"
+      [durationS]="fullDurationS"
+      [seekableMaxS]="seekableMaxS"
+      [windowStartS]="hasSelectedWindow ? windowStartS : null"
+      [windowEndS]="hasSelectedWindow ? windowEndS : null"
+      [disabled]="localStatus === 'BUFFERING'"
+      (play)="onPlay()"
+      (stop)="onStop()"
+      (seekPreview)="onSeekPreview($event)"
+      (seekCommit)="onSeekCommit($event)"
+    />
 
-      <div class="mb-1">
-        <input
-          #slider
-          type="range"
-          class="player-slider"
-          min="0"
-          [max]="fullDurationS"
-          [value]="displayPositionS"
-          [disabled]="!hasTrack || fullDurationS <= 0 || localStatus === 'STOPPED'"
-          [style.background]="sliderBackground"
-          (input)="onSliderInput($any($event.target).value)"
-          (change)="onSliderCommit($any($event.target).value)"
-        />
-      </div>
-
-      <div class="mb-3 text-center">
-        <small>
-          {{ formatTime(displayPositionS) }} / {{ formatTime(fullDurationS) }}
-          <span class="text-muted ms-2" *ngIf="hasWindow">
-            window: {{ formatTime(effectiveStartS) }} – {{ formatTime(effectiveEndS) }}
-          </span>
-        </small>
-      </div>
-
-      <div class="d-flex gap-2">
-        <button type="button" class="btn btn-outline-secondary"
-          (click)="onPlay()" [disabled]="!hasTrack || localStatus === 'PLAYING'">
-          Play
-        </button>
-        <button type="button" class="btn btn-outline-warning"
-          (click)="onPause()" [disabled]="localStatus !== 'PLAYING'">
-          Pause
-        </button>
-        <button type="button" class="btn btn-outline-success"
-          (click)="onResume()" [disabled]="localStatus !== 'PAUSED'">
-          Resume
-        </button>
-        <button type="button" class="btn btn-outline-danger"
-          (click)="stopRequested.emit()" [disabled]="localStatus === 'STOPPED'">
-          Stop
-        </button>
-      </div>
-
-      <audio #audio hidden preload="none"
-        (ended)="onAudioEnded()"
-        (error)="onAudioElementError()">
-      </audio>
-    </div>
+    <audio #audio hidden preload="none"
+      (ended)="onAudioEnded()"
+      (error)="onAudioElementError()">
+    </audio>
   `,
-  styles: [`
-    .player-slider {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 100%;
-      height: 10px;
-      border-radius: 5px;
-      outline: none;
-      cursor: pointer;
-      border: 1px solid #ced4da;
-    }
-    .player-slider:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    /* Thumb */
-    .player-slider::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      background: #0d6efd;
-      border: 2px solid #fff;
-      box-shadow: 0 0 2px rgba(0,0,0,0.3);
-      cursor: pointer;
-    }
-    .player-slider::-moz-range-thumb {
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      background: #0d6efd;
-      border: 2px solid #fff;
-      box-shadow: 0 0 2px rgba(0,0,0,0.3);
-      cursor: pointer;
-    }
-    /* Firefox track */
-    .player-slider::-moz-range-track {
-      height: 10px;
-      border-radius: 5px;
-      background: transparent;
-    }
-  `],
 })
 export class BoardPlayerComponent implements OnChanges, OnDestroy {
   @Input() title = '';
   @Input() hasTrack = false;
-  @Input() status = 'STOPPED';
+  @Input() trackId: number | null = null;
+  @Input() status: PlayerStatus = 'STOPPED';
   @Input() streamUrl: string | null = null;
   @Input() durationS: number | null = null;
   @Input() windowStartS: number | null = null;
   @Input() windowEndS: number | null = null;
+  @Input() hasSelectedWindow = false;
   @Input() repeat = false;
 
   @Output() playRequested = new EventEmitter<void>();
@@ -135,66 +62,80 @@ export class BoardPlayerComponent implements OnChanges, OnDestroy {
 
   @ViewChild('audio') audioRef?: ElementRef<HTMLAudioElement>;
 
-  localStatus: 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' = 'STOPPED';
+  localStatus: PlayerStatus = 'STOPPED';
   displayPositionS = 0;
-  downloadedPercent = 0;
-  streamComplete = false;
   seekableMaxS = 0;
 
-  get hasWindow(): boolean { return this.windowStartS != null && this.windowEndS != null; }
-  get effectiveStartS(): number { return this.windowStartS ?? 0; }
-  get effectiveEndS(): number { return this.windowEndS ?? this.durationS ?? 0; }
-  get effectiveDurationS(): number { return Math.max(0, this.effectiveEndS - this.effectiveStartS); }
-  get fullDurationS(): number { return this.durationS ?? 0; }
-
-  get sliderBackground(): string {
-    const dur = this.fullDurationS;
-    if (dur <= 0) return '#e0e0e0';
-
-    const loadedPct = Math.min((this.seekableMaxS / dur) * 100, 100);
-
-    if (!this.hasWindow) {
-      return `linear-gradient(to right, #5b9bd5 ${loadedPct}%, #e0e0e0 ${loadedPct}%)`;
-    }
-
-    const winStartPct = Math.max(0, (this.effectiveStartS / dur) * 100);
-    const winEndPct = Math.min(100, (this.effectiveEndS / dur) * 100);
-    const loadedClampedPct = Math.min(loadedPct, winEndPct);
-
-    const solidLayer = `linear-gradient(to right, `
-      + `transparent 0%, transparent ${winStartPct}%, `
-      + `#5b9bd5 ${winStartPct}%, #5b9bd5 ${loadedClampedPct}%, `
-      + `#e0e0e0 ${loadedClampedPct}%, #e0e0e0 ${winEndPct}%, `
-      + `transparent ${winEndPct}%, transparent 100%)`;
-
-    const stripeLayer = `repeating-linear-gradient(`
-      + `-45deg, #ccc, #ccc 3px, #b0b0b0 3px, #b0b0b0 6px)`;
-
-    return `${solidLayer}, ${stripeLayer}`;
+  get effectiveStartS(): number {
+    return this.hasSelectedWindow ? (this.windowStartS ?? 0) : 0;
   }
 
-  private isScrubbing = false;
+  get effectiveEndS(): number {
+    return this.hasSelectedWindow
+      ? (this.windowEndS ?? this.durationS ?? 0)
+      : (this.durationS ?? 0);
+  }
+
+  get effectiveDurationS(): number {
+    return Math.max(0, this.effectiveEndS - this.effectiveStartS);
+  }
+
+  get fullDurationS(): number {
+    return this.durationS ?? 0;
+  }
+
+  private stream = new AudioStreamManager();
   private suppressNextError = false;
-
-  private mediaSource: MediaSource | null = null;
-  private sourceBuffer: SourceBuffer | null = null;
-  private mseObjectUrl: string | null = null;
-
-  private usingBlob = false;
-  private blobObjectUrl: string | null = null;
-  private cachedBlob: Blob | null = null;
-
-  private fetchAbortController: AbortController | null = null;
+  private positionTimer: ReturnType<typeof setInterval> | null = null;
   private activeStreamUrl: string | null = null;
-  private positionInterval: ReturnType<typeof setInterval> | null = null;
+  private connectToken = 0;
 
-  private storedChunks: ArrayBuffer[] = [];
-  private totalStoredBytes = 0;
+  constructor(private zone: NgZone) {
+    this.stream.onProgress = (_bytes, complete, _seekableS) => {
+      this.zone.run(() => {
+        if (complete) {
+          this.seekableMaxS = this.effectiveEndS;
+        }
+      });
+    };
 
-  constructor(private zone: NgZone) {}
+    this.stream.onError = () => {
+      this.zone.run(() => {
+        this.localStatus = 'STOPPED';
+        this.audioError.emit();
+      });
+    };
+  }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if ('status' in changes || 'streamUrl' in changes) {
+    const trackChanged =
+      'trackId' in changes &&
+      !changes['trackId'].firstChange &&
+      changes['trackId'].previousValue !== changes['trackId'].currentValue;
+
+    if (trackChanged) {
+      this.tearDown();
+    }
+
+    if (
+      'windowStartS' in changes ||
+      'windowEndS' in changes ||
+      'durationS' in changes ||
+      'hasSelectedWindow' in changes
+    ) {
+      this.displayPositionS = this.clampToPlayable(this.displayPositionS);
+      this.seekableMaxS = this.clampToPlayable(this.seekableMaxS);
+    }
+
+    if (
+      'status' in changes ||
+      'streamUrl' in changes ||
+      'windowStartS' in changes ||
+      'windowEndS' in changes ||
+      'durationS' in changes ||
+      'hasSelectedWindow' in changes ||
+      'trackId' in changes
+    ) {
       this.syncWithBackend();
     }
   }
@@ -207,36 +148,42 @@ export class BoardPlayerComponent implements OnChanges, OnDestroy {
     this.playRequested.emit();
   }
 
-  onPause(): void {
-    const audio = this.audioRef?.nativeElement;
-    if (!audio) return;
-    audio.pause();
-    this.localStatus = 'PAUSED';
+  onStop(): void {
+    this.stopRequested.emit();
   }
 
-  onResume(): void {
-    const audio = this.audioRef?.nativeElement;
-    if (!audio) return;
-    audio.play().catch(err => console.warn('resume failed', err));
-    this.localStatus = 'PLAYING';
+  onSeekPreview(rawValue: number): void {
+    const requested = Math.floor(rawValue);
+    const playableMin = this.effectiveStartS;
+    const playableMax = Math.min(
+      Math.max(this.effectiveStartS, this.seekableMaxS),
+      this.effectiveEndS
+    );
+
+    if (requested < playableMin || requested > playableMax) {
+      this.displayPositionS = this.getActualPlaybackPositionS();
+      return;
+    }
+
+    this.displayPositionS = Math.max(playableMin, Math.min(requested, playableMax));
   }
 
-  onSliderInput(value: string): void {
-    this.isScrubbing = true;
-    this.displayPositionS = this.clampToPlayable(Math.floor(Number(value)));
-  }
+  onSeekCommit(rawValue: number): void {
+    const requested = Math.floor(rawValue);
+    const playableMin = this.effectiveStartS;
+    const playableMax = Math.min(
+      Math.max(this.effectiveStartS, this.seekableMaxS),
+      this.effectiveEndS
+    );
 
-  onSliderCommit(value: string): void {
-    this.isScrubbing = false;
-    const clamped = this.clampToPlayable(Math.floor(Number(value)));
+    if (requested < playableMin || requested > playableMax) {
+      this.displayPositionS = this.getActualPlaybackPositionS();
+      return;
+    }
+
+    const clamped = Math.max(playableMin, Math.min(requested, playableMax));
     this.displayPositionS = clamped;
-    this.seekLocal(clamped);
-  }
-
-  private clampToPlayable(posS: number): number {
-    const minS = this.effectiveStartS;
-    const maxS = Math.min(this.seekableMaxS, this.effectiveEndS);
-    return Math.max(minS, Math.min(posS, maxS));
+    this.seekLocalStreaming(clamped);
   }
 
   onAudioEnded(): void {
@@ -250,6 +197,7 @@ export class BoardPlayerComponent implements OnChanges, OnDestroy {
         return;
       }
     }
+
     this.localStatus = 'STOPPED';
     this.ended.emit();
   }
@@ -259,336 +207,197 @@ export class BoardPlayerComponent implements OnChanges, OnDestroy {
       this.suppressNextError = false;
       return;
     }
-    console.warn('audio element error');
+    console.warn('board-player audio element error');
     this.audioError.emit();
   }
 
   private syncWithBackend(): void {
+    if (!this.hasTrack || !this.streamUrl || this.trackId == null) {
+      this.tearDown();
+      return;
+    }
+
     if (this.status === 'PLAYING' && this.streamUrl) {
-      if (this.activeStreamUrl !== this.streamUrl) {
+      const shouldReconnect =
+        this.streamUrl !== this.activeStreamUrl ||
+        this.localStatus === 'STOPPED';
+
+      if (shouldReconnect) {
         this.tearDown();
         this.localStatus = 'BUFFERING';
         this.connectStream(this.streamUrl);
       }
       return;
     }
-    this.tearDown();
-  }
 
-  private seekLocal(targetS: number): void {
-    const audio = this.audioRef?.nativeElement;
-    if (!audio) return;
-
-    const clamped = this.clampToPlayable(targetS);
-
-    const audioTime = clamped - this.effectiveStartS;
-
-    if (this.usingBlob) {
-      if (!this.streamComplete && !this.isBlobSeekable(audioTime, audio)) {
-        this.switchToBlob(audioTime);
-      } else {
-        audio.currentTime = audioTime;
-        this.displayPositionS = clamped;
-      }
-      return;
-    }
-
-    if (this.isInMseBuffer(audioTime, audio)) {
-      audio.currentTime = audioTime;
-      this.displayPositionS = clamped;
-      return;
-    }
-
-    this.switchToBlob(audioTime);
-  }
-
-  private isInMseBuffer(targetS: number, audio: HTMLAudioElement): boolean {
-    for (let i = 0; i < audio.buffered.length; i++) {
-      if (audio.buffered.start(i) - 0.5 <= targetS && audio.buffered.end(i) + 0.5 >= targetS) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private isBlobSeekable(targetS: number, audio: HTMLAudioElement): boolean {
-    return isFinite(audio.duration) && targetS <= audio.duration + 0.5;
-  }
-
-  private switchToBlob(targetS: number): void {
-    const audio = this.audioRef?.nativeElement;
-    if (!audio || this.storedChunks.length === 0) return;
-
-    const wasPlaying = this.localStatus === 'PLAYING';
-
-    this.tearDownMse();
-
-    const blob = this.cachedBlob ?? new Blob(this.storedChunks, { type: 'audio/mpeg' });
-    if (this.streamComplete) this.cachedBlob = blob;
-
-    if (this.blobObjectUrl) URL.revokeObjectURL(this.blobObjectUrl);
-    this.blobObjectUrl = URL.createObjectURL(blob);
-    this.usingBlob = true;
-
-    this.suppressNextError = true;
-    audio.src = this.blobObjectUrl;
-    audio.currentTime = targetS;
-    this.displayPositionS = this.effectiveStartS + targetS;
-
-    if (wasPlaying) {
-      audio.play().catch(err => console.warn('play after blob switch failed', err));
-      this.localStatus = 'PLAYING';
-    } else {
+    if (this.status === 'PAUSED') {
+      this.audioRef?.nativeElement?.pause();
       this.localStatus = 'PAUSED';
+      return;
+    }
+
+    if (this.status === 'STOPPED') {
+      this.tearDown();
     }
   }
 
   private connectStream(url: string): void {
+    const token = ++this.connectToken;
+    this.activeStreamUrl = url;
+
     const audio = this.audioRef?.nativeElement;
     if (!audio) return;
 
-    this.activeStreamUrl = url;
-    this.storedChunks = [];
-    this.totalStoredBytes = 0;
-    this.streamComplete = false;
-    this.cachedBlob = null;
-    this.usingBlob = false;
     this.seekableMaxS = this.effectiveStartS;
     this.displayPositionS = this.effectiveStartS;
 
-    const abort = new AbortController();
-    this.fetchAbortController = abort;
+    const useMse = 'MediaSource' in window;
 
-    this.startFetch(url, abort).catch(() => {});
+    this.stream.load(url, {
+      audioElement: useMse ? audio : undefined,
+      useMse,
+      estimatedDurationS: this.effectiveDurationS,
+      windowStartS: this.effectiveStartS,
+    }).catch(err => {
+      if (token !== this.connectToken) return;
+      console.warn('stream load failed', err);
+      this.localStatus = 'STOPPED';
+      this.audioError.emit();
+    });
 
-    if (!('MediaSource' in window)) {
+    if (!useMse) {
       audio.src = url;
       audio.load();
-      audio.play().catch(err => console.warn('play failed', err));
-      this.localStatus = 'PLAYING';
-      this.startPositionTimer();
-      return;
     }
-
-    const ms = new MediaSource();
-    this.mediaSource = ms;
-    const objUrl = URL.createObjectURL(ms);
-    this.mseObjectUrl = objUrl;
-    audio.src = objUrl;
-
-    ms.addEventListener('sourceopen', () => {
-      if (!MediaSource.isTypeSupported('audio/mpeg')) {
-        console.error('audio/mpeg not supported by MSE');
-        ms.endOfStream('decode');
-        return;
-      }
-      if (this.durationS && this.durationS > 0) {
-        ms.duration = this.durationS;
-      }
-      this.sourceBuffer = ms.addSourceBuffer('audio/mpeg');
-    }, { once: true });
 
     audio.play().catch(err => console.warn('play failed', err));
     this.localStatus = 'PLAYING';
     this.startPositionTimer();
   }
 
-  private async startFetch(url: string, abort: AbortController): Promise<void> {
-    let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+  private seekLocalStreaming(targetS: number): void {
+    const audio = this.audioRef?.nativeElement;
+    if (!audio) return;
 
-    try {
-      const response = await fetch(url, { signal: abort.signal });
-      if (!response.ok || !response.body) {
-        console.error('stream fetch failed', response.status);
-        return;
+    const clamped = this.clampToPlayable(targetS);
+    const audioTime = clamped - this.effectiveStartS;
+
+    if (this.stream.usingBlob) {
+      if (this.stream.isBlobSeekable(audioTime)) {
+        audio.currentTime = audioTime;
+      } else {
+        this.stream.switchToBlobSrc(audioTime, this.localStatus === 'PLAYING');
       }
-
-      reader = response.body.getReader();
-
-      while (true) {
-        if (abort.signal.aborted || this.activeStreamUrl !== url) break;
-
-        const { done, value } = await reader.read();
-
-        if (done) {
-          this.zone.run(() => {
-            this.streamComplete = true;
-            this.downloadedPercent = 100;
-            this.seekableMaxS = this.effectiveEndS;
-            this.cachedBlob = new Blob(this.storedChunks, { type: 'audio/mpeg' });
-          });
-
-          const ms = this.mediaSource;
-          const sb = this.sourceBuffer;
-          if (ms && ms.readyState === 'open') {
-            if (sb?.updating) await this.waitForUpdateEnd(sb, abort.signal);
-            try { ms.endOfStream(); } catch (_) {}
-          }
-          break;
-        }
-
-        if (abort.signal.aborted || this.activeStreamUrl !== url) break;
-
-        const chunkBuffer = value.buffer.slice(
-          value.byteOffset,
-          value.byteOffset + value.byteLength,
-        ) as ArrayBuffer;
-        this.storedChunks.push(chunkBuffer);
-        this.totalStoredBytes += value.byteLength;
-
-        this.zone.run(() => {
-          this.downloadedPercent = this.estimateDownloadedPercent();
-          this.seekableMaxS = Math.floor(this.estimateDownloadedAbsoluteS());
-        });
-
-        if (!this.usingBlob && this.sourceBuffer && this.mediaSource?.readyState === 'open') {
-          try {
-            const sb = this.sourceBuffer;
-            if (sb.updating) await this.waitForUpdateEnd(sb, abort.signal);
-            if (abort.signal.aborted || this.activeStreamUrl !== url) break;
-            if (this.mediaSource?.readyState === 'open' && !this.usingBlob) {
-              sb.appendBuffer(chunkBuffer);
-            }
-          } catch (e) {
-
-            if ((e as DOMException)?.name !== 'QuotaExceededError') {
-              console.warn('appendBuffer error', e);
-            }
-            await this.sleep(50, abort.signal);
-          }
-        }
-      }
-    } catch (e: unknown) {
-      if (!(e instanceof Error && e.name === 'AbortError')) {
-        console.error('stream fetch error', e);
-      }
-    } finally {
-      try { await reader?.cancel(); } catch (_) {}
+      this.displayPositionS = clamped;
+      return;
     }
+
+    if (this.stream.isInMseBuffer(audioTime)) {
+      audio.currentTime = audioTime;
+      this.displayPositionS = clamped;
+      return;
+    }
+
+    const wasPlaying = this.localStatus === 'PLAYING';
+    this.suppressNextError = true;
+    this.stream.switchToBlobSrc(audioTime, wasPlaying);
+    this.displayPositionS = clamped;
+    this.localStatus = wasPlaying ? 'PLAYING' : 'PAUSED';
   }
 
   private startPositionTimer(): void {
     this.stopPositionTimer();
-    this.positionInterval = setInterval(() => {
-      this.zone.run(() => this.updateDisplay());
+    this.positionTimer = setInterval(() => {
+      this.zone.run(() => this.tickDisplay());
     }, 250);
   }
 
   private stopPositionTimer(): void {
-    if (this.positionInterval !== null) {
-      clearInterval(this.positionInterval);
-      this.positionInterval = null;
+    if (this.positionTimer !== null) {
+      clearInterval(this.positionTimer);
+      this.positionTimer = null;
     }
   }
 
-  private updateDisplay(): void {
+  private tickDisplay(): void {
     const audio = this.audioRef?.nativeElement;
     if (!audio) return;
-    if (!this.isScrubbing) {
-      this.displayPositionS = Math.floor(this.effectiveStartS + audio.currentTime);
+
+    const rawDisplay = Math.floor(this.effectiveStartS + audio.currentTime);
+    this.displayPositionS = Math.max(
+      this.effectiveStartS,
+      Math.min(rawDisplay, this.effectiveEndS)
+    );
+
+    if (!this.stream.streamComplete) {
+      this.seekableMaxS = Math.max(
+        this.effectiveStartS,
+        Math.min(this.getStreamingBufferedEndS(audio), this.effectiveEndS)
+      );
+    } else {
+      this.seekableMaxS = this.effectiveEndS;
     }
-    if (!this.streamComplete) {
-      this.downloadedPercent = this.estimateDownloadedPercent();
-      this.seekableMaxS = Math.floor(this.estimateDownloadedAbsoluteS());
+
+    if (
+      this.hasSelectedWindow &&
+      this.effectiveDurationS > 0 &&
+      audio.currentTime >= this.effectiveDurationS
+    ) {
+      if (this.repeat) {
+        audio.currentTime = 0;
+        this.displayPositionS = this.effectiveStartS;
+        this.localStatus = 'PLAYING';
+      } else {
+        audio.pause();
+        this.displayPositionS = this.effectiveEndS;
+        this.localStatus = 'STOPPED';
+        this.ended.emit();
+      }
     }
   }
-
-  private estimateDownloadedPercent(): number {
-    const effDur = this.effectiveDurationS;
-    if (effDur <= 0 || this.totalStoredBytes === 0) return 0;
-    if (this.streamComplete) return 100;
-    const estimatedTotal = 24000 * effDur; // 192kbps = 24000 bytes/s
-    return Math.min(99, (this.totalStoredBytes / estimatedTotal) * 100);
-  }
-
-  private estimateDownloadedAbsoluteS(): number {
-    if (this.streamComplete) return this.effectiveEndS;
-    if (this.totalStoredBytes === 0) return this.effectiveStartS;
-    return this.effectiveStartS + (this.totalStoredBytes / 24000);
-  }
-
 
   private tearDown(): void {
+    this.connectToken++;
     this.stopPositionTimer();
-    this.fetchAbortController?.abort();
-    this.fetchAbortController = null;
+    this.activeStreamUrl = null;
 
     const audio = this.audioRef?.nativeElement;
     if (audio) {
       audio.pause();
-      if (this.activeStreamUrl) this.suppressNextError = true;
+      this.suppressNextError = true;
       audio.removeAttribute('src');
       audio.load();
     }
 
-    this.tearDownMse();
-    this.tearDownBlob();
-
-    this.activeStreamUrl = null;
-    this.storedChunks = [];
-    this.totalStoredBytes = 0;
-    this.streamComplete = false;
-    this.cachedBlob = null;
-    this.usingBlob = false;
+    this.stream.destroy();
     this.localStatus = 'STOPPED';
-    this.displayPositionS = 0;
-    this.downloadedPercent = 0;
-    this.seekableMaxS = 0;
+    this.displayPositionS = this.effectiveStartS;
+    this.seekableMaxS = this.effectiveStartS;
   }
 
-  private tearDownMse(): void {
-    if (this.mediaSource?.readyState === 'open') {
-      try { this.mediaSource.endOfStream(); } catch (_) {}
+  private clampToPlayable(posS: number): number {
+    const minS = this.effectiveStartS;
+    const maxSeekable = Math.max(this.effectiveStartS, this.seekableMaxS);
+    const maxS = Math.min(maxSeekable, this.effectiveEndS);
+    return Math.max(minS, Math.min(posS, maxS));
+  }
+
+  private getActualPlaybackPositionS(): number {
+    const audio = this.audioRef?.nativeElement;
+    if (!audio) return this.displayPositionS;
+    return Math.max(
+      this.effectiveStartS,
+      Math.min(
+        Math.floor(this.effectiveStartS + audio.currentTime),
+        this.effectiveEndS
+      )
+    );
+  }
+
+  private getStreamingBufferedEndS(audio: HTMLAudioElement): number {
+    if (audio.buffered.length > 0) {
+      return Math.floor(this.effectiveStartS + audio.buffered.end(audio.buffered.length - 1));
     }
-    if (this.mseObjectUrl) {
-      URL.revokeObjectURL(this.mseObjectUrl);
-      this.mseObjectUrl = null;
-    }
-    this.mediaSource = null;
-    this.sourceBuffer = null;
-  }
-
-  private tearDownBlob(): void {
-    if (this.blobObjectUrl) {
-      URL.revokeObjectURL(this.blobObjectUrl);
-      this.blobObjectUrl = null;
-    }
-  }
-
-
-  private waitForUpdateEnd(sb: SourceBuffer, signal: AbortSignal): Promise<void> {
-    return new Promise((resolve) => {
-      if (!sb.updating) { resolve(); return; }
-      const onEnd = () => { done(); resolve(); };
-      const onAbort = () => { done(); resolve(); };
-      const done = () => {
-        sb.removeEventListener('updateend', onEnd);
-        signal.removeEventListener('abort', onAbort);
-      };
-      sb.addEventListener('updateend', onEnd, { once: true });
-      signal.addEventListener('abort', onAbort, { once: true });
-    });
-  }
-
-  private sleep(ms: number, signal?: AbortSignal): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const id = setTimeout(resolve, ms);
-      signal?.addEventListener('abort', () => {
-        clearTimeout(id);
-        reject(new DOMException('Aborted', 'AbortError'));
-      }, { once: true });
-    });
-  }
-
-  formatTime(totalSeconds: number): string {
-    const safe = Math.max(0, Math.floor(totalSeconds));
-    const hours = Math.floor(safe / 3600);
-    const minutes = Math.floor((safe % 3600) / 60);
-    const seconds = safe % 60;
-    return [
-      hours.toString().padStart(2, '0'),
-      minutes.toString().padStart(2, '0'),
-      seconds.toString().padStart(2, '0'),
-    ].join(':');
+    return Math.floor(this.stream.estimatedDownloadedS);
   }
 }

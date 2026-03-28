@@ -1,0 +1,38 @@
+.app-card {
+  background: var(--app-surface);
+  border: var(--app-border);
+  border-radius: 12px;
+  box-shadow: var(--app-shadow);
+}
+
+.app-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-bottom: var(--app-border);
+  background: var(--app-surface);
+}
+
+.app-card__title-wrap {
+  min-width: 0;
+}
+
+.app-card__title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--app-text);
+}
+
+.app-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.app-card__body {
+  padding: 1.25rem;
+  background: var(--app-surface);
+}

@@ -1,0 +1,27 @@
+.app-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--app-border-color);
+  border-radius: var(--app-radius-sm);
+  padding: 0.65rem 0.85rem;
+  background: var(--app-surface);
+  color: var(--app-text);
+  font: inherit;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.app-input:focus {
+  outline: none;
+  border-color: var(--app-primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.16);
+}
+
+.app-input:disabled {
+  background: var(--app-surface-muted);
+  color: var(--app-text-muted);
+  cursor: not-allowed;
+}
+

@@ -1,6 +1,5 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
 
 import {
   MusicTracksService,
@@ -12,59 +11,103 @@ import {
 
 import { MyTracksComponent, PublishEvent } from '../../components/my-tracks/my-tracks.component';
 import { TrackCatalogComponent } from '../../components/track-catalog/track-catalog.component';
-import { MySubscriptionsComponent } from '../../components/my-subscriptions/my-subscriptions.component';
+import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
+import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 
 @Component({
   selector: 'app-workshop-page',
   standalone: true,
   imports: [
     CommonModule,
-    RouterLink,
     MyTracksComponent,
     TrackCatalogComponent,
-    MySubscriptionsComponent,
+    UiAlertComponent,
+    NormalButtonComponent,
   ],
   template: `
-    <div class="container py-4">
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <a routerLink="/" class="btn btn-outline-primary">Home</a>
+    <div class="app-page workshop-page">
+      <div class="workshop-page__header">
+        <div>
+          <h1 class="workshop-page__title">Workshop</h1>
+          <p class="workshop-page__subtitle">Manage publishing and subscriptions for your tracks.</p>
+        </div>
+
+        <normal-button type="button" (clicked)="myTracksOpen = true">
+          My tracks
+        </normal-button>
       </div>
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <a routerLink="*/boards" class="btn btn-outline-primary">Boards</a>
-      </div>
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <a routerLink="/groups" class="btn btn-outline-primary">Groups</a>
-      </div>
 
-      <h1 class="mb-4">Workshop</h1>
+      <ui-alert *ngIf="errorMessage" variant="danger">{{ errorMessage }}</ui-alert>
+      <div *ngIf="loading" class="app-muted">Loading...</div>
 
-      <div *ngIf="errorMessage" class="alert alert-danger">{{ errorMessage }}</div>
-      <div *ngIf="loading">Loading...</div>
-
-      <ng-container *ngIf="!loading">
-        <app-my-tracks
-          [tracks]="myTracks"
-          [busyTrackId]="busyTrackId"
-          (publish)="publishTrack($event)"
-          (unpublish)="unpublishTrack($event)"
-        ></app-my-tracks>
-
+      <div *ngIf="!loading" class="workshop-page__body">
         <app-track-catalog
           [tracks]="catalogTracks"
           [subscribedIds]="subscribedIds"
           [busyTrackId]="busyTrackId"
           (subscribe)="subscribeFromCatalog($event)"
           (unsubscribe)="unsubscribe($event)"
-        ></app-track-catalog>
+        />
 
-        <app-my-subscriptions
-          [tracks]="subscribedTracks"
-          [busyTrackId]="busyTrackId"
-          (unsubscribe)="unsubscribe($event)"
-        ></app-my-subscriptions>
-      </ng-container>
+        <hr class="workshop-page__divider" />
+
+      <app-my-tracks
+        *ngIf="myTracksOpen"
+        [tracks]="myTracks"
+        [busyTrackId]="busyTrackId"
+        (publish)="publishTrack($event)"
+        (unpublish)="unpublishTrack($event)"
+        (close)="myTracksOpen = false"
+      />
     </div>
   `,
+  styles: [`
+    .workshop-page__header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 1.5rem;
+    }
+
+    .workshop-page__title {
+      margin: 0;
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--app-text);
+    }
+
+    .workshop-page__subtitle {
+      margin: 0.35rem 0 0;
+      color: var(--app-text-muted);
+      font-size: 0.95rem;
+    }
+
+    .workshop-page__body {
+      background: var(--app-surface);
+      border: var(--app-border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: var(--app-shadow);
+    }
+
+    .workshop-page__divider {
+      border: none;
+      border-top: var(--app-border);
+    }
+
+      .workshop-page,
+  .workshop-page__body {
+    min-height: 0;
+  }
+
+    @media (max-width: 720px) {
+      .workshop-page__header {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
+  `],
 })
 export class WorkshopPageComponent implements OnInit {
   private tracksApi = inject(MusicTracksService);
@@ -74,11 +117,13 @@ export class WorkshopPageComponent implements OnInit {
   errorMessage = '';
   busyTrackId: number | null = null;
 
+  myTracksOpen = false;
+
   myTracks: Track[] = [];
   catalogTracks: Track[] = [];
   subscribedTracks: Track[] = [];
-
   subscribedIds = new Set<number>();
+
   private myTrackIds = new Set<number>();
   private _allPublished: Track[] = [];
 
@@ -90,9 +135,7 @@ export class WorkshopPageComponent implements OnInit {
     this.loading = true;
     this.errorMessage = '';
 
-    let ownDone = false;
-    let pubDone = false;
-    let subDone = false;
+    let ownDone = false, pubDone = false, subDone = false;
     const done = () => {
       if (ownDone && pubDone && subDone) {
         this.buildSets();
@@ -104,61 +147,54 @@ export class WorkshopPageComponent implements OnInit {
     this.tracksApi.getUserTracks().subscribe({
       next: (tracks) => { this.myTracks = tracks ?? []; },
       error: (err) => {
-        console.error('getUserTracks failed', err);
+        console.error(err);
         this.errorMessage = 'Loading tracks failed.';
-        ownDone = true; done();
+        ownDone = true;
+        done();
       },
-      complete: () => { ownDone = true; done(); },
+      complete: () => {
+        ownDone = true;
+        done();
+      },
     });
 
     this.tracksApi.getPublishedTracks().subscribe({
       next: (tracks) => { this._allPublished = tracks ?? []; },
       error: (err) => {
-        console.error('getPublishedTracks failed', err);
-        pubDone = true; done();
+        console.error(err);
+        pubDone = true;
+        done();
       },
-      complete: () => { pubDone = true; done(); },
+      complete: () => {
+        pubDone = true;
+        done();
+      },
     });
 
     this.tracksApi.getUserSubscribedTracks().subscribe({
       next: (tracks) => { this.subscribedTracks = tracks ?? []; },
       error: (err) => {
-        console.error('getUserSubscribedTracks failed', err);
-        subDone = true; done();
+        console.error(err);
+        subDone = true;
+        done();
       },
-      complete: () => { subDone = true; done(); },
+      complete: () => {
+        subDone = true;
+        done();
+      },
     });
   }
 
-  private buildSets(): void {
-    this.myTrackIds = new Set(
-      this.myTracks.map(t => t.id).filter((id): id is number => id != null)
-    );
-    this.subscribedIds = new Set(
-      this.subscribedTracks.map(t => t.id).filter((id): id is number => id != null)
-    );
-  }
-
-  private filterCatalog(): void {
-    this.catalogTracks = this._allPublished.filter(t =>
-      t.id != null && !this.myTrackIds.has(t.id)
-    );
-  }
-
   publishTrack(event: PublishEvent): void {
-    const track = event.track;
-    if (track.id == null) return;
-    const trackId = track.id;
+    if (event.track.id == null) return;
+    const trackId = event.track.id;
     this.busyTrackId = trackId;
-
-    const body: PublishTrackRequest = {
-      description: event.description || undefined,
-    };
+    const body: PublishTrackRequest = { description: event.description || undefined };
 
     this.shareApi.publishTrack({ trackId, publishTrackRequest: body }).subscribe({
       next: () => { this.loadAll(); },
       error: (err: any) => {
-        console.error('publishTrack failed', err);
+        console.error(err);
         if (err?.status === 409) {
           alert('Track is already published.');
           this.loadAll();
@@ -179,7 +215,7 @@ export class WorkshopPageComponent implements OnInit {
     this.shareApi.unpublishTrack({ trackId }).subscribe({
       next: () => { this.loadAll(); },
       error: (err) => {
-        console.error('unpublishTrack failed', err);
+        console.error(err);
         alert('Unpublishing failed.');
         this.busyTrackId = null;
       },
@@ -192,14 +228,14 @@ export class WorkshopPageComponent implements OnInit {
       alert('No share code available.');
       return;
     }
-    this.busyTrackId = track.id ?? null;
 
+    this.busyTrackId = track.id ?? null;
     const body: SubscribeRequest = { shareCode: track.trackShare.shareCode };
 
     this.shareApi.subscribeToTrack({ subscribeRequest: body }).subscribe({
       next: () => { this.loadAll(); },
       error: (err: any) => {
-        console.error('subscribe failed', err);
+        console.error(err);
         if (err?.status === 409 || err?.status === 400) {
           alert('Already subscribed or invalid code.');
           this.loadAll();
@@ -214,20 +250,37 @@ export class WorkshopPageComponent implements OnInit {
 
   unsubscribe(track: Track): void {
     if (track.id == null) return;
+    if (!confirm(`Unsubscribe from "${track.trackName || track.trackOriginalName || track.id}"?`)) {
+      return;
+    }
+
     const trackId = track.id;
-
-    if (!confirm(`Unsubscribe from "${track.trackName || track.trackOriginalName || track.id}"?`)) return;
-
     this.busyTrackId = trackId;
 
     this.shareApi.unsubscribeFromTrack({ trackId }).subscribe({
       next: () => { this.loadAll(); },
       error: (err) => {
-        console.error('unsubscribe failed', err);
+        console.error(err);
         alert('Unsubscribing failed.');
         this.busyTrackId = null;
       },
       complete: () => { this.busyTrackId = null; },
     });
+  }
+
+  private buildSets(): void {
+    this.myTrackIds = new Set(
+      this.myTracks.map(t => t.id).filter((id): id is number => id != null)
+    );
+
+    this.subscribedIds = new Set(
+      this.subscribedTracks.map(t => t.id).filter((id): id is number => id != null)
+    );
+  }
+
+  private filterCatalog(): void {
+    this.catalogTracks = this._allPublished.filter(
+      t => t.id != null && !this.myTrackIds.has(t.id)
+    );
   }
 }

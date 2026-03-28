@@ -1,0 +1,21 @@
+.app-empty-state {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--app-text-muted);
+  border: 1px dashed var(--app-border-color);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface);
+}
+
+.app-empty-state__title {
+  font-weight: 700;
+  color: var(--app-text);
+}
+
+.app-empty-state__message {
+  margin-top: 0.5rem;
+}
+
+.app-empty-state__actions {
+  margin-top: 1rem;
+}

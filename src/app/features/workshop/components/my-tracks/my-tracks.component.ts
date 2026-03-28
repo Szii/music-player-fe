@@ -1,117 +1,616 @@
-import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
+import {
+  Component,
+  EventEmitter,
+  Input,
+  Output,
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  inject,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Track } from '../../../../api/generated';
+import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
+import { UiSearchBoxComponent } from '../../../../shared/ui/search-box/ui-search-box.component';
 
 export interface PublishEvent {
   track: Track;
   description: string;
 }
 
+type PublishFilterMode = 'all' | 'published' | 'unpublished';
+
 @Component({
   selector: 'app-my-tracks',
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, NormalButtonComponent, UiSearchBoxComponent],
   template: `
-    <div class="card mb-4">
-      <div class="card-header bg-primary text-white">
-        <h2 class="h5 mb-0">My tracks</h2>
-      </div>
-      <div class="card-body">
-        <p class="text-muted small mb-3">
-          Publish your tracks so other users can find and subscribe to them.
-        </p>
+    <div class="modal-backdrop" (click)="onBackdropClick($event)">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="my-tracks-title">
+        <div class="modal__header">
+          <div>
+            <h2 id="my-tracks-title" class="modal__title">My tracks</h2>
+            <p class="modal__desc">Publish your tracks so other users can find and subscribe to them.</p>
+          </div>
 
-        <div *ngIf="tracks.length === 0" class="text-muted">
-          No tracks yet. Create some on the Home page.
+          <button class="modal__close" type="button" (click)="close.emit()">✕</button>
         </div>
 
-        <div class="table-responsive" *ngIf="tracks.length > 0">
-          <table class="table table-sm table-bordered align-middle mb-0">
-            <thead>
-              <tr>
-                <th>Track</th>
-                <th>Duration</th>
-                <th style="width: 120px;">Status</th>
-                <th style="width: 320px;">Share code</th>
-                <th style="width: 220px;">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let track of tracks; trackBy: trackById">
-                <td>{{ track.trackName || track.trackOriginalName || ('Track #' + track.id) }}</td>
-                <td>{{ formatDuration(track.duration) }}</td>
-                <td>
-                  <span class="badge" [ngClass]="track.trackShare ? 'bg-success' : 'bg-secondary'">
+        <div class="modal__toolbar" *ngIf="tracks.length > 0">
+          <ui-search-box
+            class="modal__search"
+            [value]="search"
+            placeholder="Search tracks by name"
+            (valueChange)="search = $event"
+          />
+
+          <label class="modal__field">
+            <span class="modal__label">Status</span>
+            <select
+              class="app-input modal__select"
+              [(ngModel)]="filterMode"
+              [ngModelOptions]="{ standalone: true }"
+            >
+              <option value="all">All tracks</option>
+              <option value="published">Published</option>
+              <option value="unpublished">Unpublished</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="modal__meta" *ngIf="tracks.length > 0">
+          {{ filteredTracks.length }} / {{ tracks.length }} track{{ tracks.length === 1 ? '' : 's' }}
+        </div>
+
+        <div class="modal__body">
+          <ng-container *ngIf="filteredTracks.length > 0; else emptyState">
+            <div class="track-list">
+              <div *ngFor="let track of filteredTracks; trackBy: trackById" class="track-row">
+                <div class="track-row__name">
+                  <span class="track-row__title" [title]="displayName(track)">
+                    {{ displayName(track) }}
+                  </span>
+                  <span class="track-row__duration">{{ formatDuration(track.duration) }}</span>
+                </div>
+
+                <div class="track-row__mid">
+                  <span
+                    class="badge"
+                    [class.badge--success]="track.trackShare"
+                    [class.badge--muted]="!track.trackShare"
+                  >
                     {{ track.trackShare ? 'Published' : 'Not published' }}
                   </span>
-                </td>
-                <td>
-                  <div *ngIf="track.trackShare?.shareCode" class="d-flex gap-1 align-items-center">
-                    <code class="small flex-grow-1 text-break">{{ track.trackShare!.shareCode }}</code>
-                    <button class="btn btn-outline-secondary btn-sm"
-                      (click)="copyToClipboard(track.trackShare!.shareCode!)">Copy</button>
-                  </div>
-                  <span *ngIf="!track.trackShare?.shareCode" class="text-muted small">—</span>
-                </td>
-                <td>
-                  <div *ngIf="!track.trackShare" class="d-flex gap-1">
-                    <input
-                      class="form-control form-control-sm"
-                      type="text"
-                      placeholder="Description..."
-                      [value]="getPublishDesc(track)"
-                      (input)="setPublishDesc(track, $any($event.target).value)"
-                      style="max-width: 140px;"
-                    />
+
+                  <div *ngIf="track.trackShare?.shareCode" class="track-row__code">
+                    <code class="code" [title]="track.trackShare!.shareCode">
+                      {{ track.trackShare!.shareCode }}
+                    </code>
                     <button
-                      class="btn btn-sm btn-outline-success"
-                      [disabled]="busyTrackId === track.id"
-                      (click)="onPublish(track)"
-                    >Publish</button>
+                      class="icon-btn"
+                      type="button"
+                      (click)="copyToClipboard(track.trackShare!.shareCode!)"
+                      title="Copy"
+                    >
+                      ⎘
+                    </button>
                   </div>
-                  <button *ngIf="track.trackShare"
-                    class="btn btn-sm btn-outline-danger"
+                </div>
+
+                <div class="track-row__actions">
+                  <normal-button
+                    *ngIf="!track.trackShare"
+                    size="sm"
                     [disabled]="busyTrackId === track.id"
-                    (click)="unpublish.emit(track)"
-                  >Unpublish</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                    (clicked)="openPublish(track)"
+                  >
+                    Publish
+                  </normal-button>
+
+                  <normal-button
+                    *ngIf="track.trackShare"
+                    size="sm"
+                    variant="danger"
+                    [disabled]="busyTrackId === track.id"
+                    (clicked)="unpublish.emit(track)"
+                  >
+                    Unpublish
+                  </normal-button>
+                </div>
+              </div>
+            </div>
+          </ng-container>
+
+          <ng-template #emptyState>
+            <p *ngIf="tracks.length === 0" class="empty">
+              No tracks yet. Create some on the Home page.
+            </p>
+
+            <p *ngIf="tracks.length > 0 && filteredTracks.length === 0" class="empty">
+              No tracks match the current search or filter.
+            </p>
+          </ng-template>
+        </div>
+      </div>
+    </div>
+
+    <div class="publish-backdrop" *ngIf="publishTrack" (click)="onPublishBackdropClick($event)">
+      <div class="publish-modal" role="dialog" aria-modal="true">
+        <div class="publish-modal__header">
+          <h2 class="publish-modal__title">Publish track</h2>
+          <button class="publish-modal__close" type="button" (click)="closePublish()">✕</button>
+        </div>
+
+        <div class="publish-modal__body">
+          <p class="publish-modal__track-name">
+            {{ publishTrack!.trackName || publishTrack!.trackOriginalName }}
+          </p>
+
+          <div class="publish-modal__field">
+            <label class="app-form-label">
+              Description <span class="optional">(optional)</span>
+            </label>
+            <input
+              class="app-input"
+              type="text"
+              [(ngModel)]="publishDesc"
+              placeholder="What is this track for?"
+            />
+          </div>
+
+          <div class="publish-modal__actions">
+            <normal-button type="button" variant="secondary" (clicked)="closePublish()">
+              Cancel
+            </normal-button>
+            <normal-button type="button" (clicked)="confirmPublish()">
+              Publish
+            </normal-button>
+          </div>
         </div>
       </div>
     </div>
   `,
+  styles: [`
+    :host {
+      display: block;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: rgba(0, 0, 0, 0.45);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 72px 24px 24px;
+      overflow: auto;
+      animation: fade-in 0.15s ease;
+      box-sizing: border-box;
+    }
+
+  .modal {
+    width: min(980px, 100%);
+    max-height: calc(100dvh - 96px);
+    margin: 0 auto;
+    background: var(--app-surface);
+    border: var(--app-border);
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    animation: slide-in 0.18s ease;
+  }
+
+    @keyframes fade-in {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes slide-in {
+      from { opacity: 0; transform: translateY(-12px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .modal__header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 20px 22px 14px;
+      border-bottom: var(--app-border);
+      flex: 0 0 auto;
+    }
+
+    .modal__title {
+      margin: 0 0 0.3rem;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--app-text);
+    }
+
+    .modal__desc {
+      margin: 0;
+      font-size: 0.9rem;
+      color: var(--app-text-muted);
+    }
+
+    .modal__close {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--app-text-muted);
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .modal__close:hover {
+      background: var(--app-danger-soft);
+      color: var(--app-danger);
+    }
+
+    .modal__toolbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 180px;
+      gap: 12px;
+      align-items: end;
+      padding: 16px 22px 10px;
+      flex: 0 0 auto;
+    }
+
+    .modal__search {
+      min-width: 0;
+    }
+
+    .modal__field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .modal__label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--app-text-muted);
+    }
+
+    .modal__select {
+      min-width: 0;
+    }
+
+    .modal__meta {
+      padding: 0 22px 10px;
+      font-size: 0.92rem;
+      color: var(--app-text-muted);
+      flex: 0 0 auto;
+    }
+
+    .modal__body {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 0 22px 22px;
+    }
+
+    .track-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .track-row {
+      display: grid;
+      grid-template-columns: minmax(0, 240px) minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 14px;
+      background: var(--app-surface);
+      border: var(--app-border);
+      border-radius: 10px;
+    }
+
+    .track-row__name {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    .track-row__title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--app-text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+
+    .track-row__duration {
+      font-size: 11px;
+      color: var(--app-text-muted);
+    }
+
+    .track-row__mid {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+
+    .track-row__code {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .code {
+      font-size: 11px;
+      padding: 3px 8px;
+      background: var(--app-bg);
+      border: var(--app-border);
+      border-radius: 5px;
+      color: var(--app-text-muted);
+      max-width: 280px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      display: inline-block;
+    }
+
+    .icon-btn {
+      width: 24px;
+      height: 24px;
+      border-radius: 5px;
+      border: var(--app-border);
+      background: var(--app-surface);
+      color: var(--app-text-muted);
+      cursor: pointer;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.12s, color 0.12s;
+      flex: 0 0 auto;
+    }
+
+    .icon-btn:hover {
+      background: var(--app-primary-soft);
+      color: var(--app-primary);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }
+
+    .badge--success {
+      background: var(--app-success-soft);
+      color: var(--app-success);
+    }
+
+    .badge--muted {
+      background: var(--app-surface-muted);
+      color: var(--app-text-muted);
+    }
+
+    .track-row__actions {
+      display: flex;
+      gap: 6px;
+      flex: 0 0 auto;
+    }
+
+    .empty {
+      color: var(--app-text-muted);
+      font-size: 13px;
+      font-style: italic;
+      margin: 0;
+      padding: 12px 0;
+    }
+
+    .publish-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 1100;
+      background: rgba(0,0,0,0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .publish-modal {
+      width: 100%;
+      max-width: 420px;
+      background: var(--app-surface);
+      border: var(--app-border);
+      border-radius: 14px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+      overflow: hidden;
+    }
+
+    .publish-modal__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 20px 14px;
+      border-bottom: var(--app-border);
+    }
+
+    .publish-modal__title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--app-text);
+    }
+
+    .publish-modal__close {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: var(--app-text-muted);
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .publish-modal__close:hover {
+      background: var(--app-danger-soft);
+      color: var(--app-danger);
+    }
+
+    .publish-modal__body {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding: 20px;
+    }
+
+    .publish-modal__track-name {
+      margin: 0;
+      font-weight: 600;
+      color: var(--app-text);
+    }
+
+    .publish-modal__field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .publish-modal__actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding-top: 4px;
+    }
+
+    .optional {
+      font-weight: 400;
+      color: var(--app-text-muted);
+      font-size: 12px;
+    }
+
+    @media (max-width: 900px) {
+      .modal-backdrop {
+        padding: 64px 12px 12px;
+      }
+
+      .modal {
+        width: 100%;
+        max-height: calc(100dvh - 76px);
+      }
+
+      .modal__toolbar {
+        grid-template-columns: 1fr;
+      }
+
+      .track-row {
+        grid-template-columns: 1fr;
+        align-items: start;
+      }
+
+      .track-row__actions {
+        justify-content: flex-start;
+      }
+    }
+  `],
 })
 export class MyTracksComponent {
+  private cdr = inject(ChangeDetectorRef);
+
   @Input() tracks: Track[] = [];
   @Input() busyTrackId: number | null = null;
 
   @Output() publish = new EventEmitter<PublishEvent>();
   @Output() unpublish = new EventEmitter<Track>();
+  @Output() close = new EventEmitter<void>();
 
-  private publishDescriptions = new Map<number, string>();
+  publishTrack: Track | null = null;
+  publishDesc = '';
 
-  onPublish(track: Track): void {
-    this.publish.emit({
-      track,
-      description: this.publishDescriptions.get(track.id ?? 0) ?? '',
+  search = '';
+  filterMode: PublishFilterMode = 'all';
+
+  get filteredTracks(): Track[] {
+    const query = this.search.trim().toLowerCase();
+
+    return (this.tracks ?? []).filter(track => {
+      const matchesSearch = !query || this.displayName(track).toLowerCase().includes(query);
+      const matchesFilter =
+        this.filterMode === 'all' ||
+        (this.filterMode === 'published' && !!track.trackShare) ||
+        (this.filterMode === 'unpublished' && !track.trackShare);
+
+      return matchesSearch && matchesFilter;
     });
-    this.publishDescriptions.delete(track.id ?? 0);
   }
 
-  getPublishDesc(track: Track): string {
-    return this.publishDescriptions.get(track.id ?? 0) ?? '';
+  openPublish(track: Track): void {
+    this.publishTrack = track;
+    this.publishDesc = '';
+    this.cdr.markForCheck();
   }
 
-  setPublishDesc(track: Track, value: string): void {
-    if (track.id != null) this.publishDescriptions.set(track.id, value);
+  closePublish(): void {
+    this.publishTrack = null;
+    this.publishDesc = '';
+    this.cdr.markForCheck();
+  }
+
+  confirmPublish(): void {
+    if (!this.publishTrack) return;
+    this.publish.emit({ track: this.publishTrack, description: this.publishDesc });
+    this.closePublish();
+  }
+
+  onBackdropClick(e: MouseEvent): void {
+    if ((e.target as HTMLElement).classList.contains('modal-backdrop')) {
+      this.close.emit();
+    }
+  }
+
+  onPublishBackdropClick(e: MouseEvent): void {
+    if ((e.target as HTMLElement).classList.contains('publish-backdrop')) {
+      this.closePublish();
+    }
   }
 
   trackById(_i: number, track: Track): number {
     return track.id ?? 0;
+  }
+
+  displayName(track: Track): string {
+    return track.trackName || track.trackOriginalName || ('Track #' + track.id);
   }
 
   formatDuration(seconds?: number): string {

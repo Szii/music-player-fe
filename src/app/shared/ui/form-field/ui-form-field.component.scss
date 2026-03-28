@@ -1,0 +1,28 @@
+.app-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.app-form-field + .app-form-field {
+  margin-top: 1rem;
+}
+
+.app-form-field__label {
+  font-weight: 600;
+  color: var(--app-text);
+}
+
+.app-form-field__control {
+  display: block;
+}
+
+.app-form-field__hint {
+  font-size: 0.875rem;
+  color: var(--app-text-muted);
+}
+
+.app-form-field__error {
+  font-size: 0.875rem;
+  color: var(--app-danger);
+}

@@ -1,6 +1,5 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
 import { forkJoin, Observable, of } from 'rxjs';
 import { catchError, switchMap, tap } from 'rxjs/operators';
 
@@ -20,22 +19,29 @@ import {
   Track,
 } from '../../../../api/generated';
 
-import { CreateBoardFormComponent, CreateBoardEvent } from '../../components/create-board-form/create-board-form.component';
+import {
+  CreateBoardFormComponent,
+  CreateBoardEvent,
+} from '../../components/create-board-form/create-board-form.component';
 import { BoardCardComponent } from '../../components/board-card/board-card.component';
+import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
+import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empty-state.component';
+
+type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 
 @Component({
   selector: 'app-boards-page',
   standalone: true,
-  imports: [CommonModule, RouterLink, CreateBoardFormComponent, BoardCardComponent],
+  imports: [
+    CommonModule,
+    CreateBoardFormComponent,
+    BoardCardComponent,
+    UiAlertComponent,
+    UiEmptyStateComponent,
+  ],
   template: `
-    <div class="container py-4">
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-          <a routerLink="/" class="btn btn-outline-primary">Home</a>
-        </div>
-      </div>
-
-      <h1 class="mb-4">Boards</h1>
+    <div class="app-page board-page">
+      <h1 class="boards-page__title">Boards</h1>
 
       <app-create-board-form
         [tracks]="tracks"
@@ -43,19 +49,24 @@ import { BoardCardComponent } from '../../components/board-card/board-card.compo
         (create)="createBoard($event)"
       ></app-create-board-form>
 
-      <div *ngIf="errorMessage" class="alert alert-danger">
+      <ui-alert *ngIf="errorMessage" variant="danger">
         {{ errorMessage }}
+      </ui-alert>
+
+      <div *ngIf="loading" class="app-muted boards-page__loading">
+        Loading boards...
       </div>
 
-      <div *ngIf="loading">Loading boards...</div>
+      <ui-empty-state
+        *ngIf="!loading && boards.length === 0"
+        title="No boards yet"
+        message="Create your first board to get started."
+      ></ui-empty-state>
 
-      <div *ngIf="!loading && boards.length === 0" class="alert alert-info">
-        No boards yet.
-      </div>
-
-      <div *ngIf="!loading" class="row g-3">
-        <div class="col-12" *ngFor="let board of boards; trackBy: trackByBoardId">
+      <div *ngIf="!loading && boards.length > 0" class="boards-list-wrap">
+        <div class="boards-list">
           <app-board-card
+            *ngFor="let board of boards; trackBy: trackByBoardId"
             [board]="board"
             [availableGroups]="getGroupsForBoard(board)"
             [status]="getBoardStatus(board)"
@@ -76,6 +87,44 @@ import { BoardCardComponent } from '../../components/board-card/board-card.compo
       </div>
     </div>
   `,
+  styles: [`
+    :host {
+      display: block;
+      --boards-list-max-height: min(70dvh, 720px);
+    }
+
+    .boards-page__title {
+      margin: 0 0 1.5rem;
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .boards-page__loading {
+      margin-top: 1rem;
+      color: #94a3b8;
+    }
+
+    .boards-list-wrap {
+      margin-top: 1.25rem;
+      max-height: var(--boards-list-max-height);
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 4px;
+    }
+
+    .boards-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    @media (max-width: 860px) {
+      :host {
+        --boards-list-max-height: min(52dvh, 640px);
+      }
+    }
+  `],
 })
 export class BoardsPageComponent implements OnInit {
   private boardsApi = inject(MusicBoardsService);
@@ -91,7 +140,7 @@ export class BoardsPageComponent implements OnInit {
   createBoardSubmitting = false;
 
   private streamUrlsByBoard = new Map<number, string>();
-  private boardStatuses = new Map<number, string>();
+  private boardStatuses = new Map<number, PlayerStatus>();
   selectedWindowByBoard = new Map<number, number | null>();
 
   ngOnInit(): void {
@@ -179,7 +228,6 @@ export class BoardsPageComponent implements OnInit {
     if (!confirm(`Delete board "${board.name || board.id}"?`)) return;
 
     const boardId = board.id;
-
     const doDelete = () => {
       this.boardsApi.deleteUserBoard({ boardId }).subscribe({
         next: () => {
@@ -215,8 +263,8 @@ export class BoardsPageComponent implements OnInit {
     if (board.id == null) return;
     const boardId = board.id;
     const newRepeat = !(board.repeat ?? false);
-
     board.repeat = newRepeat;
+
     const body: BoardUpdateRequest = {
       name: board.name ?? undefined,
       selectedTrackId: board.selectedTrack?.id ?? undefined,
@@ -228,7 +276,7 @@ export class BoardsPageComponent implements OnInit {
 
     this.boardsApi.updateUserBoard({ boardId, boardUpdateRequest: body }).subscribe({
       next: (updated: Board) => {
-        this.boards = this.boards.map(b => (b.id === boardId ? updated : b));
+        this.boards = this.boards.map(b => b.id === boardId ? updated : b);
       },
       error: (err: unknown) => {
         console.error(err);
@@ -242,8 +290,8 @@ export class BoardsPageComponent implements OnInit {
     if (board.id == null) return;
     const boardId = board.id;
     const newOverplay = !(board.overplay ?? false);
-
     board.overplay = newOverplay;
+
     const body: BoardUpdateRequest = {
       name: board.name ?? undefined,
       selectedTrackId: board.selectedTrack?.id ?? undefined,
@@ -255,7 +303,7 @@ export class BoardsPageComponent implements OnInit {
 
     this.boardsApi.updateUserBoard({ boardId, boardUpdateRequest: body }).subscribe({
       next: (updated: Board) => {
-        this.boards = this.boards.map(b => (b.id === boardId ? updated : b));
+        this.boards = this.boards.map(b => b.id === boardId ? updated : b);
       },
       error: (err: unknown) => {
         console.error(err);
@@ -267,12 +315,9 @@ export class BoardsPageComponent implements OnInit {
 
   onGroupSelectionChange(board: Board, selectedId: number | null): void {
     if (board.id == null) return;
-
     const boardId = board.id;
     const previousGroup = board.selectedGroup;
-    const selectedGroup = this.getGroupsForBoard(board).find(g => g.id === selectedId) ?? undefined;
-
-    board.selectedGroup = selectedGroup;
+    board.selectedGroup = this.getGroupsForBoard(board).find(g => g.id === selectedId) ?? undefined;
     this.selectedWindowByBoard.delete(boardId);
 
     const body: BoardUpdateRequest = {
@@ -286,7 +331,7 @@ export class BoardsPageComponent implements OnInit {
 
     this.boardsApi.updateUserBoard({ boardId, boardUpdateRequest: body }).subscribe({
       next: (updated: Board) => {
-        this.boards = this.boards.map(b => (b.id === boardId ? updated : b));
+        this.boards = this.boards.map(b => b.id === boardId ? updated : b);
         this.clearBoard(boardId);
       },
       error: (err: unknown) => {
@@ -299,10 +344,8 @@ export class BoardsPageComponent implements OnInit {
 
   onTrackSelectionChange(board: Board, selectedId: number | null): void {
     if (board.id == null) return;
-
     const boardId = board.id;
     this.selectedWindowByBoard.delete(boardId);
-
     const previousTrack = board.selectedTrack;
     const selectedTrack = (board.availableTracks ?? []).find(t => t.id === selectedId) ?? undefined;
 
@@ -319,7 +362,7 @@ export class BoardsPageComponent implements OnInit {
 
       this.boardsApi.updateUserBoard({ boardId, boardUpdateRequest: body }).subscribe({
         next: (updated: Board) => {
-          this.boards = this.boards.map(b => (b.id === boardId ? updated : b));
+          this.boards = this.boards.map(b => b.id === boardId ? updated : b);
           this.clearBoard(boardId);
         },
         error: (err: unknown) => {
@@ -355,10 +398,7 @@ export class BoardsPageComponent implements OnInit {
     const boardsToStop = targetOverplay
       ? []
       : this.boards.filter(b =>
-          b.id != null &&
-          b.id !== targetId &&
-          !(b.overplay ?? false) &&
-          this.isBoardActive(b.id),
+          b.id != null && b.id !== targetId && !(b.overplay ?? false) && this.isBoardActive(b.id),
         );
 
     const stopCalls = boardsToStop.map(b => {
@@ -374,23 +414,21 @@ export class BoardsPageComponent implements OnInit {
 
     const stopAll$: Observable<unknown> = stopCalls.length > 0 ? forkJoin(stopCalls) : of(null);
 
-    stopAll$
-      .pipe(
-        switchMap(() => {
-          const windowId = this.selectedWindowByBoard.get(targetId) ?? undefined;
-          const playRequest: PlayRequest = windowId != null ? { windowId } : {};
-          return this.playbackApi.playBoard({ boardId: targetId, playRequest });
-        }),
-      )
-      .subscribe({
-        next: (state: PlaybackState) => {
-          this.applyPlaybackState(targetId, state);
-        },
-        error: (err: unknown) => {
-          console.error(err);
-          alert('Starting playback failed.');
-        },
-      });
+    stopAll$.pipe(
+      switchMap(() => {
+        const windowId = this.selectedWindowByBoard.get(targetId) ?? undefined;
+        const playRequest: PlayRequest = windowId != null ? { windowId } : {};
+        return this.playbackApi.playBoard({ boardId: targetId, playRequest });
+      }),
+    ).subscribe({
+      next: (state: PlaybackState) => {
+        this.applyPlaybackState(targetId, state);
+      },
+      error: (err: unknown) => {
+        console.error(err);
+        alert('Starting playback failed.');
+      },
+    });
   }
 
   stopBoardTrack(board: Board): void {
@@ -423,10 +461,8 @@ export class BoardsPageComponent implements OnInit {
 
   onWindowSelectionChange(board: Board, windowId: number | null): void {
     if (board.id == null) return;
-    const boardId = board.id;
-    this.selectedWindowByBoard.set(boardId, windowId);
-
-    if (this.isBoardActive(boardId)) {
+    this.selectedWindowByBoard.set(board.id, windowId);
+    if (this.isBoardActive(board.id)) {
       this.playBoardTrack(board);
     }
   }
@@ -435,7 +471,7 @@ export class BoardsPageComponent implements OnInit {
     return board.id ?? 0;
   }
 
-  getBoardStatus(board: Board): string {
+  getBoardStatus(board: Board): PlayerStatus {
     if (board.id == null) return 'STOPPED';
     return this.boardStatuses.get(board.id) ?? 'STOPPED';
   }
@@ -448,11 +484,7 @@ export class BoardsPageComponent implements OnInit {
   getGroupsForBoard(board: Board): Group[] {
     const selectedGroup = board.selectedGroup;
     const baseGroups = this.groups ?? [];
-
-    if (selectedGroup?.id == null) {
-      return baseGroups;
-    }
-
+    if (selectedGroup?.id == null) return baseGroups;
     return baseGroups.some(g => g.id === selectedGroup.id)
       ? baseGroups
       : [selectedGroup, ...baseGroups];
@@ -465,7 +497,6 @@ export class BoardsPageComponent implements OnInit {
 
   private applyPlaybackState(boardId: number, state: PlaybackState | null): void {
     this.boardStatuses.set(boardId, state?.status ?? 'STOPPED');
-
     const url = this.resolveStreamUrl(state?.streamUrl);
     if (url) {
       this.streamUrlsByBoard.set(boardId, url);
@@ -511,7 +542,6 @@ export class BoardsPageComponent implements OnInit {
       this.errorMessage = message;
       return;
     }
-
     if (!this.errorMessage.includes(message)) {
       this.errorMessage = `${this.errorMessage} ${message}`;
     }

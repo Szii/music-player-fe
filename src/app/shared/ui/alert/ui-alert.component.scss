@@ -1,0 +1,43 @@
+.app-alert {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--app-radius-sm);
+  border: 1px solid transparent;
+  margin-top: 1rem;
+}
+
+.app-alert--info {
+  background: var(--app-primary-soft);
+  border-color: #c9c8f8;
+  color: var(--app-primary);
+}
+
+.app-alert--success {
+  background: var(--app-success-soft);
+  border-color: #bdd9c1;
+  color: var(--app-success);
+}
+
+.app-alert--warning {
+  background: var(--app-warning-soft);
+  border-color: #e8d599;
+  color: var(--app-warning);
+}
+
+.app-alert--danger {
+  background: var(--app-danger-soft);
+  border-color: #e9bdbd;
+  color: var(--app-danger);
+}
+
+.app-alert__content {
+  flex: 1;
+}
+
+.app-alert__actions {
+  display: flex;
+  align-items: center;
+}

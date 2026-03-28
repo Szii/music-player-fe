@@ -1,0 +1,25 @@
+.app-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.app-section-header__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.app-section-header__subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--app-text-muted);
+  font-size: 0.9rem;
+}
+
+.app-section-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}

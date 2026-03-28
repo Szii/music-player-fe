@@ -1,0 +1,139 @@
+:host {
+  display: block;
+}
+
+.app-navbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  box-shadow: 0 6px 20px rgba(43, 33, 24, 0.2);
+}
+
+.app-navbar__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.app-navbar__brand {
+  display: flex;
+  align-items: center;
+}
+
+.app-navbar__brand-link {
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.app-navbar__brand-link:hover {
+  color: #ffffff;
+}
+
+.app-navbar__toggle {
+  margin-left: auto;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: #ffffff;
+  border-radius: 10px;
+  padding: 0.35rem 0.65rem;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.1s ease;
+}
+
+.app-navbar__toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.app-navbar__toggle:active {
+  transform: scale(0.98);
+}
+
+.app-navbar__content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.app-navbar__links {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.app-navbar__link {
+  color: rgba(255, 255, 255, 0.78);
+  text-decoration: none;
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.app-navbar__link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.app-navbar__link--active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.app-navbar__actions {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+
+@media (max-width: 768px) {
+  .app-navbar__toggle {
+    display: inline-flex;
+  }
+
+  .app-navbar__content {
+    display: none;
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .app-navbar__content--open {
+    display: flex;
+  }
+
+  .app-navbar__links {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.25rem;
+  }
+
+  .app-navbar__link {
+    display: block;
+    width: 100%;
+  }
+
+  .app-navbar__actions {
+    margin-left: 0;
+    width: 100%;
+  }
+}

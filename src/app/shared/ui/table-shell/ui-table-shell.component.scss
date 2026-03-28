@@ -1,0 +1,228 @@
+.app-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--app-border-color);
+  border-radius: 18px;
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow);
+}
+
+.app-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  font-size: 14px;
+  color: var(--app-text);
+}
+
+.app-table thead th {
+  padding: 16px 18px;
+  text-align: left;
+  vertical-align: middle;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--app-text-muted);
+  white-space: nowrap;
+  background: var(--app-bg-soft);
+  border-bottom: 1px solid var(--app-border-color);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.app-table thead th:first-child {
+  border-top-left-radius: 18px;
+}
+
+.app-table thead th:last-child {
+  border-top-right-radius: 18px;
+}
+
+.app-table td {
+  padding: 18px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--app-border-color);
+  background: var(--app-surface);
+}
+
+.app-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.app-table tbody tr:nth-child(even) td {
+  background: rgba(239, 231, 216, 0.22);
+}
+
+.app-table tbody tr:hover td {
+  background: var(--app-primary-soft);
+}
+
+.app-table td.col-muted {
+  color: var(--app-text-muted);
+}
+
+.app-table td.col-num {
+  font-variant-numeric: tabular-nums;
+  color: var(--app-text-muted);
+  white-space: nowrap;
+}
+
+.app-table th.col-actions,
+.app-table td.col-actions {
+  white-space: normal;
+}
+
+.app-table .app-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.app-table .cell-text {
+  display: block;
+  min-width: 0;
+  line-height: 1.45;
+}
+
+.app-table .cell-text--strong {
+  font-weight: 600;
+  color: var(--app-text);
+}
+
+.app-table .cell-text--muted {
+  color: var(--app-text-muted);
+}
+
+.app-table .cell-text--truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-table--tracks .col-name {
+  width: 14%;
+}
+
+.app-table--tracks .col-original {
+  width: 44%;
+}
+
+.app-table--tracks .col-duration {
+  width: 110px;
+  white-space: nowrap;
+}
+
+.app-table--tracks .col-link {
+  width: 110px;
+  white-space: nowrap;
+}
+
+.app-table--tracks .col-actions {
+  width: 260px;
+}
+
+@media (max-width: 1100px) {
+  .app-table {
+    min-width: 900px;
+  }
+}
+
+.app-table--windows .col-window-actions {
+  width: 170px;
+}
+
+.app-table--windows .cell-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1rem;
+}
+
+.app-table--windows .app-actions--table {
+  gap: 0.45rem;
+}
+
+@media (max-width: 900px) {
+  .app-table--windows {
+    min-width: 720px;
+  }
+}
+
+.app-table--windows .col-window-name {
+  width: auto;
+}
+
+.app-table--windows .col-window-time {
+  width: 74px;
+  white-space: nowrap;
+}
+
+.app-table--windows .col-window-flag {
+  width: 58px;
+  white-space: nowrap;
+}
+
+.app-table--windows .col-window-actions {
+  width: 120px;
+}
+
+.app-table--windows .app-actions--stack-sm {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.app-table--windows .cell-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1rem;
+}
+
+.app-table--windows {
+  table-layout: fixed;
+}
+
+.app-table--windows .col-window-name {
+  width: auto;
+  min-width: 0;
+}
+
+.app-table--windows .col-window-time {
+  width: 64px;
+  white-space: nowrap;
+}
+
+.app-table--windows .col-window-flag {
+  width: 42px;
+  white-space: nowrap;
+}
+
+.app-table--windows .col-window-actions {
+  width: 150px;
+}
+
+.app-table--windows th,
+.app-table--windows td {
+  padding: 12px 10px;
+}
+
+.app-table--windows .app-actions--stack-sm {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.app-table--windows .cell-text--truncate {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

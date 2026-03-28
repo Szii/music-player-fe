@@ -3,6 +3,7 @@ info:
   title: Music Player API
   description: API for managing music playlists (groups), tracks, and playback board
   version: 1.0.0
+
 servers:
   - url: http://localhost:8080
     description: Local development server
@@ -166,7 +167,7 @@ components:
         token:
           type: string
           description: Authentication token (e.g., JWT) used for subsequent requests
-          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 
     Track:
       type: object
@@ -181,6 +182,10 @@ components:
           type: string
           description: Name or title of the track
           example: "Sample Song"
+        owned:
+          type: boolean
+          description: Whether the track is owned by the authenticated user
+          example: true
         trackOriginalName:
           type: string
           description: Original title of the track
@@ -194,7 +199,7 @@ components:
           description: Duration of the track in seconds
           example: 215
         owner:
-            $ref: '#/components/schemas/UserInfoLite'
+          $ref: '#/components/schemas/UserInfoLite'
         groupIds:
           type: array
           description: IDs of groups this track belongs to
@@ -214,25 +219,25 @@ components:
       type: object
       description: Window of interest in track
       properties:
-          id:
-            type: integer
-            format: int64
-            description: Unique identifier (auto-generated)
-          name:
-              type: string
-              description: name for window
-          positionFrom:
-            type: integer
-            description: Start of track window
-          positionTo:
-            type: integer
-            description: End of track window
-          fadeIn:
-            type: boolean
-            description: window makes a fade in
-          fadeOut:
-            type: boolean
-            description: window makes a fade out
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier (auto-generated)
+        name:
+          type: string
+          description: name for window
+        positionFrom:
+          type: integer
+          description: Start of track window
+        positionTo:
+          type: integer
+          description: End of track window
+        fadeIn:
+          type: boolean
+          description: window makes a fade in
+        fadeOut:
+          type: boolean
+          description: window makes a fade out
 
     TrackRequest:
       type: object
@@ -312,7 +317,7 @@ components:
           description: Name of the playlist or group
           example: "My Favorites"
         owner:
-            $ref: '#/components/schemas/UserInfoLite'
+          $ref: '#/components/schemas/UserInfoLite'
         tracks:
           type: array
           description: Tracks in this group
@@ -373,8 +378,7 @@ components:
           description: Overplay/overlay mode
           example: false
         owner:
-            $ref: '#/components/schemas/UserInfoLite'
-
+          $ref: '#/components/schemas/UserInfoLite'
 
     BoardCreateRequest:
       type: object
@@ -436,11 +440,10 @@ components:
           description: Overplay/overlay mode
           example: false
 
-
     PlayRequest:
       type: object
       description: >
-        Request to start playback on a board. If track window is omitted, play whole selected track
+        Request to start playback. If track window is omitted, play whole selected track
       properties:
         windowId:
           type: integer
@@ -481,6 +484,88 @@ components:
           nullable: true
           description: Optional end position in seconds (null = play until track ends)
           example: 90
+
+    WaveformResponse:
+      type: object
+      description: Precomputed waveform data for a track, suitable for editor rendering
+      required:
+        - trackId
+        - durationS
+        - buckets
+        - peaks
+      properties:
+        trackId:
+          type: integer
+          format: int64
+          example: 1
+        durationS:
+          type: integer
+          format: int64
+          description: Total duration of the track in seconds
+          example: 251
+        buckets:
+          type: integer
+          description: Number of peak buckets in the response
+          example: 512
+        processedBuckets:
+          type: integer
+          description: Number of peak buckets in the response
+          example: 512
+        peaks:
+          type: array
+          description: Normalized waveform peak values in the range 0..1
+          items:
+            type: number
+            x-java-type: java.math.BigDecimal
+          example: [0.12, 0.44, 0.31, 0.22, 0.67]
+        complete:
+          type: boolean
+          description: Whether the waveform data is complete or there are still some left to be fetched
+          example: true
+        generatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when waveform data was generated
+
+    StreamInfoResponse:
+      type: object
+      description: Metadata about a playable audio stream
+      required:
+        - trackId
+        - durationS
+        - mimeType
+        - rangeSupported
+      properties:
+        trackId:
+          type: integer
+          format: int64
+          example: 1
+        durationS:
+          type: integer
+          format: int64
+          description: Total duration of the track in seconds
+          example: 251
+        mimeType:
+          type: string
+          description: MIME type of the audio stream
+          example: "audio/mpeg"
+        byteLength:
+          type: integer
+          format: int64
+          nullable: true
+          description: Total size of the encoded audio in bytes, if known
+          example: 6023123
+        bitrateKbps:
+          type: integer
+          format: int32
+          nullable: true
+          description: Average bitrate in kbps, if known
+          example: 192
+        rangeSupported:
+          type: boolean
+          description: Whether HTTP range requests are supported for this stream
+          example: true
 
     PlaybackStatus:
       type: string
@@ -595,6 +680,7 @@ paths:
                 $ref: '#/components/schemas/AuthResponse'
         '401':
           description: Invalid username or password
+
   /users/me:
     get:
       tags:
@@ -694,7 +780,7 @@ paths:
       summary: Update an existing track
       operationId: updateTrack
       parameters:
-          - $ref: '#/components/parameters/TrackId'
+        - $ref: '#/components/parameters/TrackId'
       requestBody:
         required: true
         content:
@@ -718,21 +804,22 @@ paths:
       summary: Delete a track
       operationId: deleteTrack
       parameters:
-          - $ref: '#/components/parameters/TrackId'
+        - $ref: '#/components/parameters/TrackId'
       responses:
         '204':
           description: Track deleted successfully
         '404':
           description: Track not found
+
   /tracks/{trackId}/windows:
     post:
       tags:
-         - MusicTracks
+        - MusicTracks
       summary: Create a track window
       description: Adds a new window of interest to the specified track
       operationId: createTrackWindow
       parameters:
-          - $ref: '#/components/parameters/TrackId'
+        - $ref: '#/components/parameters/TrackId'
       requestBody:
         required: true
         content:
@@ -750,6 +837,7 @@ paths:
           description: Bad request (validation error, etc.)
         '500':
           description: Server error
+
   /tracks/{trackId}/windows/{windowId}:
     patch:
       tags:
@@ -999,6 +1087,159 @@ paths:
         '409':
           description: No track selected on board (and no trackId provided)
 
+  /tracks/{trackId}/playback/play:
+    post:
+      tags:
+        - Playback
+      summary: Start playback on for a track.
+      description: >
+        Start playback for a track without a board to obtain a stream URL. Track must be owned.
+      operationId: playTrack
+      parameters:
+        - $ref: '#/components/parameters/TrackId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlayRequest'
+      responses:
+        '200':
+          description: Playback started (or restarted) successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaybackState'
+        '400':
+          description: Invalid input
+        '401':
+          description: User not authenticated
+        '403':
+          description: Forbidden (Track not owned by user)
+        '404':
+          description: Track or not found
+        '409':
+          description: Track is already playing
+
+  /tracks/{trackId}/stream-info:
+    get:
+      tags:
+        - Playback
+      summary: Get stream metadata for a track
+      description: >
+        Returns metadata about the direct audio stream for a track, including duration,
+        MIME type, optional size information, and whether byte range requests are supported.
+        Track must belong to the authenticated user.
+      operationId: getTrackStreamInfo
+      parameters:
+        - $ref: '#/components/parameters/TrackId'
+      responses:
+        '200':
+          description: Stream metadata returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StreamInfoResponse'
+        '401':
+          description: User not authenticated
+        '403':
+          description: Forbidden (track not owned by user)
+        '404':
+          description: Track not found
+
+  /tracks/{trackId}/waveform:
+    get:
+      tags:
+        - MusicTracks
+      summary: Get precomputed waveform data for a track
+      description: >
+        Returns waveform peak data for the specified track so the frontend can render
+        a waveform without downloading and decoding the full audio file in the browser.
+        Track must belong to the authenticated user.
+      operationId: getTrackWaveform
+      parameters:
+        - $ref: '#/components/parameters/TrackId'
+      responses:
+        '200':
+          description: Waveform data returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaveformResponse'
+        '401':
+          description: User not authenticated
+        '403':
+          description: Forbidden (track not owned by user)
+        '404':
+          description: Track not found
+
+  /tracks/{trackId}/stream:
+    get:
+      tags:
+        - Playback
+      summary: Stream audio for a track directly
+      description: >
+        Streams the given track audio as an MP3 stream. Requires authentication.
+        Track must belong to the authenticated user.
+
+        The endpoint should support HTTP Range requests so the frontend can start playback
+        immediately, continue downloading in the background, and seek locally without waiting
+        for the full file to download.
+      operationId: streamTrackAudio
+      parameters:
+        - $ref: '#/components/parameters/TrackId'
+        - $ref: '#/components/parameters/StreamToken'
+      responses:
+        '200':
+          description: Full MP3 audio stream
+          headers:
+            Accept-Ranges:
+              description: Indicates that byte-range requests are supported
+              schema:
+                type: string
+                example: "bytes"
+            Content-Length:
+              description: Total response length in bytes
+              schema:
+                type: integer
+                format: int64
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        '206':
+          description: Partial MP3 audio stream returned for a range request
+          headers:
+            Accept-Ranges:
+              description: Indicates that byte-range requests are supported
+              schema:
+                type: string
+                example: "bytes"
+            Content-Range:
+              description: Returned byte range and total size
+              schema:
+                type: string
+                example: "bytes 0-65535/6023123"
+            Content-Length:
+              description: Length of the returned range in bytes
+              schema:
+                type: integer
+                format: int64
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: User not authenticated
+        '403':
+          description: Forbidden (track not owned by user)
+        '404':
+          description: Track not found
+        '409':
+          description: Track is not playing
+
   /boards/{boardId}/playback/stop:
     post:
       tags:
@@ -1134,13 +1375,50 @@ paths:
       description: >
         Streams the currently playing board audio as an MP3 stream.
         Requires authentication. Board must belong to the authenticated user.
+
+        The endpoint should support HTTP Range requests so the frontend can start playback
+        immediately, continue downloading in the background, and seek locally.
       operationId: streamBoardAudio
       parameters:
         - $ref: '#/components/parameters/BoardId'
         - $ref: '#/components/parameters/StreamToken'
       responses:
         '200':
-          description: MP3 audio stream
+          description: Full MP3 audio stream
+          headers:
+            Accept-Ranges:
+              description: Indicates that byte-range requests are supported
+              schema:
+                type: string
+                example: "bytes"
+            Content-Length:
+              description: Total response length in bytes
+              schema:
+                type: integer
+                format: int64
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        '206':
+          description: Partial MP3 audio stream returned for a range request
+          headers:
+            Accept-Ranges:
+              description: Indicates that byte-range requests are supported
+              schema:
+                type: string
+                example: "bytes"
+            Content-Range:
+              description: Returned byte range and total size
+              schema:
+                type: string
+                example: "bytes 0-65535/6023123"
+            Content-Length:
+              description: Length of the returned range in bytes
+              schema:
+                type: integer
+                format: int64
           content:
             audio/mpeg:
               schema:
@@ -1228,11 +1506,3 @@ paths:
           description: Successfully unsubscribed from track
         '404':
           description: Track not found
-
-
-
-
-
-
-
-

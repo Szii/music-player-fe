@@ -1,6 +1,5 @@
 import { Component, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
 
 import {
   MusicGroupsService,
@@ -11,43 +10,107 @@ import {
 } from '../../../../api/generated';
 
 import { CreateGroupFormComponent } from '../../components/create-group-form/create-group-form.component';
-import { GroupCardComponent, TrackToggleEvent, RenameEvent } from '../../components/group-card/group-card.component';
+import { GroupCardComponent, RenameEvent } from '../../components/group-card/group-card.component';
+import {
+  GroupTracksEditorComponent,
+  GroupTracksSaveEvent,
+} from '../../components/group-tracks-editor/group-tracks-editor.component';
+import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
+import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empty-state.component';
 
 @Component({
   selector: 'app-groups-page',
   standalone: true,
-  imports: [CommonModule, RouterLink, CreateGroupFormComponent, GroupCardComponent],
+  imports: [
+    CommonModule,
+    CreateGroupFormComponent,
+    GroupCardComponent,
+    GroupTracksEditorComponent,
+    UiAlertComponent,
+    UiEmptyStateComponent,
+  ],
   template: `
-    <div class="container py-4">
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <a routerLink="/" class="btn btn-outline-primary">Home</a>
-      </div>
-
-      <h1 class="mb-4">Groups</h1>
+    <div class="app-page group-page">
+      <h1 class="groups-page__title">Groups</h1>
 
       <app-create-group-form
         #createForm
         (groupCreateRequested)="createGroup($event)"
       />
 
-      <div *ngIf="errorMessage" class="alert alert-danger">{{ errorMessage }}</div>
-      <div *ngIf="loading">Loading...</div>
-      <div *ngIf="!loading && groups.length === 0" class="alert alert-info">No groups yet.</div>
+      <ui-alert *ngIf="errorMessage" variant="danger">
+        {{ errorMessage }}
+      </ui-alert>
 
-      <div *ngIf="!loading" class="row g-3">
-        <div class="col-12" *ngFor="let group of groups; trackBy: trackByGroupId">
+      <div *ngIf="loading" class="app-muted groups-page__loading">Loading...</div>
+
+      <ui-empty-state
+        *ngIf="!loading && groups.length === 0"
+        title="No groups yet"
+        message="Create your first group to get started."
+      />
+
+      <div *ngIf="!loading && groups.length > 0" class="groups-list-wrap">
+        <div class="groups-list">
           <app-group-card
+            *ngFor="let group of groups; trackBy: trackByGroupId"
             [group]="group"
             [tracks]="tracks"
             [updating]="updatingGroupId === group.id"
             (deleteRequested)="deleteGroup($event)"
             (renameRequested)="renameGroup($event)"
-            (trackToggled)="onTrackToggle($event)"
+            (editTracksRequested)="openTrackEditor($event)"
           />
         </div>
       </div>
+
+      <app-group-tracks-editor
+        *ngIf="editingGroup"
+        [group]="editingGroup"
+        [tracks]="tracks"
+        [saving]="updatingGroupId === editingGroup.id"
+        (cancel)="closeTrackEditor()"
+        (save)="saveGroupTracks($event)"
+      />
     </div>
   `,
+  styles: [`
+    :host {
+      display: block;
+      --groups-list-max-height: min(58dvh, 720px);
+    }
+
+    .groups-page__title {
+      margin: 0 0 1.5rem;
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--app-text);
+    }
+
+    .groups-page__loading {
+      margin-top: 1rem;
+    }
+
+    .groups-list-wrap {
+      margin-top: 1.25rem;
+      max-height: var(--groups-list-max-height);
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 4px;
+    }
+
+    .groups-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    @media (max-width: 860px) {
+      :host {
+        --groups-list-max-height: min(52dvh, 640px);
+      }
+    }
+  `],
 })
 export class GroupsPageComponent implements OnInit {
   @ViewChild('createForm') createFormRef?: CreateGroupFormComponent;
@@ -60,6 +123,7 @@ export class GroupsPageComponent implements OnInit {
   loading = false;
   errorMessage = '';
   updatingGroupId: number | null = null;
+  editingGroup: Group | null = null;
 
   private ownTracks: Track[] = [];
   private subscribedTracks: Track[] = [];
@@ -72,30 +136,56 @@ export class GroupsPageComponent implements OnInit {
     this.loading = true;
     this.errorMessage = '';
 
-    let groupsDone = false;
-    let tracksDone = false;
-    let subscribedDone = false;
-
+    let groupsDone = false, tracksDone = false, subscribedDone = false;
     const done = () => {
       if (groupsDone && tracksDone && subscribedDone) this.loading = false;
     };
 
     this.groupsApi.getUserGroups().subscribe({
       next: (data) => { this.groups = data ?? []; },
-      error: (err) => { console.error(err); this.errorMessage = 'Loading groups failed.'; groupsDone = true; done(); },
-      complete: () => { groupsDone = true; done(); },
+      error: (err) => {
+        console.error(err);
+        this.errorMessage = 'Loading groups failed.';
+        groupsDone = true;
+        done();
+      },
+      complete: () => {
+        groupsDone = true;
+        done();
+      },
     });
 
     this.tracksApi.getUserTracks().subscribe({
-      next: (data) => { this.ownTracks = data ?? []; this.mergeTracks(); },
-      error: (err) => { console.error(err); this.errorMessage = this.errorMessage || 'Loading tracks failed.'; tracksDone = true; done(); },
-      complete: () => { tracksDone = true; done(); },
+      next: (data) => {
+        this.ownTracks = data ?? [];
+        this.mergeTracks();
+      },
+      error: (err) => {
+        console.error(err);
+        this.errorMessage ||= 'Loading tracks failed.';
+        tracksDone = true;
+        done();
+      },
+      complete: () => {
+        tracksDone = true;
+        done();
+      },
     });
 
     this.tracksApi.getUserSubscribedTracks().subscribe({
-      next: (data) => { this.subscribedTracks = data ?? []; this.mergeTracks(); },
-      error: (err) => { console.error(err); subscribedDone = true; done(); },
-      complete: () => { subscribedDone = true; done(); },
+      next: (data) => {
+        this.subscribedTracks = data ?? [];
+        this.mergeTracks();
+      },
+      error: (err) => {
+        console.error(err);
+        subscribedDone = true;
+        done();
+      },
+      complete: () => {
+        subscribedDone = true;
+        done();
+      },
     });
   }
 
@@ -105,7 +195,11 @@ export class GroupsPageComponent implements OnInit {
         this.groups = [...this.groups, created];
         this.createFormRef?.reset();
       },
-      error: (err) => { console.error(err); alert('Creating group failed.'); this.createFormRef?.reset(); },
+      error: (err) => {
+        console.error(err);
+        alert('Creating group failed.');
+        this.createFormRef?.reset();
+      },
     });
   }
 
@@ -115,58 +209,86 @@ export class GroupsPageComponent implements OnInit {
 
     const groupId = group.id;
     this.groupsApi.deleteGroup({ groupId }).subscribe({
-      next: () => { this.groups = this.groups.filter(g => g.id !== groupId); },
-      error: (err) => { console.error(err); alert('Deleting group failed.'); },
+      next: () => {
+        this.groups = this.groups.filter(g => g.id !== groupId);
+        if (this.editingGroup?.id === groupId) {
+          this.editingGroup = null;
+        }
+      },
+      error: (err) => {
+        console.error(err);
+        alert('Deleting group failed.');
+      },
     });
   }
 
   renameGroup({ group, newName }: RenameEvent): void {
     if (group.id == null) return;
-    const trackIds = this.getTrackIds(group);
-    this.updateGroup(group.id, newName, trackIds);
+    this.updateGroup(group.id, newName, this.getTrackIds(group), false);
   }
 
-  onTrackToggle({ group, track, checked }: TrackToggleEvent): void {
-    if (group.id == null || track.id == null) return;
-    const currentIds = this.getTrackIds(group);
-    const newIds = checked
-      ? [...new Set([...currentIds, track.id])]
-      : currentIds.filter(id => id !== track.id);
-    this.updateGroup(group.id, group.listName ?? '', newIds);
+  openTrackEditor(group: Group): void {
+    this.editingGroup = group;
   }
 
-  trackByGroupId(_index: number, group: Group): number {
+  closeTrackEditor(): void {
+    this.editingGroup = null;
+  }
+
+  saveGroupTracks({ group, trackIds }: GroupTracksSaveEvent): void {
+    if (group.id == null) return;
+    this.updateGroup(group.id, group.listName ?? '', trackIds, true);
+  }
+
+  trackByGroupId(_: number, group: Group): number {
     return group.id ?? 0;
   }
 
-  private updateGroup(groupId: number, listName: string, trackIds: number[]): void {
+  private updateGroup(
+    groupId: number,
+    listName: string,
+    trackIds: number[],
+    closeEditorOnSuccess: boolean,
+  ): void {
     this.updatingGroupId = groupId;
-    const body: GroupRequest = { listName, trackIds };
 
-    this.groupsApi.updateGroup({ groupId, groupRequest: body }).subscribe({
+    this.groupsApi.updateGroup({ groupId, groupRequest: { listName, trackIds } }).subscribe({
       next: (updated) => {
         this.groups = this.groups.map(g => g.id === groupId ? updated : g);
+
+        if (this.editingGroup?.id === groupId) {
+          this.editingGroup = updated;
+        }
+
+        if (closeEditorOnSuccess) {
+          this.editingGroup = null;
+        }
       },
-      error: (err) => { console.error(err); alert('Updating group failed.'); },
-      complete: () => { this.updatingGroupId = null; },
+      error: (err) => {
+        console.error(err);
+        alert('Updating group failed.');
+      },
+      complete: () => {
+        this.updatingGroupId = null;
+      },
     });
   }
 
   private getTrackIds(group: Group): number[] {
-    return (group.tracks ?? [])
-      .map(t => t.id)
-      .filter((id): id is number => id != null);
+    return (group.tracks ?? []).map(t => t.id).filter((id): id is number => id != null);
   }
 
   private mergeTracks(): void {
     const seen = new Set<number>();
     const merged: Track[] = [];
+
     for (const t of [...this.ownTracks, ...this.subscribedTracks]) {
       if (t.id != null && !seen.has(t.id)) {
         seen.add(t.id);
         merged.push(t);
       }
     }
+
     this.tracks = merged;
   }
 }

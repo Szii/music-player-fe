@@ -1,41 +1,35 @@
 import { Component, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterLink } from '@angular/router';
+import { forkJoin } from 'rxjs';
 
-import { SessionService } from '../../../../core/auth/session.service';
 import { TrackTableComponent } from '../../../tracks/components/track-table/track-table.component';
-import { TrackFormComponent, TrackFormEvent } from '../../../tracks/components/track-form/track-form-component';
-import { TrackWindowsPanelComponent, WindowSaveEvent, WindowDeleteEvent } from '../../../tracks/components/traack-window-panel/track-window-panel.component';
+import { TrackFormComponent, TrackFormEvent } from '../../../../features/tracks/components/track-form/track-form.component';
 import {
+  TrackWindowsPanelComponent,
+  WindowSaveEvent,
+  WindowDeleteEvent,
+} from '../../../tracks/components/track-window-panel/track-window-panel.component';
+import {
+  MusicBoardsService,
   MusicTracksService,
   Track,
   TrackRequest,
 } from '../../../../api/generated';
+import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 
 @Component({
   selector: 'app-home-page',
   standalone: true,
-  imports: [CommonModule, RouterLink, TrackTableComponent, TrackFormComponent, TrackWindowsPanelComponent],
+  imports: [
+    CommonModule,
+    TrackTableComponent,
+    TrackFormComponent,
+    TrackWindowsPanelComponent,
+    UiAlertComponent,
+  ],
   template: `
-    <div class="container py-5">
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-          <div class="d-flex gap-2 mb-2">
-            <a routerLink="/boards" class="btn btn-outline-primary">Boards</a>
-          </div>
-          <div class="d-flex gap-2 mb-2">
-            <a routerLink="/groups" class="btn btn-outline-primary">Groups</a>
-          </div>
-          <div class="d-flex gap-2 mb-2">
-            <a routerLink="/workshop" class="btn btn-outline-primary">Workshop</a>
-          </div>
-          <h1 class="mb-1">Home</h1>
-          <p class="mb-0">You are logged in.</p>
-        </div>
-        <button class="btn btn-outline-danger" type="button" (click)="logout()">
-          Log off
-        </button>
-      </div>
+    <div class="app-page home-page">
+      <h1 class="app-page__title">Home</h1>
 
       <app-track-form
         [editingTrackId]="editingTrackId"
@@ -46,36 +40,68 @@ import {
         (cancel)="cancelEdit()"
       ></app-track-form>
 
-      <div *ngIf="errorMessage" class="alert alert-danger">
+      <ui-alert *ngIf="errorMessage" variant="danger">
         {{ errorMessage }}
+      </ui-alert>
+
+      <div class="home-page__section">
+        <h2 class="home-page__subtitle">My tracks</h2>
+
+        <div class="home-page__table-wrap">
+          <app-track-table
+            [tracks]="tracks"
+            [loading]="loading"
+            (edit)="onEdit($event)"
+            (remove)="onRemove($event)"
+            (windows)="onWindows($event)"
+          ></app-track-table>
+        </div>
       </div>
-
-      <h2 class="h4 mb-3">My tracks</h2>
-
-      <app-track-table
-        [tracks]="tracks"
-        [loading]="loading"
-        (edit)="onEdit($event)"
-        (remove)="onRemove($event)"
-        (windows)="onWindows($event)"
-      ></app-track-table>
 
       <app-track-windows-panel
         [track]="windowTrack"
-        [creating]="creatingWindow"
         (close)="closeWindows()"
         (saveWindow)="onSaveWindow($event)"
         (deleteWindow)="onDeleteWindow($event)"
       ></app-track-windows-panel>
     </div>
   `,
+  styles: [`
+    :host {
+      display: block;
+    }
+
+    .home-page {
+      --track-table-max-height: calc(100dvh - 360px);
+    }
+
+    .home-page__section {
+      margin-top: 1.5rem;
+    }
+
+    .home-page__subtitle {
+      margin: 0 0 1rem;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--app-text);
+    }
+
+    .home-page__table-wrap {
+      --track-table-max-height: var(--track-table-max-height);
+      min-height: 0;
+    }
+
+    @media (max-width: 860px) {
+      .home-page {
+        --track-table-max-height: calc(100dvh - 280px);
+      }
+    }
+  `],
 })
 export class HomePageComponent implements OnInit {
   @ViewChild(TrackFormComponent) private trackForm?: TrackFormComponent;
 
   private tracksApi = inject(MusicTracksService);
-  private session = inject(SessionService);
-  private router = inject(Router);
 
   tracks: Track[] = [];
   loading = false;
@@ -87,31 +113,40 @@ export class HomePageComponent implements OnInit {
   editTrackLink = '';
 
   windowTrack: Track | null = null;
-  creatingWindow = false;
 
   ngOnInit(): void {
     this.loadTracks();
   }
 
-  loadTracks(): void {
-    this.loading = true;
-    this.errorMessage = '';
+loadTracks(): void {
+  this.loading = true;
+  this.errorMessage = '';
 
-    this.tracksApi.getUserTracks().subscribe({
-      next: (tracks: Track[]) => {
-        this.tracks = tracks ?? [];
-        if (this.windowTrack?.id != null) {
-          const fresh = this.tracks.find(t => t.id === this.windowTrack!.id);
-          this.windowTrack = fresh ?? null;
-        }
-      },
-      error: (err: unknown) => {
-        console.error(err);
-        this.errorMessage = 'Loading tracks failed.';
-      },
-      complete: () => { this.loading = false; },
-    });
-  }
+  forkJoin({
+    userTracks: this.tracksApi.getUserTracks(),
+    subscribedTracks: this.tracksApi.getUserSubscribedTracks()
+  }).subscribe({
+    next: ({ userTracks, subscribedTracks }) => {
+      const own = userTracks ?? [];
+      const subscribed = subscribedTracks ?? [];
+
+      this.tracks = [...own, ...subscribed];
+
+      if (this.windowTrack?.id != null) {
+        const fresh = this.tracks.find(t => t.id === this.windowTrack!.id);
+        this.windowTrack = fresh ?? null;
+      }
+    },
+    error: (err: unknown) => {
+      console.error(err);
+      this.errorMessage = 'Loading tracks failed.';
+      this.loading = false;
+    },
+    complete: () => {
+      this.loading = false;
+    }
+  });
+}
 
   saveTrack(event: TrackFormEvent): void {
     this.createSubmitting = true;
@@ -180,22 +215,16 @@ export class HomePageComponent implements OnInit {
         windowId: event.windowId,
         trackWindowRequest: event.body,
       }).subscribe({
-        next: (updatedTrack) => {
-          this.applyTrackUpdate(event.trackId, updatedTrack);
-        },
+        next: (updatedTrack) => this.applyTrackUpdate(event.trackId, updatedTrack),
         error: (err) => { console.error('updateTrackWindow failed', err); alert('Updating window failed.'); },
       });
     } else {
-      this.creatingWindow = true;
       this.tracksApi.createTrackWindow({
         trackId: event.trackId,
         trackWindowRequest: event.body,
       }).subscribe({
-        next: (updatedTrack) => {
-          this.applyTrackUpdate(event.trackId, updatedTrack);
-        },
+        next: (updatedTrack) => this.applyTrackUpdate(event.trackId, updatedTrack),
         error: (err) => { console.error('createTrackWindow failed', err); alert('Creating window failed.'); },
-        complete: () => { this.creatingWindow = false; },
       });
     }
   }
@@ -205,9 +234,7 @@ export class HomePageComponent implements OnInit {
       trackId: event.trackId,
       windowId: event.windowId,
     }).subscribe({
-      next: (updatedTrack) => {
-        this.applyTrackUpdate(event.trackId, updatedTrack);
-      },
+      next: (updatedTrack) => this.applyTrackUpdate(event.trackId, updatedTrack),
       error: (err) => { console.error('deleteTrackWindow failed', err); alert('Deleting window failed.'); },
     });
   }
@@ -217,10 +244,5 @@ export class HomePageComponent implements OnInit {
     if (this.windowTrack?.id === trackId) {
       this.windowTrack = updatedTrack;
     }
-  }
-
-  logout(): void {
-    this.session.clear();
-    void this.router.navigateByUrl('/login');
   }
 }
