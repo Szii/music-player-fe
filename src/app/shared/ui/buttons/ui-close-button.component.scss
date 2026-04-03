@@ -1,0 +1,97 @@
+:host {
+  display: inline-flex;
+}
+
+.ui-close-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid rgba(88, 24, 13, 0.14);
+  border-radius: var(--app-radius-xs);
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--app-text-muted);
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.1s ease,
+    opacity 0.15s ease;
+}
+
+.ui-close-button:hover:not(:disabled) {
+  background: rgba(88, 24, 13, 0.07);
+  color: var(--app-primary);
+  border-color: rgba(88, 24, 13, 0.24);
+}
+
+.ui-close-button:focus-visible {
+  outline: none;
+  box-shadow: var(--app-focus-ring);
+}
+
+.ui-close-button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.ui-close-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ui-close-button--sm {
+  width: 1.7rem;
+  height: 1.7rem;
+}
+
+.ui-close-button--md {
+  width: 2rem;
+  height: 2rem;
+}
+
+.ui-close-button--default {
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--app-text-muted);
+}
+
+.ui-close-button--default:hover:not(:disabled) {
+  background: rgba(88, 24, 13, 0.07);
+  color: var(--app-primary);
+  border-color: rgba(88, 24, 13, 0.24);
+}
+
+.ui-close-button--muted {
+  background: transparent;
+  color: var(--app-text-soft);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.ui-close-button--muted:hover:not(:disabled) {
+  background: var(--app-surface-muted);
+  color: var(--app-text);
+  border-color: rgba(88, 24, 13, 0.1);
+}
+
+.ui-close-button--danger {
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--app-text-muted);
+}
+
+.ui-close-button--danger:hover:not(:disabled) {
+  background: var(--app-danger-soft);
+  color: var(--app-danger);
+  border-color: rgba(122, 30, 30, 0.22);
+}
+
+.ui-close-button__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-size: 0.85rem;
+  font-weight: 700;
+}

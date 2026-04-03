@@ -1,16 +1,21 @@
 import {
-  Component,
-  EventEmitter,
-  Input,
-  Output,
   ChangeDetectionStrategy,
+  Component,
+  computed,
+  input,
+  output,
+  signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Track } from '../../../../api/generated';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
-import { UiTableShellComponent } from '../../../../shared/ui/table-shell/ui-table-shell.component';
 import { UiSearchBoxComponent } from '../../../../shared/ui/search-box/ui-search-box.component';
+import {
+  UiDataTableColumn,
+  UiDataTableComponent,
+} from '../../../../shared/ui/data-table/ui-data-table.component';
+import { UiSelectComponent } from '../../../../shared/ui/select/ui-select.component';
 
 type CatalogFilterMode = 'all' | 'available' | 'subscribed';
 
@@ -30,142 +35,126 @@ type TrackCatalogSortMode =
     CommonModule,
     FormsModule,
     NormalButtonComponent,
-    UiTableShellComponent,
+    UiDataTableComponent,
     UiSearchBoxComponent,
+    UiSelectComponent,
   ],
   template: `
     <div class="section">
-      <div class="section__header">
-        <h2 class="section__title">Browse shared tracks</h2>
-        <p class="section__desc">
-          Tracks published by other users. Subscribe to use them in your groups and boards (read-only).
-        </p>
-      </div>
-
-      <div *ngIf="tracks.length > 0" class="catalog-toolbar">
+      <div *ngIf="tracks().length > 0" class="catalog-toolbar">
         <ui-search-box
           class="catalog-toolbar__search"
-          [value]="search"
+          [value]="search()"
           placeholder="Search shared tracks"
-          (valueChange)="search = $event"
+          (valueChange)="search.set($event)"
         />
 
         <div class="catalog-toolbar__controls">
-          <label class="catalog-toolbar__field">
+          <div class="catalog-toolbar__field">
             <span class="catalog-toolbar__label">Filter</span>
-            <select
-              class="app-input catalog-toolbar__select"
-              [(ngModel)]="filterMode"
+            <ui-select
+              [options]="filterOptions"
+              [ngModel]="filterMode()"
+              [enableSearch]="false"
               [ngModelOptions]="{ standalone: true }"
-            >
-              <option value="all">All tracks</option>
-              <option value="available">Available</option>
-              <option value="subscribed">Subscribed</option>
-            </select>
-          </label>
+              (ngModelChange)="filterMode.set($event)"
+            />
+          </div>
 
-          <label class="catalog-toolbar__field">
+          <div class="catalog-toolbar__field">
             <span class="catalog-toolbar__label">Sort</span>
-            <select
-              class="app-input catalog-toolbar__select"
-              [(ngModel)]="sortMode"
+            <ui-select
+              [options]="sortOptions"
+              [ngModel]="sortMode()"
+              [enableSearch]="false"
               [ngModelOptions]="{ standalone: true }"
-            >
-              <option value="nameAsc">Name A–Z</option>
-              <option value="nameDesc">Name Z–A</option>
-              <option value="ownerAsc">Owner A–Z</option>
-              <option value="ownerDesc">Owner Z–A</option>
-              <option value="durationAsc">Duration shortest</option>
-              <option value="durationDesc">Duration longest</option>
-            </select>
-          </label>
+              (ngModelChange)="sortMode.set($event)"
+            />
+          </div>
         </div>
       </div>
 
-      <div *ngIf="tracks.length > 0" class="catalog-meta">
-        {{ filteredTracks.length }} / {{ tracks.length }} track{{ tracks.length === 1 ? '' : 's' }}
+      <div *ngIf="tracks().length > 0" class="catalog-meta">
+        {{ filteredTracks().length }} / {{ tracks().length }}
+        track{{ tracks().length === 1 ? '' : 's' }}
       </div>
 
-      <div *ngIf="filteredTracks.length > 0; else emptyOrNoMatch" class="section__table-wrap">
-        <ui-table-shell [maxHeight]="'min(42dvh, 520px)'">
-          <table class="app-table app-table--workshop">
-            <thead>
-              <tr>
-                <th class="col-title">Track</th>
-                <th class="col-owner">Owner</th>
-                <th class="col-duration">Duration</th>
-                <th class="col-desc">Description</th>
-                <th class="col-status">Status</th>
-                <th class="col-actions">Actions</th>
-              </tr>
-            </thead>
+      <ui-data-table
+        *ngIf="filteredTracks().length > 0; else emptyOrNoMatch"
+        [rows]="filteredTracks()"
+        [columns]="columns"
+        [trackBy]="trackById"
+        [maxHeight]="'min(52dvh, 620px)'"
+        [tableClass]="'app-table--workshop'"
+      >
+        <ng-template let-track>
+          <tr>
+            <td class="col-title">
+              <span
+                class="cell-text cell-text--strong cell-text--truncate"
+                [title]="displayName(track)"
+              >
+                {{ displayName(track) }}
+              </span>
+            </td>
 
-            <tbody>
-              <tr *ngFor="let track of filteredTracks; trackBy: trackById">
-                <td class="col-title">
-                  <span
-                    class="cell-text cell-text--strong cell-text--truncate"
-                    [title]="displayName(track)"
-                  >
-                    {{ displayName(track) }}
-                  </span>
-                </td>
+            <td class="col-owner">
+              <span class="cell-text cell-text--muted">
+                {{ track.owner?.name ?? '—' }}
+              </span>
+            </td>
 
-                <td class="col-owner">
-                  <span class="cell-text cell-text--muted">
-                    {{ track.owner?.name ?? '—' }}
-                  </span>
-                </td>
+            <td class="col-duration col-num">
+              {{ formatDuration(track.duration) }}
+            </td>
 
-                <td class="col-duration col-num">
-                  {{ formatDuration(track.duration) }}
-                </td>
+            <td class="col-desc">
+              <span
+                class="cell-text cell-text--muted cell-text--truncate"
+                [title]="track.trackShare?.description || ''"
+              >
+                {{ track.trackShare?.description || '—' }}
+              </span>
+            </td>
 
-                <td class="col-desc">
-                  <span
-                    class="cell-text cell-text--muted cell-text--truncate"
-                    [title]="track.trackShare?.description || ''"
-                  >
-                    {{ track.trackShare?.description || '—' }}
-                  </span>
-                </td>
+            <td class="col-status">
+              <span *ngIf="isSubscribed(track)" class="badge badge--success">
+                <span class="badge__dot" aria-hidden="true"></span>Inscribed
+              </span>
+              <span *ngIf="!isSubscribed(track)" class="badge badge--muted">
+                <span class="badge__dot" aria-hidden="true"></span>Available
+              </span>
+            </td>
 
-                <td class="col-status">
-                  <span *ngIf="isSubscribed(track)" class="badge badge--success">Subscribed</span>
-                  <span *ngIf="!isSubscribed(track)" class="badge badge--muted">Available</span>
-                </td>
+            <td class="col-actions">
+              <div class="app-actions">
+                <normal-button
+                  *ngIf="!isSubscribed(track)"
+                  size="sm"
+                  [disabled]="busyTrackId() === track.id"
+                  (clicked)="subscribe.emit(track)"
+                >
+                  Subscribe
+                </normal-button>
 
-                <td class="col-actions">
-                  <div class="app-actions">
-                    <normal-button
-                      *ngIf="!isSubscribed(track)"
-                      size="sm"
-                      [disabled]="busyTrackId === track.id"
-                      (clicked)="subscribe.emit(track)"
-                    >
-                      Subscribe
-                    </normal-button>
-
-                    <normal-button
-                      *ngIf="isSubscribed(track)"
-                      size="sm"
-                      variant="danger"
-                      [disabled]="busyTrackId === track.id"
-                      (clicked)="unsubscribe.emit(track)"
-                    >
-                      Unsubscribe
-                    </normal-button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </ui-table-shell>
-      </div>
+                <normal-button
+                  *ngIf="isSubscribed(track)"
+                  size="sm"
+                  variant="danger"
+                  [disabled]="busyTrackId() === track.id"
+                  (clicked)="unsubscribe.emit(track)"
+                >
+                  Unsubscribe
+                </normal-button>
+              </div>
+            </td>
+          </tr>
+        </ng-template>
+      </ui-data-table>
 
       <ng-template #emptyOrNoMatch>
-        <p *ngIf="tracks.length === 0" class="empty">Nothing is published right now.</p>
-        <p *ngIf="tracks.length > 0" class="empty">No tracks match the current search or filter.</p>
+        <p *ngIf="tracks().length === 0" class="empty">Nothing is published right now.</p>
+        <p *ngIf="tracks().length > 0" class="empty">No tracks match the current search or filter.</p>
       </ng-template>
     </div>
   `,
@@ -173,23 +162,6 @@ type TrackCatalogSortMode =
     :host {
       display: block;
       min-width: 0;
-    }
-
-    .section__header {
-      margin-bottom: 1rem;
-    }
-
-    .section__title {
-      margin: 0 0 0.25rem;
-      font-size: 1.1rem;
-      font-weight: 700;
-      color: var(--app-text);
-    }
-
-    .section__desc {
-      margin: 0;
-      font-size: 0.85rem;
-      color: var(--app-text-muted);
     }
 
     .catalog-toolbar {
@@ -219,11 +191,12 @@ type TrackCatalogSortMode =
     }
 
     .catalog-toolbar__label {
-      font-size: 11px;
-      font-weight: 700;
+      font-family: var(--app-font-heading);
+      font-size: 10px;
+      font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--app-text-muted);
+      letter-spacing: 0.06em;
+      color: var(--app-heading);
     }
 
     .catalog-toolbar__select {
@@ -236,60 +209,61 @@ type TrackCatalogSortMode =
       color: var(--app-text-muted);
     }
 
-    .section__table-wrap {
-      min-width: 0;
-    }
-
     .badge {
+      position: relative;
       display: inline-flex;
       align-items: center;
-      padding: 2px 10px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 600;
+      gap: 6px;
+      padding: 4px 12px 4px 10px;
+      font-family: var(--app-font-heading);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
       white-space: nowrap;
+      border-radius: var(--app-radius-xs);
+      clip-path: polygon(8px 0%, calc(100% - 8px) 0%, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0% 50%);
+      margin: 0 auto;
+    }
+
+    .badge__dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
     }
 
     .badge--success {
-      background: var(--app-success-soft);
-      color: var(--app-success);
+      background: linear-gradient(135deg, #2e5e24 0%, #3a7a2e 100%);
+      color: #d8f0c8;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.15),
+        0 2px 6px rgba(46, 94, 36, 0.4);
+    }
+
+    .badge--success .badge__dot {
+      background: #8fdd6a;
+      box-shadow: 0 0 4px rgba(143, 221, 106, 0.8);
     }
 
     .badge--muted {
-      background: var(--app-surface-muted);
-      color: var(--app-text-muted);
+      background: linear-gradient(135deg, #5a3e20 0%, #7a5228 100%);
+      color: #e8d8b8;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+        0 2px 6px rgba(60, 30, 10, 0.35);
+    }
+
+    .badge--muted .badge__dot {
+      background: #c9a44c;
+      box-shadow: 0 0 4px rgba(201, 164, 76, 0.6);
     }
 
     .empty {
       color: var(--app-text-muted);
       font-size: 13px;
       font-style: italic;
-    }
-
-    .app-table--workshop .col-title {
-      width: 24%;
-    }
-
-    .app-table--workshop .col-owner {
-      width: 16%;
-    }
-
-    .app-table--workshop .col-duration {
-      width: 90px;
-      white-space: nowrap;
-    }
-
-    .app-table--workshop .col-desc {
-      width: 28%;
-    }
-
-    .app-table--workshop .col-status {
-      width: 110px;
-      white-space: nowrap;
-    }
-
-    .app-table--workshop .col-actions {
-      width: 150px;
     }
 
     @media (max-width: 900px) {
@@ -308,42 +282,66 @@ type TrackCatalogSortMode =
   `],
 })
 export class TrackCatalogComponent {
-  @Input() tracks: Track[] = [];
-  @Input() subscribedIds = new Set<number>();
-  @Input() busyTrackId: number | null = null;
+  readonly tracks = input<Track[]>([]);
+  readonly subscribedIds = input<ReadonlySet<number>>(new Set<number>());
+  readonly busyTrackId = input<number | null>(null);
 
-  @Output() subscribe = new EventEmitter<Track>();
-  @Output() unsubscribe = new EventEmitter<Track>();
+  readonly subscribe = output<Track>();
+  readonly unsubscribe = output<Track>();
 
-  search = '';
-  filterMode: CatalogFilterMode = 'all';
-  sortMode: TrackCatalogSortMode = 'nameAsc';
+  readonly search = signal('');
+  readonly filterMode = signal<CatalogFilterMode>('all');
+  readonly sortMode = signal<TrackCatalogSortMode>('nameAsc');
 
-  get filteredTracks(): Track[] {
-    const query = this.search.trim().toLowerCase();
+  readonly filterOptions = [
+    { label: 'All tracks', value: 'all' },
+    { label: 'Available', value: 'available' },
+    { label: 'Subscribed', value: 'subscribed' },
+  ];
 
-    const filtered = (this.tracks ?? []).filter(track => {
+  readonly sortOptions = [
+    { label: 'Name A–Z', value: 'nameAsc' },
+    { label: 'Name Z–A', value: 'nameDesc' },
+    { label: 'Owner A–Z', value: 'ownerAsc' },
+    { label: 'Owner Z–A', value: 'ownerDesc' },
+    { label: 'Duration shortest', value: 'durationAsc' },
+    { label: 'Duration longest', value: 'durationDesc' },
+  ];
+
+  readonly columns: UiDataTableColumn[] = [
+    { label: 'Track', className: 'col-title' },
+    { label: 'Owner', className: 'col-owner', width: '16%' },
+    { label: 'Duration', className: 'col-duration', width: '90px' },
+    { label: 'Description', className: 'col-desc' },
+    { label: 'Status', className: 'col-status', width: '110px' },
+    { label: 'Actions', className: 'col-actions', width: '150px' },
+  ];
+
+  readonly filteredTracks = computed(() => {
+    const query = this.search().trim().toLowerCase();
+    const filter = this.filterMode();
+    const sort = this.sortMode();
+
+    const filtered = this.tracks().filter(track => {
       const matchesSearch = !query || this.matchesSearch(track, query);
       const subscribed = this.isSubscribed(track);
 
       const matchesFilter =
-        this.filterMode === 'all' ||
-        (this.filterMode === 'available' && !subscribed) ||
-        (this.filterMode === 'subscribed' && subscribed);
+        filter === 'all' ||
+        (filter === 'available' && !subscribed) ||
+        (filter === 'subscribed' && subscribed);
 
       return matchesSearch && matchesFilter;
     });
 
-    return filtered.sort((a, b) => this.compareTracks(a, b));
-  }
+    return [...filtered].sort((a, b) => this.compareTracks(a, b, sort));
+  });
 
   isSubscribed(track: Track): boolean {
-    return track.id != null && this.subscribedIds.has(track.id);
+    return track.id != null && this.subscribedIds().has(track.id);
   }
 
-  trackById(index: number, track: Track): number {
-    return track.id ?? index;
-  }
+  trackById = (index: number, track: Track): number => track.id ?? index;
 
   displayName(track: Track): string {
     return track.trackName || track.trackOriginalName || ('Track #' + track.id);
@@ -370,8 +368,8 @@ export class TrackCatalogComponent {
     return haystack.includes(query);
   }
 
-  private compareTracks(a: Track, b: Track): number {
-    switch (this.sortMode) {
+  private compareTracks(a: Track, b: Track, sortMode: TrackCatalogSortMode): number {
+    switch (sortMode) {
       case 'nameDesc':
         return this.compareStrings(this.displayName(b), this.displayName(a));
       case 'ownerAsc':

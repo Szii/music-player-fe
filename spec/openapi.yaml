@@ -379,6 +379,14 @@ components:
           example: false
         owner:
           $ref: '#/components/schemas/UserInfoLite'
+        shuffle:
+          type: boolean
+          description: Shuffle mode for track playback
+          example: false
+        playlistMode:
+          type: boolean
+          description: Play whole group instead of single track
+          example: false
 
     BoardCreateRequest:
       type: object
@@ -438,6 +446,14 @@ components:
         overplay:
           type: boolean
           description: Overplay/overlay mode
+          example: false
+        shuffle:
+          type: boolean
+          description: Shuffle mode for track playback
+          example: false
+        playlistMode:
+          type: boolean
+          description: Play whole group instead of single track
           example: false
 
     PlayRequest:

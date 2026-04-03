@@ -6,7 +6,14 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'success' | 'ghost';
+export type ButtonVariant =
+  | 'primary'
+  | 'secondary'
+  | 'danger'
+  | 'success'
+  | 'ghost'
+  | 'navbar';
+
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 @Component({

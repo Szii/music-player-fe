@@ -10,7 +10,10 @@ import { Component, Input } from '@angular/core';
       <div *ngIf="title || headerActions" class="app-card__header">
         <div class="app-card__title-wrap">
           <h2 *ngIf="title" class="app-card__title">{{ title }}</h2>
-          <ng-content select="[card-subtitle]"></ng-content>
+
+          <div class="app-card__subtitle" *ngIf="title">
+            <ng-content select="[card-subtitle]"></ng-content>
+          </div>
         </div>
 
         <div *ngIf="headerActions" class="app-card__actions">

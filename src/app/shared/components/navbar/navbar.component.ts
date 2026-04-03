@@ -15,7 +15,7 @@ import { NormalButtonComponent } from '../../../shared/ui/buttons/normal-button.
           <a
             routerLink="/"
             class="app-navbar__brand-link"
-            (click)="menuOpen = false"
+            (click)="closeMenu()"
           >
             DnD Music
           </a>
@@ -24,33 +24,35 @@ import { NormalButtonComponent } from '../../../shared/ui/buttons/normal-button.
         <button
           type="button"
           class="app-navbar__toggle"
-          (click)="menuOpen = !menuOpen"
+          (click)="toggleMenu()"
           aria-label="Toggle navigation"
           [attr.aria-expanded]="menuOpen"
+          [attr.aria-controls]="menuId"
         >
           ☰
         </button>
 
         <div
+          [id]="menuId"
           class="app-navbar__content"
           [class.app-navbar__content--open]="menuOpen"
         >
           <div class="app-navbar__links">
             <a
               class="app-navbar__link"
-              routerLink="/"
+              routerLink="/tracks"
               routerLinkActive="app-navbar__link--active"
               [routerLinkActiveOptions]="{ exact: true }"
-              (click)="menuOpen = false"
+              (click)="closeMenu()"
             >
-              Home
+              Tracks
             </a>
 
             <a
               class="app-navbar__link"
               routerLink="/boards"
               routerLinkActive="app-navbar__link--active"
-              (click)="menuOpen = false"
+              (click)="closeMenu()"
             >
               Boards
             </a>
@@ -59,7 +61,7 @@ import { NormalButtonComponent } from '../../../shared/ui/buttons/normal-button.
               class="app-navbar__link"
               routerLink="/groups"
               routerLinkActive="app-navbar__link--active"
-              (click)="menuOpen = false"
+              (click)="closeMenu()"
             >
               Groups
             </a>
@@ -68,7 +70,7 @@ import { NormalButtonComponent } from '../../../shared/ui/buttons/normal-button.
               class="app-navbar__link"
               routerLink="/workshop"
               routerLinkActive="app-navbar__link--active"
-              (click)="menuOpen = false"
+              (click)="closeMenu()"
             >
               Workshop
             </a>
@@ -77,7 +79,7 @@ import { NormalButtonComponent } from '../../../shared/ui/buttons/normal-button.
           <div class="app-navbar__actions">
             <normal-button
               type="button"
-              variant="secondary"
+              variant="navbar"
               size="sm"
               (clicked)="logout()"
             >
@@ -91,12 +93,25 @@ import { NormalButtonComponent } from '../../../shared/ui/buttons/normal-button.
   styleUrls: ['./navbar.component.scss'],
 })
 export class NavbarComponent {
-  private session = inject(SessionService);
-  private router = inject(Router);
+  private static nextMenuId = 0;
+
+  private readonly session = inject(SessionService);
+  private readonly router = inject(Router);
+
+  readonly menuId = `app-navbar-menu-${NavbarComponent.nextMenuId++}`;
 
   menuOpen = false;
 
+  toggleMenu(): void {
+    this.menuOpen = !this.menuOpen;
+  }
+
+  closeMenu(): void {
+    this.menuOpen = false;
+  }
+
   logout(): void {
+    this.closeMenu();
     this.session.clear();
     void this.router.navigateByUrl('/login');
   }

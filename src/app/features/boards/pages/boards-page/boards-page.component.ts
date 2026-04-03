@@ -1,7 +1,16 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, DestroyRef, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { forkJoin, Observable, of } from 'rxjs';
-import { catchError, switchMap, tap } from 'rxjs/operators';
+import { Subject, forkJoin, of } from 'rxjs';
+import {
+  catchError,
+  debounceTime,
+  distinctUntilChanged,
+  finalize,
+  groupBy,
+  mergeMap,
+  switchMap,
+} from 'rxjs/operators';
 
 import { environment } from '../../../../../environments/environment';
 
@@ -23,11 +32,21 @@ import {
   CreateBoardFormComponent,
   CreateBoardEvent,
 } from '../../components/create-board-form/create-board-form.component';
-import { BoardCardComponent } from '../../components/board-card/board-card.component';
+import {
+  BoardCardComponent,
+  PlaylistOptions,
+} from '../../components/board-card/board-card.component';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empty-state.component';
+import { ToastService } from '../../../../shared/features/toast/toast.service';
+import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
+
+interface VolumeCommit {
+  boardId: number;
+  volumePercent: number;
+}
 
 @Component({
   selector: 'app-boards-page',
@@ -41,37 +60,41 @@ type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
   ],
   template: `
     <div class="app-page board-page">
-      <h1 class="boards-page__title">Boards</h1>
+      <h1 class="app-page__title">Boards</h1>
 
       <app-create-board-form
-        [tracks]="tracks"
-        [submitting]="createBoardSubmitting"
+        [tracks]="tracks()"
+        [submitting]="createBoardSubmitting()"
         (create)="createBoard($event)"
-      ></app-create-board-form>
+      />
 
-      <ui-alert *ngIf="errorMessage" variant="danger">
-        {{ errorMessage }}
+      <ui-alert *ngIf="errorMessage()" variant="danger">
+        {{ errorMessage() }}
       </ui-alert>
 
-      <div *ngIf="loading" class="app-muted boards-page__loading">
-        Loading boards...
+      <div *ngIf="loading()" class="app-muted boards-page__loading">
+        Loading boards…
       </div>
 
       <ui-empty-state
-        *ngIf="!loading && boards.length === 0"
+        *ngIf="!loading() && boards().length === 0"
         title="No boards yet"
         message="Create your first board to get started."
-      ></ui-empty-state>
+      />
 
-      <div *ngIf="!loading && boards.length > 0" class="boards-list-wrap">
+      <div *ngIf="!loading() && boards().length > 0" class="boards-list-wrap">
         <div class="boards-list">
           <app-board-card
-            *ngFor="let board of boards; trackBy: trackByBoardId"
+            *ngFor="let board of boards(); trackBy: trackByBoardId"
             [board]="board"
             [availableGroups]="getGroupsForBoard(board)"
             [status]="getBoardStatus(board)"
             [streamUrl]="getStreamUrl(board)"
             [selectedWindowId]="getSelectedWindowId(board)"
+            [masterVolume]="getMasterVolume(board)"
+            [volumePercent]="getBoardVolumePercent(board)"
+            [playlistMode]="board.playlistMode ?? false"
+            [playlistOptions]="getPlaylistOptions(board)"
             (delete)="deleteBoard(board)"
             (groupChange)="onGroupSelectionChange(board, $event)"
             (trackChange)="onTrackSelectionChange(board, $event)"
@@ -81,8 +104,14 @@ type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
             (play)="playBoardTrack(board)"
             (stop)="stopBoardTrack(board)"
             (ended)="onAudioEnded(board)"
+            (nearEnd)="onAudioNearEnd(board)"
             (audioError)="onAudioError(board)"
-          ></app-board-card>
+            (playlistModeChange)="onPlaylistModeChange(board, $event)"
+            (playlistOptionsChange)="onPlaylistOptionsChange(board, $event)"
+            (volumePreviewChange)="onBoardVolumePreview(board, $event)"
+            (volumeCommit)="onBoardVolumeCommit(board, $event)"
+            (rename)="onBoardRename(board, $event)"
+          />
         </div>
       </div>
     </div>
@@ -93,16 +122,9 @@ type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
       --boards-list-max-height: min(70dvh, 720px);
     }
 
-    .boards-page__title {
-      margin: 0 0 1.5rem;
-      font-size: 1.75rem;
-      font-weight: 700;
-      color: #0f172a;
-    }
-
     .boards-page__loading {
       margin-top: 1rem;
-      color: #94a3b8;
+      color: var(--app-text-muted);
     }
 
     .boards-list-wrap {
@@ -126,345 +148,482 @@ type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
     }
   `],
 })
-export class BoardsPageComponent implements OnInit {
-  private boardsApi = inject(MusicBoardsService);
-  private groupsApi = inject(MusicGroupsService);
-  private tracksApi = inject(MusicTracksService);
-  private playbackApi = inject(PlaybackService);
+export class BoardsPageComponent implements OnInit, OnDestroy {
+  private readonly boardsApi = inject(MusicBoardsService);
+  private readonly groupsApi = inject(MusicGroupsService);
+  private readonly tracksApi = inject(MusicTracksService);
+  private readonly playbackApi = inject(PlaybackService);
+  private readonly toast = inject(ToastService);
+  private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly destroyRef = inject(DestroyRef);
 
-  boards: Board[] = [];
-  tracks: Track[] = [];
-  groups: Group[] = [];
-  loading = false;
-  errorMessage = '';
-  createBoardSubmitting = false;
+  readonly boards = signal<Board[]>([]);
+  readonly tracks = signal<Track[]>([]);
+  readonly groups = signal<Group[]>([]);
+  readonly loading = signal(false);
+  readonly errorMessage = signal('');
+  readonly createBoardSubmitting = signal(false);
 
-  private streamUrlsByBoard = new Map<number, string>();
-  private boardStatuses = new Map<number, PlayerStatus>();
-  selectedWindowByBoard = new Map<number, number | null>();
+  private readonly streamUrlsByBoard = new Map<number, string>();
+  private readonly boardStatuses = new Map<number, PlayerStatus>();
+  private readonly selectedWindowByBoard = new Map<number, number | null>();
+  private readonly masterVolumesByBoard = new Map<number, number>();
+  private readonly playlistIndexByBoard = new Map<number, number>();
+  private readonly playlistOrderByBoard = new Map<number, number[]>();
+  private readonly persistedVolumesByBoard = new Map<number, number>();
+  private readonly preAdvancedBoards = new Set<number>();
+
+  private static readonly CROSSFADE_MS = 800;
+  private crossfadeRafId: number | null = null;
+
+  private readonly volumeCommit$ = new Subject<VolumeCommit>();
 
   ngOnInit(): void {
     this.loadData();
+    this.setupVolumeDebounce();
+  }
+
+  ngOnDestroy(): void {
+    if (this.crossfadeRafId !== null) {
+      cancelAnimationFrame(this.crossfadeRafId);
+      this.crossfadeRafId = null;
+    }
+    this.volumeCommit$.complete();
   }
 
   loadData(): void {
-    this.loading = true;
-    this.errorMessage = '';
+    this.loading.set(true);
+    this.errorMessage.set('');
 
     forkJoin({
       boards: this.boardsApi.getUserBoards().pipe(
         catchError((err: unknown) => {
           console.error(err);
-          this.addError('Loading boards failed.');
+          this.appendError('Loading boards failed.');
           return of([] as Board[]);
         }),
       ),
       ownTracks: this.tracksApi.getUserTracks().pipe(
         catchError((err: unknown) => {
           console.error(err);
-          this.addError('Loading tracks failed.');
+          this.appendError('Loading tracks failed.');
           return of([] as Track[]);
         }),
       ),
       subscribedTracks: this.tracksApi.getUserSubscribedTracks().pipe(
-        catchError((err: unknown) => {
-          console.error(err);
-          return of([] as Track[]);
-        }),
+        catchError(() => of([] as Track[])),
       ),
       groups: this.groupsApi.getUserGroups().pipe(
         catchError((err: unknown) => {
           console.error(err);
-          this.addError('Loading groups failed.');
+          this.appendError('Loading groups failed.');
           return of([] as Group[]);
         }),
       ),
-    }).subscribe({
-      next: ({ boards, ownTracks, subscribedTracks, groups }) => {
-        this.groups = groups ?? [];
-        this.tracks = this.mergeTracks(ownTracks ?? [], subscribedTracks ?? []);
-        this.boards = boards ?? [];
+    })
+      .pipe(
+        finalize(() => this.loading.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: ({ boards, ownTracks, subscribedTracks, groups }) => {
+          this.groups.set(groups ?? []);
+          this.tracks.set(this.mergeTracks(ownTracks ?? [], subscribedTracks ?? []));
 
-        for (const board of this.boards) {
-          if (board.id != null && !this.boardStatuses.has(board.id)) {
-            this.boardStatuses.set(board.id, 'STOPPED');
+          const mergedBoards = boards ?? [];
+          this.persistedVolumesByBoard.clear();
+
+          for (const board of mergedBoards) {
+            if (board.id != null && !this.boardStatuses.has(board.id)) {
+              this.boardStatuses.set(board.id, 'STOPPED');
+            }
+            this.syncPersistedVolume(board);
           }
-        }
 
-        this.loading = false;
-      },
-      error: (err: unknown) => {
-        console.error(err);
-        this.addError('Loading data failed.');
-        this.loading = false;
-      },
-    });
+          this.boards.set(mergedBoards);
+        },
+        error: (err: unknown) => {
+          console.error(err);
+          this.appendError('Loading data failed.');
+        },
+      });
   }
 
   createBoard(event: CreateBoardEvent): void {
-    this.createBoardSubmitting = true;
+    this.createBoardSubmitting.set(true);
+
     const body: BoardCreateRequest = {
       name: event.name || undefined,
       selectedTrackId: event.selectedTrackId ?? undefined,
     };
 
-    this.boardsApi.createUserBoard({ boardCreateRequest: body }).subscribe({
-      next: (created: Board) => {
-        this.boards = [...this.boards, created];
-        if (created.id != null) this.boardStatuses.set(created.id, 'STOPPED');
-      },
-      error: (err: unknown) => {
-        console.error(err);
-        alert('Creating board failed.');
-      },
-      complete: () => {
-        this.createBoardSubmitting = false;
-      },
-    });
-  }
-
-  deleteBoard(board: Board): void {
-    if (board.id == null) return;
-    if (!confirm(`Delete board "${board.name || board.id}"?`)) return;
-
-    const boardId = board.id;
-    const doDelete = () => {
-      this.boardsApi.deleteUserBoard({ boardId }).subscribe({
-        next: () => {
-          this.boards = this.boards.filter(b => b.id !== boardId);
-          this.boardStatuses.delete(boardId);
-          this.streamUrlsByBoard.delete(boardId);
-          this.selectedWindowByBoard.delete(boardId);
+    this.boardsApi.createUserBoard({ boardCreateRequest: body })
+      .pipe(
+        finalize(() => this.createBoardSubmitting.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: created => {
+          if (created.id != null) {
+            this.boardStatuses.set(created.id, 'STOPPED');
+          }
+          this.syncPersistedVolume(created);
+          this.boards.update(current => [...current, created]);
+          this.toast.success('Board created.');
         },
         error: (err: unknown) => {
           console.error(err);
-          alert('Deleting board failed.');
+          this.toast.error('Creating board failed.');
         },
       });
+  }
+
+  async deleteBoard(board: Board): Promise<void> {
+    if (board.id == null) return;
+
+    const confirmed = await this.confirmDialog.confirm({
+      title: 'Delete board',
+      message: `Delete board "${board.name || board.id}"?`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+
+    if (!confirmed) return;
+
+    const boardId = board.id;
+
+    const doDelete = (): void => {
+      this.boardsApi.deleteUserBoard({ boardId })
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: () => {
+            this.boards.update(current => current.filter(b => b.id !== boardId));
+            this.boardStatuses.delete(boardId);
+            this.streamUrlsByBoard.delete(boardId);
+            this.selectedWindowByBoard.delete(boardId);
+            this.masterVolumesByBoard.delete(boardId);
+            this.playlistIndexByBoard.delete(boardId);
+            this.playlistOrderByBoard.delete(boardId);
+            this.persistedVolumesByBoard.delete(boardId);
+            this.toast.success('Board deleted.');
+          },
+          error: (err: unknown) => {
+            console.error(err);
+            this.toast.error('Deleting board failed.');
+          },
+        });
     };
 
     if (this.isBoardActive(boardId)) {
-      this.playbackApi.stopBoard({ boardId }).subscribe({
-        next: () => {
+      this.playbackApi.stopBoard({ boardId })
+        .pipe(
+          catchError(() => of(null)),
+          takeUntilDestroyed(this.destroyRef),
+        )
+        .subscribe(() => {
           this.clearBoard(boardId);
           doDelete();
-        },
-        error: () => {
-          this.clearBoard(boardId);
-          doDelete();
-        },
-      });
+        });
     } else {
       doDelete();
     }
   }
 
   toggleRepeat(board: Board): void {
-    if (board.id == null) return;
-    const boardId = board.id;
-    const newRepeat = !(board.repeat ?? false);
-    board.repeat = newRepeat;
-
-    const body: BoardUpdateRequest = {
-      name: board.name ?? undefined,
-      selectedTrackId: board.selectedTrack?.id ?? undefined,
-      selectedGroupId: board.selectedGroup?.id ?? undefined,
-      volume: board.volume ?? undefined,
-      repeat: newRepeat,
-      overplay: board.overplay ?? undefined,
-    };
-
-    this.boardsApi.updateUserBoard({ boardId, boardUpdateRequest: body }).subscribe({
-      next: (updated: Board) => {
-        this.boards = this.boards.map(b => b.id === boardId ? updated : b);
-      },
-      error: (err: unknown) => {
-        console.error(err);
-        board.repeat = !newRepeat;
-        alert('Updating repeat failed.');
-      },
-    });
+    this.updateBoard(
+      board,
+      { repeat: !(board.repeat ?? false) },
+      'Updating repeat failed.',
+    );
   }
 
   toggleOverplay(board: Board): void {
+    this.updateBoard(
+      board,
+      { overplay: !(board.overplay ?? false) },
+      'Updating overplay failed.',
+    );
+  }
+
+  onPlaylistModeChange(board: Board, enabled: boolean): void {
     if (board.id == null) return;
+
     const boardId = board.id;
-    const newOverplay = !(board.overplay ?? false);
-    board.overplay = newOverplay;
 
-    const body: BoardUpdateRequest = {
-      name: board.name ?? undefined,
-      selectedTrackId: board.selectedTrack?.id ?? undefined,
-      selectedGroupId: board.selectedGroup?.id ?? undefined,
-      volume: board.volume ?? undefined,
-      repeat: board.repeat ?? undefined,
-      overplay: newOverplay,
-    };
+    if (enabled) {
+      this.selectedWindowByBoard.delete(boardId);
+      this.regeneratePlaylistOrder(boardId, board.availableTracks ?? [], board.shuffle ?? false);
+      this.clearBoard(boardId);
+      this.updateBoard(board, { playlistMode: enabled, selectedTrackId: undefined }, 'Updating playlist mode failed.');
+    } else {
+      this.playlistIndexByBoard.delete(boardId);
+      this.playlistOrderByBoard.delete(boardId);
+      this.updateBoard(board, { playlistMode: enabled }, 'Updating playlist mode failed.');
+    }
+  }
 
-    this.boardsApi.updateUserBoard({ boardId, boardUpdateRequest: body }).subscribe({
-      next: (updated: Board) => {
-        this.boards = this.boards.map(b => b.id === boardId ? updated : b);
-      },
-      error: (err: unknown) => {
-        console.error(err);
-        board.overplay = !newOverplay;
-        alert('Updating overplay failed.');
-      },
-    });
+  onBoardRename(board: Board, name: string): void {
+    this.updateBoard(board, { name }, 'Renaming board failed.');
+  }
+
+  onPlaylistOptionsChange(board: Board, options: PlaylistOptions): void {
+    this.updateBoard(board, { shuffle: options.random }, 'Updating shuffle failed.');
   }
 
   onGroupSelectionChange(board: Board, selectedId: number | null): void {
     if (board.id == null) return;
-    const boardId = board.id;
-    const previousGroup = board.selectedGroup;
-    board.selectedGroup = this.getGroupsForBoard(board).find(g => g.id === selectedId) ?? undefined;
-    this.selectedWindowByBoard.delete(boardId);
 
-    const body: BoardUpdateRequest = {
-      name: board.name ?? undefined,
-      selectedTrackId: board.selectedTrack?.id ?? undefined,
-      selectedGroupId: selectedId ?? undefined,
-      volume: board.volume ?? undefined,
-      repeat: board.repeat ?? undefined,
-      overplay: board.overplay ?? undefined,
-    };
+    this.selectedWindowByBoard.delete(board.id);
 
-    this.boardsApi.updateUserBoard({ boardId, boardUpdateRequest: body }).subscribe({
-      next: (updated: Board) => {
-        this.boards = this.boards.map(b => b.id === boardId ? updated : b);
-        this.clearBoard(boardId);
-      },
-      error: (err: unknown) => {
-        console.error(err);
-        board.selectedGroup = previousGroup;
-        alert('Updating group failed.');
-      },
-    });
+    this.boardsApi.updateUserBoard({
+      boardId: board.id,
+      boardUpdateRequest: this.baseUpdate(board, {
+        selectedGroupId: selectedId ?? undefined,
+      }),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: updated => {
+          this.upsertBoard(updated);
+          this.clearBoard(updated.id!);
+          if (updated.playlistMode && updated.id != null) {
+            this.regeneratePlaylistOrder(updated.id, updated.availableTracks ?? [], updated.shuffle ?? false);
+          }
+        },
+        error: (err: unknown) => {
+          console.error(err);
+          this.toast.error('Updating group failed.');
+        },
+      });
   }
 
   onTrackSelectionChange(board: Board, selectedId: number | null): void {
     if (board.id == null) return;
+
     const boardId = board.id;
+    const wasActive = this.isBoardActive(boardId);
     this.selectedWindowByBoard.delete(boardId);
-    const previousTrack = board.selectedTrack;
-    const selectedTrack = (board.availableTracks ?? []).find(t => t.id === selectedId) ?? undefined;
 
-    const doUpdate = () => {
-      board.selectedTrack = selectedTrack;
-      const body: BoardUpdateRequest = {
-        name: board.name ?? undefined,
+    this.boardsApi.updateUserBoard({
+      boardId,
+      boardUpdateRequest: this.baseUpdate(board, {
         selectedTrackId: selectedId ?? undefined,
-        selectedGroupId: board.selectedGroup?.id ?? undefined,
-        volume: board.volume ?? undefined,
-        repeat: board.repeat ?? undefined,
-        overplay: board.overplay ?? undefined,
-      };
+      }),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: updated => {
+          this.upsertBoard(updated);
 
-      this.boardsApi.updateUserBoard({ boardId, boardUpdateRequest: body }).subscribe({
-        next: (updated: Board) => {
-          this.boards = this.boards.map(b => b.id === boardId ? updated : b);
-          this.clearBoard(boardId);
+          if (wasActive && selectedId != null) {
+            const freshBoard = this.boards().find(item => item.id === boardId);
+            if (freshBoard) {
+              this.playBoardTrack(freshBoard);
+            }
+          } else {
+            this.clearBoard(boardId);
+          }
         },
         error: (err: unknown) => {
           console.error(err);
-          board.selectedTrack = previousTrack;
-          alert('Updating board failed.');
+          this.toast.error('Updating board failed.');
         },
       });
-    };
-
-    if (this.isBoardActive(boardId)) {
-      this.playbackApi.stopBoard({ boardId }).subscribe({
-        next: () => {
-          this.clearBoard(boardId);
-          doUpdate();
-        },
-        error: () => {
-          this.clearBoard(boardId);
-          doUpdate();
-        },
-      });
-    } else {
-      doUpdate();
-    }
-  }
-
-  playBoardTrack(board: Board): void {
-    if (board.id == null || !board.selectedTrack) return;
-
-    const targetId = board.id;
-    const targetOverplay = board.overplay ?? false;
-
-    const boardsToStop = targetOverplay
-      ? []
-      : this.boards.filter(b =>
-          b.id != null && b.id !== targetId && !(b.overplay ?? false) && this.isBoardActive(b.id),
-        );
-
-    const stopCalls = boardsToStop.map(b => {
-      const id = b.id!;
-      return this.playbackApi.stopBoard({ boardId: id }).pipe(
-        tap(() => this.clearBoard(id)),
-        catchError(() => {
-          this.clearBoard(id);
-          return of(null);
-        }),
-      );
-    });
-
-    const stopAll$: Observable<unknown> = stopCalls.length > 0 ? forkJoin(stopCalls) : of(null);
-
-    stopAll$.pipe(
-      switchMap(() => {
-        const windowId = this.selectedWindowByBoard.get(targetId) ?? undefined;
-        const playRequest: PlayRequest = windowId != null ? { windowId } : {};
-        return this.playbackApi.playBoard({ boardId: targetId, playRequest });
-      }),
-    ).subscribe({
-      next: (state: PlaybackState) => {
-        this.applyPlaybackState(targetId, state);
-      },
-      error: (err: unknown) => {
-        console.error(err);
-        alert('Starting playback failed.');
-      },
-    });
-  }
-
-  stopBoardTrack(board: Board): void {
-    if (board.id == null) return;
-    const boardId = board.id;
-
-    this.playbackApi.stopBoard({ boardId }).subscribe({
-      next: (state: PlaybackState) => {
-        this.applyPlaybackState(boardId, state);
-        this.clearBoard(boardId);
-      },
-      error: () => {
-        this.clearBoard(boardId);
-      },
-    });
-  }
-
-  onAudioEnded(board: Board): void {
-    if (board.id == null) return;
-    this.clearBoard(board.id);
-  }
-
-  onAudioError(board: Board): void {
-    if (board.id == null) return;
-    console.error('Audio stream failed for board', board.id);
-    this.boardStatuses.set(board.id, 'ERROR');
-    this.streamUrlsByBoard.delete(board.id);
-    alert('Audio stream failed.');
   }
 
   onWindowSelectionChange(board: Board, windowId: number | null): void {
     if (board.id == null) return;
+
     this.selectedWindowByBoard.set(board.id, windowId);
+
     if (this.isBoardActive(board.id)) {
       this.playBoardTrack(board);
     }
+  }
+
+  onBoardVolumePreview(board: Board, volumePercent: number): void {
+    if (board.id == null) return;
+
+    this.boards.update(current =>
+      current.map(item =>
+        item.id === board.id ? { ...item, volume: clampPct(volumePercent) } : item,
+      ),
+    );
+  }
+
+  onBoardVolumeCommit(board: Board, volumePercent: number): void {
+    if (board.id == null) return;
+
+    const clamped = clampPct(volumePercent);
+
+    this.boards.update(current =>
+      current.map(item =>
+        item.id === board.id ? { ...item, volume: clamped } : item,
+      ),
+    );
+
+    this.volumeCommit$.next({
+      boardId: board.id,
+      volumePercent: clamped,
+    });
+  }
+
+  playBoardTrack(board: Board): void {
+    if (board.id == null) return;
+
+    if (!board.selectedTrack) {
+      if (board.playlistMode) {
+        this.advancePlaylist(board);
+      }
+      return;
+    }
+
+    const targetId = board.id;
+    const targetOverplay = board.overplay ?? false;
+    const wasActive = this.isBoardActive(targetId);
+
+    const boardsToStop = targetOverplay
+      ? []
+      : this.boards().filter(candidate =>
+          candidate.id != null &&
+          candidate.id !== targetId &&
+          !(candidate.overplay ?? false) &&
+          this.isBoardActive(candidate.id),
+        );
+
+    if (!wasActive) {
+      this.masterVolumesByBoard.set(targetId, 0);
+    }
+
+    const windowId = this.selectedWindowByBoard.get(targetId) ?? undefined;
+    const playRequest: PlayRequest = windowId != null ? { windowId } : {};
+
+    this.playbackApi.playBoard({ boardId: targetId, playRequest })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: state => {
+          this.applyPlaybackState(targetId, state);
+
+          if (this.crossfadeRafId !== null) {
+            cancelAnimationFrame(this.crossfadeRafId);
+            this.crossfadeRafId = null;
+          }
+
+          if (wasActive && boardsToStop.length === 0) {
+            return;
+          }
+
+          const startTime = performance.now();
+          const fromVolumes = new Map<number, number>(
+            boardsToStop.map(item => [item.id!, this.masterVolumesByBoard.get(item.id!) ?? 1]),
+          );
+
+          const ramp = (now: number): void => {
+            const t = Math.min(1, (now - startTime) / BoardsPageComponent.CROSSFADE_MS);
+
+            if (!wasActive) {
+              this.masterVolumesByBoard.set(targetId, Math.sin((t * Math.PI) / 2));
+            }
+
+            for (const item of boardsToStop) {
+              this.masterVolumesByBoard.set(
+                item.id!,
+                (fromVolumes.get(item.id!) ?? 1) * Math.cos((t * Math.PI) / 2),
+              );
+            }
+
+            if (t < 1) {
+              this.crossfadeRafId = requestAnimationFrame(ramp);
+              return;
+            }
+
+            this.crossfadeRafId = null;
+
+            if (!wasActive) {
+              this.masterVolumesByBoard.delete(targetId);
+            }
+
+            for (const item of boardsToStop) {
+              this.masterVolumesByBoard.delete(item.id!);
+              this.clearBoard(item.id!);
+              this.playbackApi.stopBoard({ boardId: item.id! })
+                .pipe(
+                  catchError(() => of(null)),
+                  takeUntilDestroyed(this.destroyRef),
+                )
+                .subscribe();
+            }
+          };
+
+          this.crossfadeRafId = requestAnimationFrame(ramp);
+        },
+        error: (err: unknown) => {
+          console.error(err);
+
+          if (!wasActive) {
+            this.masterVolumesByBoard.delete(targetId);
+          }
+
+          for (const item of boardsToStop) {
+            this.masterVolumesByBoard.delete(item.id!);
+            this.clearBoard(item.id!);
+            this.playbackApi.stopBoard({ boardId: item.id! })
+              .pipe(
+                catchError(() => of(null)),
+                takeUntilDestroyed(this.destroyRef),
+              )
+              .subscribe();
+          }
+
+          this.toast.error('Starting playback failed.');
+        },
+      });
+  }
+
+  stopBoardTrack(board: Board): void {
+    if (board.id == null) return;
+
+    const boardId = board.id;
+
+    this.playbackApi.stopBoard({ boardId })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: state => {
+          this.applyPlaybackState(boardId, state);
+          this.clearBoard(boardId);
+        },
+        error: () => {
+          this.clearBoard(boardId);
+        },
+      });
+  }
+
+  onAudioNearEnd(board: Board): void {
+    if (board.id == null || !board.playlistMode) return;
+    this.preAdvancedBoards.add(board.id);
+    this.advancePlaylist(board);
+  }
+
+  onAudioEnded(board: Board): void {
+    if (board.id == null) return;
+
+    if (board.playlistMode) {
+      if (!this.preAdvancedBoards.delete(board.id)) {
+        this.advancePlaylist(board);
+      }
+    } else {
+      this.clearBoard(board.id);
+    }
+  }
+
+  onAudioError(board: Board): void {
+    if (board.id == null) return;
+
+    console.error('Audio stream failed for board', board.id);
+    this.boardStatuses.set(board.id, 'ERROR');
+    this.streamUrlsByBoard.delete(board.id);
+    this.toast.error('Audio stream failed.');
   }
 
   trackByBoardId(_index: number, board: Board): number {
@@ -472,34 +631,214 @@ export class BoardsPageComponent implements OnInit {
   }
 
   getBoardStatus(board: Board): PlayerStatus {
-    if (board.id == null) return 'STOPPED';
-    return this.boardStatuses.get(board.id) ?? 'STOPPED';
+    return board.id != null
+      ? (this.boardStatuses.get(board.id) ?? 'STOPPED')
+      : 'STOPPED';
   }
 
   getStreamUrl(board: Board): string | null {
-    if (board.id == null) return null;
-    return this.streamUrlsByBoard.get(board.id) ?? null;
+    return board.id != null
+      ? (this.streamUrlsByBoard.get(board.id) ?? null)
+      : null;
+  }
+
+  getMasterVolume(board: Board): number {
+    const volume01 = this.getBoardVolumePercent(board) / 100;
+    const fade = board.id != null
+      ? (this.masterVolumesByBoard.get(board.id) ?? 1)
+      : 1;
+
+    return Math.max(0, Math.min(volume01 * fade, 1));
+  }
+
+  getBoardVolumePercent(board: Board): number {
+    return clampPct(board.volume);
+  }
+
+  getPlaylistOptions(board: Board): PlaylistOptions {
+    return {
+      random: board.shuffle ?? false,
+    };
   }
 
   getGroupsForBoard(board: Board): Group[] {
-    const selectedGroup = board.selectedGroup;
-    const baseGroups = this.groups ?? [];
-    if (selectedGroup?.id == null) return baseGroups;
-    return baseGroups.some(g => g.id === selectedGroup.id)
-      ? baseGroups
-      : [selectedGroup, ...baseGroups];
+    const selected = board.selectedGroup;
+    const base = this.groups();
+
+    if (selected?.id == null) {
+      return base;
+    }
+
+    return base.some(group => group.id === selected.id)
+      ? base
+      : [selected, ...base];
   }
 
   getSelectedWindowId(board: Board): number | null {
-    if (board.id == null) return null;
-    return this.selectedWindowByBoard.get(board.id) ?? null;
+    return board.id != null
+      ? (this.selectedWindowByBoard.get(board.id) ?? null)
+      : null;
+  }
+
+  private setupVolumeDebounce(): void {
+    this.volumeCommit$
+      .pipe(
+        groupBy(commit => commit.boardId),
+        mergeMap(group$ =>
+          group$.pipe(
+            debounceTime(400),
+            distinctUntilChanged(
+              (a, b) => a.boardId === b.boardId && a.volumePercent === b.volumePercent,
+            ),
+            switchMap(({ boardId, volumePercent }) => {
+              const board = this.boards().find(item => item.id === boardId);
+              if (!board) {
+                return of(null);
+              }
+
+              return this.boardsApi.updateUserBoard({
+                boardId,
+                boardUpdateRequest: this.baseUpdate(board, { volume: volumePercent }),
+              }).pipe(
+                catchError((err: unknown) => {
+                  console.error(err);
+
+                  const rolledBack = this.persistedVolumesByBoard.get(boardId) ?? 100;
+                  this.boards.update(current =>
+                    current.map(item =>
+                      item.id === boardId ? { ...item, volume: rolledBack } : item,
+                    ),
+                  );
+
+                  this.toast.error('Updating volume failed.');
+                  return of(null);
+                }),
+              );
+            }),
+          ),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(updated => {
+        if (updated) {
+          this.upsertBoard(updated);
+        }
+      });
+  }
+
+  private advancePlaylist(board: Board): void {
+    if (board.id == null) return;
+
+    const boardId = board.id;
+    const availableTracks = board.availableTracks ?? [];
+
+    if (!availableTracks.length) {
+      this.clearBoard(boardId);
+      return;
+    }
+
+    if (!this.playlistOrderByBoard.has(boardId)) {
+      this.regeneratePlaylistOrder(boardId, availableTracks, board.shuffle ?? false);
+    }
+
+    const order = this.playlistOrderByBoard.get(boardId)!;
+    const nextStep = ((this.playlistIndexByBoard.get(boardId) ?? -1) + 1) % order.length;
+    this.playlistIndexByBoard.set(boardId, nextStep);
+
+    const nextTrackIndex = order[nextStep];
+    const nextTrack = availableTracks[nextTrackIndex] ?? availableTracks[0];
+
+    this.boardsApi.updateUserBoard({
+      boardId,
+      boardUpdateRequest: this.baseUpdate(board, {
+        selectedTrackId: nextTrack.id ?? undefined,
+      }),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: updated => {
+          this.upsertBoard(updated);
+          const freshBoard = this.boards().find(item => item.id === boardId);
+          if (freshBoard) {
+            this.playBoardTrack(freshBoard);
+          }
+        },
+        error: err => {
+          console.error('Playlist advance failed', err);
+          this.clearBoard(boardId);
+        },
+      });
+  }
+
+  private updateBoard(
+    board: Board,
+    overrides: Partial<BoardUpdateRequest>,
+    errorMessage: string,
+  ): void {
+    if (board.id == null) return;
+
+    const boardId = board.id;
+    const patchedBoard = { ...board, ...this.overridesToBoardPatch(overrides) };
+
+    this.boards.update(current =>
+      current.map(item => item.id === boardId ? patchedBoard : item),
+    );
+
+    this.boardsApi.updateUserBoard({
+      boardId,
+      boardUpdateRequest: this.baseUpdate(patchedBoard, overrides),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: updated => {
+          this.upsertBoard(updated);
+        },
+        error: (err: unknown) => {
+          console.error(err);
+          this.boards.update(current =>
+            current.map(item => item.id === boardId ? board : item),
+          );
+          this.toast.error(errorMessage);
+        },
+      });
+  }
+
+  private overridesToBoardPatch(overrides: Partial<BoardUpdateRequest>): Partial<Board> {
+    const patch: Partial<Board> = {};
+
+    if ('name' in overrides) patch.name = overrides.name;
+    if ('repeat' in overrides) patch.repeat = overrides.repeat;
+    if ('overplay' in overrides) patch.overplay = overrides.overplay;
+    if ('playlistMode' in overrides) patch.playlistMode = overrides.playlistMode;
+    if ('shuffle' in overrides) patch.shuffle = overrides.shuffle;
+    if ('volume' in overrides) patch.volume = overrides.volume;
+
+    return patch;
+  }
+
+  private baseUpdate(
+    board: Board,
+    overrides: Partial<BoardUpdateRequest> = {},
+  ): BoardUpdateRequest {
+    return {
+      name: board.name ?? undefined,
+      selectedTrackId: board.selectedTrack?.id ?? undefined,
+      selectedGroupId: board.selectedGroup?.id ?? undefined,
+      volume: board.volume ?? undefined,
+      repeat: board.repeat ?? undefined,
+      overplay: board.overplay ?? undefined,
+      shuffle: board.shuffle ?? undefined,
+      playlistMode: board.playlistMode ?? undefined,
+      ...overrides,
+    };
   }
 
   private applyPlaybackState(boardId: number, state: PlaybackState | null): void {
     this.boardStatuses.set(boardId, state?.status ?? 'STOPPED');
-    const url = this.resolveStreamUrl(state?.streamUrl);
-    if (url) {
-      this.streamUrlsByBoard.set(boardId, url);
+
+    const resolvedUrl = this.resolveStreamUrl(state?.streamUrl);
+    if (resolvedUrl) {
+      this.streamUrlsByBoard.set(boardId, resolvedUrl);
     } else {
       this.streamUrlsByBoard.delete(boardId);
     }
@@ -515,35 +854,65 @@ export class BoardsPageComponent implements OnInit {
     return status === 'PLAYING' || status === 'PAUSED';
   }
 
+  private upsertBoard(updated: Board): void {
+    if (updated.id == null) return;
+
+    this.boards.update(current =>
+      current.map(item => item.id === updated.id ? updated : item),
+    );
+
+    this.syncPersistedVolume(updated);
+  }
+
+  private syncPersistedVolume(board: Board): void {
+    if (board.id != null) {
+      this.persistedVolumesByBoard.set(board.id, clampPct(board.volume));
+    }
+  }
+
   private resolveStreamUrl(streamUrl?: string | null): string | null {
     if (!streamUrl) return null;
-    if (streamUrl.startsWith('http://') || streamUrl.startsWith('https://')) return streamUrl;
+    if (streamUrl.startsWith('http://') || streamUrl.startsWith('https://')) {
+      return streamUrl;
+    }
+
     const base = environment.apiUrl.replace(/\/$/, '');
     const path = streamUrl.startsWith('/') ? streamUrl : `/${streamUrl}`;
     return `${base}${path}`;
   }
 
-  private mergeTracks(ownTracks: Track[], subscribedTracks: Track[]): Track[] {
+  private mergeTracks(own: Track[], subscribed: Track[]): Track[] {
     const seen = new Set<number>();
-    const merged: Track[] = [];
 
-    for (const t of [...ownTracks, ...subscribedTracks]) {
-      if (t.id != null && !seen.has(t.id)) {
-        seen.add(t.id);
-        merged.push(t);
+    return [...own, ...subscribed].filter(track => {
+      if (track.id == null || seen.has(track.id)) return false;
+      seen.add(track.id);
+      return true;
+    });
+  }
+
+  private regeneratePlaylistOrder(boardId: number, tracks: Track[], shuffle: boolean): void {
+    const indices = tracks.map((_, i) => i);
+    if (shuffle) {
+      for (let i = indices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [indices[i], indices[j]] = [indices[j], indices[i]];
       }
     }
-
-    return merged;
+    this.playlistOrderByBoard.set(boardId, indices);
+    this.playlistIndexByBoard.set(boardId, -1);
   }
 
-  private addError(message: string): void {
-    if (!this.errorMessage) {
-      this.errorMessage = message;
-      return;
-    }
-    if (!this.errorMessage.includes(message)) {
-      this.errorMessage = `${this.errorMessage} ${message}`;
-    }
+  private appendError(message: string): void {
+    this.errorMessage.update(current =>
+      current ? (current.includes(message) ? current : `${current} ${message}`) : message,
+    );
   }
+}
+
+function clampPct(value: number | null | undefined): number {
+  const numeric = Number(value);
+  return Number.isFinite(numeric)
+    ? Math.max(0, Math.min(Math.round(numeric), 100))
+    : 100;
 }

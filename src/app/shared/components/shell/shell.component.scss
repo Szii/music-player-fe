@@ -4,24 +4,29 @@
 
 .app-shell {
   min-height: 100vh;
+  position: relative;
   background:
     radial-gradient(
-      circle at top left,
-      rgba(79, 70, 229, 0.06) 0%,
-      rgba(79, 70, 229, 0) 28%
+      ellipse at top center,
+      rgba(255, 252, 240, 0.7) 0%,
+      rgba(255, 252, 240, 0) 38%
     ),
     radial-gradient(
-      circle at bottom right,
-      rgba(166, 106, 0, 0.08) 0%,
-      rgba(166, 106, 0, 0) 30%
+      ellipse at top right,
+      rgba(88, 24, 13, 0.08) 0%,
+      rgba(88, 24, 13, 0) 28%
+    ),
+    radial-gradient(
+      ellipse at bottom left,
+      rgba(201, 164, 76, 0.1) 0%,
+      rgba(201, 164, 76, 0) 30%
     ),
     linear-gradient(
       180deg,
-      var(--app-bg-soft, #ece4d6) 0%,
-      var(--app-bg, #f5f1e8) 220px,
-      var(--app-bg, #f5f1e8) 100%
+      var(--app-bg-soft) 0%,
+      var(--app-bg) 200px,
+      var(--app-bg) 100%
     );
-  position: relative;
 }
 
 .app-shell::before {
@@ -29,20 +34,20 @@
   position: fixed;
   inset: 0;
   pointer-events: none;
-  opacity: 0.2;
+  opacity: 0.24;
   background-image:
-    radial-gradient(rgba(111, 74, 40, 0.06) 0.8px, transparent 0.8px),
-    radial-gradient(rgba(255, 255, 255, 0.18) 0.8px, transparent 0.8px),
-    radial-gradient(circle at 20% 30%, rgba(111, 74, 40, 0.05) 0, transparent 20%),
-    radial-gradient(circle at 80% 70%, rgba(43, 33, 24, 0.03) 0, transparent 18%);
+    radial-gradient(rgba(58, 32, 16, 0.07) 0.6px, transparent 0.6px),
+    radial-gradient(rgba(255, 255, 255, 0.2) 0.7px, transparent 0.7px),
+    radial-gradient(circle at 18% 28%, rgba(88, 24, 13, 0.05) 0, transparent 20%),
+    radial-gradient(circle at 80% 72%, rgba(30, 16, 8, 0.04) 0, transparent 18%);
   background-size:
-    14px 14px,
-    20px 20px,
+    12px 12px,
+    18px 18px,
     100% 100%,
     100% 100%;
   background-position:
     0 0,
-    7px 9px,
+    6px 8px,
     0 0,
     0 0;
   mix-blend-mode: multiply;
@@ -56,14 +61,14 @@
   background:
     linear-gradient(
       180deg,
-      rgba(255, 255, 255, 0.08) 0%,
-      rgba(255, 255, 255, 0) 24%,
-      rgba(43, 33, 24, 0.025) 100%
+      rgba(255, 255, 255, 0.1) 0%,
+      rgba(255, 255, 255, 0) 22%,
+      rgba(30, 16, 8, 0.04) 100%
     );
 }
 
 .app-shell__main {
-  min-height: calc(100vh - 73px);
+  min-height: calc(100vh - 74px);
   position: relative;
   z-index: 1;
 }

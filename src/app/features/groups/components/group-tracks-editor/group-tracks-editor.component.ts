@@ -229,7 +229,7 @@ type TrackFilterMode = 'all' | 'selected';
       border: var(--app-border);
       border-radius: 14px;
       overflow: auto;
-      max-height: min(56vh, 520px);
+      max-height: min(46vh, 380px);
       background: var(--app-surface);
     }
 

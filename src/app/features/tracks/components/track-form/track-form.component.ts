@@ -1,19 +1,19 @@
 import {
-  Component,
-  EventEmitter,
-  inject,
-  Input,
-  Output,
-  OnChanges,
-  SimpleChanges,
   ChangeDetectionStrategy,
-  ChangeDetectorRef,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiFormFieldComponent } from '../../../../shared/ui/form-field/ui-form-field.component';
 import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-input.component';
+import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
 
 export interface TrackFormEvent {
   trackName: string;
@@ -30,24 +30,41 @@ export interface TrackFormEvent {
     NormalButtonComponent,
     UiFormFieldComponent,
     UiTextInputComponent,
+    IconButtonComponent,
   ],
   template: `
-    <!-- Trigger — only shown when not editing (edit is triggered by parent) -->
-    <normal-button (clicked)="open()">+ Add track</normal-button>
+    <app-icon-button
+      icon="plus"
+      label="Add track"
+      variant="primary"
+      size="lg"
+      (clicked)="open()"
+    />
 
-    <!-- Modal -->
-    <div class="modal-backdrop" *ngIf="isOpen" (click)="onBackdropClick($event)">
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="track-modal-title">
-
+    <div class="modal-backdrop" *ngIf="isOpen()" (click)="close()">
+      <div
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="track-modal-title"
+        (click)="$event.stopPropagation()"
+      >
         <div class="modal__header">
           <h2 class="modal__title" id="track-modal-title">
-            {{ editingTrackId ? 'Edit track' : 'Add track' }}
+            {{ isEditing() ? 'Edit track' : 'Add track' }}
           </h2>
-          <button class="modal__close" (click)="close()" aria-label="Close">✕</button>
+
+          <button
+            class="modal__close"
+            type="button"
+            (click)="close()"
+            aria-label="Close"
+          >
+            ✕
+          </button>
         </div>
 
         <form [formGroup]="form" (ngSubmit)="onSubmit()" class="modal__body">
-
           <ui-form-field label="Track name">
             <ui-text-input
               formControlName="trackName"
@@ -55,7 +72,7 @@ export interface TrackFormEvent {
             />
           </ui-form-field>
 
-          <ui-form-field label="Track link" [error]="trackLinkError">
+          <ui-form-field label="Track link" [error]="trackLinkError()">
             <ui-text-input
               formControlName="trackLink"
               type="url"
@@ -64,18 +81,22 @@ export interface TrackFormEvent {
           </ui-form-field>
 
           <div class="modal__actions">
-            <normal-button type="button" variant="secondary" (clicked)="close()">
+            <normal-button
+              type="button"
+              variant="secondary"
+              (clicked)="close()"
+            >
               Cancel
             </normal-button>
+
             <normal-button
               type="submit"
-              [disabled]="form.invalid || submitting"
-              [loading]="submitting"
+              [disabled]="form.invalid || submitting()"
+              [loading]="submitting()"
             >
-              {{ editingTrackId ? 'Save changes' : 'Add track' }}
+              {{ isEditing() ? 'Save changes' : 'Add track' }}
             </normal-button>
           </div>
-
         </form>
       </div>
     </div>
@@ -84,7 +105,10 @@ export interface TrackFormEvent {
     .modal-backdrop {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.45);
+      background:
+        radial-gradient(ellipse at center, rgba(88, 24, 13, 0.1), transparent 60%),
+        linear-gradient(180deg, rgba(10, 5, 2, 0.6), rgba(10, 5, 2, 0.72));
+      backdrop-filter: blur(3px);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -100,52 +124,73 @@ export interface TrackFormEvent {
     .modal {
       width: 100%;
       max-width: 460px;
-      background: var(--app-surface);
-      border: var(--app-border);
-      border-radius: 14px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+      background: var(--app-parchment);
+      border: 1px solid var(--app-border-color);
+      border-top: 3px solid var(--app-primary);
+      border-radius: var(--app-radius-lg);
+      box-shadow:
+        0 28px 72px rgba(8, 3, 1, 0.48),
+        0 10px 30px rgba(8, 3, 1, 0.26),
+        inset 0 0 0 3px rgba(201, 164, 76, 0.1);
       overflow: hidden;
       animation: slide-in 0.18s ease;
     }
 
     @keyframes slide-in {
       from { opacity: 0; transform: translateY(-12px) scale(0.97); }
-      to   { opacity: 1; transform: translateY(0)     scale(1);    }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
     }
 
     .modal__header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 18px 20px 14px;
-      border-bottom: var(--app-border);
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid var(--app-border-color-soft);
+      background: var(--app-header-surface);
+      position: relative;
+    }
+
+    .modal__header::after {
+      content: '';
+      position: absolute;
+      left: 20px;
+      right: 20px;
+      bottom: 0;
+      height: 2px;
+      border-radius: 999px;
+      background: var(--app-divider-decor);
     }
 
     .modal__title {
       margin: 0;
-      font-size: 16px;
+      font-family: var(--app-font-heading);
+      font-size: 1rem;
       font-weight: 700;
-      color: var(--app-text);
+      letter-spacing: 0.04em;
+      color: var(--app-heading);
+      text-shadow: 0 1px 2px rgba(88, 24, 13, 0.12);
     }
 
     .modal__close {
       width: 28px;
       height: 28px;
-      border-radius: 6px;
-      border: none;
+      border-radius: var(--app-radius-xs);
+      border: 1px solid rgba(88, 24, 13, 0.12);
       background: transparent;
       color: var(--app-text-muted);
-      font-size: 14px;
+      font-size: 13px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: background 0.15s, color 0.15s;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
     }
 
     .modal__close:hover {
       background: var(--app-danger-soft);
       color: var(--app-danger);
+      border-color: rgba(158, 24, 24, 0.22);
     }
 
     .modal__body {
@@ -163,78 +208,93 @@ export interface TrackFormEvent {
     }
   `],
 })
-export class TrackFormComponent implements OnChanges {
-  private fb = inject(FormBuilder);
-  private cdr = inject(ChangeDetectorRef);
+export class TrackFormComponent {
+  private readonly fb = inject(FormBuilder);
 
-  @Input() editingTrackId: number | null = null;
-  @Input() editTrackName = '';
-  @Input() editTrackLink = '';
-  @Input() submitting = false;
+  readonly editingTrackId = input<number | null>(null);
+  readonly editTrackName = input('');
+  readonly editTrackLink = input('');
+  readonly submitting = input(false);
 
-  @Output() save = new EventEmitter<TrackFormEvent>();
-  @Output() cancel = new EventEmitter<void>();
+  readonly save = output<TrackFormEvent>();
+  readonly cancel = output<void>();
 
-  isOpen = false;
+  readonly isOpen = signal(false);
 
-  form = this.fb.group({
-    trackName: [''],
-    trackLink: ['', [Validators.required]],
+  readonly isEditing = computed(() => this.editingTrackId() != null);
+
+  readonly form = this.fb.group({
+    trackName: this.fb.nonNullable.control(''),
+    trackLink: this.fb.nonNullable.control('', [Validators.required]),
   });
 
-  get trackLinkError(): string {
-    const c = this.form.controls.trackLink;
-    if (!c.touched || !c.invalid) return '';
-    if (c.hasError('required')) return 'Track link is required.';
+  readonly trackLinkError = computed(() => {
+    const control = this.form.controls.trackLink;
+    if (!control.touched || !control.invalid) return '';
+    if (control.hasError('required')) return 'Track link is required.';
     return 'Invalid value.';
-  }
+  });
 
-  ngOnChanges(changes: SimpleChanges): void {
-    if ('editingTrackId' in changes) {
-      if (this.editingTrackId) {
-        this.form.patchValue({
-          trackName: this.editTrackName,
-          trackLink: this.editTrackLink,
+  constructor() {
+    let previousEditingId: number | null | undefined = undefined;
+
+    effect(() => {
+      const currentEditingId = this.editingTrackId();
+
+      if (currentEditingId != null && currentEditingId !== previousEditingId) {
+        this.form.reset({
+          trackName: this.editTrackName(),
+          trackLink: this.editTrackLink(),
         });
-        this.isOpen = true;
-        this.cdr.markForCheck();
-      } else {
-        this.form.reset({ trackName: '', trackLink: '' });
-        this.isOpen = false;
-        this.cdr.markForCheck();
+        this.isOpen.set(true);
       }
-    }
+
+      if (currentEditingId == null && previousEditingId != null) {
+        this.form.reset({
+          trackName: '',
+          trackLink: '',
+        });
+        this.isOpen.set(false);
+      }
+
+      previousEditingId = currentEditingId;
+    });
   }
 
   open(): void {
-    this.isOpen = true;
+    if (this.isEditing()) return;
+    this.isOpen.set(true);
   }
 
   close(): void {
-    this.isOpen = false;
-    this.form.reset({ trackName: '', trackLink: '' });
-    // If we were editing, tell the parent to cancel so it clears editingTrackId.
-    if (this.editingTrackId) {
-      this.cancel.emit();
-    }
-  }
+    this.isOpen.set(false);
 
-  onBackdropClick(event: MouseEvent): void {
-    if ((event.target as HTMLElement).classList.contains('modal-backdrop')) {
-      this.close();
+    this.form.reset({
+      trackName: '',
+      trackLink: '',
+    });
+
+    if (this.isEditing()) {
+      this.cancel.emit();
     }
   }
 
   onSubmit(): void {
     this.form.markAllAsTouched();
     if (this.form.invalid) return;
+
     const { trackName, trackLink } = this.form.getRawValue();
-    this.save.emit({ trackName: trackName || '', trackLink: trackLink || '' });
-    // Don't close here — wait for the parent to clear editingTrackId after save,
-    // which will trigger ngOnChanges and close automatically.
+
+    this.save.emit({
+      trackName: trackName || '',
+      trackLink: trackLink || '',
+    });
   }
 
   resetForm(): void {
-    this.form.reset({ trackName: '', trackLink: '' });
+    this.form.reset({
+      trackName: '',
+      trackLink: '',
+    });
   }
 }

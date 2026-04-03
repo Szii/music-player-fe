@@ -48,20 +48,22 @@ import { FormsModule } from '@angular/forms';
       transform: translateY(-50%);
       width: 1.75rem;
       height: 1.75rem;
-      border: none;
-      border-radius: 999px;
+      border: 1px solid transparent;
+      border-radius: var(--app-radius-xs);
       background: transparent;
-      color: var(--app-text-muted);
+      color: var(--app-text-soft);
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      transition: background 0.15s ease, color 0.15s ease;
+      font-size: 0.78rem;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
     }
 
     .ui-search-box__clear:hover {
-      background: var(--app-surface-muted);
-      color: var(--app-text);
+      background: rgba(88, 24, 13, 0.08);
+      color: var(--app-primary);
+      border-color: rgba(88, 24, 13, 0.18);
     }
   `],
 })

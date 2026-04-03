@@ -1,30 +1,37 @@
+// window-editor.component.ts
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
   ElementRef,
-  EventEmitter,
-  Input,
   NgZone,
   OnChanges,
   OnDestroy,
-  Output,
   SimpleChanges,
   ViewChild,
+  computed,
   inject,
+  input,
+  output,
+  signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { AudioStreamManager } from '../../../../shared/features/audio-stream-manager/audio-stream-manager';
+import { WindowEditorAudioSourceManager } from '../../../../shared/features/audio-stream-manager/window-audio-stream-manager';
 import { PlaybackPositionTracker } from '../../../../shared/features/audio-stream-manager/playback-position-tracker';
-import { WaveformCanvasComponent, RegionChangeEvent } from '../waveform-canvas/waveform-canvas.component';
+import {
+  WaveformCanvasComponent,
+  RegionChangeEvent,
+} from '../waveform-canvas/waveform-canvas.component';
 import { WindowTransportComponent } from '../window-transport/window-transport.component';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiFormFieldComponent } from '../../../../shared/ui/form-field/ui-form-field.component';
 import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-input.component';
 import { UiFormRowComponent } from '../../../../shared/ui/form-row/ui-form-row.component';
 import { UiFormActionsComponent } from '../../../../shared/ui/form-actions/ui-form-actions.component';
+import { ToastService } from '../../../../shared/features/toast/toast.service';
+import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 
 export interface WindowEditorResult {
   name: string;
@@ -37,6 +44,7 @@ export interface WindowEditorResult {
 @Component({
   selector: 'app-window-editor',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
     FormsModule,
@@ -48,104 +56,104 @@ export interface WindowEditorResult {
     UiFormActionsComponent,
     NormalButtonComponent,
   ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="we-root">
-      <audio
-        #audio
-        hidden
-        preload="none"
-        (ended)="onAudioEnded()"
-        (error)="onAudioElementError()"
-      ></audio>
+      <audio #audio hidden preload="none"></audio>
 
       <app-waveform-canvas
         #waveformCanvas
-        [durationS]="durationS"
-        [regionFromS]="regionFromS"
-        [regionToS]="regionToS"
+        [durationS]="durationS()"
+        [regionFromS]="regionFromS()"
+        [regionToS]="regionToS()"
         [seekableMaxS]="tracker.seekableMaxS"
-        [playheadPx]="playheadPx"
-        [waveformPeaks]="waveformPeaks"
-        [fadeIn]="fadeIn"
-        [fadeOut]="fadeOut"
-        [audioReady]="audioReady"
-        [loadingStream]="loadingStream"
-        [downloadProgress]="downloadProgress"
-        [streamError]="streamError"
-        [waveformLoading]="waveformLoading"
-        [waveformReady]="waveformReady"
-        [waveformError]="waveformError"
-        [handlesDisabled]="!streamComplete"
+        [playheadPx]="playheadPx()"
+        [waveformPeaks]="waveformPeaks()"
+        [fadeIn]="fadeIn()"
+        [fadeOut]="fadeOut()"
+        [audioReady]="audioReady()"
+        [loadingStream]="loadingStream()"
+        [downloadProgress]="downloadProgress()"
+        [streamError]="streamError()"
+        [waveformLoading]="waveformLoading()"
+        [waveformReady]="waveformReady()"
+        [waveformError]="waveformError()"
+        [handlesDisabled]="!streamComplete()"
         (regionChange)="onRegionChange($event)"
         (seekRequested)="seekLocal($event)"
       />
 
-      <div class="we-ruler" *ngIf="durationS > 0">
+      <div class="we-ruler" *ngIf="durationS() > 0">
         <span
           class="we-ruler-mark"
-          *ngFor="let m of rulerMarks"
-          [style.left.%]="m.pct"
+          *ngFor="let mark of rulerMarks()"
+          [style.left.%]="mark.pct"
         >
-          {{ m.label }}
+          {{ mark.label }}
         </span>
       </div>
 
-      <div class="we-section we-section--compact" *ngIf="durationS > 0">
+      <div class="we-section we-section--compact" *ngIf="durationS() > 0">
         <ui-form-row>
           <div class="we-duration">
             <span class="we-duration__label">Selection length</span>
-            <span class="we-duration__value">{{ formatTime(regionToS - regionFromS) }}</span>
+            <span class="we-duration__value">
+              {{ formatTime(regionToS() - regionFromS()) }}
+            </span>
           </div>
 
           <div class="we-times">
             <div class="we-time-chip">
               <span class="we-time-chip__label">From</span>
-              <span class="we-time-chip__value">{{ formatTime(regionFromS) }}</span>
+              <span class="we-time-chip__value">{{ formatTime(regionFromS()) }}</span>
             </div>
 
             <div class="we-time-chip">
               <span class="we-time-chip__label">To</span>
-              <span class="we-time-chip__value">{{ formatTime(regionToS) }}</span>
+              <span class="we-time-chip__value">{{ formatTime(regionToS()) }}</span>
             </div>
           </div>
         </ui-form-row>
       </div>
 
-      <div class="we-seek we-section" *ngIf="audioReady && durationS > 0">
-        <span class="we-seek__time">{{ formatTime(currentTimeS) }}</span>
+      <div class="we-seek we-section" *ngIf="audioReady() && durationS() > 0">
+        <span class="we-seek__time">{{ formatTime(currentTimeS()) }}</span>
+
         <input
           class="we-seek__range"
           type="range"
           min="0"
-          [max]="durationS"
+          [max]="durationS()"
           step="0.1"
           [value]="tracker.displayPositionS"
-          [style.background]="seekBackground"
+          [style.background]="seekBackground()"
           (input)="onSeekInput($any($event.target).value)"
           (change)="onSeekCommit($any($event.target).value)"
         />
-        <span class="we-seek__time">{{ formatTime(durationS) }}</span>
+
+        <span class="we-seek__time">{{ formatTime(durationS()) }}</span>
       </div>
 
       <app-window-transport
-        *ngIf="audioReady"
-        [isPlaying]="isPlaying"
-        [playMode]="playMode"
-        [fadeIn]="fadeIn"
-        [fadeOut]="fadeOut"
-        [playSelectionDisabled]="!streamComplete"
+        *ngIf="audioReady()"
+        [isPlaying]="isPlaying()"
+        [playMode]="playMode()"
+        [fadeIn]="fadeIn()"
+        [fadeOut]="fadeOut()"
+        [playSelectionDisabled]="!streamComplete()"
         (playAll)="togglePlayAll()"
         (playSelection)="togglePlaySelection()"
-        (fadeInChange)="fadeIn = $event; redrawCanvas()"
-        (fadeOutChange)="fadeOut = $event; redrawCanvas()"
+        (fadeInChange)="onFadeInChange($event)"
+        (fadeOutChange)="onFadeOutChange($event)"
       />
 
-      <div class="we-section we-bottom" *ngIf="durationS > 0">
+      <div class="we-section we-bottom" *ngIf="durationS() > 0">
         <ui-form-row>
           <div class="we-name-field">
             <ui-form-field label="Window name">
-              <ui-text-input [(ngModel)]="windowName" placeholder="e.g. Intro" />
+              <ui-text-input
+                [(ngModel)]="windowName"
+                placeholder="e.g. Intro"
+              />
             </ui-form-field>
           </div>
 
@@ -153,10 +161,10 @@ export interface WindowEditorResult {
             <normal-button
               type="button"
               variant="success"
-              [disabled]="regionFromS >= regionToS || !streamComplete"
+              [disabled]="!canApply()"
               (clicked)="onApply()"
             >
-              {{ applyLabel }}
+              {{ applyLabel() }}
             </normal-button>
           </ui-form-actions>
         </ui-form-row>
@@ -164,21 +172,12 @@ export interface WindowEditorResult {
     </div>
   `,
   styles: [`
-    :host {
-      display: block;
-      min-width: 0;
-      min-height: 0;
-      height: 100%;
-    }
-
     .we-root {
       background: var(--app-surface);
-      overflow: auto;
+      overflow: hidden;
       font: inherit;
       color: var(--app-text);
-      min-width: 0;
-      min-height: 0;
-      height: 100%;
+      min-height: 100%;
       display: flex;
       flex-direction: column;
     }
@@ -321,155 +320,190 @@ export interface WindowEditorResult {
 
     .we-bottom {
       background: var(--app-bg-soft);
+      margin-top: auto;
     }
   `],
 })
 export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewInit {
-  private zone = inject(NgZone);
-  private cdr = inject(ChangeDetectorRef);
+  private readonly zone = inject(NgZone);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly toast = inject(ToastService);
+  private readonly confirmDialog = inject(ConfirmDialogService);
 
-  @Input() streamUrl: string | null = null;
-  @Input() durationS = 0;
-  @Input() waveformPeaks: number[] = [];
-  @Input() waveformLoading = false;
-  @Input() waveformError: string | null = null;
-  @Input() initialFromS: number | null = null;
-  @Input() initialToS: number | null = null;
-  @Input() initialName = '';
-  @Input() initialFadeIn = false;
-  @Input() initialFadeOut = false;
-  @Input() applyLabel = 'Apply window';
+  readonly streamUrl = input<string | null>(null);
+  readonly durationS = input(0);
+  readonly waveformPeaks = input<number[]>([]);
+  readonly waveformLoading = input(false);
+  readonly waveformError = input<string | null>(null);
+  readonly initialFromS = input<number | null>(null);
+  readonly initialToS = input<number | null>(null);
+  readonly initialName = input('');
+  readonly initialFadeIn = input(false);
+  readonly initialFadeOut = input(false);
+  readonly applyLabel = input('Apply window');
 
-  @Output() apply = new EventEmitter<WindowEditorResult>();
-  @Output() streamCompleted = new EventEmitter<void>();
+  readonly apply = output<WindowEditorResult>();
+  readonly streamCompleted = output<void>();
 
   @ViewChild('audio') audioRef!: ElementRef<HTMLAudioElement>;
   @ViewChild('waveformCanvas') waveformCanvasRef!: WaveformCanvasComponent;
 
-  loadingStream = false;
-  audioReady = false;
-  streamError: string | null = null;
-  downloadProgress = 0;
+  readonly loadingStream = signal(false);
+  readonly audioReady = signal(false);
+  readonly streamError = signal<string | null>(null);
+  readonly downloadProgress = signal(0);
+  readonly regionFromS = signal(0);
+  readonly regionToS = signal(0);
+  readonly currentTimeS = signal(0);
+  readonly playheadPx = signal(0);
+  readonly isPlaying = signal(false);
+  readonly playMode = signal<'full' | 'selection'>('full');
+  readonly fadeIn = signal(false);
+  readonly fadeOut = signal(false);
+  readonly streamComplete = signal(false);
 
-  regionFromS = 0;
-  regionToS = 0;
-  windowName = '';
-  fadeIn = false;
-  fadeOut = false;
+  readonly waveformReady = computed(
+    () => this.waveformPeaks().length > 0 && this.durationS() > 0,
+  );
 
-  currentTimeS = 0;
-  playheadPx = 0;
-  isPlaying = false;
-  playMode: 'full' | 'selection' = 'full';
+  readonly canApply = computed(
+    () => this.regionFromS() < this.regionToS() && this.streamComplete(),
+  );
 
-  rulerMarks: { pct: number; label: string }[] = [];
+  readonly rulerMarks = computed(() => {
+    const duration = this.durationS();
+    if (duration <= 0) return [];
 
-  readonly tracker = new PlaybackPositionTracker(() => this.audioRef?.nativeElement ?? null);
+    const stepS =
+      duration <= 15 ? 1 :
+      duration <= 60 ? 5 :
+      duration <= 300 ? 15 :
+      duration <= 600 ? 30 :
+      60;
 
-  get waveformReady(): boolean { return this.waveformPeaks.length > 0 && this.durationS > 0; }
-  get streamComplete(): boolean { return this.stream.streamComplete; }
+    const marks: Array<{ pct: number; label: string }> = [];
 
-  get seekBackground(): string {
-    const dur = this.durationS;
-    if (dur <= 0) return 'var(--app-border-color)';
-    const loadedPct = Math.min((this.tracker.seekableMaxS / dur) * 100, 100);
-    const selStartPct = Math.max(0, (this.regionFromS / dur) * 100);
-    const selEndPct = Math.min(100, (this.regionToS / dur) * 100);
+    for (let t = 0; t <= duration; t += stepS) {
+      marks.push({
+        pct: (t / duration) * 100,
+        label: this.formatTime(t),
+      });
+    }
+
+    return marks;
+  });
+
+  readonly seekBackground = computed(() => {
+    const duration = this.durationS();
+    if (duration <= 0) {
+      return 'var(--app-border-color)';
+    }
+
+    const loadedPct = Math.min((this.tracker.seekableMaxS / duration) * 100, 100);
+    const selectionStartPct = Math.max(0, (this.regionFromS() / duration) * 100);
+    const selectionEndPct = Math.min(100, (this.regionToS() / duration) * 100);
+
     return `linear-gradient(to right,
-      var(--app-border-color) 0%, var(--app-border-color) ${selStartPct}%,
-      var(--app-primary-soft) ${selStartPct}%, var(--app-primary-soft) ${selEndPct}%,
-      var(--app-border-color) ${selEndPct}%, var(--app-border-color) 100%),
+      var(--app-border-color) 0%, var(--app-border-color) ${selectionStartPct}%,
+      var(--app-primary-soft) ${selectionStartPct}%, var(--app-primary-soft) ${selectionEndPct}%,
+      var(--app-border-color) ${selectionEndPct}%, var(--app-border-color) 100%),
       linear-gradient(to right,
       var(--app-primary) 0%, var(--app-primary) ${loadedPct}%,
       var(--app-border-color) ${loadedPct}%, var(--app-border-color) 100%)`;
-  }
+  });
 
-  private stream = new AudioStreamManager();
+  windowName = '';
+
+  readonly tracker = new PlaybackPositionTracker(
+    () => this.audioRef?.nativeElement ?? null,
+  );
+
+  private stream = new WindowEditorAudioSourceManager();
   private playbackTimer: ReturnType<typeof setInterval> | null = null;
   private playbackEndS = 0;
   private isScrubbing = false;
   private suppressNextError = false;
-  private suppressSelectionBoundaryUntil = 0;
+  private suppressBoundaryUntil = 0;
   private suppressTimeSyncUntil = 0;
   private suppressSegmentEndUntil = 0;
   private readonly previewFadeDurationS = 1.0;
 
+  private audioListeners: Array<{ type: string; fn: EventListener }> = [];
+
   private viewReady = false;
-  private pendingStreamUrl: string | null = null;
+  private pendingStreamUrlInit: string | null = null;
   private editorStateInitialized = false;
   private lastEditorKey = '';
+  private lastToastErrorMessage: string | null = null;
 
   ngAfterViewInit(): void {
     this.viewReady = true;
-    if (this.pendingStreamUrl) {
-      const url = this.pendingStreamUrl;
-      this.pendingStreamUrl = null;
+
+    if (this.pendingStreamUrlInit) {
+      const url = this.pendingStreamUrlInit;
+      this.pendingStreamUrlInit = null;
       this.initStream(url);
     }
   }
 
   ngOnChanges(changes: SimpleChanges): void {
     const nextKey = this.buildEditorKey();
-    const identityChanged = nextKey !== this.lastEditorKey
-      || ('streamUrl' in changes && !changes['streamUrl'].firstChange);
+    const identityChanged = nextKey !== this.lastEditorKey;
 
     if (identityChanged) {
       this.lastEditorKey = nextKey;
       this.editorStateInitialized = false;
     }
 
-    if (!this.editorStateInitialized && this.durationS > 0) {
+    if (!this.editorStateInitialized && this.durationS() > 0) {
       this.initializeRegionDefaults();
       this.editorStateInitialized = true;
     }
 
     if ('durationS' in changes) {
-      this.tracker.setDuration(this.durationS);
-      this.tracker.setWindow(0, this.durationS);
-      this.buildRulerMarks();
+      this.tracker.setDuration(this.durationS());
+      this.tracker.setWindow(0, this.durationS());
     }
 
     if ('streamUrl' in changes) {
-      if (!this.streamUrl) {
+      if (!this.streamUrl()) {
         this.stopPlayback();
-        this.stream.destroy();
-        this.audioReady = false;
-        this.loadingStream = false;
-        this.streamError = null;
+        this.destroyStream();
         return;
       }
 
       if (!this.viewReady) {
-        this.pendingStreamUrl = this.streamUrl;
+        this.pendingStreamUrlInit = this.streamUrl();
       } else {
-        this.initStream(this.streamUrl);
+        this.initStream(this.streamUrl()!);
       }
     }
   }
 
   ngOnDestroy(): void {
     this.stopPlayback();
-    this.stream.destroy();
-    const audio = this.audioRef?.nativeElement;
-    if (audio) {
-      audio.pause();
-      audio.removeAttribute('src');
-      audio.load();
-    }
+    this.destroyStream();
   }
 
-  onRegionChange(e: RegionChangeEvent): void {
-    this.regionFromS = e.fromS;
-    this.regionToS = e.toS;
+  onRegionChange(event: RegionChangeEvent): void {
+    this.regionFromS.set(event.fromS);
+    this.regionToS.set(event.toS);
 
-    if (this.isPlaying && this.playMode === 'selection') {
+    if (this.isPlaying() && this.playMode() === 'selection') {
       this.syncPlaybackToSelectionBounds();
     }
 
     this.cdr.markForCheck();
   }
 
-  redrawCanvas(): void {
+  onFadeInChange(value: boolean): void {
+    this.fadeIn.set(value);
+    this.waveformCanvasRef?.drawWaveform();
+    this.cdr.markForCheck();
+  }
+
+  onFadeOutChange(value: boolean): void {
+    this.fadeOut.set(value);
     this.waveformCanvasRef?.drawWaveform();
     this.cdr.markForCheck();
   }
@@ -477,8 +511,14 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
   onSeekInput(value: string): void {
     this.isScrubbing = true;
     this.tracker.displayPositionS = this.clampToRegionBounds(Number(value));
-    const cw = this.waveformCanvasRef?.canvasWidth ?? 0;
-    this.playheadPx = this.durationS > 0 ? (this.tracker.displayPositionS / this.durationS) * cw : 0;
+
+    const canvasWidth = this.waveformCanvasRef?.canvasWidth ?? 0;
+    this.playheadPx.set(
+      this.durationS() > 0
+        ? (this.tracker.displayPositionS / this.durationS()) * canvasWidth
+        : 0,
+    );
+
     this.cdr.markForCheck();
   }
 
@@ -489,10 +529,10 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
 
   seekLocal(targetS: number): void {
     const audio = this.audioRef?.nativeElement;
-    if (!audio || !this.audioReady) return;
+    if (!audio || !this.audioReady()) return;
 
     const requested = this.clampToRegionBounds(targetS);
-    const wasPlaying = this.isPlaying && !audio.paused;
+    const wasPlaying = this.isPlaying() && !audio.paused;
 
     if (this.stream.usingBlob) {
       if (this.stream.isBlobSeekable(requested)) {
@@ -512,133 +552,194 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
       audio.currentTime = requested;
     }
 
-    this.currentTimeS = requested;
+    this.currentTimeS.set(requested);
     this.tracker.displayPositionS = requested;
-    const cw = this.waveformCanvasRef?.canvasWidth ?? 0;
-    this.playheadPx = this.durationS > 0 ? (requested / this.durationS) * cw : 0;
+
+    const canvasWidth = this.waveformCanvasRef?.canvasWidth ?? 0;
+    this.playheadPx.set(
+      this.durationS() > 0 ? (requested / this.durationS()) * canvasWidth : 0,
+    );
+
     this.applyPreviewFadeVolume(requested);
     this.suppressTimeSyncUntil = Date.now() + 120;
     this.cdr.markForCheck();
   }
 
   togglePlayAll(): void {
-    if (this.isPlaying && this.playMode === 'full') {
+    if (this.isPlaying() && this.playMode() === 'full') {
       this.stopPlayback();
-    } else {
-      this.startPlayback(0, this.durationS, 'full');
+      return;
     }
+
+    this.startPlayback(0, this.durationS(), 'full');
   }
 
   togglePlaySelection(): void {
-    if (this.isPlaying && this.playMode === 'selection') {
+    if (this.isPlaying() && this.playMode() === 'selection') {
       this.stopPlayback();
-    } else {
-      this.startPlayback(this.regionFromS, this.regionToS, 'selection');
+      return;
     }
+
+    this.startPlayback(this.regionFromS(), this.regionToS(), 'selection');
+  }
+
+  onApply(): void {
+    if (!this.canApply()) {
+      this.toast.warning('Audio preview is not fully ready yet.');
+      return;
+    }
+
+    this.apply.emit({
+      name: this.windowName.trim(),
+      positionFrom: this.regionFromS(),
+      positionTo: this.regionToS(),
+      fadeIn: this.fadeIn(),
+      fadeOut: this.fadeOut(),
+    });
+  }
+
+  async confirmDiscardChanges(): Promise<boolean> {
+    if (!this.hasUnsavedChanges()) {
+      return true;
+    }
+
+    return this.confirmDialog.confirm({
+      title: 'Discard changes?',
+      message: 'You have unsaved window changes. They will be lost if you continue.',
+      confirmText: 'Discard',
+      cancelText: 'Keep editing',
+      variant: 'danger',
+    });
+  }
+
+  formatTime(totalSeconds: number): string {
+    const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+    const minutes = Math.floor(safeSeconds / 60);
+    const seconds = safeSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  }
+
+  private hasUnsavedChanges(): boolean {
+    const initialFrom = this.roundToTenth(this.initialFromS() ?? 0);
+    const initialTo = this.roundToTenth(this.initialToS() ?? this.durationS());
+    const currentFrom = this.roundToTenth(this.regionFromS());
+    const currentTo = this.roundToTenth(this.regionToS());
+
+    return (
+      initialFrom !== currentFrom ||
+      initialTo !== currentTo ||
+      this.initialName().trim() !== this.windowName.trim() ||
+      this.initialFadeIn() !== this.fadeIn() ||
+      this.initialFadeOut() !== this.fadeOut()
+    );
   }
 
   private startPlayback(fromS: number, toS: number, mode: 'full' | 'selection'): void {
     const audio = this.audioRef?.nativeElement;
-    if (!audio || !this.audioReady) return;
+    if (!audio || !this.audioReady()) return;
 
     const startFrom = this.clampToRegionBounds(fromS);
-    const endAt = Math.max(startFrom, Math.min(toS, this.durationS));
+    const endAt = Math.max(startFrom, Math.min(toS, this.durationS()));
 
     this.stopPlayback();
-    this.playMode = mode;
+    this.playMode.set(mode);
     this.playbackEndS = endAt;
-    this.isPlaying = true;
+    this.isPlaying.set(true);
 
     this.seekLocal(startFrom);
     this.applyPreviewFadeVolume(startFrom);
 
-    audio.play().catch(err => console.warn('WindowEditor play failed', err));
+    audio.play().catch((error) => {
+      console.warn('WindowEditor play failed', error);
+      this.toast.error('Playback could not be started.');
+      this.isPlaying.set(false);
+      this.cdr.markForCheck();
+    });
 
-    this.playbackTimer = setInterval(() => {
-      this.zone.run(() => {
-        const cur = audio.currentTime || 0;
+    this.zone.runOutsideAngular(() => {
+      this.playbackTimer = setInterval(() => {
+        const currentTime = audio.currentTime || 0;
+        let dirty = false;
 
         if (
-          this.playMode === 'selection' &&
-          Date.now() >= this.suppressSelectionBoundaryUntil &&
-          (cur < this.regionFromS || cur >= this.regionToS)
+          this.playMode() === 'selection' &&
+          Date.now() >= this.suppressBoundaryUntil &&
+          (currentTime < this.regionFromS() || currentTime >= this.regionToS())
         ) {
-          this.syncPlaybackToSelectionBounds();
+          this.zone.run(() => this.syncPlaybackToSelectionBounds());
           return;
         }
 
-        this.applyPreviewFadeVolume(cur);
+        this.applyPreviewFadeVolume(currentTime);
 
         if (
           Date.now() >= this.suppressSegmentEndUntil &&
-          (cur >= this.playbackEndS || (audio.ended && this.stream.streamComplete))
+          (currentTime >= this.playbackEndS || (audio.ended && this.stream.streamComplete))
         ) {
-          this.onPlaybackSegmentEnded();
+          this.zone.run(() => this.onPlaybackSegmentEnded());
           return;
         }
 
-        this.currentTimeS = cur;
-
         if (!this.isScrubbing && Date.now() >= this.suppressTimeSyncUntil) {
-          this.tracker.displayPositionS = cur;
+          this.tracker.displayPositionS = currentTime;
+          dirty = true;
         }
 
-        const w = this.waveformCanvasRef?.canvasWidth ?? 0;
-        if (this.durationS > 0 && w > 0) {
-          this.playheadPx = ((this.isScrubbing ? this.tracker.displayPositionS : cur) / this.durationS) * w;
+        const canvasWidth = this.waveformCanvasRef?.canvasWidth ?? 0;
+        if (this.durationS() > 0 && canvasWidth > 0) {
+          const displayPosition = this.isScrubbing
+            ? this.tracker.displayPositionS
+            : currentTime;
+
+          this.playheadPx.set((displayPosition / this.durationS()) * canvasWidth);
+          dirty = true;
         }
 
-        this.cdr.markForCheck();
-      });
-    }, 30);
+        this.currentTimeS.set(currentTime);
+
+        if (dirty) {
+          this.cdr.markForCheck();
+        }
+      }, 30);
+    });
 
     this.cdr.markForCheck();
   }
 
   stopPlayback(): void {
-    if (this.playbackTimer) {
+    if (this.playbackTimer !== null) {
       clearInterval(this.playbackTimer);
       this.playbackTimer = null;
     }
 
     const audio = this.audioRef?.nativeElement;
-    if (audio && this.isPlaying) {
+    if (audio && this.isPlaying()) {
       audio.pause();
-      this.currentTimeS = audio.currentTime || 0;
-      this.tracker.displayPositionS = this.currentTimeS;
+      const currentTime = audio.currentTime || 0;
+      this.currentTimeS.set(currentTime);
+      this.tracker.displayPositionS = currentTime;
     }
 
     if (audio) {
       audio.volume = 1;
     }
 
-    this.isPlaying = false;
-    const cw = this.waveformCanvasRef?.canvasWidth ?? 0;
-    if (this.durationS > 0 && cw > 0) {
-      this.playheadPx = (this.currentTimeS / this.durationS) * cw;
+    this.isPlaying.set(false);
+
+    const canvasWidth = this.waveformCanvasRef?.canvasWidth ?? 0;
+    if (this.durationS() > 0 && canvasWidth > 0) {
+      this.playheadPx.set((this.currentTimeS() / this.durationS()) * canvasWidth);
     }
 
     this.cdr.markForCheck();
-  }
-
-  onAudioEnded(): void {
-    this.onPlaybackSegmentEnded();
-  }
-
-  onAudioElementError(): void {
-    if (this.suppressNextError) {
-      this.suppressNextError = false;
-      return;
-    }
-    console.warn('WindowEditor audio element error');
   }
 
   private onPlaybackSegmentEnded(): void {
-    const rewindTo = this.playMode === 'selection' ? this.regionFromS : 0;
-    const shouldContinue = this.playMode === 'selection';
+    const rewindTo = this.playMode() === 'selection' ? this.regionFromS() : 0;
+    const shouldLoop = this.playMode() === 'selection';
     const audio = this.audioRef?.nativeElement;
 
-    if (this.playbackTimer) {
+    if (this.playbackTimer !== null) {
       clearInterval(this.playbackTimer);
       this.playbackTimer = null;
     }
@@ -648,97 +749,112 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
       audio.volume = 1;
     }
 
-    this.isPlaying = false;
-    this.suppressSelectionBoundaryUntil = Date.now() + 300;
+    this.isPlaying.set(false);
+    this.suppressBoundaryUntil = Date.now() + 300;
     this.suppressTimeSyncUntil = Date.now() + 250;
     this.suppressSegmentEndUntil = Date.now() + 300;
-    this.currentTimeS = rewindTo;
+    this.currentTimeS.set(rewindTo);
     this.tracker.displayPositionS = rewindTo;
 
-    const cw = this.waveformCanvasRef?.canvasWidth ?? 0;
-    this.playheadPx = this.durationS > 0 ? (rewindTo / this.durationS) * cw : 0;
+    const canvasWidth = this.waveformCanvasRef?.canvasWidth ?? 0;
+    this.playheadPx.set(
+      this.durationS() > 0 ? (rewindTo / this.durationS()) * canvasWidth : 0,
+    );
+
     this.cdr.markForCheck();
 
-    if (!shouldContinue || !audio) return;
+    if (!shouldLoop || !audio) return;
 
-    const startAfterSeek = () => {
-      if (this.playMode === 'selection') {
-        this.startPlayback(this.regionFromS, this.regionToS, 'selection');
+    const restart = () => {
+      if (this.playMode() === 'selection') {
+        this.startPlayback(this.regionFromS(), this.regionToS(), 'selection');
       }
     };
 
     if (Math.abs(audio.currentTime - rewindTo) < 0.05) {
-      setTimeout(startAfterSeek, 16);
+      setTimeout(restart, 16);
     } else {
-      audio.addEventListener('seeked', startAfterSeek, { once: true });
+      audio.addEventListener('seeked', restart, { once: true });
       audio.currentTime = rewindTo;
     }
   }
 
   private syncPlaybackToSelectionBounds(): void {
-    if (!this.isPlaying || this.playMode !== 'selection') return;
-    if (Date.now() < this.suppressSelectionBoundaryUntil) return;
+    if (!this.isPlaying() || this.playMode() !== 'selection') return;
+    if (Date.now() < this.suppressBoundaryUntil) return;
 
     const audio = this.audioRef?.nativeElement;
     if (!audio) return;
 
-    const actualMax = this.getCurrentPlayableMaxS();
-    const cur = audio.currentTime || 0;
-    const cw = this.waveformCanvasRef?.canvasWidth ?? 0;
-    this.playbackEndS = this.regionToS;
+    const playableMax = this.getCurrentPlayableMaxS();
+    const currentTime = audio.currentTime || 0;
+    const canvasWidth = this.waveformCanvasRef?.canvasWidth ?? 0;
 
-    if (actualMax < this.regionFromS) {
+    this.playbackEndS = this.regionToS();
+
+    if (playableMax < this.regionFromS()) {
       audio.pause();
-      this.isPlaying = false;
-      this.currentTimeS = actualMax;
-      this.tracker.displayPositionS = actualMax;
-      this.playheadPx = this.durationS > 0 ? (actualMax / this.durationS) * cw : 0;
+      this.isPlaying.set(false);
+      this.currentTimeS.set(playableMax);
+      this.tracker.displayPositionS = playableMax;
+      this.playheadPx.set(
+        this.durationS() > 0 ? (playableMax / this.durationS()) * canvasWidth : 0,
+      );
       this.cdr.markForCheck();
       return;
     }
 
-    if (cur < this.regionFromS || cur >= this.regionToS) {
-      this.seekLocal(this.regionFromS);
+    if (currentTime < this.regionFromS() || currentTime >= this.regionToS()) {
+      this.seekLocal(this.regionFromS());
 
-      if (this.regionFromS <= actualMax + 0.05) {
-        this.suppressSelectionBoundaryUntil = Date.now() + 220;
+      if (this.regionFromS() <= playableMax + 0.05) {
+        this.suppressBoundaryUntil = Date.now() + 220;
         this.suppressTimeSyncUntil = Date.now() + 180;
-        audio.play().catch(err => console.warn('play after boundary sync failed', err));
-        this.isPlaying = true;
+        audio.play().catch((error) => {
+          console.warn('Play after boundary sync failed', error);
+          this.toast.error('Playback could not continue.');
+          this.isPlaying.set(false);
+          this.cdr.markForCheck();
+        });
+        this.isPlaying.set(true);
       } else {
         audio.pause();
-        this.isPlaying = false;
+        this.isPlaying.set(false);
       }
 
       this.cdr.markForCheck();
       return;
     }
 
-    this.currentTimeS = cur;
+    this.currentTimeS.set(currentTime);
+
     if (!this.isScrubbing && Date.now() >= this.suppressTimeSyncUntil) {
-      this.tracker.displayPositionS = cur;
+      this.tracker.displayPositionS = currentTime;
     }
 
-    this.playheadPx = this.durationS > 0
-      ? ((this.isScrubbing ? this.tracker.displayPositionS : cur) / this.durationS) * cw
-      : 0;
+    this.playheadPx.set(
+      this.durationS() > 0
+        ? ((this.isScrubbing ? this.tracker.displayPositionS : currentTime) / this.durationS()) * canvasWidth
+        : 0,
+    );
 
     this.cdr.markForCheck();
   }
 
   private initStream(url: string): void {
     this.stopPlayback();
-    this.stream.destroy();
+    this.destroyStream();
+    this.lastToastErrorMessage = null;
 
-    this.loadingStream = true;
-    this.audioReady = false;
-    this.streamError = null;
-    this.downloadProgress = 0;
-    this.currentTimeS = 0;
-    this.tracker.displayPositionS = 0;
-    this.playheadPx = 0;
-    this.tracker.setWindow(0, this.durationS);
-    this.tracker.setDuration(this.durationS);
+    this.loadingStream.set(true);
+    this.audioReady.set(false);
+    this.streamError.set(null);
+    this.downloadProgress.set(0);
+    this.streamComplete.set(false);
+    this.currentTimeS.set(0);
+    this.playheadPx.set(0);
+    this.tracker.setWindow(0, this.durationS());
+    this.tracker.setDuration(this.durationS());
     this.tracker.reset();
 
     const audio = this.audioRef?.nativeElement;
@@ -751,19 +867,20 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
 
     this.stream.onProgress = (_bytes, complete, seekableMaxS) => {
       this.zone.run(() => {
-        this.downloadProgress = Math.round(this.stream.downloadedPercent);
+        this.downloadProgress.set(Math.round(this.stream.downloadedPercent));
         this.tracker.updateSeekable(seekableMaxS, complete);
 
-        if (this.isPlaying && this.playMode === 'selection') {
+        if (this.isPlaying() && this.playMode() === 'selection') {
           this.syncPlaybackToSelectionBounds();
         }
 
         if (seekableMaxS > 0) {
-          this.loadingStream = false;
+          this.loadingStream.set(false);
         }
 
         if (complete) {
-          this.downloadProgress = 100;
+          this.downloadProgress.set(100);
+          this.streamComplete.set(true);
           this.streamCompleted.emit();
         }
 
@@ -773,8 +890,14 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
 
     this.stream.onError = (message) => {
       this.zone.run(() => {
-        this.streamError = message;
-        this.loadingStream = false;
+        this.streamError.set(message);
+        this.loadingStream.set(false);
+
+        if (message && message !== this.lastToastErrorMessage) {
+          this.lastToastErrorMessage = message;
+          this.toast.error(message);
+        }
+
         this.cdr.markForCheck();
       });
     };
@@ -782,108 +905,139 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
     this.stream.load(url, {
       audioElement: audio,
       useMse: 'MediaSource' in window,
-      estimatedDurationS: this.durationS || 0,
+      estimatedDurationS: this.durationS() || 0,
       windowStartS: 0,
-    }).catch(e => {
-      console.error('WindowEditor stream load failed', e);
+    }).catch((error) => {
+      console.error('WindowEditor stream load failed', error);
+
       this.zone.run(() => {
-        this.streamError = 'Failed to load audio stream.';
-        this.loadingStream = false;
+        const message = 'Failed to load audio stream.';
+        this.streamError.set(message);
+        this.loadingStream.set(false);
+        this.toast.error(message);
         this.cdr.markForCheck();
       });
     });
 
-    audio.onloadedmetadata = () => {
+    const onLoadedMetadata = () => {
       this.zone.run(() => {
-        if ((!this.durationS || this.durationS <= 0) && isFinite(audio.duration) && audio.duration > 0) {
-          this.durationS = audio.duration;
-          this.tracker.setDuration(this.durationS);
-          this.tracker.setWindow(0, this.durationS);
+        const duration = this.durationS();
+        if ((!duration || duration <= 0) && isFinite(audio.duration) && audio.duration > 0) {
+          this.tracker.setDuration(audio.duration);
+          this.tracker.setWindow(0, audio.duration);
         }
 
-        this.audioReady = true;
-        this.loadingStream = false;
+        this.audioReady.set(true);
+        this.loadingStream.set(false);
 
         if (!this.editorStateInitialized) {
           this.initializeRegionDefaults();
           this.editorStateInitialized = true;
         }
 
-        this.buildRulerMarks();
         this.cdr.markForCheck();
       });
     };
 
-    audio.ontimeupdate = () => {
+    const onTimeUpdate = () => {
       if (this.isScrubbing || Date.now() < this.suppressTimeSyncUntil) return;
 
       this.zone.run(() => {
-        const cur = audio.currentTime || 0;
-        this.currentTimeS = cur;
-        this.tracker.displayPositionS = cur;
+        const currentTime = audio.currentTime || 0;
+        this.currentTimeS.set(currentTime);
+        this.tracker.displayPositionS = currentTime;
         this.tracker.updateSeekable(this.tracker.seekableMaxS, false);
 
-        const cw = this.waveformCanvasRef?.canvasWidth ?? 0;
-        if (this.durationS > 0 && cw > 0) {
-          this.playheadPx = (cur / this.durationS) * cw;
+        const canvasWidth = this.waveformCanvasRef?.canvasWidth ?? 0;
+        if (this.durationS() > 0 && canvasWidth > 0) {
+          this.playheadPx.set((currentTime / this.durationS()) * canvasWidth);
         }
 
         this.cdr.markForCheck();
       });
     };
+
+    const onEnded = () => {
+      this.zone.run(() => this.onPlaybackSegmentEnded());
+    };
+
+    const onError = () => {
+      if (this.suppressNextError) {
+        this.suppressNextError = false;
+        return;
+      }
+
+      this.toast.error('Audio playback encountered an error.');
+      console.warn('WindowEditor audio element error');
+    };
+
+    this.addAudioListener(audio, 'loadedmetadata', onLoadedMetadata);
+    this.addAudioListener(audio, 'timeupdate', onTimeUpdate);
+    this.addAudioListener(audio, 'ended', onEnded);
+    this.addAudioListener(audio, 'error', onError);
   }
 
-  onApply(): void {
-    this.apply.emit({
-      name: this.windowName,
-      positionFrom: this.regionFromS,
-      positionTo: this.regionToS,
-      fadeIn: this.fadeIn,
-      fadeOut: this.fadeOut,
-    });
+  private addAudioListener(
+    audio: HTMLAudioElement,
+    type: string,
+    fn: EventListener,
+  ): void {
+    audio.addEventListener(type, fn);
+    this.audioListeners.push({ type, fn });
+  }
+
+  private destroyStream(): void {
+    const audio = this.audioRef?.nativeElement;
+    if (audio) {
+      for (const listener of this.audioListeners) {
+        audio.removeEventListener(listener.type, listener.fn);
+      }
+
+      this.audioListeners = [];
+
+      audio.pause();
+      this.suppressNextError = true;
+      audio.removeAttribute('src');
+      audio.load();
+    }
+
+    this.stream.destroy();
+    this.audioReady.set(false);
+    this.loadingStream.set(false);
+    this.streamError.set(null);
+    this.streamComplete.set(false);
   }
 
   private initializeRegionDefaults(): void {
-    if (this.durationS <= 0) return;
+    const duration = this.durationS();
+    if (duration <= 0) return;
 
-    if (this.initialFromS == null && this.initialToS == null) {
-      this.regionFromS = 0;
-      this.regionToS = Math.round(this.durationS * 10) / 10;
+    if (this.initialFromS() == null && this.initialToS() == null) {
+      this.regionFromS.set(0);
+      this.regionToS.set(this.roundToTenth(duration));
     } else {
-      if (this.initialFromS != null) this.regionFromS = this.initialFromS;
-      if (this.initialToS != null) this.regionToS = this.initialToS;
+      if (this.initialFromS() != null) {
+        this.regionFromS.set(this.initialFromS()!);
+      }
+
+      if (this.initialToS() != null) {
+        this.regionToS.set(this.initialToS()!);
+      }
     }
 
-    this.windowName = this.initialName;
-    this.fadeIn = this.initialFadeIn;
-    this.fadeOut = this.initialFadeOut;
-  }
-
-  private buildRulerMarks(): void {
-    const dur = this.durationS;
-    if (dur <= 0) {
-      this.rulerMarks = [];
-      return;
-    }
-
-    const stepS = dur <= 15 ? 1 : dur <= 60 ? 5 : dur <= 300 ? 15 : dur <= 600 ? 30 : 60;
-    const marks: { pct: number; label: string }[] = [];
-
-    for (let t = 0; t <= dur; t += stepS) {
-      marks.push({ pct: (t / dur) * 100, label: this.formatTime(t) });
-    }
-
-    this.rulerMarks = marks;
+    this.windowName = this.initialName();
+    this.fadeIn.set(this.initialFadeIn());
+    this.fadeOut.set(this.initialFadeOut());
   }
 
   private buildEditorKey(): string {
     return [
-      this.streamUrl ?? '',
-      this.initialFromS ?? '',
-      this.initialToS ?? '',
-      this.initialName ?? '',
-      this.initialFadeIn ?? '',
-      this.initialFadeOut ?? '',
+      this.streamUrl() ?? '',
+      this.initialFromS() ?? '',
+      this.initialToS() ?? '',
+      this.initialName() ?? '',
+      this.initialFadeIn() ? '1' : '0',
+      this.initialFadeOut() ? '1' : '0',
     ].join('|');
   }
 
@@ -894,21 +1048,34 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
     let volume = 1;
 
     const applyFade = (start: number, end: number) => {
-      const fadeDur = Math.min(this.previewFadeDurationS, Math.max(0, (end - start) / 2));
+      const fadeDuration = Math.min(
+        this.previewFadeDurationS,
+        Math.max(0, (end - start) / 2),
+      );
 
-      if (this.fadeIn && fadeDur > 0) {
-        volume = Math.min(volume, Math.max(0, Math.min(1, (currentS - start) / fadeDur)));
+      if (fadeDuration <= 0) {
+        return;
       }
 
-      if (this.fadeOut && fadeDur > 0) {
-        volume = Math.min(volume, Math.max(0, Math.min(1, (end - currentS) / fadeDur)));
+      if (this.fadeIn()) {
+        volume = Math.min(
+          volume,
+          Math.max(0, Math.min(1, (currentS - start) / fadeDuration)),
+        );
+      }
+
+      if (this.fadeOut()) {
+        volume = Math.min(
+          volume,
+          Math.max(0, Math.min(1, (end - currentS) / fadeDuration)),
+        );
       }
     };
 
-    if (this.playMode === 'selection') {
-      applyFade(this.regionFromS, this.regionToS);
+    if (this.playMode() === 'selection') {
+      applyFade(this.regionFromS(), this.regionToS());
     } else {
-      applyFade(0, this.durationS);
+      applyFade(0, this.durationS());
     }
 
     audio.volume = volume;
@@ -917,20 +1084,17 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
   private getCurrentPlayableMaxS(): number {
     const bufferedEnd = this.tracker.getActualBufferedEndS();
     return bufferedEnd > 0
-      ? Math.min(this.durationS, bufferedEnd)
-      : Math.min(this.durationS, Math.max(0, this.tracker.seekableMaxS));
+      ? Math.min(this.durationS(), bufferedEnd)
+      : Math.min(this.durationS(), Math.max(0, this.tracker.seekableMaxS));
   }
 
-  private clampToRegionBounds(posS: number): number {
-    const minS = this.playMode === 'selection' ? this.regionFromS : 0;
-    const maxS = this.playMode === 'selection' ? this.regionToS : this.durationS;
-    return Math.max(minS, Math.min(posS, maxS));
+  private clampToRegionBounds(positionS: number): number {
+    const minS = this.playMode() === 'selection' ? this.regionFromS() : 0;
+    const maxS = this.playMode() === 'selection' ? this.regionToS() : this.durationS();
+    return Math.max(minS, Math.min(positionS, maxS));
   }
 
-  formatTime(totalSeconds: number): string {
-    const safe = Math.max(0, Math.floor(totalSeconds));
-    const m = Math.floor(safe / 60);
-    const s = safe % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
+  private roundToTenth(value: number): number {
+    return Math.round(value * 10) / 10;
   }
 }

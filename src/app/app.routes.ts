@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard } from './/core/auth/auth.guards';  // your existing guard
+import { authGuard } from './core/auth/auth.guards';
 
 export const routes: Routes = [
   {
@@ -14,19 +14,29 @@ export const routes: Routes = [
       import('./features/auth/pages/register-page/register-page.component')
         .then(m => m.RegisterPageComponent),
   },
-
   {
     path: '',
     loadComponent: () =>
-      import('.//shared/components/shell/shell.component')
+      import('./shared/components/shell/shell.component')
         .then(m => m.ShellComponent),
-    canActivate: [authGuard],  
+    canActivate: [authGuard],
     children: [
       {
         path: '',
+        pathMatch: 'full',
+        redirectTo: 'home',
+      },
+      {
+        path: 'home',
         loadComponent: () =>
-          import('.//features/auth/pages/home-page/home-page-component')
+          import('./features/home/pages/home-page/home-page.component')
             .then(m => m.HomePageComponent),
+      },
+      {
+        path: 'tracks',
+        loadComponent: () =>
+          import('./features/tracks/pages/tracks-page/tracks-page-component')
+            .then(m => m.TracksPageComponent),
       },
       {
         path: 'boards',
@@ -46,8 +56,14 @@ export const routes: Routes = [
           import('./features/workshop/pages/workshop-page/workshop-page.component')
             .then(m => m.WorkshopPageComponent),
       },
+      {
+        path: '**',
+        redirectTo: 'home',
+      },
     ],
   },
-
-  { path: '**', redirectTo: '' },
+  {
+    path: '**',
+    redirectTo: '',
+  },
 ];

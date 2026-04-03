@@ -1,25 +1,35 @@
 .app-section-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-end;
   gap: 1rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.1rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 2px solid transparent;
+  border-image: var(--app-divider-decor) 1;
 }
 
 .app-section-header__title {
   margin: 0;
-  font-size: 1rem;
+  font-family: var(--app-font-heading);
+  font-size: 0.95rem;
   font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-heading);
+  text-shadow: 0 1px 2px rgba(88, 24, 13, 0.1);
 }
 
 .app-section-header__subtitle {
   margin: 0.25rem 0 0;
   color: var(--app-text-muted);
-  font-size: 0.9rem;
+  font-size: 0.88rem;
+  font-style: italic;
 }
 
 .app-section-header__actions {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-shrink: 0;
 }

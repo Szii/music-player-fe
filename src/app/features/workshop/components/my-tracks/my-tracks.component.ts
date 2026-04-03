@@ -1,17 +1,20 @@
 import {
-  Component,
-  EventEmitter,
-  Input,
-  Output,
   ChangeDetectionStrategy,
-  ChangeDetectorRef,
+  Component,
+  computed,
   inject,
+  input,
+  output,
+  signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Track } from '../../../../api/generated';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiSearchBoxComponent } from '../../../../shared/ui/search-box/ui-search-box.component';
+import { UiSelectComponent } from '../../../../shared/ui/select/ui-select.component';
+import { ToastService } from '../../../../shared/features/toast/toast.service';
+import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 
 export interface PublishEvent {
   track: Track;
@@ -24,49 +27,56 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
   selector: 'app-my-tracks',
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [CommonModule, FormsModule, NormalButtonComponent, UiSearchBoxComponent],
+  imports: [CommonModule, FormsModule, NormalButtonComponent, UiSearchBoxComponent, UiSelectComponent],
   template: `
-    <div class="modal-backdrop" (click)="onBackdropClick($event)">
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="my-tracks-title">
+    <div class="modal-backdrop" (click)="close.emit()">
+      <div
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="my-tracks-title"
+        (click)="$event.stopPropagation()"
+      >
         <div class="modal__header">
           <div>
             <h2 id="my-tracks-title" class="modal__title">My tracks</h2>
-            <p class="modal__desc">Publish your tracks so other users can find and subscribe to them.</p>
+            <p class="modal__desc">
+              Publish your tracks so other users can find and subscribe to them.
+            </p>
           </div>
 
           <button class="modal__close" type="button" (click)="close.emit()">✕</button>
         </div>
 
-        <div class="modal__toolbar" *ngIf="tracks.length > 0">
+        <div class="modal__toolbar" *ngIf="tracks().length > 0">
           <ui-search-box
             class="modal__search"
-            [value]="search"
+            [value]="search()"
             placeholder="Search tracks by name"
-            (valueChange)="search = $event"
+            (valueChange)="search.set($event)"
           />
 
-          <label class="modal__field">
+          <div class="modal__field">
             <span class="modal__label">Status</span>
-            <select
-              class="app-input modal__select"
-              [(ngModel)]="filterMode"
+            <ui-select
+              [options]="filterOptions"
+              [ngModel]="filterMode()"
+              [enableSearch]="false"
               [ngModelOptions]="{ standalone: true }"
-            >
-              <option value="all">All tracks</option>
-              <option value="published">Published</option>
-              <option value="unpublished">Unpublished</option>
-            </select>
-          </label>
+              (ngModelChange)="filterMode.set($event)"
+            />
+          </div>
         </div>
 
-        <div class="modal__meta" *ngIf="tracks.length > 0">
-          {{ filteredTracks.length }} / {{ tracks.length }} track{{ tracks.length === 1 ? '' : 's' }}
+        <div class="modal__meta" *ngIf="tracks().length > 0">
+          {{ filteredTracks().length }} / {{ tracks().length }}
+          track{{ tracks().length === 1 ? '' : 's' }}
         </div>
 
         <div class="modal__body">
-          <ng-container *ngIf="filteredTracks.length > 0; else emptyState">
+          <ng-container *ngIf="filteredTracks().length > 0; else emptyState">
             <div class="track-list">
-              <div *ngFor="let track of filteredTracks; trackBy: trackById" class="track-row">
+              <div *ngFor="let track of filteredTracks(); trackBy: trackById" class="track-row">
                 <div class="track-row__name">
                   <span class="track-row__title" [title]="displayName(track)">
                     {{ displayName(track) }}
@@ -80,13 +90,15 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
                     [class.badge--success]="track.trackShare"
                     [class.badge--muted]="!track.trackShare"
                   >
-                    {{ track.trackShare ? 'Published' : 'Not published' }}
+                    <span class="badge__dot" aria-hidden="true"></span>
+                    {{ track.trackShare ? 'Published' : 'Unpublished' }}
                   </span>
 
                   <div *ngIf="track.trackShare?.shareCode" class="track-row__code">
                     <code class="code" [title]="track.trackShare!.shareCode">
                       {{ track.trackShare!.shareCode }}
                     </code>
+
                     <button
                       class="icon-btn"
                       type="button"
@@ -102,7 +114,7 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
                   <normal-button
                     *ngIf="!track.trackShare"
                     size="sm"
-                    [disabled]="busyTrackId === track.id"
+                    [disabled]="busyTrackId() === track.id"
                     (clicked)="openPublish(track)"
                   >
                     Publish
@@ -112,8 +124,8 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
                     *ngIf="track.trackShare"
                     size="sm"
                     variant="danger"
-                    [disabled]="busyTrackId === track.id"
-                    (clicked)="unpublish.emit(track)"
+                    [disabled]="busyTrackId() === track.id"
+                    (clicked)="requestUnpublish(track)"
                   >
                     Unpublish
                   </normal-button>
@@ -123,11 +135,11 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
           </ng-container>
 
           <ng-template #emptyState>
-            <p *ngIf="tracks.length === 0" class="empty">
+            <p *ngIf="tracks().length === 0" class="empty">
               No tracks yet. Create some on the Home page.
             </p>
 
-            <p *ngIf="tracks.length > 0 && filteredTracks.length === 0" class="empty">
+            <p *ngIf="tracks().length > 0 && filteredTracks().length === 0" class="empty">
               No tracks match the current search or filter.
             </p>
           </ng-template>
@@ -135,8 +147,8 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
       </div>
     </div>
 
-    <div class="publish-backdrop" *ngIf="publishTrack" (click)="onPublishBackdropClick($event)">
-      <div class="publish-modal" role="dialog" aria-modal="true">
+    <div class="publish-backdrop" *ngIf="publishTrack()" (click)="closePublish()">
+      <div class="publish-modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
         <div class="publish-modal__header">
           <h2 class="publish-modal__title">Publish track</h2>
           <button class="publish-modal__close" type="button" (click)="closePublish()">✕</button>
@@ -144,7 +156,7 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
 
         <div class="publish-modal__body">
           <p class="publish-modal__track-name">
-            {{ publishTrack!.trackName || publishTrack!.trackOriginalName }}
+            {{ publishTrack()!.trackName || publishTrack()!.trackOriginalName }}
           </p>
 
           <div class="publish-modal__field">
@@ -154,7 +166,9 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
             <input
               class="app-input"
               type="text"
-              [(ngModel)]="publishDesc"
+              [ngModel]="publishDesc()"
+              [ngModelOptions]="{ standalone: true }"
+              (ngModelChange)="publishDesc.set($event)"
               placeholder="What is this track for?"
             />
           </div>
@@ -180,7 +194,10 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
       position: fixed;
       inset: 0;
       z-index: 1000;
-      background: rgba(0, 0, 0, 0.45);
+      background:
+        radial-gradient(ellipse at center, rgba(88, 24, 13, 0.1), transparent 60%),
+        linear-gradient(180deg, rgba(10, 5, 2, 0.6), rgba(10, 5, 2, 0.72));
+      backdrop-filter: blur(3px);
       display: flex;
       align-items: flex-start;
       justify-content: center;
@@ -190,20 +207,24 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
       box-sizing: border-box;
     }
 
-  .modal {
-    width: min(980px, 100%);
-    max-height: calc(100dvh - 96px);
-    margin: 0 auto;
-    background: var(--app-surface);
-    border: var(--app-border);
-    border-radius: 16px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    overflow: hidden;
-    animation: slide-in 0.18s ease;
-  }
+    .modal {
+      width: min(980px, 100%);
+      max-height: calc(100dvh - 96px);
+      margin: 0 auto;
+      background: var(--app-parchment);
+      border: 1px solid var(--app-border-color);
+      border-top: 3px solid var(--app-primary);
+      border-radius: var(--app-radius-lg);
+      box-shadow:
+        0 28px 72px rgba(8, 3, 1, 0.48),
+        0 10px 30px rgba(8, 3, 1, 0.24),
+        inset 0 0 0 3px rgba(201, 164, 76, 0.1);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+      animation: slide-in 0.18s ease;
+    }
 
     @keyframes fade-in {
       from { opacity: 0; }
@@ -220,16 +241,32 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
       align-items: flex-start;
       justify-content: space-between;
       gap: 16px;
-      padding: 20px 22px 14px;
-      border-bottom: var(--app-border);
+      padding: 16px 22px 12px;
+      border-bottom: 1px solid var(--app-border-color-soft);
+      background: var(--app-header-surface);
       flex: 0 0 auto;
+      position: relative;
+    }
+
+    .modal__header::after {
+      content: '';
+      position: absolute;
+      left: 22px;
+      right: 22px;
+      bottom: 0;
+      height: 2px;
+      border-radius: 999px;
+      background: var(--app-divider-decor);
     }
 
     .modal__title {
       margin: 0 0 0.3rem;
-      font-size: 1.2rem;
+      font-family: var(--app-font-heading);
+      font-size: 1.05rem;
       font-weight: 700;
-      color: var(--app-text);
+      letter-spacing: 0.04em;
+      color: var(--app-heading);
+      text-shadow: 0 1px 2px rgba(88, 24, 13, 0.1);
     }
 
     .modal__desc {
@@ -398,24 +435,54 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
     }
 
     .badge {
+      position: relative;
       display: inline-flex;
       align-items: center;
-      padding: 2px 10px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 600;
+      gap: 6px;
+      padding: 4px 12px 4px 10px;
+      font-family: var(--app-font-heading);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
       white-space: nowrap;
       flex: 0 0 auto;
+      border-radius: var(--app-radius-xs);
+      clip-path: polygon(8px 0%, calc(100% - 8px) 0%, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0% 50%);
+    }
+
+    .badge__dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
     }
 
     .badge--success {
-      background: var(--app-success-soft);
-      color: var(--app-success);
+      background: linear-gradient(135deg, #2e5e24 0%, #3a7a2e 100%);
+      color: #d8f0c8;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.15),
+        0 2px 6px rgba(46, 94, 36, 0.4);
+    }
+
+    .badge--success .badge__dot {
+      background: #8fdd6a;
+      box-shadow: 0 0 4px rgba(143, 221, 106, 0.8);
     }
 
     .badge--muted {
-      background: var(--app-surface-muted);
-      color: var(--app-text-muted);
+      background: linear-gradient(135deg, #5a3e20 0%, #7a5228 100%);
+      color: #e8d8b8;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+        0 2px 6px rgba(60, 30, 10, 0.35);
+    }
+
+    .badge--muted .badge__dot {
+      background: #c9a44c;
+      box-shadow: 0 0 4px rgba(201, 164, 76, 0.6);
     }
 
     .track-row__actions {
@@ -546,66 +613,90 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
   `],
 })
 export class MyTracksComponent {
-  private cdr = inject(ChangeDetectorRef);
+  private readonly toast = inject(ToastService);
+  private readonly confirmDialog = inject(ConfirmDialogService);
 
-  @Input() tracks: Track[] = [];
-  @Input() busyTrackId: number | null = null;
+  readonly tracks = input<Track[]>([]);
+  readonly busyTrackId = input<number | null>(null);
 
-  @Output() publish = new EventEmitter<PublishEvent>();
-  @Output() unpublish = new EventEmitter<Track>();
-  @Output() close = new EventEmitter<void>();
+  readonly publish = output<PublishEvent>();
+  readonly unpublish = output<Track>();
+  readonly close = output<void>();
 
-  publishTrack: Track | null = null;
-  publishDesc = '';
+  readonly filterOptions = [
+    { label: 'All tracks', value: 'all' },
+    { label: 'Published', value: 'published' },
+    { label: 'Unpublished', value: 'unpublished' },
+  ];
 
-  search = '';
-  filterMode: PublishFilterMode = 'all';
+  readonly publishTrack = signal<Track | null>(null);
+  readonly publishDesc = signal('');
+  readonly search = signal('');
+  readonly filterMode = signal<PublishFilterMode>('all');
 
-  get filteredTracks(): Track[] {
-    const query = this.search.trim().toLowerCase();
+  readonly filteredTracks = computed(() => {
+    const query = this.search().trim().toLowerCase();
+    const mode = this.filterMode();
 
-    return (this.tracks ?? []).filter(track => {
-      const matchesSearch = !query || this.displayName(track).toLowerCase().includes(query);
+    return this.tracks().filter(track => {
+      const matchesSearch =
+        !query || this.displayName(track).toLowerCase().includes(query);
+
       const matchesFilter =
-        this.filterMode === 'all' ||
-        (this.filterMode === 'published' && !!track.trackShare) ||
-        (this.filterMode === 'unpublished' && !track.trackShare);
+        mode === 'all' ||
+        (mode === 'published' && !!track.trackShare) ||
+        (mode === 'unpublished' && !track.trackShare);
 
       return matchesSearch && matchesFilter;
     });
-  }
+  });
 
   openPublish(track: Track): void {
-    this.publishTrack = track;
-    this.publishDesc = '';
-    this.cdr.markForCheck();
+    this.publishTrack.set(track);
+    this.publishDesc.set('');
   }
 
   closePublish(): void {
-    this.publishTrack = null;
-    this.publishDesc = '';
-    this.cdr.markForCheck();
+    this.publishTrack.set(null);
+    this.publishDesc.set('');
   }
 
-  confirmPublish(): void {
-    if (!this.publishTrack) return;
-    this.publish.emit({ track: this.publishTrack, description: this.publishDesc });
+  async confirmPublish(): Promise<void> {
+    const track = this.publishTrack();
+    if (!track) return;
+
+    const confirmed = await this.confirmDialog.confirm({
+      title: 'Publish track',
+      message: `Publish "${this.displayName(track)}"?`,
+      confirmText: 'Publish',
+      cancelText: 'Cancel',
+    });
+
+    if (!confirmed) return;
+
+    this.publish.emit({
+      track,
+      description: this.publishDesc(),
+    });
+
     this.closePublish();
   }
 
-  onBackdropClick(e: MouseEvent): void {
-    if ((e.target as HTMLElement).classList.contains('modal-backdrop')) {
-      this.close.emit();
-    }
+  async requestUnpublish(track: Track): Promise<void> {
+    const confirmed = await this.confirmDialog.confirm({
+      title: 'Unpublish track',
+      message: `Unpublish "${this.displayName(track)}"?`,
+      confirmText: 'Unpublish',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+
+    if (!confirmed) return;
+
+    this.unpublish.emit(track);
   }
 
-  onPublishBackdropClick(e: MouseEvent): void {
-    if ((e.target as HTMLElement).classList.contains('publish-backdrop')) {
-      this.closePublish();
-    }
-  }
-
-  trackById(_i: number, track: Track): number {
+  trackById(_index: number, track: Track): number {
     return track.id ?? 0;
   }
 
@@ -620,7 +711,13 @@ export class MyTracksComponent {
     return `${m}:${s.toString().padStart(2, '0')}`;
   }
 
-  copyToClipboard(text: string): void {
-    navigator.clipboard.writeText(text).then(() => {}, () => alert('Copy failed.'));
+  async copyToClipboard(text: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text);
+      this.toast.success('Share code copied.');
+    } catch (err) {
+      console.error(err);
+      this.toast.error('Copy failed.');
+    }
   }
 }

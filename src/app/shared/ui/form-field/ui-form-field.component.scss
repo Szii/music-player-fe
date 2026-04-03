@@ -9,8 +9,12 @@
 }
 
 .app-form-field__label {
+  font-family: var(--app-font-heading);
+  font-size: 0.8rem;
   font-weight: 600;
-  color: var(--app-text);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--app-heading);
 }
 
 .app-form-field__control {
@@ -18,11 +22,13 @@
 }
 
 .app-form-field__hint {
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   color: var(--app-text-muted);
+  font-style: italic;
 }
 
 .app-form-field__error {
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   color: var(--app-danger);
+  font-weight: 600;
 }

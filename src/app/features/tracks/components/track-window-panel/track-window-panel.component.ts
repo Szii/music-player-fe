@@ -1,24 +1,23 @@
 import {
   Component,
+  DestroyRef,
   EventEmitter,
   Input,
-  NgZone,
   OnChanges,
   OnDestroy,
   Output,
   SimpleChanges,
   inject,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Subscription } from 'rxjs';
 
-import { environment } from '../../../../../environments/environment';
 import {
   MusicTracksService,
-  PlaybackService,
   Track,
   TrackWindowRequest,
-  WaveformResponse,
 } from '../../../../api/generated';
 import {
   WindowEditorComponent,
@@ -26,6 +25,10 @@ import {
 } from '../window-editor/window-editor.component';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empty-state.component';
+import {
+  TrackPreviewSessionService,
+  TrackPreviewState,
+} from './track-preview-session.service';
 
 export interface WindowSaveEvent {
   trackId: number;
@@ -49,8 +52,8 @@ export interface WindowDeleteEvent {
     UiEmptyStateComponent,
   ],
   template: `
-    <div class="panel-backdrop" *ngIf="track" (click)="onBackdropClick($event)">
-      <div class="panel-modal">
+    <div class="panel-backdrop" *ngIf="track" (click)="onClose()">
+      <div class="panel-modal" (click)="$event.stopPropagation()">
         <div class="panel-modal__header">
           <div class="panel-modal__heading">
             <h2 class="panel-modal__title">Windows</h2>
@@ -69,7 +72,9 @@ export interface WindowDeleteEvent {
 
         <div *ngIf="streamError || waveformError" class="panel-error">
           <span>{{ streamError || waveformError }}</span>
-          <normal-button size="sm" variant="danger" (clicked)="retryStream()">Retry</normal-button>
+          <normal-button size="sm" variant="danger" (clicked)="retryStream()">
+            Retry
+          </normal-button>
         </div>
 
         <div class="panel-modal__body panel-modal__body--split">
@@ -101,13 +106,13 @@ export interface WindowDeleteEvent {
                   *ngIf="!editorReady && windows.length === 0"
                   title="Track is still buffering"
                   message="Wait until the preview is fully ready before selecting or creating windows."
-                ></ui-empty-state>
+                />
 
                 <ui-empty-state
                   *ngIf="editorReady && windows.length === 0"
                   title="No windows yet"
                   message="Create your first one on the right."
-                ></ui-empty-state>
+                />
 
                 <div *ngIf="windows.length > 0" class="panel-side__table-wrap">
                   <div class="panel-window-list">
@@ -232,7 +237,7 @@ export interface WindowDeleteEvent {
                   <ui-empty-state
                     title="Track preview is still buffering"
                     message="You can delete existing windows, but selecting or creating windows will be enabled only after buffering is complete."
-                  ></ui-empty-state>
+                  />
                 </div>
               </div>
             </ng-template>
@@ -250,7 +255,10 @@ export interface WindowDeleteEvent {
     .panel-backdrop {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.45);
+      background:
+        radial-gradient(ellipse at center, rgba(88, 24, 13, 0.1), transparent 60%),
+        linear-gradient(180deg, rgba(10, 5, 2, 0.6), rgba(10, 5, 2, 0.72));
+      backdrop-filter: blur(3px);
       display: flex;
       align-items: flex-start;
       justify-content: center;
@@ -266,10 +274,14 @@ export interface WindowDeleteEvent {
       max-height: calc(100dvh - 228px);
       display: flex;
       flex-direction: column;
-      background: var(--app-surface);
-      border: var(--app-border);
-      border-radius: 20px;
-      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.22);
+      background: var(--app-parchment);
+      border: 1px solid var(--app-border-color);
+      border-top: 3px solid var(--app-primary);
+      border-radius: var(--app-radius-lg);
+      box-shadow:
+        0 28px 72px rgba(8, 3, 1, 0.48),
+        0 10px 30px rgba(8, 3, 1, 0.26),
+        inset 0 0 0 3px rgba(201, 164, 76, 0.1);
       overflow: hidden;
       animation: slide-in 0.18s ease;
       min-height: 0;
@@ -709,12 +721,12 @@ export interface WindowDeleteEvent {
         align-items: flex-start;
       }
     }
-  `]
+  `],
 })
 export class TrackWindowsPanelComponent implements OnChanges, OnDestroy {
-  private zone = inject(NgZone);
-  private playbackApi = inject(PlaybackService);
-  private trackApi = inject(MusicTracksService);
+  private readonly trackApi = inject(MusicTracksService);
+  private readonly previewSession: TrackPreviewSessionService = inject(TrackPreviewSessionService);
+  private readonly destroyRef = inject(DestroyRef);
 
   @Input() track: Track | null = null;
 
@@ -740,26 +752,27 @@ export class TrackWindowsPanelComponent implements OnChanges, OnDestroy {
   editorFadeIn = false;
   editorFadeOut = false;
 
-  private waveformPollTimer: ReturnType<typeof setInterval> | null = null;
   private currentTrackId: number | null = null;
+  private previewSessionSub: Subscription | null = null;
 
   get windows(): any[] {
     return this.track?.trackWindows ?? [];
   }
 
   get editorReady(): boolean {
-    return !!this.resolvedStreamUrl
-      && !this.streamLoading
-      && !this.streamError
-      && this.editorStreamComplete;
+    return !!this.resolvedStreamUrl &&
+      !this.streamLoading &&
+      !this.streamError &&
+      this.editorStreamComplete;
   }
 
   ngOnChanges(changes: SimpleChanges): void {
     if ('track' in changes) {
-      const newId = this.track?.id ?? null;
-      if (newId !== this.currentTrackId) {
+      const newTrackId = this.track?.id ?? null;
+
+      if (newTrackId !== this.currentTrackId) {
         this.resetState();
-        this.currentTrackId = newId;
+        this.currentTrackId = newTrackId;
 
         if (this.track?.id != null) {
           this.startEditorSessionForTrack(this.track.id, this.track.duration ?? 0);
@@ -778,12 +791,6 @@ export class TrackWindowsPanelComponent implements OnChanges, OnDestroy {
   onClose(): void {
     this.resetState();
     this.close.emit();
-  }
-
-  onBackdropClick(e: MouseEvent): void {
-    if ((e.target as HTMLElement).classList.contains('panel-backdrop')) {
-      this.onClose();
-    }
   }
 
   retryStream(): void {
@@ -832,20 +839,39 @@ export class TrackWindowsPanelComponent implements OnChanges, OnDestroy {
     if (this.track?.id == null || win.id == null) return;
 
     const wasSelected = this.selectedWindowId === win.id;
-    this.deleteWindow.emit({ trackId: this.track.id, windowId: win.id });
+    this.deleteWindow.emit({
+      trackId: this.track.id,
+      windowId: win.id,
+    });
 
     if (wasSelected) {
-      this.selectedWindowId = null;
-      this.editorFromS = null;
-      this.editorToS = null;
-      this.editorName = '';
-      this.editorFadeIn = false;
-      this.editorFadeOut = false;
+      this.startCreateWindow();
     }
   }
 
   onEditorStreamComplete(): void {
     this.editorStreamComplete = true;
+  }
+
+  private startEditorSessionForTrack(trackId: number, durationS: number): void {
+    this.stopPreviewSession();
+
+    this.previewSessionSub = this.previewSession.createSession(trackId, durationS)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((state: TrackPreviewState) => {
+        this.streamLoading = state.streamLoading;
+        this.streamError = state.streamError;
+        this.waveformLoading = state.waveformLoading;
+        this.waveformError = state.waveformError;
+        this.resolvedStreamUrl = state.resolvedStreamUrl;
+        this.resolvedDurationS = state.resolvedDurationS;
+        this.waveformPeaks = state.waveformPeaks;
+      });
+  }
+
+  private stopPreviewSession(): void {
+    this.previewSessionSub?.unsubscribe();
+    this.previewSessionSub = null;
   }
 
   private loadEditorFromWindow(win: any): void {
@@ -875,7 +901,7 @@ export class TrackWindowsPanelComponent implements OnChanges, OnDestroy {
       return;
     }
 
-    const selected = windows.find((w) => w.id === this.selectedWindowId);
+    const selected = windows.find(w => w.id === this.selectedWindowId);
 
     if (!selected) {
       this.selectedWindowId = null;
@@ -890,103 +916,8 @@ export class TrackWindowsPanelComponent implements OnChanges, OnDestroy {
     this.loadEditorFromWindow(selected);
   }
 
-  private startEditorSessionForTrack(trackId: number, durationS: number): void {
-    this.streamLoading = true;
-    this.streamError = null;
-    this.waveformPeaks = [];
-    this.resolvedStreamUrl = null;
-    this.resolvedDurationS = durationS || 0;
-    this.editorStreamComplete = false;
-
-    this.playbackApi.playTrack({ trackId }).subscribe({
-      next: (state: any) => {
-        const url = this.resolveStreamUrl(state.streamUrl);
-        if (!url) {
-          this.streamError = 'No stream URL returned.';
-          this.streamLoading = false;
-          return;
-        }
-
-        this.resolvedStreamUrl = url;
-        this.streamLoading = false;
-        this.startWaveformPolling(trackId);
-        this.loadStreamInfo(trackId);
-      },
-      error: (err: any) => {
-        console.error('playTrack failed', err);
-        this.streamError = 'Failed to start track playback.';
-        this.streamLoading = false;
-      },
-    });
-  }
-
-  private loadWaveform(trackId: number, silent = false): void {
-    if (!silent) {
-      this.waveformLoading = true;
-      this.waveformError = null;
-    }
-
-    this.trackApi.getTrackWaveform({ trackId }).subscribe({
-      next: (resp: WaveformResponse) => {
-        this.zone.run(() => {
-          this.waveformPeaks = (resp?.peaks ?? []).map((v: any) => Number(v));
-          if (!this.resolvedDurationS && resp?.durationS != null) {
-            this.resolvedDurationS = Number(resp.durationS);
-          }
-          this.waveformLoading = false;
-          if (resp?.complete) {
-            this.stopWaveformPolling();
-          }
-        });
-      },
-      error: (err: any) => {
-        console.error('getTrackWaveform failed', err);
-        this.zone.run(() => {
-          this.waveformError = 'Failed to load waveform.';
-          this.waveformLoading = false;
-        });
-      },
-    });
-  }
-
-  private loadStreamInfo(trackId: number): void {
-    this.playbackApi.getTrackStreamInfo({ trackId }).subscribe({
-      next: (resp: any) => {
-        this.zone.run(() => {
-          if (!this.resolvedDurationS && resp?.durationS != null) {
-            this.resolvedDurationS = Number(resp.durationS);
-          }
-        });
-      },
-      error: (err: any) => {
-        console.error('getTrackStreamInfo failed', err);
-      },
-    });
-  }
-
-  private startWaveformPolling(trackId: number): void {
-    this.stopWaveformPolling();
-    this.loadWaveform(trackId);
-    this.waveformPollTimer = setInterval(() => this.loadWaveform(trackId, true), 700);
-  }
-
-  private stopWaveformPolling(): void {
-    if (this.waveformPollTimer) {
-      clearInterval(this.waveformPollTimer);
-      this.waveformPollTimer = null;
-    }
-  }
-
-  private resolveStreamUrl(streamUrl?: string | null): string | null {
-    if (!streamUrl) return null;
-    if (streamUrl.startsWith('http://') || streamUrl.startsWith('https://')) return streamUrl;
-    const base = environment.apiUrl.replace(/\/$/, '');
-    const path = streamUrl.startsWith('/') ? streamUrl : `/${streamUrl}`;
-    return `${base}${path}`;
-  }
-
   private resetState(): void {
-    this.stopWaveformPolling();
+    this.stopPreviewSession();
     this.streamLoading = false;
     this.streamError = null;
     this.waveformLoading = false;

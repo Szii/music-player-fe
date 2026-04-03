@@ -10,6 +10,7 @@ import { FormsModule } from '@angular/forms';
 import { Group, Track } from '../../../../api/generated';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
+import {IconButtonComponent} from "../../../../shared/ui/buttons/ui-icon-button.component"
 
 export interface RenameEvent {
   group: Group;
@@ -20,7 +21,7 @@ export interface RenameEvent {
   selector: 'app-group-card',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, NormalButtonComponent, UiDialogShellComponent],
+  imports: [CommonModule, FormsModule, NormalButtonComponent, UiDialogShellComponent, IconButtonComponent],
   template: `
     <div class="group-card">
       <div class="group-card__header">
@@ -35,33 +36,31 @@ export interface RenameEvent {
         </div>
 
         <div class="group-card__actions">
-          <normal-button
-            type="button"
-            variant="secondary"
-            size="sm"
-            [disabled]="updating"
-            (clicked)="editTracksRequested.emit(group)"
-          >
-            Edit tracks
-          </normal-button>
 
-          <button
-            type="button"
-            class="group-card__icon-btn group-card__icon-btn--rename"
-            (click)="openRename()"
-            title="Rename"
-          >
-            ✎
-          </button>
+        <app-icon-button
+              icon="tracks"
+              label=" Edit tracks"
+              variant="primary"
+              size="md"
+              (click)="editTracksRequested.emit(group)"
+            />
 
-          <button
-            type="button"
-            class="group-card__icon-btn group-card__icon-btn--delete"
-            (click)="deleteRequested.emit(group)"
-            title="Delete"
-          >
-            ✕
-          </button>
+        <app-icon-button
+              icon="edit"
+              label=" Rename group"
+              variant="secondary"
+              size="md"
+              (click)="openRename()"
+            />
+
+          <app-icon-button
+              icon="delete"
+              label="Delete group"
+              variant="danger"
+              size="md"
+              (click)="deleteRequested.emit(group)"
+            />
+
         </div>
       </div>
 
@@ -110,15 +109,26 @@ export interface RenameEvent {
       display: block;
     }
 
+  
     .group-card {
       display: flex;
       flex-direction: column;
       gap: 14px;
       padding: 18px 20px;
-      background: var(--app-surface);
-      border: var(--app-border);
-      border-radius: 16px;
-      box-shadow: var(--app-shadow);
+      border: 1px solid var(--app-border-color-soft);
+      border-radius: var(--app-radius-md);
+      background:
+        linear-gradient(90deg,
+          transparent 0%,
+          rgba(201, 164, 76, 0.55) 12%,
+          #58180d 30%,
+          rgba(201, 164, 76, 0.9) 50%,
+          #58180d 70%,
+          rgba(201, 164, 76, 0.55) 88%,
+          transparent 100%
+        ) top / 100% 3px no-repeat,
+        var(--app-parchment);
+      box-shadow: var(--app-shadow-soft);
     }
 
     .group-card__header {
@@ -136,9 +146,11 @@ export interface RenameEvent {
     }
 
     .group-card__title {
-      font-size: 1.1rem;
+      font-family: var(--app-font-heading);
+      font-size: 1rem;
       font-weight: 700;
-      color: var(--app-text);
+      letter-spacing: 0.03em;
+      color: var(--app-heading);
       line-height: 1.2;
       word-break: break-word;
     }
@@ -158,11 +170,11 @@ export interface RenameEvent {
     }
 
     .group-card__icon-btn {
-      width: 38px;
-      height: 38px;
-      border-radius: 10px;
-      border: 1px solid var(--app-border-color);
-      background: var(--app-surface);
+      width: 36px;
+      height: 36px;
+      border-radius: var(--app-radius-sm);
+      border: 1px solid var(--app-border-color-soft);
+      background: var(--app-surface-elevated);
       color: var(--app-text-muted);
       font-size: 15px;
       cursor: pointer;

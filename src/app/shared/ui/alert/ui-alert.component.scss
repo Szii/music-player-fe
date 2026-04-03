@@ -6,35 +6,43 @@
   padding: 0.9rem 1rem;
   border-radius: var(--app-radius-sm);
   border: 1px solid transparent;
+  border-left: 4px solid transparent;
   margin-top: 1rem;
+  box-shadow: 0 2px 8px rgba(15, 8, 3, 0.08);
 }
 
 .app-alert--info {
-  background: var(--app-primary-soft);
-  border-color: #c9c8f8;
+  background: linear-gradient(135deg, #ecd8cc 0%, #e4c8b8 100%);
+  border-color: rgba(88, 24, 13, 0.2);
+  border-left-color: var(--app-primary);
   color: var(--app-primary);
 }
 
 .app-alert--success {
-  background: var(--app-success-soft);
-  border-color: #bdd9c1;
+  background: linear-gradient(135deg, #d8e8d0 0%, #ccdec8 100%);
+  border-color: rgba(45, 94, 45, 0.22);
+  border-left-color: var(--app-success);
   color: var(--app-success);
 }
 
 .app-alert--warning {
-  background: var(--app-warning-soft);
-  border-color: #e8d599;
+  background: linear-gradient(135deg, #f0e0a0 0%, #e8d090 100%);
+  border-color: rgba(158, 110, 16, 0.22);
+  border-left-color: var(--app-warning);
   color: var(--app-warning);
 }
 
 .app-alert--danger {
-  background: var(--app-danger-soft);
-  border-color: #e9bdbd;
+  background: linear-gradient(135deg, #f0d5c8 0%, #e8c4b4 100%);
+  border-color: rgba(122, 30, 30, 0.22);
+  border-left-color: var(--app-danger);
   color: var(--app-danger);
 }
 
 .app-alert__content {
   flex: 1;
+  font-size: 0.92rem;
+  line-height: 1.5;
 }
 
 .app-alert__actions {

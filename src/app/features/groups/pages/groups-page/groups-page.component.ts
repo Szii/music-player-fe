@@ -17,6 +17,8 @@ import {
 } from '../../components/group-tracks-editor/group-tracks-editor.component';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empty-state.component';
+import { ToastService } from '../../../../shared/features/toast/toast.service';
+import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 
 @Component({
   selector: 'app-groups-page',
@@ -31,7 +33,7 @@ import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empt
   ],
   template: `
     <div class="app-page group-page">
-      <h1 class="groups-page__title">Groups</h1>
+      <h1 class="app-page__title">Groups</h1>
 
       <app-create-group-form
         #createForm
@@ -80,13 +82,6 @@ import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empt
       --groups-list-max-height: min(58dvh, 720px);
     }
 
-    .groups-page__title {
-      margin: 0 0 1.5rem;
-      font-size: 1.75rem;
-      font-weight: 700;
-      color: var(--app-text);
-    }
-
     .groups-page__loading {
       margin-top: 1rem;
     }
@@ -117,6 +112,8 @@ export class GroupsPageComponent implements OnInit {
 
   private groupsApi = inject(MusicGroupsService);
   private tracksApi = inject(MusicTracksService);
+  private toast = inject(ToastService);
+  private confirmDialog = inject(ConfirmDialogService);
 
   groups: Group[] = [];
   tracks: Track[] = [];
@@ -203,24 +200,41 @@ export class GroupsPageComponent implements OnInit {
     });
   }
 
-  deleteGroup(group: Group): void {
-    if (group.id == null) return;
-    if (!confirm(`Delete group "${group.listName || group.id}"?`)) return;
+async deleteGroup(group: Group): Promise<void> {
+  if (group.id == null) return;
 
-    const groupId = group.id;
-    this.groupsApi.deleteGroup({ groupId }).subscribe({
-      next: () => {
-        this.groups = this.groups.filter(g => g.id !== groupId);
-        if (this.editingGroup?.id === groupId) {
-          this.editingGroup = null;
-        }
-      },
-      error: (err) => {
-        console.error(err);
-        alert('Deleting group failed.');
-      },
-    });
-  }
+  const confirmed = await this.confirmDialog.confirm({
+    title: 'Delete group',
+    message: `Delete group "${group.listName || group.id}"?`,
+    confirmText: 'Delete',
+    cancelText: 'Cancel',
+    variant: 'danger',
+  });
+
+  if (!confirmed) return;
+
+  const groupId = group.id;
+  this.updatingGroupId = groupId;
+
+  this.groupsApi.deleteGroup({ groupId }).subscribe({
+    next: () => {
+      this.groups = this.groups.filter(g => g.id !== groupId);
+
+      if (this.editingGroup?.id === groupId) {
+        this.editingGroup = null;
+      }
+
+      this.toast.success('Group deleted.');
+    },
+    error: (err) => {
+      console.error(err);
+      this.toast.error('Deleting group failed.');
+    },
+    complete: () => {
+      this.updatingGroupId = null;
+    },
+  });
+}
 
   renameGroup({ group, newName }: RenameEvent): void {
     if (group.id == null) return;
