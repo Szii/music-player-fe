@@ -12,6 +12,11 @@ concurrency:
   group: release-main
   cancel-in-progress: false
 
+env:
+  BACKEND_REPO_OWNER: ${{ vars.BACKEND_REPO_OWNER }}
+  BACKEND_REPO_NAME: ${{ vars.BACKEND_REPO_NAME }}
+  BACKEND_ASSET_NAME: backend-openapi.yaml
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -66,6 +71,8 @@ jobs:
 
       - name: Fetch backend OpenAPI spec
         if: steps.release_result.outputs.publish == 'true'
+        env:
+          BACKEND_REPO_TOKEN: ${{ secrets.BACKEND_REPO_TOKEN }}
         run: npm run fetch:spec
 
       - name: Set up Docker Buildx
