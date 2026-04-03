@@ -2,10 +2,15 @@ name: PR CI
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 permissions:
   contents: read
+
+env:
+  BACKEND_REPO_OWNER: ${{ vars.BACKEND_REPO_OWNER }}
+  BACKEND_REPO_NAME: ${{ vars.BACKEND_REPO_NAME }}
+  BACKEND_ASSET_NAME: backend-openapi.yaml
 
 jobs:
   verify:
@@ -32,6 +37,8 @@ jobs:
         run: npm ci
 
       - name: Fetch backend OpenAPI spec and generate client
+        env:
+          BACKEND_REPO_TOKEN: ${{ secrets.BACKEND_REPO_TOKEN }}
         run: npm run fetch:api
 
       - name: Build frontend
