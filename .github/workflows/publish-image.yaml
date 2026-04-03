@@ -28,6 +28,14 @@ jobs:
           node-version: "lts/*"
           package-manager-cache: false
 
+      - name: Install semantic-release tooling
+        run: |
+          npm install --no-save \
+            semantic-release \
+            @semantic-release/commit-analyzer \
+            @semantic-release/release-notes-generator \
+            conventional-changelog-conventionalcommits
+
       - name: Capture current latest tag
         id: before
         run: |
@@ -55,6 +63,10 @@ jobs:
           else
             echo "publish=false" >> $GITHUB_OUTPUT
           fi
+
+      - name: Fetch backend OpenAPI spec
+        if: steps.release_result.outputs.publish == 'true'
+        run: npm run fetch:spec
 
       - name: Set up Docker Buildx
         if: steps.release_result.outputs.publish == 'true'
