@@ -2,10 +2,16 @@ FROM node:22-bookworm-slim AS build
 
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openjdk-17-jre-headless \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY package*.json ./
 RUN npm ci
 
 COPY . .
+
+RUN npm run gen:api
 RUN npm run build
 
 FROM nginx:1.27-alpine
