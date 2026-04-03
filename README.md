@@ -36,6 +36,14 @@ ng build
 
 This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
 
+For local run with docker use:
+```bash
+docker build -t musicplayer-frontend:test .
+```
+and 
+```bash
+docker run --rm -p 8081:80 -e BACKEND_UPSTREAM=host.docker.internal:8080 musicplayer-frontend:test
+```
 ## Running unit tests
 
 To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:

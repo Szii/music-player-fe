@@ -1,0 +1,83 @@
+name: Publish Image
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node LTS
+        uses: actions/setup-node@v6
+        with:
+          node-version: "lts/*"
+          package-manager-cache: false
+
+      - name: Capture current latest tag
+        id: before
+        run: |
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Run semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release@25
+
+      - name: Capture latest tag after release
+        id: after
+        run: |
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+
+      - name: Decide whether to publish image
+        id: release_result
+        run: |
+          if [ -n "${{ steps.after.outputs.tag }}" ] && [ "${{ steps.after.outputs.tag }}" != "${{ steps.before.outputs.tag }}" ]; then
+            echo "publish=true" >> $GITHUB_OUTPUT
+            echo "version=${{ steps.after.outputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "publish=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Docker Buildx
+        if: steps.release_result.outputs.publish == 'true'
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Docker Hub
+        if: steps.release_result.outputs.publish == 'true'
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKER_NAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build and push Docker image
+        if: steps.release_result.outputs.publish == 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_NAME }}/${{ secrets.DOCKER_REPO_FE }}:${{ steps.release_result.outputs.version }}
+            ${{ secrets.DOCKER_NAME }}/${{ secrets.DOCKER_REPO_FE }}:latest
+
+      - name: No release created
+        if: steps.release_result.outputs.publish != 'true'
+        run: echo "No semantic-release version was created from these commits."
