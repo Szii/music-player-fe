@@ -1,12 +1,15 @@
 {
   "name": "music-player-fe",
   "version": "0.0.0",
+  "backendApiVersion": "v1.5.2",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
+    "fetch:spec": "node scripts/fetch-openapi-from-release.mjs",
+    "fetch:api": "npm run fetch:spec && npm run gen:api",
     "gen:api": "openapi-generator-cli generate -i spec/openapi.yaml -g typescript-angular -o src/app/api/generated --additional-properties=withInterfaces=true,useSingleRequestParameter=true,stringEnums=true"
   },
   "private": true,
