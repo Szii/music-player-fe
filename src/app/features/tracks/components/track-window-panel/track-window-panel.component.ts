@@ -15,7 +15,6 @@ import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 
 import {
-  MusicTracksService,
   Track,
   TrackWindowRequest,
 } from '../../../../api/generated';
@@ -79,7 +78,12 @@ export interface WindowDeleteEvent {
 
         <div class="panel-modal__body panel-modal__body--split">
           <aside class="panel-side">
-            <div class="panel-side__inner">
+            <div *ngIf="!editorStreamComplete" class="panel-side__loading">
+              <span class="panel-side__loading-spinner"></span>
+              <span>Wait for track to be loaded to manage windows…</span>
+            </div>
+
+            <div *ngIf="editorStreamComplete" class="panel-side__inner">
               <div class="panel-block__head">
                 <span class="panel-block__title">Existing windows</span>
 
@@ -89,7 +93,6 @@ export interface WindowDeleteEvent {
                   <normal-button
                     size="sm"
                     variant="secondary"
-                    [disabled]="!editorReady"
                     (clicked)="startCreateWindow()"
                   >
                     New window
@@ -98,18 +101,8 @@ export interface WindowDeleteEvent {
               </div>
 
               <div class="panel-side__content">
-                <div *ngIf="!editorReady && windows.length > 0" class="panel-side__notice">
-                  Track is still buffering. Existing windows can be viewed, but selection and creation are disabled until buffering finishes.
-                </div>
-
                 <ui-empty-state
-                  *ngIf="!editorReady && windows.length === 0"
-                  title="Track is still buffering"
-                  message="Wait until the preview is fully ready before selecting or creating windows."
-                />
-
-                <ui-empty-state
-                  *ngIf="editorReady && windows.length === 0"
+                  *ngIf="windows.length === 0"
                   title="No windows yet"
                   message="Create your first one on the right."
                 />
@@ -121,9 +114,7 @@ export interface WindowDeleteEvent {
                       type="button"
                       class="panel-window-item"
                       [class.panel-window-item--selected]="selectedWindowId === win.id"
-                      [class.panel-window-item--disabled]="!editorReady"
-                      [disabled]="!editorReady"
-                      (click)="editorReady && selectWindow(win)"
+                      (click)="selectWindow(win)"
                     >
                       <div class="panel-window-item__top">
                         <span
@@ -235,8 +226,8 @@ export interface WindowDeleteEvent {
 
                 <div class="panel-editor__placeholder">
                   <ui-empty-state
-                    title="Track preview is still buffering"
-                    message="You can delete existing windows, but selecting or creating windows will be enabled only after buffering is complete."
+                    title="Preparing preview"
+                    message="The track preview will appear here shortly."
                   />
                 </div>
               </div>
@@ -250,6 +241,28 @@ export interface WindowDeleteEvent {
     @keyframes fade-in {
       from { opacity: 0; }
       to { opacity: 1; }
+    }
+
+    .panel-side__loading {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 48px 24px;
+      color: var(--app-text-muted);
+      font-size: 0.95rem;
+    }
+
+    .panel-side__loading-spinner {
+      display: block;
+      width: 48px;
+      height: 48px;
+      border: 4px solid rgba(0, 0, 0, 0.08);
+      border-top-color: var(--app-primary);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
     }
 
     .panel-backdrop {
@@ -724,7 +737,6 @@ export interface WindowDeleteEvent {
   `],
 })
 export class TrackWindowsPanelComponent implements OnChanges, OnDestroy {
-  private readonly trackApi = inject(MusicTracksService);
   private readonly previewSession: TrackPreviewSessionService = inject(TrackPreviewSessionService);
   private readonly destroyRef = inject(DestroyRef);
 
