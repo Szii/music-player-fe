@@ -31,12 +31,19 @@ ng generate --help
 To build the project run:
 
 ```bash
+npm run fetch:api  
+```
+
+This runs a script to fetch the openapi spec and generate api layer
+
+```bash
 ng build
 ```
 
 This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
 
-For local run with docker use:
+If there is backend container present running in docker, it is possible
+to also run frontend with docker:
 ```bash
 docker build -t musicplayer-frontend:test .
 ```
@@ -51,17 +58,3 @@ To execute unit tests with the [Karma](https://karma-runner.github.io) test runn
 ```bash
 ng test
 ```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.

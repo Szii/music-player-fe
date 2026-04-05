@@ -72,16 +72,16 @@ export class WindowEditorAudioSourceManager {
   private keepAllChunks = true;
   private maxStoredBytes = 96 * 1024 * 1024;
   private maxBufferedLocalEndS = 0;
+  private blobSnapshotStoredBytes = 0;
 
   private get downloadedLocalEndS(): number {
     if (this.streamComplete) {
       return this.estimatedDurationS;
     }
-
-    if (this.maxBufferedLocalEndS > 0) {
-      return this.maxBufferedLocalEndS;
+    // Use stored bytes (blob extent) — not MSE buffer end which plateaus during eviction
+    if (this.totalStoredBytes > 0) {
+      return this.totalStoredBytes / this.bytesPerSecond;
     }
-
     return this.totalDownloadedBytes / this.bytesPerSecond;
   }
 
@@ -214,7 +214,7 @@ export class WindowEditorAudioSourceManager {
       return false;
     }
 
-    if (this.usingBlob && this.blobObjectUrl) {
+    if (this.usingBlob && this.isCurrentBlobSnapshotFresh()) {
       try {
         audio.currentTime = seekToS;
       } catch {
@@ -230,30 +230,45 @@ export class WindowEditorAudioSourceManager {
       return true;
     }
 
-    const blob = this.getBlob();
-    if (!blob) {
-      return false;
-    }
-
     this.tearDownMse();
     this.usingMse = false;
 
-    if (this.blobObjectUrl) {
-      URL.revokeObjectURL(this.blobObjectUrl);
+    const src = this.rebuildBlobObjectUrl();
+    if (!src) {
+      return false;
     }
-
-    this.blobObjectUrl = URL.createObjectURL(blob);
-    this.usingBlob = true;
 
     this.assignSourceAndSeek(
       audio,
-      this.blobObjectUrl,
+      src,
       seekToS,
       wasPlaying,
       'window-editor play after blob switch failed',
     );
 
     return true;
+  }
+
+  private isCurrentBlobSnapshotFresh(): boolean {
+    return !!this.blobObjectUrl && this.blobSnapshotStoredBytes === this.totalStoredBytes;
+  }
+
+  private rebuildBlobObjectUrl(): string | null {
+    const blob = this.getBlob();
+    if (!blob) {
+      return null;
+    }
+
+    if (this.blobObjectUrl) {
+      URL.revokeObjectURL(this.blobObjectUrl);
+    }
+
+    this.blobObjectUrl = URL.createObjectURL(blob);
+    this.blobSnapshotStoredBytes = this.totalStoredBytes;
+    this.usingBlob = true;
+    this.usingNative = false;
+
+    return this.blobObjectUrl;
   }
 
   isInMseBuffer(targetS: number): boolean {
@@ -366,6 +381,7 @@ export class WindowEditorAudioSourceManager {
     this.usingNative = false;
     this.keepAllChunks = true;
     this.maxStoredBytes = 96 * 1024 * 1024;
+    this.blobSnapshotStoredBytes = 0;
 
     this.resetFirstPlayable();
   }
@@ -479,9 +495,6 @@ export class WindowEditorAudioSourceManager {
     return 0;
   }
 
-  private getMseBufferedEndS(): number {
-    return this.windowStartS + this.getMseBufferedLocalEndS();
-  }
 
   private emitProgress(complete: boolean): void {
     let seekable = this.windowStartS;
@@ -492,18 +505,12 @@ export class WindowEditorAudioSourceManager {
     } else if (this.usingNative) {
       seekable = this.getNativeSeekableEndS();
     } else if (this.usingMse) {
-      const bufferedEndAbsolute = this.getMseBufferedEndS();
-      const bufferedEndLocal = Math.max(0, bufferedEndAbsolute - this.windowStartS);
-
+      const bufferedEndLocal = Math.max(0, this.getMseBufferedLocalEndS());
       if (bufferedEndLocal > 0) {
         this.maxBufferedLocalEndS = Math.max(this.maxBufferedLocalEndS, bufferedEndLocal);
       }
-
-      seekable = bufferedEndAbsolute;
-
-      if (seekable <= this.windowStartS && this.totalDownloadedBytes > 0) {
-        seekable = this.estimatedDownloadedS;
-      }
+      // Report seekable based on stored bytes (blob extent), not MSE buffer which plateaus during eviction
+      seekable = this.windowStartS + this.downloadedLocalEndS;
     } else if (this.usingBlob) {
       seekable = this.windowStartS + this.downloadedLocalEndS;
     } else {
@@ -594,6 +601,9 @@ export class WindowEditorAudioSourceManager {
         this.totalDownloadedBytes += value.byteLength;
         this.storeChunk(chunkBuffer, value.byteLength);
 
+        // Report progress immediately based on stored bytes — not gated on MSE append
+        this.emitProgress(false);
+
         if (this.usingMse && this.sourceBuffer && this.mediaSource?.readyState === 'open') {
           const sb = this.sourceBuffer;
 
@@ -615,7 +625,6 @@ export class WindowEditorAudioSourceManager {
                 this.maxBufferedLocalEndS = Math.max(this.maxBufferedLocalEndS, bufferedEndLocal);
               }
 
-              this.emitProgress(false);
               this.resolveFirstPlayable();
             }
           } catch (error) {
@@ -627,7 +636,6 @@ export class WindowEditorAudioSourceManager {
             }
           }
         } else {
-          this.emitProgress(false);
           this.resolveFirstPlayable();
         }
       }

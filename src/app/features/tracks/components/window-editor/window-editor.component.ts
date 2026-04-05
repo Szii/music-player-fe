@@ -486,8 +486,9 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
   }
 
   onRegionChange(event: RegionChangeEvent): void {
-    this.regionFromS.set(event.fromS);
-    this.regionToS.set(event.toS);
+    const bufferedMax = this.stream.streamComplete ? Infinity : this.tracker.seekableMaxS;
+    this.regionFromS.set(Math.min(event.fromS, bufferedMax));
+    this.regionToS.set(Math.min(event.toS, bufferedMax));
 
     if (this.isPlaying() && this.playMode() === 'selection') {
       this.syncPlaybackToSelectionBounds();
@@ -534,22 +535,12 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
     const requested = this.clampToRegionBounds(targetS);
     const wasPlaying = this.isPlaying() && !audio.paused;
 
-    if (this.stream.usingBlob) {
-      if (this.stream.isBlobSeekable(requested)) {
-        audio.currentTime = requested;
-      } else {
-        this.suppressNextError = true;
-        this.stream.switchToBlobSrc(requested, wasPlaying);
-      }
-    } else if (this.stream.usingMse) {
+    this.suppressNextError = true;
+    if (!this.stream.switchToBlobSrc(requested, wasPlaying)) {
+      // No blob yet (stream just started) — fall back to MSE buffer
       if (this.stream.isInMseBuffer(requested)) {
         audio.currentTime = requested;
-      } else {
-        this.suppressNextError = true;
-        this.stream.switchToBlobSrc(requested, wasPlaying);
       }
-    } else {
-      audio.currentTime = requested;
     }
 
     this.currentTimeS.set(requested);
@@ -882,6 +873,9 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
           this.downloadProgress.set(100);
           this.streamComplete.set(true);
           this.streamCompleted.emit();
+          // Switch to blob — all future seeks use local buffer, no network
+          const currentTime = audio.currentTime || 0;
+          this.stream.switchToBlobSrc(currentTime, false);
         }
 
         this.cdr.markForCheck();
@@ -907,6 +901,12 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
       useMse: 'MediaSource' in window,
       estimatedDurationS: this.durationS() || 0,
       windowStartS: 0,
+      // Never use native audio — native sets audio.src to the stream URL directly,
+      // causing the browser to make HTTP range requests on seek (wrong data / static).
+      // Always use MSE + blob regardless of track duration.
+      nativeForLongTracksOverS: Infinity,
+      keepAllChunks: true,
+      maxStoredBytes: Math.max(96 * 1024 * 1024, Math.ceil((this.durationS() || 0) * 40_000)),
     }).catch((error) => {
       console.error('WindowEditor stream load failed', error);
 
@@ -1091,7 +1091,8 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
   private clampToRegionBounds(positionS: number): number {
     const minS = this.playMode() === 'selection' ? this.regionFromS() : 0;
     const maxS = this.playMode() === 'selection' ? this.regionToS() : this.durationS();
-    return Math.max(minS, Math.min(positionS, maxS));
+    const bufferedMax = this.stream.streamComplete ? maxS : Math.min(maxS, this.tracker.seekableMaxS);
+    return Math.max(minS, Math.min(positionS, bufferedMax));
   }
 
   private roundToTenth(value: number): number {
