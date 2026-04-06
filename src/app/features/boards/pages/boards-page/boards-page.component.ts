@@ -373,6 +373,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   onGroupSelectionChange(board: Board, selectedId: number | null): void {
     if (board.id == null) return;
 
+    const wasActive = this.isBoardActive(board.id);
     this.selectedWindowByBoard.delete(board.id);
 
     this.boardsApi.updateUserBoard({
@@ -387,11 +388,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
           this.upsertBoard(updated);
           this.clearBoard(updated.id!);
           if (updated.playlistMode && updated.id != null) {
-            this.regeneratePlaylistOrder(updated.id, updated.availableTracks ?? [], updated.shuffle ?? false);
-            const freshBoard = this.boards().find(b => b.id === updated.id);
-            if (freshBoard) {
-              this.advancePlaylist(freshBoard);
-            }
+            this.shuffleBoard(updated.id, updated.availableTracks ?? [], updated.shuffle ?? false, wasActive);
           }
         },
         error: (err: unknown) => {
@@ -399,6 +396,14 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
           this.toast.error('Updating group failed.');
         },
       });
+  }
+
+  private shuffleBoard(boardId: number, tracks: Track[], shuffle: boolean, autoPlay: boolean): void {
+    this.regeneratePlaylistOrder(boardId, tracks, shuffle);
+    const board = this.boards().find(b => b.id === boardId);
+    if (board) {
+      this.advancePlaylist(board, autoPlay);
+    }
   }
 
   onTrackSelectionChange(board: Board, selectedId: number | null): void {
@@ -721,7 +726,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       });
   }
 
-  private advancePlaylist(board: Board): void {
+  private advancePlaylist(board: Board, autoPlay = true): void {
     if (board.id == null) return;
 
     const boardId = board.id;
@@ -754,9 +759,11 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         next: updated => {
           this.streamUrlsByBoard.delete(boardId);
           this.upsertBoard(updated);
-          const freshBoard = this.boards().find(item => item.id === boardId);
-          if (freshBoard) {
-            this.playBoardTrack(freshBoard);
+          if (autoPlay) {
+            const freshBoard = this.boards().find(item => item.id === boardId);
+            if (freshBoard) {
+              this.playBoardTrack(freshBoard);
+            }
           }
         },
         error: err => {
