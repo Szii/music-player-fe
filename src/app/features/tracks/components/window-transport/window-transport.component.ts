@@ -67,26 +67,6 @@ import { CommonModule } from '@angular/common';
           {{ isPlaying && playMode === 'selection' ? 'Stop' : 'Play selection' }}
         </button>
       </div>
-
-      <div class="we-transport-right">
-        <label class="we-check">
-          <input
-            type="checkbox"
-            [checked]="fadeIn"
-            (change)="fadeInChange.emit($any($event.target).checked)"
-          />
-          <span>Fade in</span>
-        </label>
-
-        <label class="we-check">
-          <input
-            type="checkbox"
-            [checked]="fadeOut"
-            (change)="fadeOutChange.emit($any($event.target).checked)"
-          />
-          <span>Fade out</span>
-        </label>
-      </div>
     </div>
   `,
   styles: [`

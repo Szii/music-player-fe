@@ -104,7 +104,7 @@ interface VolumeCommit {
             (play)="playBoardTrack(board)"
             (stop)="stopBoardTrack(board)"
             (ended)="onAudioEnded(board)"
-            (nearEnd)="onAudioNearEnd(board)"
+
             (audioError)="onAudioError(board)"
             (playlistModeChange)="onPlaylistModeChange(board, $event)"
             (playlistOptionsChange)="onPlaylistOptionsChange(board, $event)"
@@ -171,7 +171,6 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   private readonly playlistIndexByBoard = new Map<number, number>();
   private readonly playlistOrderByBoard = new Map<number, number[]>();
   private readonly persistedVolumesByBoard = new Map<number, number>();
-  private readonly preAdvancedBoards = new Set<number>();
 
   private static readonly CROSSFADE_MS = 800;
   private crossfadeRafId: number | null = null;
@@ -374,6 +373,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   onGroupSelectionChange(board: Board, selectedId: number | null): void {
     if (board.id == null) return;
 
+    const wasActive = this.isBoardActive(board.id);
     this.selectedWindowByBoard.delete(board.id);
 
     this.boardsApi.updateUserBoard({
@@ -388,7 +388,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
           this.upsertBoard(updated);
           this.clearBoard(updated.id!);
           if (updated.playlistMode && updated.id != null) {
-            this.regeneratePlaylistOrder(updated.id, updated.availableTracks ?? [], updated.shuffle ?? false);
+            this.shuffleBoard(updated.id, updated.availableTracks ?? [], updated.shuffle ?? false, wasActive);
           }
         },
         error: (err: unknown) => {
@@ -396,6 +396,14 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
           this.toast.error('Updating group failed.');
         },
       });
+  }
+
+  private shuffleBoard(boardId: number, tracks: Track[], shuffle: boolean, autoPlay: boolean): void {
+    this.regeneratePlaylistOrder(boardId, tracks, shuffle);
+    const board = this.boards().find(b => b.id === boardId);
+    if (board) {
+      this.advancePlaylist(board, autoPlay);
+    }
   }
 
   onTrackSelectionChange(board: Board, selectedId: number | null): void {
@@ -599,19 +607,11 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       });
   }
 
-  onAudioNearEnd(board: Board): void {
-    if (board.id == null || !board.playlistMode) return;
-    this.preAdvancedBoards.add(board.id);
-    this.advancePlaylist(board);
-  }
-
   onAudioEnded(board: Board): void {
     if (board.id == null) return;
 
     if (board.playlistMode) {
-      if (!this.preAdvancedBoards.delete(board.id)) {
-        this.advancePlaylist(board);
-      }
+      this.advancePlaylist(board);
     } else {
       this.clearBoard(board.id);
     }
@@ -726,7 +726,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       });
   }
 
-  private advancePlaylist(board: Board): void {
+  private advancePlaylist(board: Board, autoPlay = true): void {
     if (board.id == null) return;
 
     const boardId = board.id;
@@ -757,10 +757,13 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: updated => {
+          this.streamUrlsByBoard.delete(boardId);
           this.upsertBoard(updated);
-          const freshBoard = this.boards().find(item => item.id === boardId);
-          if (freshBoard) {
-            this.playBoardTrack(freshBoard);
+          if (autoPlay) {
+            const freshBoard = this.boards().find(item => item.id === boardId);
+            if (freshBoard) {
+              this.playBoardTrack(freshBoard);
+            }
           }
         },
         error: err => {

@@ -38,20 +38,26 @@ export interface PlaylistOptions {
     <div
       class="board-card"
       [class.board-card--playing]="status() === 'PLAYING'"
-      [class.board-card--expanded]="expanded()">
+      [class.board-card--expanded]="expanded()"
+      [class.board-card--playlist]="playlistMode()">
 
       <div class="board-card__summary">
         <div class="board-card__summary-left">
-          <button
-            type="button"
-            class="board-card__summary-play"
-            [class.board-card__summary-play--stop]="status() === 'PLAYING'"
-            [disabled]="!canStartPlayback()"
-            (click)="onPrimaryAction()"
-            [attr.aria-label]="status() === 'PLAYING' ? 'Stop playback' : 'Play board'">
-            <span *ngIf="status() !== 'PLAYING'">▶</span>
-            <span *ngIf="status() === 'PLAYING'">■</span>
-          </button>
+          <div
+            class="board-card__play-wrap"
+            [class.board-card__play-wrap--playlist]="playlistMode()"
+            [class.board-card__play-wrap--playing]="status() === 'PLAYING'">
+            <button
+              type="button"
+              class="board-card__summary-play"
+              [class.board-card__summary-play--stop]="status() === 'PLAYING'"
+              [disabled]="!canStartPlayback()"
+              (click)="onPrimaryAction()"
+              [attr.aria-label]="status() === 'PLAYING' ? 'Stop playback' : 'Play board'">
+              <span *ngIf="status() !== 'PLAYING'">▶</span>
+              <span *ngIf="status() === 'PLAYING'">■</span>
+            </button>
+          </div>
 
           <div class="board-card__summary-content">
             <div class="board-card__summary-top">
@@ -83,9 +89,11 @@ export interface PlaylistOptions {
               </div>
 
               <div class="board-card__feature-chips">
-                <span class="board-card__mode-chip">
+                <span
+                  class="board-card__mode-chip"
+                  [class.board-card__mode-chip--playlist]="playlistMode()">
                   <span class="board-chip__dot" aria-hidden="true"></span>
-                  {{ playlistMode() ? 'Playlist' : 'Single' }}
+                  {{ playlistMode() ? '♫ Playlist' : '♫ Single' }}
                 </span>
                 <span
                   class="board-card__feature-chip"
@@ -167,7 +175,7 @@ export interface PlaylistOptions {
                   class="board-mode-switch__btn"
                   [class.board-mode-switch__btn--active]="!playlistMode()"
                   (click)="setPlaybackMode(false)">
-                  Single
+                  ♫ Single
                 </button>
                 <button
                   type="button"
@@ -302,10 +310,13 @@ export interface PlaylistOptions {
     :host { display: block; }
 
     .board-card {
+      position: relative;
       display: flex;
       flex-direction: column;
-      padding: 10px 14px;
+      padding: 10px 14px 10px 11px;
       border: 1px solid var(--app-border-color-soft);
+      border-left-width: 4px;
+      border-left-color: transparent;
       border-radius: var(--app-radius-md);
       background:
         linear-gradient(90deg,
@@ -323,8 +334,9 @@ export interface PlaylistOptions {
     }
 
     .board-card--playing {
-      border-color: rgba(88, 24, 13, 0.45);
-      box-shadow: 0 0 0 3px rgba(88, 24, 13, 0.1), var(--app-shadow-soft);
+      border-color: rgba(88, 24, 13, 0.35);
+      border-left-color: #c9a44c;
+      box-shadow: -3px 0 12px rgba(201, 164, 76, 0.3), var(--app-shadow-soft);
     }
 
     .board-card__summary {
@@ -482,6 +494,34 @@ export interface PlaylistOptions {
     .board-card__mode-chip .board-chip__dot {
       background: #c9a44c;
       box-shadow: 0 0 4px rgba(201, 164, 76, 0.8);
+    }
+
+    .board-card__play-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .board-card__play-wrap--playlist::before {
+      content: '';
+      position: absolute;
+      inset: -7px;
+      border-radius: 50%;
+      border: 2.5px dashed rgba(201, 164, 76, 0.55);
+      pointer-events: none;
+      transition: border-color 0.3s ease, border-width 0.3s ease;
+    }
+
+    .board-card__play-wrap--playlist.board-card__play-wrap--playing::before {
+      border: 2.5px dashed rgba(201, 164, 76, 0.95);
+      box-shadow: 0 0 8px rgba(201, 164, 76, 0.35);
+      animation: playlist-orbit 10s linear infinite;
+    }
+
+    @keyframes playlist-orbit {
+      to { transform: rotate(360deg); }
     }
 
     .board-card__feature-chip {

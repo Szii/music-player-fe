@@ -150,26 +150,6 @@ export interface WindowDeleteEvent {
                               {{ formatTime(win.positionTo ?? 0) }}
                             </span>
                           </span>
-
-                          <span
-                            class="panel-window-item__chip"
-                            [class.panel-window-item__chip--active]="win.fadeIn"
-                          >
-                            <span class="panel-window-item__chip-label">Fade in</span>
-                            <span class="panel-window-item__chip-value">
-                              {{ win.fadeIn ? 'Yes' : 'No' }}
-                            </span>
-                          </span>
-
-                          <span
-                            class="panel-window-item__chip"
-                            [class.panel-window-item__chip--active]="win.fadeOut"
-                          >
-                            <span class="panel-window-item__chip-label">Fade out</span>
-                            <span class="panel-window-item__chip-value">
-                              {{ win.fadeOut ? 'Yes' : 'No' }}
-                            </span>
-                          </span>
                         </div>
                       </div>
                     </button>
