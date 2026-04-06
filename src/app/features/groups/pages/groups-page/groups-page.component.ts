@@ -139,7 +139,9 @@ export class GroupsPageComponent implements OnInit {
     };
 
     this.groupsApi.getUserGroups().subscribe({
-      next: (data) => { this.groups = data ?? []; },
+      next: (data) => {
+        this.groups = this.sortGroups(data ?? []);
+      },
       error: (err) => {
         console.error(err);
         this.errorMessage = 'Loading groups failed.';
@@ -189,7 +191,7 @@ export class GroupsPageComponent implements OnInit {
   createGroup(req: GroupRequest): void {
     this.groupsApi.createGroup({ groupRequest: req }).subscribe({
       next: (created) => {
-        this.groups = [...this.groups, created];
+        this.groups = this.sortGroups([...this.groups, created]);
         this.createFormRef?.reset();
       },
       error: (err) => {
@@ -268,8 +270,7 @@ async deleteGroup(group: Group): Promise<void> {
 
     this.groupsApi.updateGroup({ groupId, groupRequest: { listName, trackIds } }).subscribe({
       next: (updated) => {
-        this.groups = this.groups.map(g => g.id === groupId ? updated : g);
-
+        this.groups = this.sortGroups(this.groups.map(g => g.id === groupId ? updated : g));
         if (this.editingGroup?.id === groupId) {
           this.editingGroup = updated;
         }
@@ -304,5 +305,13 @@ async deleteGroup(group: Group): Promise<void> {
     }
 
     this.tracks = merged;
+  }
+
+  private sortGroups(groups: Group[]): Group[] {
+    return [...groups].sort((a, b) => {
+      const nameA = a.listName ?? '';
+      const nameB = b.listName ?? '';
+      return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+    });
   }
 }

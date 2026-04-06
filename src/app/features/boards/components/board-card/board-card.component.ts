@@ -492,7 +492,7 @@ export interface PlaylistOptions {
     }
 
     .board-card__mode-chip .board-chip__dot {
-      background: #c9a44c;
+      background: #8b5b33;
       box-shadow: 0 0 4px rgba(201, 164, 76, 0.8);
     }
 
