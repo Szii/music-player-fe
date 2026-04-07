@@ -29,6 +29,7 @@ import {
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
+import { BoardPlaybackService } from '../../../../core/services/board-playback.service';
 
 @Component({
   selector: 'app-tracks-page',
@@ -122,6 +123,7 @@ export class TracksPageComponent implements OnInit {
   private readonly tracksApi = inject(MusicTracksService);
   private readonly toast = inject(ToastService);
   private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly boardPlayback = inject(BoardPlaybackService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly tracks = signal<Track[]>([]);
@@ -270,7 +272,21 @@ export class TracksPageComponent implements OnInit {
       });
   }
 
-  onWindows(track: Track): void {
+  async onWindows(track: Track): Promise<void> {
+    if (this.boardPlayback.isAnyPlaying()) {
+      const confirmed = await this.confirmDialog.confirm({
+        title: 'Stop playback?',
+        message: 'Opening the window editor will stop all playing boards. Continue?',
+        confirmText: 'Stop & edit',
+        cancelText: 'Cancel',
+        variant: 'danger',
+      });
+
+      if (!confirmed) return;
+
+      this.boardPlayback.stopAll();
+    }
+
     this.windowTrack.set(track);
   }
 

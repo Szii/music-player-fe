@@ -891,10 +891,6 @@ export interface PlaylistOptions {
         justify-content: flex-end;
       }
 
-      .board-card__summary-left {
-        grid-template-columns: 1fr;
-      }
-
       .board-card__header {
         flex-direction: column;
         align-items: stretch;
@@ -926,9 +922,19 @@ export interface PlaylistOptions {
         max-width: 100%;
       }
 
+      .board-card__summary-volume {
+        min-width: 0;
+      }
+
       .board-settings-menu {
         left: 0;
         right: auto;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .board-card__summary-left {
+        grid-template-columns: auto minmax(0, 1fr);
       }
     }
   `],

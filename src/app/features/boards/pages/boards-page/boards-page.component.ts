@@ -40,6 +40,7 @@ import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component
 import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empty-state.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
+import { BoardPlaybackService } from '../../../../core/services/board-playback.service';
 
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 
@@ -156,6 +157,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   private readonly toast = inject(ToastService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly boardPlayback = inject(BoardPlaybackService);
 
   readonly boards = signal<Board[]>([]);
   readonly tracks = signal<Track[]>([]);
@@ -180,6 +182,10 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadData();
     this.setupVolumeDebounce();
+    this.boardPlayback.register(
+      () => this.stopAllBoards(),
+      () => this.refreshBackgroundData(),
+    );
   }
 
   ngOnDestroy(): void {
@@ -623,6 +629,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     console.error('Audio stream failed for board', board.id);
     this.boardStatuses.set(board.id, 'ERROR');
     this.streamUrlsByBoard.delete(board.id);
+    this.syncPlayingState();
     this.toast.error('Audio stream failed.');
   }
 
@@ -845,11 +852,14 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     } else {
       this.streamUrlsByBoard.delete(boardId);
     }
+
+    this.syncPlayingState();
   }
 
   private clearBoard(boardId: number): void {
     this.boardStatuses.set(boardId, 'STOPPED');
     this.streamUrlsByBoard.delete(boardId);
+    this.syncPlayingState();
   }
 
   private isBoardActive(boardId: number): boolean {
@@ -911,6 +921,15 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       current ? (current.includes(message) ? current : `${current} ${message}`) : message,
     );
   }
+
+  private sortBoards(boards: Board[]): Board[]{
+      return [...boards].sort((a, b) => {
+        const nameA = a.name ?? '';
+        const nameB = b.name ?? '';
+        return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+      });
+  }
+
 }
 
 function clampPct(value: number | null | undefined): number {
