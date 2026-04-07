@@ -40,6 +40,7 @@ import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component
 import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empty-state.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
+import { BoardPlaybackService } from '../../../../core/services/board-playback.service';
 
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 
@@ -156,6 +157,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   private readonly toast = inject(ToastService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly boardPlayback = inject(BoardPlaybackService);
 
   readonly boards = signal<Board[]>([]);
   readonly tracks = signal<Track[]>([]);
@@ -180,6 +182,10 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadData();
     this.setupVolumeDebounce();
+    this.boardPlayback.register(
+      () => this.stopAllBoards(),
+      () => this.refreshBackgroundData(),
+    );
   }
 
   ngOnDestroy(): void {
@@ -624,6 +630,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     console.error('Audio stream failed for board', board.id);
     this.boardStatuses.set(board.id, 'ERROR');
     this.streamUrlsByBoard.delete(board.id);
+    this.syncPlayingState();
     this.toast.error('Audio stream failed.');
   }
 
@@ -850,11 +857,14 @@ private updateBoard(
     } else {
       this.streamUrlsByBoard.delete(boardId);
     }
+
+    this.syncPlayingState();
   }
 
   private clearBoard(boardId: number): void {
     this.boardStatuses.set(boardId, 'STOPPED');
     this.streamUrlsByBoard.delete(boardId);
+    this.syncPlayingState();
   }
 
   private isBoardActive(boardId: number): boolean {
@@ -915,6 +925,73 @@ private updateBoard(
     this.errorMessage.update(current =>
       current ? (current.includes(message) ? current : `${current} ${message}`) : message,
     );
+  }
+
+  private syncPlayingState(): void {
+    const anyPlaying = this.boards().some(b =>
+      b.id != null && this.isBoardActive(b.id),
+    );
+    this.boardPlayback.setPlaying(anyPlaying);
+  }
+
+  private refreshBackgroundData(): void {
+    forkJoin({
+      boards: this.boardsApi.getUserBoards().pipe(catchError(() => of([] as Board[]))),
+      ownTracks: this.tracksApi.getUserTracks().pipe(catchError(() => of([] as Track[]))),
+      subscribedTracks: this.tracksApi.getUserSubscribedTracks().pipe(catchError(() => of([] as Track[]))),
+      groups: this.groupsApi.getUserGroups().pipe(catchError(() => of([] as Group[]))),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(({ boards, ownTracks, subscribedTracks, groups }) => {
+        this.groups.set(groups ?? []);
+        this.tracks.set(this.mergeTracks(ownTracks ?? [], subscribedTracks ?? []));
+
+        const mergedBoards = boards ?? [];
+
+        for (const board of mergedBoards) {
+          if (board.id != null && !this.boardStatuses.has(board.id)) {
+            this.boardStatuses.set(board.id, 'STOPPED');
+          }
+          this.syncPersistedVolume(board);
+        }
+
+        // Merge fresh board data but preserve selectedTrack for active boards
+        // so that an in-progress stream is not torn down just because the track
+        // was deleted or unsubscribed on the server.
+        this.boards.update(current => {
+          const freshMap = new Map(mergedBoards.map(b => [b.id, b]));
+          const updated = current.map(existing => {
+            if (!freshMap.has(existing.id)) return existing;
+            const fresh = freshMap.get(existing.id)!;
+            if (existing.id != null && this.isBoardActive(existing.id)) {
+              return { ...fresh, selectedTrack: existing.selectedTrack };
+            }
+            return fresh;
+          });
+          const existingIds = new Set(current.map(b => b.id));
+          const added = mergedBoards.filter(b => !existingIds.has(b.id));
+          return this.sortBoards([...updated, ...added]);
+        });
+      });
+  }
+
+  private stopAllBoards(): void {
+    if (this.crossfadeRafId !== null) {
+      cancelAnimationFrame(this.crossfadeRafId);
+      this.crossfadeRafId = null;
+    }
+
+    for (const board of this.boards()) {
+      if (board.id == null || !this.isBoardActive(board.id)) continue;
+      const boardId = board.id;
+      this.clearBoard(boardId);
+      this.playbackApi.stopBoard({ boardId })
+        .pipe(
+          catchError(() => of(null)),
+          takeUntilDestroyed(this.destroyRef),
+        )
+        .subscribe();
+    }
   }
 
   private sortBoards(boards: Board[]): Board[]{

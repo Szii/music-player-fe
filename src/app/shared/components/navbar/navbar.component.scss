@@ -208,3 +208,22 @@
     justify-content: flex-start;
   }
 }
+
+.app-navbar__playing-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #c9a44c;
+  margin-left: 5px;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+  box-shadow: 0 0 4px rgba(201, 164, 76, 0.8);
+  animation: navbar-playing-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes navbar-playing-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.45; transform: scale(0.7); }
+}

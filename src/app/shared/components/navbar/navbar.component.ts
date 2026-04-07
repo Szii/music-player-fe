@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { SessionService } from '../../../core/auth/session.service';
 import { NormalButtonComponent } from '../../../shared/ui/buttons/normal-button.component';
+import { BoardPlaybackService } from '../../../core/services/board-playback.service';
 
 @Component({
   selector: 'app-navbar',
@@ -55,6 +56,7 @@ import { NormalButtonComponent } from '../../../shared/ui/buttons/normal-button.
               (click)="closeMenu()"
             >
               Boards
+              <span *ngIf="boardPlayback.isAnyPlaying()" class="app-navbar__playing-dot" aria-label="Playing"></span>
             </a>
 
             <a
@@ -97,6 +99,7 @@ export class NavbarComponent {
 
   private readonly session = inject(SessionService);
   private readonly router = inject(Router);
+  readonly boardPlayback = inject(BoardPlaybackService);
 
   readonly menuId = `app-navbar-menu-${NavbarComponent.nextMenuId++}`;
 

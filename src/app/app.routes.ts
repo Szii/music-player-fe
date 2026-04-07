@@ -41,8 +41,8 @@ export const routes: Routes = [
       {
         path: 'boards',
         loadComponent: () =>
-          import('./features/boards/pages/boards-page/boards-page.component')
-            .then(m => m.BoardsPageComponent),
+          import('./features/boards/pages/boards-page/boards-stub.component')
+            .then(m => m.BoardsStubComponent),
       },
       {
         path: 'groups',
