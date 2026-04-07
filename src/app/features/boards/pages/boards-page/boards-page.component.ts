@@ -244,8 +244,8 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
             }
             this.syncPersistedVolume(board);
           }
-
-          this.boards.set(mergedBoards);
+          
+          this.boards.set(this.sortBoards(mergedBoards));
         },
         error: (err: unknown) => {
           console.error(err);
@@ -273,7 +273,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
             this.boardStatuses.set(created.id, 'STOPPED');
           }
           this.syncPersistedVolume(created);
-          this.boards.update(current => [...current, created]);
+          this.boards.update(current => this.sortBoards([...current, created]));
           this.toast.success('Board created.');
         },
         error: (err: unknown) => {
@@ -356,10 +356,11 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
     const boardId = board.id;
 
+    this.clearBoard(boardId);
+    this.selectedWindowByBoard.delete(boardId);
+
     if (enabled) {
-      this.selectedWindowByBoard.delete(boardId);
       this.regeneratePlaylistOrder(boardId, board.availableTracks ?? [], board.shuffle ?? false);
-      this.clearBoard(boardId);
       this.updateBoard(board, { playlistMode: enabled, selectedTrackId: undefined }, 'Updating playlist mode failed.');
     } else {
       this.playlistIndexByBoard.delete(boardId);
@@ -780,38 +781,42 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       });
   }
 
-  private updateBoard(
-    board: Board,
-    overrides: Partial<BoardUpdateRequest>,
-    errorMessage: string,
-  ): void {
-    if (board.id == null) return;
+private updateBoard(
+  board: Board,
+  overrides: Partial<BoardUpdateRequest>,
+  errorMessage: string,
+): void {
+  if (board.id == null) return;
 
-    const boardId = board.id;
-    const patchedBoard = { ...board, ...this.overridesToBoardPatch(overrides) };
+  const boardId = board.id;
+  const patchedBoard = { ...board, ...this.overridesToBoardPatch(overrides) };
 
-    this.boards.update(current =>
+  this.boards.update(current =>
+    this.sortBoards(
       current.map(item => item.id === boardId ? patchedBoard : item),
-    );
+    ),
+  );
 
-    this.boardsApi.updateUserBoard({
-      boardId,
-      boardUpdateRequest: this.baseUpdate(patchedBoard, overrides),
-    })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: updated => {
-          this.upsertBoard(updated);
-        },
-        error: (err: unknown) => {
-          console.error(err);
-          this.boards.update(current =>
+  this.boardsApi.updateUserBoard({
+    boardId,
+    boardUpdateRequest: this.baseUpdate(patchedBoard, overrides),
+  })
+    .pipe(takeUntilDestroyed(this.destroyRef))
+    .subscribe({
+      next: updated => {
+        this.upsertBoard(updated);
+      },
+      error: (err: unknown) => {
+        console.error(err);
+        this.boards.update(current =>
+          this.sortBoards(
             current.map(item => item.id === boardId ? board : item),
-          );
-          this.toast.error(errorMessage);
-        },
-      });
-  }
+          ),
+        );
+        this.toast.error(errorMessage);
+      },
+    });
+}
 
   private overridesToBoardPatch(overrides: Partial<BoardUpdateRequest>): Partial<Board> {
     const patch: Partial<Board> = {};
