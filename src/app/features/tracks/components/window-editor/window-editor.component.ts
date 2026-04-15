@@ -536,10 +536,15 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
     const wasPlaying = this.isPlaying() && !audio.paused;
 
     this.suppressNextError = true;
-    if (!this.stream.switchToBlobSrc(requested, wasPlaying)) {
-      // No blob yet (stream just started) — fall back to MSE buffer
+    // While MSE is actively streaming, seek within the buffer directly.
+    // Calling switchToBlobSrc during streaming tears down MSE and creates a partial
+    // blob snapshot — chunks that arrive afterwards are stored but never played.
+    if (this.stream.usingMse && this.stream.isInMseBuffer(requested)) {
+      try { audio.currentTime = requested; } catch {}
+    } else if (!this.stream.switchToBlobSrc(requested, wasPlaying)) {
+      // Blob unavailable — last resort: MSE buffer
       if (this.stream.isInMseBuffer(requested)) {
-        audio.currentTime = requested;
+        try { audio.currentTime = requested; } catch {}
       }
     }
 
@@ -629,11 +634,12 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
     const audio = this.audioRef?.nativeElement;
     if (!audio || !this.audioReady()) return;
 
+    this.stopPlayback();
+    this.playMode.set(mode);
+
     const startFrom = this.clampToRegionBounds(fromS);
     const endAt = Math.max(startFrom, Math.min(toS, this.durationS()));
 
-    this.stopPlayback();
-    this.playMode.set(mode);
     this.playbackEndS = endAt;
     this.isPlaying.set(true);
 
@@ -873,9 +879,11 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
           this.downloadProgress.set(100);
           this.streamComplete.set(true);
           this.streamCompleted.emit();
-          // Switch to blob — all future seeks use local buffer, no network
+          // Switch to blob — all future seeks use local buffer, no network.
+          // Preserve playback if audio was playing when the stream finished.
           const currentTime = audio.currentTime || 0;
-          this.stream.switchToBlobSrc(currentTime, false);
+          const wasPlaying = this.isPlaying() && !audio.paused;
+          this.stream.switchToBlobSrc(currentTime, wasPlaying);
         }
 
         this.cdr.markForCheck();
