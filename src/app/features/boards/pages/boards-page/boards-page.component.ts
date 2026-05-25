@@ -41,6 +41,7 @@ import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empt
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 import { BoardPlaybackService } from '../../../../core/services/board-playback.service';
+import { BoardShortcutsService } from '../../../../core/services/board-shortcuts.service';
 
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 
@@ -158,6 +159,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly boardPlayback = inject(BoardPlaybackService);
+  private readonly shortcuts = inject(BoardShortcutsService);
 
   readonly boards = signal<Board[]>([]);
   readonly tracks = signal<Track[]>([]);
@@ -186,6 +188,21 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       () => this.stopAllBoards(),
       () => this.refreshBackgroundData(),
     );
+
+    this.shortcuts.trigger$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(boardId => this.onShortcutTriggered(boardId));
+  }
+
+  private onShortcutTriggered(boardId: number): void {
+    const board = this.boards().find(item => item.id === boardId);
+    if (!board) return;
+
+    if (this.isBoardActive(boardId)) {
+      this.stopBoardTrack(board);
+    } else {
+      this.playBoardTrack(board);
+    }
   }
 
   ngOnDestroy(): void {
@@ -311,6 +328,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
             this.playlistIndexByBoard.delete(boardId);
             this.playlistOrderByBoard.delete(boardId);
             this.persistedVolumesByBoard.delete(boardId);
+            this.shortcuts.clearShortcut(boardId);
             this.toast.success('Board deleted.');
           },
           error: (err: unknown) => {

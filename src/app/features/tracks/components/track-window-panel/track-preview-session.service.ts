@@ -1,6 +1,5 @@
-// track-preview-session.service.ts
 import { Injectable, inject } from '@angular/core';
-import { Observable, of, timer } from 'rxjs';
+import { Observable, concat, of, timer } from 'rxjs';
 import { catchError, map, startWith, switchMap, takeWhile } from 'rxjs/operators';
 
 import { environment } from '../../../../../environments/environment';
@@ -40,7 +39,15 @@ export class TrackPreviewSessionService {
           );
         }
 
-        return this.pollWaveform(trackId, resolvedStreamUrl, initialDurationS);
+        const streamReadyState = this.createStreamReadyState(
+          resolvedStreamUrl,
+          initialDurationS,
+        );
+
+        return concat(
+          of(streamReadyState),
+          this.pollWaveform(trackId, resolvedStreamUrl, initialDurationS),
+        );
       }),
       catchError((error: unknown) => {
         console.error('playTrack failed', error);
@@ -65,10 +72,10 @@ export class TrackPreviewSessionService {
             this.mapWaveformResponse(response, resolvedStreamUrl, initialDurationS),
           ),
           catchError((error: unknown) => {
-            console.error('getTrackWaveform failed', error);
+            console.warn('getTrackWaveform not ready yet', error);
 
             return of(
-              this.createWaveformErrorState(resolvedStreamUrl, initialDurationS),
+              this.createWaveformPendingState(resolvedStreamUrl, initialDurationS),
             );
           }),
         ),
@@ -83,6 +90,8 @@ export class TrackPreviewSessionService {
     initialDurationS: number,
   ): TrackPreviewState {
     const complete = !!response?.complete;
+    const peaks = this.normalizePeaks(response?.peaks);
+    const resolvedDurationS = this.resolveDuration(response?.durationS, initialDurationS);
 
     return {
       streamLoading: false,
@@ -90,8 +99,8 @@ export class TrackPreviewSessionService {
       waveformLoading: !complete,
       waveformError: null,
       resolvedStreamUrl,
-      resolvedDurationS: this.resolveDuration(response?.durationS, initialDurationS),
-      waveformPeaks: this.normalizePeaks(response?.peaks),
+      resolvedDurationS,
+      waveformPeaks: peaks,
       complete,
     };
   }
@@ -103,6 +112,22 @@ export class TrackPreviewSessionService {
       waveformLoading: false,
       waveformError: null,
       resolvedStreamUrl: null,
+      resolvedDurationS: initialDurationS,
+      waveformPeaks: [],
+      complete: false,
+    };
+  }
+
+  private createStreamReadyState(
+    resolvedStreamUrl: string,
+    initialDurationS: number,
+  ): TrackPreviewState {
+    return {
+      streamLoading: false,
+      streamError: null,
+      waveformLoading: true,
+      waveformError: null,
+      resolvedStreamUrl,
       resolvedDurationS: initialDurationS,
       waveformPeaks: [],
       complete: false,
@@ -125,19 +150,19 @@ export class TrackPreviewSessionService {
     };
   }
 
-  private createWaveformErrorState(
+  private createWaveformPendingState(
     resolvedStreamUrl: string,
     initialDurationS: number,
   ): TrackPreviewState {
     return {
       streamLoading: false,
       streamError: null,
-      waveformLoading: false,
-      waveformError: 'Failed to load waveform.',
+      waveformLoading: true,
+      waveformError: null,
       resolvedStreamUrl,
       resolvedDurationS: initialDurationS,
       waveformPeaks: [],
-      complete: true,
+      complete: false,
     };
   }
 

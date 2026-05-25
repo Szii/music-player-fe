@@ -5,6 +5,7 @@ import {
   ElementRef,
   HostListener,
   OnInit,
+  ViewChild,
   computed,
   effect,
   inject,
@@ -18,6 +19,7 @@ import { Board, Group, Track } from '../../../../api/generated';
 import { BoardPlayerComponent } from '../board-player/board-player.component';
 import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
 import { UiSelectComponent } from '../../../../shared/ui/select/ui-select.component';
+import { BoardShortcutsService } from '../../../../core/services/board-shortcuts.service';
 
 export interface PlaylistOptions {
   random: boolean;
@@ -100,6 +102,13 @@ export interface PlaylistOptions {
                   *ngFor="let feature of compactFeatureLabels()">
                   <span class="board-chip__dot" aria-hidden="true"></span>
                   {{ feature }}
+                </span>
+                <span
+                  *ngIf="shortcut()"
+                  class="board-card__shortcut-chip"
+                  [title]="'Keyboard shortcut: ' + shortcut()">
+                  <span class="board-card__shortcut-chip-icon" aria-hidden="true">⌨</span>
+                  {{ shortcut() }}
                 </span>
               </div>
             </div>
@@ -200,10 +209,16 @@ export interface PlaylistOptions {
 
                   <div
                     *ngIf="settingsOpen()"
+                    #settingsMenu
                     class="board-settings-menu"
+                    [class.board-settings-menu--multi]="settingsItemsMaxHeight() != null"
                     (click)="$event.stopPropagation()">
                     <div class="board-settings-menu__title">Playback settings</div>
 
+                    <div
+                      class="board-settings-menu__items"
+                      [class.board-settings-menu__items--multi]="settingsItemsMaxHeight() != null"
+                      [style.--settings-items-max-h.px]="settingsItemsMaxHeight()">
                     <label class="board-settings-item">
                       <div class="board-settings-item__copy">
                         <span class="board-settings-item__label">{{ secondaryOptionLabel() }}</span>
@@ -232,6 +247,49 @@ export interface PlaylistOptions {
                         [checked]="board().overplay ?? false"
                         (change)="toggleOverplay.emit()" />
                     </label>
+
+                    <div class="board-settings-item board-settings-item--shortcut">
+                      <div class="board-settings-item__copy">
+                        <span class="board-settings-item__label">Keyboard shortcut</span>
+                        <span class="board-settings-item__hint">
+                          {{ capturingShortcut()
+                            ? 'Press a key combination (Esc to cancel)'
+                            : 'Toggle play/stop from the keyboard' }}
+                        </span>
+                      </div>
+                      <div class="board-shortcut">
+                        <span
+                          *ngIf="capturingShortcut()"
+                          class="board-shortcut__chip board-shortcut__chip--listening">
+                          Listening…
+                        </span>
+                        <span
+                          *ngIf="!capturingShortcut() && shortcut()"
+                          class="board-shortcut__chip">
+                          {{ shortcut() }}
+                        </span>
+                        <span
+                          *ngIf="!capturingShortcut() && !shortcut()"
+                          class="board-shortcut__chip board-shortcut__chip--empty">
+                          None
+                        </span>
+
+                        <button
+                          type="button"
+                          class="board-shortcut__btn"
+                          (click)="toggleCaptureShortcut()">
+                          {{ capturingShortcut() ? 'Cancel' : (shortcut() ? 'Change' : 'Set') }}
+                        </button>
+                        <button
+                          type="button"
+                          class="board-shortcut__btn board-shortcut__btn--danger"
+                          *ngIf="shortcut() && !capturingShortcut()"
+                          (click)="clearShortcut()">
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -746,7 +804,9 @@ export interface PlaylistOptions {
       top: calc(100% + 8px);
       right: 0;
       z-index: 20;
-      min-width: 220px;
+      min-width: 240px;
+      width: max-content;
+      max-width: calc(100vw - 24px);
       padding: 10px;
       border-radius: var(--app-radius-md);
       border: 1px solid var(--app-border-color);
@@ -756,6 +816,24 @@ export interface PlaylistOptions {
       display: flex;
       flex-direction: column;
       gap: 8px;
+    }
+
+    .board-settings-menu__items {
+      display: flex;
+      flex-direction: column;
+      flex-wrap: wrap;
+      align-content: flex-start;
+      gap: 8px;
+      max-height: var(--settings-items-max-h, none);
+      width: max-content;
+      max-width: 100%;
+    }
+
+    .board-settings-menu__items > .board-settings-item {
+      flex: 0 0 auto;
+      width: 240px;
+      max-width: 100%;
+      box-sizing: border-box;
     }
 
     .board-settings-menu__title {
@@ -810,6 +888,84 @@ export interface PlaylistOptions {
       height: 16px;
       accent-color: var(--app-primary);
       cursor: pointer;
+    }
+
+    .board-settings-item--shortcut {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+    }
+
+    .board-shortcut {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .board-shortcut__chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 0 10px;
+      border-radius: var(--app-radius-xs);
+      border: 1px solid var(--app-border-color-soft);
+      background: var(--app-surface-elevated);
+      font-family: var(--app-font-heading);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: var(--app-primary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .board-shortcut__chip--empty {
+      color: var(--app-text-muted);
+      background: transparent;
+      font-weight: 600;
+    }
+
+    .board-shortcut__chip--listening {
+      color: var(--app-warning);
+      background: var(--app-warning-soft);
+      border-color: rgba(158, 110, 16, 0.25);
+      animation: board-shortcut-pulse 1s ease-in-out infinite;
+    }
+
+    @keyframes board-shortcut-pulse {
+      0%, 100% { opacity: 1; }
+      50%      { opacity: 0.55; }
+    }
+
+    .board-shortcut__btn {
+      border: 1px solid var(--app-border-color-soft);
+      background: var(--app-surface-elevated);
+      color: var(--app-text);
+      border-radius: var(--app-radius-xs);
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+
+    .board-shortcut__btn:hover {
+      background: var(--app-primary-soft);
+      color: var(--app-primary);
+      border-color: rgba(88, 24, 13, 0.3);
+    }
+
+    .board-shortcut__btn--danger {
+      color: var(--app-danger);
+      border-color: rgba(158, 24, 24, 0.22);
+    }
+
+    .board-shortcut__btn--danger:hover {
+      background: var(--app-danger-soft);
+      color: var(--app-danger);
+      border-color: rgba(158, 24, 24, 0.35);
     }
 
     .board-card__controls {
@@ -972,6 +1128,19 @@ export class BoardCardComponent implements OnInit {
   readonly renaming = signal(false);
   readonly renameValue = signal('');
   readonly displayedVolumePercent = signal(100);
+  readonly capturingShortcut = signal(false);
+  readonly settingsItemsMaxHeight = signal<number | null>(null);
+
+  @ViewChild('settingsMenu') settingsMenuRef?: ElementRef<HTMLElement>;
+
+  private readonly shortcutsService = inject(BoardShortcutsService);
+  private shortcutCaptureHandler: ((event: KeyboardEvent) => void) | null = null;
+
+  readonly shortcut = computed(() => {
+    const id = this.board().id;
+    if (id == null) return null;
+    return this.shortcutsService.shortcuts()[id] ?? null;
+  });
 
   private previousPlaylistMode: boolean | undefined;
   private previousSelectedGroupId: number | null | undefined;
@@ -1116,11 +1285,104 @@ export class BoardCardComponent implements OnInit {
       this.previousSelectedGroupId = selectedGroupId;
     });
 
+    effect(() => {
+      if (!this.settingsOpen()) {
+        this.settingsItemsMaxHeight.set(null);
+        return;
+      }
+      queueMicrotask(() => this.measureSettingsFit());
+    });
   }
 
   ngOnInit(): void {
-    this.resizeObserver = new ResizeObserver(() => {});
-    this.destroyRef.onDestroy(() => this.resizeObserver?.disconnect());
+    this.resizeObserver = new ResizeObserver(() => {
+      if (this.settingsOpen()) this.measureSettingsFit();
+    });
+    this.resizeObserver.observe(this.elementRef.nativeElement);
+
+    this.destroyRef.onDestroy(() => {
+      this.resizeObserver?.disconnect();
+      this.endShortcutCapture();
+    });
+  }
+
+  private measureSettingsFit(): void {
+    const menu = this.settingsMenuRef?.nativeElement;
+    const card = this.elementRef.nativeElement;
+    if (!menu || !card) return;
+
+    const itemsEl = menu.querySelector('.board-settings-menu__items') as HTMLElement | null;
+    if (!itemsEl) return;
+
+    const menuRect = menu.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    const available = Math.floor(cardRect.bottom - menuRect.top - 16);
+
+    const prevMaxHeight = itemsEl.style.maxHeight;
+    itemsEl.style.maxHeight = 'none';
+    const naturalHeight = itemsEl.scrollHeight;
+    itemsEl.style.maxHeight = prevMaxHeight;
+
+    if (available <= 0 || naturalHeight <= available) {
+      this.settingsItemsMaxHeight.set(null);
+      return;
+    }
+
+    this.settingsItemsMaxHeight.set(Math.max(120, available));
+  }
+
+  toggleCaptureShortcut(): void {
+    if (this.capturingShortcut()) {
+      this.endShortcutCapture();
+      return;
+    }
+
+    this.capturingShortcut.set(true);
+    this.shortcutsService.suspendTriggers();
+
+    this.shortcutCaptureHandler = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        this.endShortcutCapture();
+        return;
+      }
+
+      if (['Control', 'Shift', 'Alt', 'Meta'].includes(event.key)) return;
+
+      const formatted = BoardShortcutsService.formatEvent(event);
+      if (!formatted) return;
+
+      const id = this.board().id;
+      if (id == null) {
+        this.endShortcutCapture();
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      this.shortcutsService.setShortcut(id, formatted);
+      this.endShortcutCapture();
+    };
+
+    document.addEventListener('keydown', this.shortcutCaptureHandler, true);
+  }
+
+  clearShortcut(): void {
+    const id = this.board().id;
+    if (id == null) return;
+    this.shortcutsService.clearShortcut(id);
+  }
+
+  private endShortcutCapture(): void {
+    if (this.shortcutCaptureHandler) {
+      document.removeEventListener('keydown', this.shortcutCaptureHandler, true);
+      this.shortcutCaptureHandler = null;
+    }
+    if (this.capturingShortcut()) {
+      this.capturingShortcut.set(false);
+    }
+    this.shortcutsService.resumeTriggers();
   }
 
   @HostListener('document:click', ['$event'])
@@ -1128,6 +1390,7 @@ export class BoardCardComponent implements OnInit {
     if (!(event.target instanceof Node)) return;
     if (!this.elementRef.nativeElement.contains(event.target)) {
       this.settingsOpen.set(false);
+      this.endShortcutCapture();
     }
   }
 
