@@ -1,4 +1,4 @@
-import { Component, DestroyRef, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnDestroy, OnInit, ViewChild, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { Subject, forkJoin, of } from 'rxjs';
@@ -25,6 +25,7 @@ import {
   Group,
   PlaybackState,
   PlayRequest,
+  SessionResponse,
   Track,
 } from '../../../../api/generated';
 
@@ -38,10 +39,13 @@ import {
 } from '../../components/board-card/board-card.component';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empty-state.component';
+import { SessionsDropdownComponent } from '../../../../shared/components/sessions-dropdown/sessions-dropdown.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 import { BoardPlaybackService } from '../../../../core/services/board-playback.service';
 import { BoardShortcutsService } from '../../../../core/services/board-shortcuts.service';
+import { SessionsStore } from '../../../../core/services/sessions-store.service';
+import { SessionService } from '../../../../core/auth/session.service';
 
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 
@@ -59,16 +63,17 @@ interface VolumeCommit {
     BoardCardComponent,
     UiAlertComponent,
     UiEmptyStateComponent,
+    SessionsDropdownComponent,
   ],
   template: `
     <div class="app-page board-page">
-      <h1 class="app-page__title">Boards</h1>
-
-      <app-create-board-form
-        [tracks]="tracks()"
-        [submitting]="createBoardSubmitting()"
-        (create)="createBoard($event)"
-      />
+      <header class="boards-page__header">
+        <h1 class="app-page__title">Boards</h1>
+        <app-sessions-dropdown
+          #sessionsDropdown
+          class="boards-page__sessions"
+        />
+      </header>
 
       <ui-alert *ngIf="errorMessage()" variant="danger">
         {{ errorMessage() }}
@@ -78,44 +83,76 @@ interface VolumeCommit {
         Loading boards…
       </div>
 
-      <ui-empty-state
-        *ngIf="!loading() && boards().length === 0"
-        title="No boards yet"
-        message="Create your first board to get started."
-      />
+      <ng-container *ngIf="!loading()">
+        <ng-container *ngIf="!hasSessions(); else withSession">
+          <div class="boards-page__no-session">
+            <button
+              type="button"
+              class="boards-page__create-cta"
+              aria-label="Create your first session"
+              (click)="openCreateSession($event)"
+            >
+              <span class="boards-page__create-plus" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="36" height="36" fill="none"
+                  stroke="currentColor" stroke-width="2.4"
+                  stroke-linecap="round">
+                  <path d="M12 5v14" />
+                  <path d="M5 12h14" />
+                </svg>
+              </span>
+              <span class="boards-page__create-cta-label">Create your first session</span>
+            </button>
+          </div>
+        </ng-container>
 
-      <div *ngIf="!loading() && boards().length > 0" class="boards-list-wrap">
-        <div class="boards-list">
-          <app-board-card
-            *ngFor="let board of boards(); trackBy: trackByBoardId"
-            [board]="board"
-            [availableGroups]="getGroupsForBoard(board)"
-            [status]="getBoardStatus(board)"
-            [streamUrl]="getStreamUrl(board)"
-            [selectedWindowId]="getSelectedWindowId(board)"
-            [masterVolume]="getMasterVolume(board)"
-            [volumePercent]="getBoardVolumePercent(board)"
-            [playlistMode]="board.playlistMode ?? false"
-            [playlistOptions]="getPlaylistOptions(board)"
-            (delete)="deleteBoard(board)"
-            (groupChange)="onGroupSelectionChange(board, $event)"
-            (trackChange)="onTrackSelectionChange(board, $event)"
-            (windowChange)="onWindowSelectionChange(board, $event)"
-            (toggleRepeat)="toggleRepeat(board)"
-            (toggleOverplay)="toggleOverplay(board)"
-            (play)="playBoardTrack(board)"
-            (stop)="stopBoardTrack(board)"
-            (ended)="onAudioEnded(board)"
-
-            (audioError)="onAudioError(board)"
-            (playlistModeChange)="onPlaylistModeChange(board, $event)"
-            (playlistOptionsChange)="onPlaylistOptionsChange(board, $event)"
-            (volumePreviewChange)="onBoardVolumePreview(board, $event)"
-            (volumeCommit)="onBoardVolumeCommit(board, $event)"
-            (rename)="onBoardRename(board, $event)"
+        <ng-template #withSession>
+          <app-create-board-form
+            class="boards-page__create-board-form"
+            [tracks]="tracks()"
+            [submitting]="createBoardSubmitting()"
+            (create)="createBoard($event)"
           />
-        </div>
-      </div>
+
+          <ui-empty-state
+            *ngIf="sessionBoards().length === 0"
+            title="No boards yet"
+            message="Create your first board in this session."
+          />
+
+          <div *ngIf="sessionBoards().length > 0" class="boards-list-wrap">
+            <div class="boards-list">
+              <app-board-card
+                *ngFor="let board of sessionBoards(); trackBy: trackByBoardId"
+                [board]="board"
+                [availableGroups]="getGroupsForBoard(board)"
+                [status]="getBoardStatus(board)"
+                [streamUrl]="getStreamUrl(board)"
+                [selectedWindowId]="getSelectedWindowId(board)"
+                [masterVolume]="getMasterVolume(board)"
+                [volumePercent]="getBoardVolumePercent(board)"
+                [playlistMode]="board.playlistMode ?? false"
+                [playlistOptions]="getPlaylistOptions(board)"
+                (delete)="deleteBoard(board)"
+                (groupChange)="onGroupSelectionChange(board, $event)"
+                (trackChange)="onTrackSelectionChange(board, $event)"
+                (windowChange)="onWindowSelectionChange(board, $event)"
+                (toggleRepeat)="toggleRepeat(board)"
+                (toggleOverplay)="toggleOverplay(board)"
+                (play)="playBoardTrack(board)"
+                (stop)="stopBoardTrack(board)"
+                (ended)="onAudioEnded(board)"
+
+                (audioError)="onAudioError(board)"
+                (playlistModeChange)="onPlaylistModeChange(board, $event)"
+                (playlistOptionsChange)="onPlaylistOptionsChange(board, $event)"
+                (volumePreviewChange)="onBoardVolumePreview(board, $event)"
+                (volumeCommit)="onBoardVolumeCommit(board, $event)"
+                (rename)="onBoardRename(board, $event)"
+              />
+            </div>
+          </div>
+        </ng-template>
+      </ng-container>
     </div>
   `,
   styles: [`
@@ -127,6 +164,22 @@ interface VolumeCommit {
     .boards-page__loading {
       margin-top: 1rem;
       color: var(--app-text-muted);
+    }
+
+    .boards-page__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .boards-page__sessions {
+      flex-shrink: 0;
+      align-self: flex-start;
+      transform: translateY(0.50rem);
+      position: relative;
+      z-index: 50;
     }
 
     .boards-list-wrap {
@@ -141,6 +194,127 @@ interface VolumeCommit {
       display: flex;
       flex-direction: column;
       gap: 6px;
+    }
+
+    .boards-list-wrap,
+    .boards-list,
+    app-create-board-form,
+    ui-empty-state {
+      position: relative;
+    }
+
+    .boards-page__no-session {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4rem 1rem;
+    }
+
+    .boards-page__create-cta {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      padding: 2.2rem 2.4rem 2.6rem;
+      min-width: 260px;
+      background: var(--app-parchment);
+      border: 1px solid var(--app-border-color-soft);
+      border-radius: var(--app-radius-md);
+      color: var(--app-heading);
+      cursor: pointer;
+      box-shadow: var(--app-shadow);
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      transition:
+        border-color 0.15s ease,
+        transform 0.12s ease,
+        box-shadow 0.18s ease,
+        background-color 0.15s ease;
+    }
+
+    .boards-page__create-cta:hover {
+      border-color: var(--app-primary);
+      transform: translateY(-1px);
+      box-shadow:
+        0 16px 38px rgba(15, 8, 3, 0.28),
+        0 4px 14px rgba(15, 8, 3, 0.16);
+    }
+
+    .boards-page__create-cta:focus {
+      outline: none;
+    }
+
+    .boards-page__create-board-form {
+      display: block;
+      margin-bottom: 1rem;
+    }
+
+    .boards-page__create-cta:focus:not(:focus-visible) {
+      outline: none;
+      box-shadow: var(--app-shadow);
+    }
+
+    .boards-page__create-cta:focus-visible {
+      outline: none;
+      border-color: var(--app-primary);
+      box-shadow: var(--app-focus-ring), var(--app-shadow);
+    }
+
+    .boards-page__create-cta:active {
+      transform: translateY(1px) scale(0.99);
+      box-shadow:
+        inset 0 2px 6px rgba(15, 8, 3, 0.18),
+        0 4px 12px rgba(15, 8, 3, 0.16);
+    }
+
+    .boards-page__create-plus {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: linear-gradient(180deg, #6a1e10 0%, #58180d 100%);
+      color: #fff8ee;
+      font-size: 3rem;
+      line-height: 1;
+      font-weight: 400;
+      border: 1px solid #3d1008;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-select: none;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.12),
+        0 4px 12px rgba(30, 8, 4, 0.28);
+    }
+
+    .boards-page__create-cta-label {
+      position: relative;
+      padding-bottom: 0.7rem;
+      font-family: var(--app-font-heading);
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--app-heading);
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-select: none;
+      text-shadow: 0 1px 2px rgba(88, 24, 13, 0.12);
+    }
+
+    .boards-page__create-cta-label::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      bottom: 0;
+      transform: translateX(-50%);
+      width: 100%;
+      height: 2px;
+      background: var(--app-divider-decor);
+      opacity: 0.85;
     }
 
     @media (max-width: 860px) {
@@ -160,6 +334,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   private readonly destroyRef = inject(DestroyRef);
   private readonly boardPlayback = inject(BoardPlaybackService);
   private readonly shortcuts = inject(BoardShortcutsService);
+  private readonly sessionsStore = inject(SessionsStore);
 
   readonly boards = signal<Board[]>([]);
   readonly tracks = signal<Track[]>([]);
@@ -167,6 +342,17 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   readonly loading = signal(false);
   readonly errorMessage = signal('');
   readonly createBoardSubmitting = signal(false);
+
+  readonly hasSessions = this.sessionsStore.hasSessions;
+  readonly selectedSession = this.sessionsStore.selectedSession;
+
+  readonly sessionBoards = computed<Board[]>(() => {
+    const sessionId = this.sessionsStore.selectedSessionId();
+    if (sessionId == null) return [];
+    return this.boards().filter(b => b.sessionId === sessionId);
+  });
+
+  @ViewChild('sessionsDropdown') sessionsDropdownRef?: SessionsDropdownComponent;
 
   private readonly streamUrlsByBoard = new Map<number, string>();
   private readonly boardStatuses = new Map<number, PlayerStatus>();
@@ -180,6 +366,39 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   private crossfadeRafId: number | null = null;
 
   private readonly volumeCommit$ = new Subject<VolumeCommit>();
+
+  constructor() {
+    effect(() => {
+      if (!this.sessionsStore.loaded()) return;
+
+      const sessionIds = new Set(
+        this.sessionsStore.sessions()
+          .map(s => s.sessionId)
+          .filter((id): id is number => id != null),
+      );
+      const current = this.boards();
+      const surviving = current.filter(
+        b => b.sessionId == null || sessionIds.has(b.sessionId),
+      );
+      if (surviving.length === current.length) return;
+
+      for (const stale of current) {
+        if (stale.id == null) continue;
+        if (stale.sessionId != null && !sessionIds.has(stale.sessionId)) {
+          this.clearBoard(stale.id);
+          this.boardStatuses.delete(stale.id);
+          this.streamUrlsByBoard.delete(stale.id);
+          this.selectedWindowByBoard.delete(stale.id);
+          this.masterVolumesByBoard.delete(stale.id);
+          this.playlistIndexByBoard.delete(stale.id);
+          this.playlistOrderByBoard.delete(stale.id);
+          this.persistedVolumesByBoard.delete(stale.id);
+          this.shortcuts.clearShortcut(stale.id);
+        }
+      }
+      this.boards.set(surviving);
+    });
+  }
 
   ngOnInit(): void {
     this.loadData();
@@ -218,11 +437,11 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     this.errorMessage.set('');
 
     forkJoin({
-      boards: this.boardsApi.getUserBoards().pipe(
+      sessions: this.sessionsStore.load().pipe(
         catchError((err: unknown) => {
           console.error(err);
-          this.appendError('Loading boards failed.');
-          return of([] as Board[]);
+          this.appendError('Loading sessions failed.');
+          return of({ sessions: [] });
         }),
       ),
       ownTracks: this.tracksApi.getUserTracks().pipe(
@@ -248,11 +467,11 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: ({ boards, ownTracks, subscribedTracks, groups }) => {
+        next: ({ sessions, ownTracks, subscribedTracks, groups }) => {
           this.groups.set(groups ?? []);
           this.tracks.set(this.mergeTracks(ownTracks ?? [], subscribedTracks ?? []));
 
-          const mergedBoards = boards ?? [];
+          const mergedBoards = this.flattenSessionBoards(sessions.sessions ?? []);
           this.persistedVolumesByBoard.clear();
 
           for (const board of mergedBoards) {
@@ -272,11 +491,18 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   }
 
   createBoard(event: CreateBoardEvent): void {
+    const sessionId = this.sessionsStore.selectedSessionId();
+    if (sessionId == null) {
+      this.toast.error('Select a session before creating a board.');
+      return;
+    }
+
     this.createBoardSubmitting.set(true);
 
     const body: BoardCreateRequest = {
       name: event.name || undefined,
       selectedTrackId: event.selectedTrackId ?? undefined,
+      sessionId,
     };
 
     this.boardsApi.createUserBoard({ boardCreateRequest: body })
@@ -285,19 +511,34 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: created => {
-          if (created.id != null) {
-            this.boardStatuses.set(created.id, 'STOPPED');
+        next: session => {
+          this.sessionsStore.upsertSessionLocal(session);
+          const sessionBoards = this.stampSessionId(session.boards ?? [], session.sessionId);
+          const existingIds = new Set(this.boards().map(b => b.id));
+          const newBoards = sessionBoards.filter(b => b.id != null && !existingIds.has(b.id));
+
+          for (const board of newBoards) {
+            if (board.id != null) {
+              this.boardStatuses.set(board.id, 'STOPPED');
+            }
+            this.syncPersistedVolume(board);
           }
-          this.syncPersistedVolume(created);
-          this.boards.update(current => this.sortBoards([...current, created]));
-          this.toast.success('Board created.');
+
+          if (newBoards.length > 0) {
+            this.boards.update(current => this.sortBoards([...current, ...newBoards]));
+            this.toast.success('Board created.');
+          }
         },
         error: (err: unknown) => {
           console.error(err);
           this.toast.error('Creating board failed.');
         },
       });
+  }
+
+  openCreateSession(event?: Event): void {
+    event?.stopPropagation();
+    this.sessionsDropdownRef?.openCreate();
   }
 
   async deleteBoard(board: Board): Promise<void> {
@@ -804,36 +1045,65 @@ private updateBoard(
   overrides: Partial<BoardUpdateRequest>,
   errorMessage: string,
 ): void {
+  this.updateBoardAndRefreshSession(board, overrides, errorMessage);
+}
+
+private updateBoardAndRefreshSession(
+  board: Board,
+  overrides: Partial<BoardUpdateRequest>,
+  errorMessage: string,
+): void {
   if (board.id == null) return;
 
-  const boardId = board.id;
-  const patchedBoard = { ...board, ...this.overridesToBoardPatch(overrides) };
+  const sessionId = board.sessionId ?? this.sessionsStore.selectedSessionId();
 
-  this.boards.update(current =>
-    this.sortBoards(
-      current.map(item => item.id === boardId ? patchedBoard : item),
-    ),
-  );
+  if (sessionId == null) {
+    this.toast.error('No session selected.');
+    return;
+  }
 
   this.boardsApi.updateUserBoard({
-    boardId,
-    boardUpdateRequest: this.baseUpdate(patchedBoard, overrides),
+    boardId: board.id,
+    boardUpdateRequest: this.baseUpdate(board, overrides),
   })
-    .pipe(takeUntilDestroyed(this.destroyRef))
+    .pipe(
+      switchMap(() => this.sessionsStore.refreshSession(sessionId)),
+      takeUntilDestroyed(this.destroyRef),
+    )
     .subscribe({
-      next: updated => {
-        this.upsertBoard(updated);
+      next: session => {
+        this.replaceBoardsFromSession(session);
       },
       error: (err: unknown) => {
         console.error(err);
-        this.boards.update(current =>
-          this.sortBoards(
-            current.map(item => item.id === boardId ? board : item),
-          ),
-        );
         this.toast.error(errorMessage);
       },
     });
+}
+
+
+private replaceBoardsFromSession(session: SessionResponse | null): void {
+  if (session?.sessionId == null) return;
+
+  const sessionId = session.sessionId;
+  const sessionBoards = this.stampSessionId(session.boards ?? [], sessionId);
+
+  for (const board of sessionBoards) {
+    if (board.id != null && !this.boardStatuses.has(board.id)) {
+      this.boardStatuses.set(board.id, 'STOPPED');
+    }
+
+    this.syncPersistedVolume(board);
+  }
+
+  this.boards.update(current => {
+    const boardsFromOtherSessions = current.filter(board => board.sessionId !== sessionId);
+
+    return this.sortBoards([
+      ...boardsFromOtherSessions,
+      ...sessionBoards,
+    ]);
+  });
 }
 
   private overridesToBoardPatch(overrides: Partial<BoardUpdateRequest>): Partial<Board> {
@@ -890,15 +1160,33 @@ private updateBoard(
     return status === 'PLAYING' || status === 'PAUSED';
   }
 
-  private upsertBoard(updated: Board): void {
-    if (updated.id == null) return;
+private upsertBoard(updated: Board): void {
+  if (updated.id == null) return;
 
-    this.boards.update(current =>
-      current.map(item => item.id === updated.id ? updated : item),
-    );
+  let normalizedBoard: Board = updated;
 
-    this.syncPersistedVolume(updated);
-  }
+  this.boards.update(current => {
+    const existingBoard = current.find(item => item.id === updated.id);
+
+    normalizedBoard = {
+      ...updated,
+      sessionId:
+        updated.sessionId
+        ?? existingBoard?.sessionId
+        ?? this.sessionsStore.selectedSessionId()
+        ?? undefined,
+    };
+
+    const exists = current.some(item => item.id === updated.id);
+    const next = exists
+      ? current.map(item => item.id === updated.id ? normalizedBoard : item)
+      : [...current, normalizedBoard];
+
+    return this.sortBoards(next);
+  });
+
+  this.syncPersistedVolume(normalizedBoard);
+}
 
   private syncPersistedVolume(board: Board): void {
     if (board.id != null) {
@@ -954,17 +1242,17 @@ private updateBoard(
 
   private refreshBackgroundData(): void {
     forkJoin({
-      boards: this.boardsApi.getUserBoards().pipe(catchError(() => of([] as Board[]))),
+      sessions: this.sessionsStore.load().pipe(catchError(() => of({ sessions: [] }))),
       ownTracks: this.tracksApi.getUserTracks().pipe(catchError(() => of([] as Track[]))),
       subscribedTracks: this.tracksApi.getUserSubscribedTracks().pipe(catchError(() => of([] as Track[]))),
       groups: this.groupsApi.getUserGroups().pipe(catchError(() => of([] as Group[]))),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(({ boards, ownTracks, subscribedTracks, groups }) => {
+      .subscribe(({ sessions, ownTracks, subscribedTracks, groups }) => {
         this.groups.set(groups ?? []);
         this.tracks.set(this.mergeTracks(ownTracks ?? [], subscribedTracks ?? []));
 
-        const mergedBoards = boards ?? [];
+        const mergedBoards = this.flattenSessionBoards(sessions.sessions ?? []);
 
         for (const board of mergedBoards) {
           if (board.id != null && !this.boardStatuses.has(board.id)) {
@@ -1010,6 +1298,15 @@ private updateBoard(
         )
         .subscribe();
     }
+  }
+
+  private flattenSessionBoards(sessions: SessionResponse[]): Board[] {
+    return sessions.flatMap(session => this.stampSessionId(session.boards ?? [], session.sessionId));
+  }
+
+  private stampSessionId(boards: Board[], sessionId: number | undefined): Board[] {
+    if (sessionId == null) return boards;
+    return boards.map(b => ({ ...b, sessionId }));
   }
 
   private sortBoards(boards: Board[]): Board[]{
