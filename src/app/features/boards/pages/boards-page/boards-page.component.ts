@@ -129,6 +129,7 @@ interface VolumeCommit {
                 [streamUrl]="getStreamUrl(board)"
                 [selectedWindowId]="getSelectedWindowId(board)"
                 [masterVolume]="getMasterVolume(board)"
+                [masterFadeRampMs]="getMasterFadeRampMs(board)"
                 [volumePercent]="getBoardVolumePercent(board)"
                 [playlistMode]="board.playlistMode ?? false"
                 [playlistOptions]="getPlaylistOptions(board)"
@@ -358,12 +359,15 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   private readonly boardStatuses = new Map<number, PlayerStatus>();
   private readonly selectedWindowByBoard = new Map<number, number | null>();
   private readonly masterVolumesByBoard = new Map<number, number>();
+  private readonly masterFadeRampMsByBoard = new Map<number, number>();
   private readonly playlistIndexByBoard = new Map<number, number>();
   private readonly playlistOrderByBoard = new Map<number, number[]>();
   private readonly persistedVolumesByBoard = new Map<number, number>();
 
-  private static readonly CROSSFADE_MS = 800;
-  private crossfadeRafId: number | null = null;
+  private static readonly CROSSFADE_MS = 2000;
+
+  private readonly fadeStateVersion = signal(0);
+  private crossfadeCleanupTimer: ReturnType<typeof setTimeout> | null = null;
 
   private readonly volumeCommit$ = new Subject<VolumeCommit>();
 
@@ -425,9 +429,9 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    if (this.crossfadeRafId !== null) {
-      cancelAnimationFrame(this.crossfadeRafId);
-      this.crossfadeRafId = null;
+    if (this.crossfadeCleanupTimer !== null) {
+      clearTimeout(this.crossfadeCleanupTimer);
+      this.crossfadeCleanupTimer = null;
     }
     this.volumeCommit$.complete();
   }
@@ -779,47 +783,45 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         next: state => {
           this.applyPlaybackState(targetId, state);
 
-          if (this.crossfadeRafId !== null) {
-            cancelAnimationFrame(this.crossfadeRafId);
-            this.crossfadeRafId = null;
+          if (this.crossfadeCleanupTimer !== null) {
+            clearTimeout(this.crossfadeCleanupTimer);
+            this.crossfadeCleanupTimer = null;
           }
 
           if (wasActive && boardsToStop.length === 0) {
             return;
           }
 
-          const startTime = performance.now();
-          const fromVolumes = new Map<number, number>(
-            boardsToStop.map(item => [item.id!, this.masterVolumesByBoard.get(item.id!) ?? 1]),
-          );
+          const rampMs = BoardsPageComponent.CROSSFADE_MS;
 
-          const ramp = (now: number): void => {
-            const t = Math.min(1, (now - startTime) / BoardsPageComponent.CROSSFADE_MS);
+          // Schedule audio-clock-driven master gain ramps in each affected
+          // board-player. Setting rampMs before the target ensures the child
+          // reads the correct duration when its masterVolume subscription
+          // fires.
+          if (!wasActive) {
+            this.masterFadeRampMsByBoard.set(targetId, rampMs);
+            this.masterVolumesByBoard.set(targetId, 1);
+          }
 
-            if (!wasActive) {
-              this.masterVolumesByBoard.set(targetId, Math.sin((t * Math.PI) / 2));
-            }
+          for (const item of boardsToStop) {
+            this.masterFadeRampMsByBoard.set(item.id!, rampMs);
+            this.masterVolumesByBoard.set(item.id!, 0);
+          }
 
-            for (const item of boardsToStop) {
-              this.masterVolumesByBoard.set(
-                item.id!,
-                (fromVolumes.get(item.id!) ?? 1) * Math.cos((t * Math.PI) / 2),
-              );
-            }
+          this.fadeStateVersion.update(n => n + 1);
 
-            if (t < 1) {
-              this.crossfadeRafId = requestAnimationFrame(ramp);
-              return;
-            }
-
-            this.crossfadeRafId = null;
+          const stopAfterFade = boardsToStop.slice();
+          this.crossfadeCleanupTimer = setTimeout(() => {
+            this.crossfadeCleanupTimer = null;
 
             if (!wasActive) {
               this.masterVolumesByBoard.delete(targetId);
+              this.masterFadeRampMsByBoard.delete(targetId);
             }
 
-            for (const item of boardsToStop) {
+            for (const item of stopAfterFade) {
               this.masterVolumesByBoard.delete(item.id!);
+              this.masterFadeRampMsByBoard.delete(item.id!);
               this.clearBoard(item.id!);
               this.playbackApi.stopBoard({ boardId: item.id! })
                 .pipe(
@@ -828,19 +830,21 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
                 )
                 .subscribe();
             }
-          };
 
-          this.crossfadeRafId = requestAnimationFrame(ramp);
+            this.fadeStateVersion.update(n => n + 1);
+          }, rampMs + 60);
         },
         error: (err: unknown) => {
           console.error(err);
 
           if (!wasActive) {
             this.masterVolumesByBoard.delete(targetId);
+            this.masterFadeRampMsByBoard.delete(targetId);
           }
 
           for (const item of boardsToStop) {
             this.masterVolumesByBoard.delete(item.id!);
+            this.masterFadeRampMsByBoard.delete(item.id!);
             this.clearBoard(item.id!);
             this.playbackApi.stopBoard({ boardId: item.id! })
               .pipe(
@@ -850,6 +854,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
               .subscribe();
           }
 
+          this.fadeStateVersion.update(n => n + 1);
           this.toast.error('Starting playback failed.');
         },
       });
@@ -910,12 +915,23 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   }
 
   getMasterVolume(board: Board): number {
+    // Read the version signal so template-bound getters re-evaluate when the
+    // map mutates outside Angular signal awareness.
+    this.fadeStateVersion();
+
     const volume01 = this.getBoardVolumePercent(board) / 100;
     const fade = board.id != null
       ? (this.masterVolumesByBoard.get(board.id) ?? 1)
       : 1;
 
     return Math.max(0, Math.min(volume01 * fade, 1));
+  }
+
+  getMasterFadeRampMs(board: Board): number {
+    this.fadeStateVersion();
+    return board.id != null
+      ? (this.masterFadeRampMsByBoard.get(board.id) ?? 0)
+      : 0;
   }
 
   getBoardVolumePercent(board: Board): number {
@@ -1282,9 +1298,9 @@ private upsertBoard(updated: Board): void {
   }
 
   private stopAllBoards(): void {
-    if (this.crossfadeRafId !== null) {
-      cancelAnimationFrame(this.crossfadeRafId);
-      this.crossfadeRafId = null;
+    if (this.crossfadeCleanupTimer !== null) {
+      clearTimeout(this.crossfadeCleanupTimer);
+      this.crossfadeCleanupTimer = null;
     }
 
     for (const board of this.boards()) {

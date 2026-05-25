@@ -106,6 +106,8 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
   readonly hasSelectedWindow = input(false);
   readonly repeat = input(false);
   readonly masterVolume = input(1);
+
+  readonly masterFadeRampMs = input(0);
   readonly showPrimaryButton = input(true);
 
   readonly playRequested = output<void>();
@@ -151,6 +153,7 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
   private sourceB: MediaElementAudioSourceNode | null = null;
   private gainNodeA: GainNode | null = null;
   private gainNodeB: GainNode | null = null;
+  private masterGainNode: GainNode | null = null;
   private webAudioUnavailable = false;
 
   private loopCrossfadeInProgress = false;
@@ -283,6 +286,10 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.applyAllVolumes());
 
+    toObservable(this.masterVolume)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((target) => this.applyMasterGain(target));
+
     toObservable(this.durationS)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((v) => this.fullDurationS.set(v ?? 0));
@@ -310,6 +317,7 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
       this.sourceB = null;
       this.gainNodeA = null;
       this.gainNodeB = null;
+      this.masterGainNode = null;
     }
   }
 
@@ -1220,12 +1228,10 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
     const gain = slot === 'A' ? this.gainA : this.gainB;
     const envelope =
       gain > 0.0001 ? this.computeWindowVolume(slot, audio, ctx) : 1;
-    // When the Web Audio graph is active, the GainNode applies the crossfade
-    // gain on the audio thread; folding it into audio.volume here would
-    // double-attenuate.
     const gainFactor = this.audioCtx ? 1 : gain;
+    const masterFactor = this.audioCtx ? 1 : this.masterVolume();
 
-    return Math.max(0, Math.min(envelope * gainFactor * this.masterVolume(), 1));
+    return Math.max(0, Math.min(envelope * gainFactor * masterFactor, 1));
   }
 
   private computeWindowVolume(
@@ -1450,21 +1456,51 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
       const sourceB = ctx.createMediaElementSource(audioB);
       const gainA = ctx.createGain();
       const gainB = ctx.createGain();
+      const masterGain = ctx.createGain();
       gainA.gain.value = this.gainA;
       gainB.gain.value = this.gainB;
-      sourceA.connect(gainA).connect(ctx.destination);
-      sourceB.connect(gainB).connect(ctx.destination);
+      masterGain.gain.value = this.masterVolume();
+
+      sourceA.connect(gainA).connect(masterGain);
+      sourceB.connect(gainB).connect(masterGain);
+      masterGain.connect(ctx.destination);
 
       this.audioCtx = ctx;
       this.sourceA = sourceA;
       this.sourceB = sourceB;
       this.gainNodeA = gainA;
       this.gainNodeB = gainB;
+      this.masterGainNode = masterGain;
       return true;
     } catch (err) {
       console.warn('Web Audio graph init failed; falling back', err);
       this.webAudioUnavailable = true;
       return false;
+    }
+  }
+
+  private applyMasterGain(target: number): void {
+    if (!this.audioCtx || !this.masterGainNode) return;
+
+    const node = this.masterGainNode;
+    const now = this.audioCtx.currentTime;
+    const rampMs = this.masterFadeRampMs();
+    const clampedTarget = Math.max(0, Math.min(target, 1));
+
+    try {
+      const current = node.gain.value;
+      node.gain.cancelScheduledValues(now);
+      node.gain.setValueAtTime(current, now);
+      if (rampMs > 0) {
+        node.gain.linearRampToValueAtTime(
+          clampedTarget,
+          now + rampMs / 1000,
+        );
+      } else {
+        node.gain.setValueAtTime(clampedTarget, now);
+      }
+    } catch {
+      // ignore — fall back to snap on next applyAllVolumes
     }
   }
 
