@@ -85,8 +85,8 @@ interface SlotFadePolicy {
 })
 export class BoardPlayerComponent implements OnInit, OnDestroy {
   private static readonly WINDOW_FADE_DURATION_S = 3;
-  private static readonly SWITCH_CROSSFADE_MS = 1500;
-  private static readonly LOOP_CROSSFADE_MS = 1300;
+  private static readonly SWITCH_CROSSFADE_MS = 2000;
+  private static readonly LOOP_CROSSFADE_MS = 2000;
   private static readonly LOOP_PREPARE_LEAD_MS = 2500;
   private static readonly PLAYLIST_PRELOAD_LEAD_MS = 3000;
 
@@ -144,8 +144,14 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
 
   private gainA = 1;
   private gainB = 0;
-  private rampFrame: number | null = null;
   private rampId = 0;
+
+  private audioCtx: AudioContext | null = null;
+  private sourceA: MediaElementAudioSourceNode | null = null;
+  private sourceB: MediaElementAudioSourceNode | null = null;
+  private gainNodeA: GainNode | null = null;
+  private gainNodeB: GainNode | null = null;
+  private webAudioUnavailable = false;
 
   private loopCrossfadeInProgress = false;
   private pendingSelectionReload = false;
@@ -296,6 +302,15 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
     this.clearPlaylistPreloadTimer();
     this.cancelRamp();
     this.tearDownAll();
+
+    if (this.audioCtx) {
+      this.audioCtx.close().catch(() => {});
+      this.audioCtx = null;
+      this.sourceA = null;
+      this.sourceB = null;
+      this.gainNodeA = null;
+      this.gainNodeB = null;
+    }
   }
 
   private onTrackChanged(): void {
@@ -324,6 +339,13 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
   }
 
   onPlay(): void {
+    // Construct/resume the audio graph synchronously inside the click handler
+    // so browsers that gate AudioContext on a user gesture (Safari, mobile
+    // Chrome) accept the unlock.
+    this.ensureAudioGraph();
+    if (this.audioCtx && this.audioCtx.state === 'suspended') {
+      void this.audioCtx.resume().catch(() => {});
+    }
     this.playRequested.emit();
   }
 
@@ -634,6 +656,9 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
     const stream = this.getStream(slot);
     if (!audio) return;
 
+    this.ensureAudioGraph();
+    await this.ensureAudioContextRunning();
+
     const generation = ++this.connectGeneration;
     this.setSlotContext(slot, slotContext);
     this.resetFadePolicy(slot);
@@ -747,7 +772,21 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
   ): Promise<void> {
     this.cancelRamp();
 
-    if (document.hidden || durationMs <= 0) {
+    if (durationMs <= 0) {
+      this.setGain(fromSlot, 0);
+      this.setGain(toSlot, 1);
+      this.applyAllVolumes();
+      return;
+    }
+
+    const graphReady = this.ensureAudioGraph();
+    await this.ensureAudioContextRunning();
+
+    const ctx = this.audioCtx;
+    const fromNode = this.getGainNode(fromSlot);
+    const toNode = this.getGainNode(toSlot);
+
+    if (!graphReady || !ctx || !fromNode || !toNode) {
       this.setGain(fromSlot, 0);
       this.setGain(toSlot, 1);
       this.applyAllVolumes();
@@ -755,30 +794,51 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
     }
 
     const rampId = ++this.rampId;
-    const start = performance.now();
+    const now = ctx.currentTime;
+    const durationS = durationMs / 1000;
 
+    // exponencial crossfade - black magic, do not touch
+    const steps = 64;
+    const fromCurve = new Float32Array(steps);
+    const toCurve = new Float32Array(steps);
+    for (let i = 0; i < steps; i++) {
+      const t = i / (steps - 1);
+      fromCurve[i] = Math.cos((t * Math.PI) / 2);
+      toCurve[i] = Math.sin((t * Math.PI) / 2);
+    }
+
+    try {
+      fromNode.gain.cancelScheduledValues(now);
+      toNode.gain.cancelScheduledValues(now);
+      fromNode.gain.setValueAtTime(fromNode.gain.value, now);
+      toNode.gain.setValueAtTime(toNode.gain.value, now);
+      fromNode.gain.setValueCurveAtTime(fromCurve, now, durationS);
+      toNode.gain.setValueCurveAtTime(toCurve, now, durationS);
+    } catch (err) {
+      console.warn('crossfade scheduling failed, snapping', err);
+      this.setGain(fromSlot, 0);
+      this.setGain(toSlot, 1);
+      this.applyAllVolumes();
+      return;
+    }
+
+    if (fromSlot === 'A') {
+      this.gainA = 0;
+      this.gainB = 1;
+    } else {
+      this.gainA = 1;
+      this.gainB = 0;
+    }
+
+    // Wait for the scheduled ramp to finish. setTimeout may be throttled in
+    // background tabs, but the audio fade itself has already executed on the
+    // audio clock — this only delays JS cleanup, not the audible fade.
     await new Promise<void>((resolve) => {
-      const frame = (now: number) => {
-        if (rampId !== this.rampId) {
-          resolve();
-          return;
-        }
-
-        const t = Math.min(1, (now - start) / durationMs);
-        this.setGain(fromSlot, Math.cos((t * Math.PI) / 2));
-        this.setGain(toSlot, Math.sin((t * Math.PI) / 2));
-        this.applyAllVolumes();
-
-        if (t < 1) {
-          this.rampFrame = requestAnimationFrame(frame);
-        } else {
-          this.rampFrame = null;
-          resolve();
-        }
-      };
-
-      this.rampFrame = requestAnimationFrame(frame);
+      setTimeout(resolve, durationMs + 40);
     });
+
+    if (rampId !== this.rampId) return;
+    this.applyAllVolumes();
   }
 
   private async crossfadeLoop(): Promise<void> {
@@ -1160,8 +1220,12 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
     const gain = slot === 'A' ? this.gainA : this.gainB;
     const envelope =
       gain > 0.0001 ? this.computeWindowVolume(slot, audio, ctx) : 1;
+    // When the Web Audio graph is active, the GainNode applies the crossfade
+    // gain on the audio thread; folding it into audio.volume here would
+    // double-attenuate.
+    const gainFactor = this.audioCtx ? 1 : gain;
 
-    return Math.max(0, Math.min(envelope * gain * this.masterVolume(), 1));
+    return Math.max(0, Math.min(envelope * gainFactor * this.masterVolume(), 1));
   }
 
   private computeWindowVolume(
@@ -1322,22 +1386,94 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
       180,
       Math.min(
         BoardPlayerComponent.LOOP_PREPARE_LEAD_MS,
-        loopCrossfadeMs + 800,
+        loopCrossfadeMs + 1500,
       ),
     );
   }
 
   private cancelRamp(): void {
     this.rampId++;
-    if (this.rampFrame !== null) {
-      cancelAnimationFrame(this.rampFrame);
-      this.rampFrame = null;
+    if (this.audioCtx) {
+      const now = this.audioCtx.currentTime;
+      for (const node of [this.gainNodeA, this.gainNodeB]) {
+        if (!node) continue;
+        try {
+          const held = node.gain.value;
+          node.gain.cancelScheduledValues(now);
+          node.gain.setValueAtTime(held, now);
+        } catch {}
+      }
     }
   }
 
   private setGain(slot: AudioSlot, value: number): void {
     if (slot === 'A') this.gainA = value;
     else this.gainB = value;
+
+    if (this.audioCtx) {
+      const node = this.getGainNode(slot);
+      if (node) {
+        const now = this.audioCtx.currentTime;
+        try {
+          node.gain.cancelScheduledValues(now);
+          node.gain.setValueAtTime(value, now);
+        } catch {}
+      }
+    }
+  }
+
+  private getGainNode(slot: AudioSlot): GainNode | null {
+    return slot === 'A' ? this.gainNodeA : this.gainNodeB;
+  }
+
+  private ensureAudioGraph(): boolean {
+    if (this.audioCtx) return true;
+    if (this.webAudioUnavailable) return false;
+
+    const audioA = this.audioARef?.nativeElement;
+    const audioB = this.audioBRef?.nativeElement;
+    if (!audioA || !audioB) return false;
+
+    const Ctor: typeof AudioContext | undefined =
+      (window as unknown as { AudioContext?: typeof AudioContext })
+        .AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
+    if (!Ctor) {
+      this.webAudioUnavailable = true;
+      return false;
+    }
+
+    try {
+      const ctx = new Ctor();
+      const sourceA = ctx.createMediaElementSource(audioA);
+      const sourceB = ctx.createMediaElementSource(audioB);
+      const gainA = ctx.createGain();
+      const gainB = ctx.createGain();
+      gainA.gain.value = this.gainA;
+      gainB.gain.value = this.gainB;
+      sourceA.connect(gainA).connect(ctx.destination);
+      sourceB.connect(gainB).connect(ctx.destination);
+
+      this.audioCtx = ctx;
+      this.sourceA = sourceA;
+      this.sourceB = sourceB;
+      this.gainNodeA = gainA;
+      this.gainNodeB = gainB;
+      return true;
+    } catch (err) {
+      console.warn('Web Audio graph init failed; falling back', err);
+      this.webAudioUnavailable = true;
+      return false;
+    }
+  }
+
+  private async ensureAudioContextRunning(): Promise<void> {
+    if (!this.audioCtx) return;
+    if (this.audioCtx.state !== 'suspended') return;
+    try {
+      await this.audioCtx.resume();
+    } catch {}
   }
 
   private getAudio(slot: AudioSlot): HTMLAudioElement | null {
