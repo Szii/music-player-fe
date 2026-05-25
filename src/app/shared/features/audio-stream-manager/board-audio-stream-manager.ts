@@ -467,23 +467,36 @@ export class BoardPlayerAudioSourceManager {
   }
 
   isInMseBuffer(targetS: number): boolean {
-    const audio = this.audioElement;
-    if (!audio) {
-      return false;
-    }
-
     if (this.usingNative) {
       return true;
     }
 
-    for (let i = 0; i < audio.buffered.length; i++) {
-      if (
-        audio.buffered.start(i) - 0.5 <= targetS &&
-        audio.buffered.end(i) + 0.5 >= targetS
-      ) {
+    const inRanges = (ranges: TimeRanges | null | undefined): boolean => {
+      if (!ranges) return false;
+
+      for (let i = 0; i < ranges.length; i++) {
+        if (
+          ranges.start(i) - 0.5 <= targetS &&
+          ranges.end(i) + 0.5 >= targetS
+        ) {
+          return true;
+        }
+      }
+
+      return false;
+    };
+
+    try {
+      if (this.sourceBuffer && inRanges(this.sourceBuffer.buffered)) {
         return true;
       }
-    }
+    } catch {}
+
+    try {
+      if (this.audioElement && inRanges(this.audioElement.buffered)) {
+        return true;
+      }
+    } catch {}
 
     return false;
   }
@@ -659,6 +672,52 @@ export class BoardPlayerAudioSourceManager {
     this.usingNative = false;
 
     return this.blobObjectUrl;
+  }
+
+  private shouldPromoteCompletedMseToBlob(): boolean {
+    return this.usingMse && this.mseAppendDisabled && this.hasFullBlob();
+  }
+
+  private promoteCompletedMseToBlob(): boolean {
+    const audio = this.audioElement;
+    if (!audio) {
+      return false;
+    }
+
+    if (!this.shouldPromoteCompletedMseToBlob()) {
+      return false;
+    }
+
+    const blob = this.getBlob();
+    if (!blob) {
+      return false;
+    }
+
+    const currentLocalTimeS = Math.max(0, audio.currentTime || 0);
+    const wasPlaying = !audio.paused && !audio.ended;
+
+    if (this.blobObjectUrl) {
+      URL.revokeObjectURL(this.blobObjectUrl);
+    }
+
+    this.blobObjectUrl = URL.createObjectURL(blob);
+    this.blobSnapshotStoredBytes = this.totalStoredBytes;
+    this.blobSnapshotEvictedHeadBytes = this.evictedHeadBytes;
+
+    this.tearDownMse();
+    this.usingMse = false;
+    this.usingBlob = true;
+    this.usingNative = false;
+
+    this.assignSourceAndSeek(
+      audio,
+      this.blobObjectUrl,
+      this.toBlobLocalTime(currentLocalTimeS),
+      wasPlaying,
+      'board-player promote completed MSE to blob failed',
+    );
+
+    return true;
   }
 
   private updateBytesPerSecondFromExpectedSize(): void {
@@ -893,6 +952,18 @@ export class BoardPlayerAudioSourceManager {
             this.cachedBlob = new Blob(this.storedChunks, { type: 'audio/mpeg' });
           }
 
+          if (this.shouldPromoteCompletedMseToBlob()) {
+            const promoted = this.promoteCompletedMseToBlob();
+
+            if (!promoted) {
+              console.warn('board-player failed to promote completed MSE stream to blob');
+            }
+
+            this.emitProgress(true);
+            this.resolveFirstPlayable();
+            break;
+          }
+
           if (this.usingMse && this.mediaSource?.readyState === 'open') {
             const sb = this.sourceBuffer;
 
@@ -1004,7 +1075,6 @@ export class BoardPlayerAudioSourceManager {
                     this.resolveFirstPlayable();
                   }
                 } catch {
-                  // MSE buffer permanently full — stop appending but keep downloading
                   this.mseAppendDisabled = true;
                   this.emitProgress(false);
                   this.resolveFirstPlayable();

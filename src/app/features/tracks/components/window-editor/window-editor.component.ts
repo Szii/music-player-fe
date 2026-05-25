@@ -1,6 +1,4 @@
-// window-editor.component.ts
 import {
-  AfterViewInit,
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
@@ -58,7 +56,7 @@ export interface WindowEditorResult {
   ],
   template: `
     <div class="we-root">
-      <audio #audio hidden preload="none"></audio>
+      <audio #audio hidden preload="auto"></audio>
 
       <app-waveform-canvas
         #waveformCanvas
@@ -324,7 +322,7 @@ export interface WindowEditorResult {
     }
   `],
 })
-export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewInit {
+export class WindowEditorComponent implements OnChanges, OnDestroy {
   private readonly zone = inject(NgZone);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly toast = inject(ToastService);
@@ -345,7 +343,7 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
   readonly apply = output<WindowEditorResult>();
   readonly streamCompleted = output<void>();
 
-  @ViewChild('audio') audioRef!: ElementRef<HTMLAudioElement>;
+  @ViewChild('audio', { static: true }) audioRef!: ElementRef<HTMLAudioElement>;
   @ViewChild('waveformCanvas') waveformCanvasRef!: WaveformCanvasComponent;
 
   readonly loadingStream = signal(false);
@@ -430,21 +428,13 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
 
   private audioListeners: Array<{ type: string; fn: EventListener }> = [];
 
-  private viewReady = false;
-  private pendingStreamUrlInit: string | null = null;
   private editorStateInitialized = false;
   private lastEditorKey = '';
   private lastToastErrorMessage: string | null = null;
+  private connectGeneration = 0;
+  private playbackRequestToken = 0;
 
-  ngAfterViewInit(): void {
-    this.viewReady = true;
-
-    if (this.pendingStreamUrlInit) {
-      const url = this.pendingStreamUrlInit;
-      this.pendingStreamUrlInit = null;
-      this.initStream(url);
-    }
-  }
+  readonly canPlayAll = computed(() => this.getCurrentPlayableMaxS() > 0.05);
 
   ngOnChanges(changes: SimpleChanges): void {
     const nextKey = this.buildEditorKey();
@@ -472,11 +462,7 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
         return;
       }
 
-      if (!this.viewReady) {
-        this.pendingStreamUrlInit = this.streamUrl();
-      } else {
-        this.initStream(this.streamUrl()!);
-      }
+      void this.initStream(this.streamUrl()!);
     }
   }
 
@@ -529,46 +515,79 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
   }
 
   seekLocal(targetS: number): void {
-    const audio = this.audioRef?.nativeElement;
-    if (!audio || !this.audioReady()) return;
+  const audio = this.audioRef?.nativeElement;
+  if (!audio || !this.audioReady()) return;
 
-    const requested = this.clampToRegionBounds(targetS);
-    const wasPlaying = this.isPlaying() && !audio.paused;
+  const requested = this.clampToRegionBounds(targetS);
+  const wasPlaying = !audio.paused && !audio.ended;
 
-    this.suppressNextError = true;
-    // While MSE is actively streaming, seek within the buffer directly.
-    // Calling switchToBlobSrc during streaming tears down MSE and creates a partial
-    // blob snapshot — chunks that arrive afterwards are stored but never played.
-    if (this.stream.usingMse && this.stream.isInMseBuffer(requested)) {
-      try { audio.currentTime = requested; } catch {}
-    } else if (!this.stream.switchToBlobSrc(requested, wasPlaying)) {
-      // Blob unavailable — last resort: MSE buffer
-      if (this.stream.isInMseBuffer(requested)) {
-        try { audio.currentTime = requested; } catch {}
-      }
-    }
+  this.suppressNextError = true;
 
-    this.currentTimeS.set(requested);
-    this.tracker.displayPositionS = requested;
-
-    const canvasWidth = this.waveformCanvasRef?.canvasWidth ?? 0;
-    this.playheadPx.set(
-      this.durationS() > 0 ? (requested / this.durationS()) * canvasWidth : 0,
+  const canSeekStartInPlace =
+    requested <= 0.05 &&
+    (
+      this.stream.streamComplete ||
+      this.stream.usingNative ||
+      this.stream.isInMseBuffer(0)
     );
 
-    this.applyPreviewFadeVolume(requested);
-    this.suppressTimeSyncUntil = Date.now() + 120;
-    this.cdr.markForCheck();
-  }
+  if (canSeekStartInPlace) {
+    try {
+      audio.currentTime = 0;
+    } catch {}
+  } else {
+    const canSeekInPlace =
+      !this.stream.usingBlob && this.stream.isInMseBuffer(requested);
 
-  togglePlayAll(): void {
-    if (this.isPlaying() && this.playMode() === 'full') {
-      this.stopPlayback();
-      return;
+    if (canSeekInPlace) {
+      try {
+        audio.currentTime = requested;
+      } catch {}
+    } else {
+      const switched = this.stream.switchToBlobSrc(requested, wasPlaying);
+
+      if (!switched) {
+        if (this.stream.usingMse || this.stream.usingNative) {
+          try {
+            audio.currentTime = requested;
+          } catch {}
+        }
+      }
     }
-
-    this.startPlayback(0, this.durationS(), 'full');
   }
+
+  this.currentTimeS.set(requested);
+  this.tracker.displayPositionS = requested;
+
+  const canvasWidth = this.waveformCanvasRef?.canvasWidth ?? 0;
+  this.playheadPx.set(
+    this.durationS() > 0 ? (requested / this.durationS()) * canvasWidth : 0,
+  );
+
+  this.applyPreviewFadeVolume(requested);
+  this.suppressTimeSyncUntil = Date.now() + 120;
+  this.cdr.markForCheck();
+}
+
+togglePlayAll(): void {
+  if (this.isPlaying() && this.playMode() === 'full') {
+    this.stopPlayback();
+    return;
+  }
+
+  const playableMax = this.getCurrentPlayableMaxS();
+
+  if (playableMax <= 0.05) {
+    this.toast.warning('Track is not ready to play yet.');
+    return;
+  }
+
+  const endAt = this.stream.streamComplete
+    ? this.durationS()
+    : playableMax;
+
+  this.startPlayback(0, endAt, 'full');
+}
 
   togglePlaySelection(): void {
     if (this.isPlaying() && this.playMode() === 'selection') {
@@ -630,28 +649,37 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
     );
   }
 
-  private startPlayback(fromS: number, toS: number, mode: 'full' | 'selection'): void {
-    const audio = this.audioRef?.nativeElement;
-    if (!audio || !this.audioReady()) return;
+private startPlayback(fromS: number, toS: number, mode: 'full' | 'selection'): void {
+  const audio = this.audioRef?.nativeElement;
+  if (!audio || !this.audioReady()) return;
 
-    this.stopPlayback();
-    this.playMode.set(mode);
+  this.stopPlayback();
+  const requestToken = ++this.playbackRequestToken;
 
-    const startFrom = this.clampToRegionBounds(fromS);
-    const endAt = Math.max(startFrom, Math.min(toS, this.durationS()));
+  this.playMode.set(mode);
 
-    this.playbackEndS = endAt;
-    this.isPlaying.set(true);
+  const startFrom = this.clampToRegionBounds(fromS);
+  const endAt = Math.max(startFrom, Math.min(toS, this.durationS()));
 
-    this.seekLocal(startFrom);
-    this.applyPreviewFadeVolume(startFrom);
+  this.playbackEndS = endAt;
+  this.isPlaying.set(true);
 
-    audio.play().catch((error) => {
-      console.warn('WindowEditor play failed', error);
-      this.toast.error('Playback could not be started.');
-      this.isPlaying.set(false);
-      this.cdr.markForCheck();
-    });
+  this.seekLocal(startFrom);
+  this.applyPreviewFadeVolume(startFrom);
+
+  let tickerStarted = false;
+
+  const startTicker = () => {
+    if (tickerStarted || requestToken !== this.playbackRequestToken) {
+      return;
+    }
+
+    tickerStarted = true;
+
+    if (this.playbackTimer !== null) {
+      clearInterval(this.playbackTimer);
+      this.playbackTimer = null;
+    }
 
     this.zone.runOutsideAngular(() => {
       this.playbackTimer = setInterval(() => {
@@ -701,23 +729,58 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
     });
 
     this.cdr.markForCheck();
-  }
+  };
+
+  const onPlaying = () => {
+    audio.removeEventListener('playing', onPlaying);
+    startTicker();
+  };
+
+  audio.addEventListener('playing', onPlaying, { once: true });
+
+  audio.play()
+    .then(() => {
+      if (requestToken !== this.playbackRequestToken) {
+        return;
+      }
+
+      if (audio.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        startTicker();
+      }
+    })
+    .catch((error) => {
+      audio.removeEventListener('playing', onPlaying);
+
+      if (requestToken !== this.playbackRequestToken) {
+        return;
+      }
+
+      console.warn('WindowEditor play failed', error);
+      this.toast.error('Playback could not be started.');
+      this.isPlaying.set(false);
+      this.cdr.markForCheck();
+    });
+
+  this.cdr.markForCheck();
+}
 
   stopPlayback(): void {
+    this.playbackRequestToken++;
+
     if (this.playbackTimer !== null) {
       clearInterval(this.playbackTimer);
       this.playbackTimer = null;
     }
 
     const audio = this.audioRef?.nativeElement;
-    if (audio && this.isPlaying()) {
-      audio.pause();
+    if (audio) {
+      try {
+        audio.pause();
+      } catch {}
+
       const currentTime = audio.currentTime || 0;
       this.currentTimeS.set(currentTime);
       this.tracker.displayPositionS = currentTime;
-    }
-
-    if (audio) {
       audio.volume = 1;
     }
 
@@ -735,6 +798,8 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
     const rewindTo = this.playMode() === 'selection' ? this.regionFromS() : 0;
     const shouldLoop = this.playMode() === 'selection';
     const audio = this.audioRef?.nativeElement;
+
+    this.playbackRequestToken++;
 
     if (this.playbackTimer !== null) {
       clearInterval(this.playbackTimer);
@@ -838,10 +903,12 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
     this.cdr.markForCheck();
   }
 
-  private initStream(url: string): void {
+  private async initStream(url: string): Promise<void> {
     this.stopPlayback();
     this.destroyStream();
     this.lastToastErrorMessage = null;
+
+    const generation = ++this.connectGeneration;
 
     this.loadingStream.set(true);
     this.audioReady.set(false);
@@ -858,39 +925,51 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
     if (!audio) return;
 
     audio.pause();
+    audio.volume = 0;
     this.suppressNextError = true;
     audio.removeAttribute('src');
     audio.load();
 
-    this.stream.onProgress = (_bytes, complete, seekableMaxS) => {
-      this.zone.run(() => {
-        this.downloadProgress.set(Math.round(this.stream.downloadedPercent));
-        this.tracker.updateSeekable(seekableMaxS, complete);
+this.stream.onProgress = (_bytes, complete, seekableMaxS) => {
+  if (generation !== this.connectGeneration) return;
 
-        if (this.isPlaying() && this.playMode() === 'selection') {
-          this.syncPlaybackToSelectionBounds();
-        }
+  this.zone.run(() => {
+    this.downloadProgress.set(Math.round(this.stream.downloadedPercent));
+    this.tracker.updateSeekable(seekableMaxS, complete);
 
-        if (seekableMaxS > 0) {
-          this.loadingStream.set(false);
+    if (this.isPlaying()) {
+      if (this.playMode() === 'selection') {
+        this.syncPlaybackToSelectionBounds();
+      } else {
+        const playableMax = this.getCurrentPlayableMaxS();
+
+        if (playableMax > this.playbackEndS) {
+          this.playbackEndS = Math.min(this.durationS(), playableMax);
         }
 
         if (complete) {
-          this.downloadProgress.set(100);
-          this.streamComplete.set(true);
-          this.streamCompleted.emit();
-          // Switch to blob — all future seeks use local buffer, no network.
-          // Preserve playback if audio was playing when the stream finished.
-          const currentTime = audio.currentTime || 0;
-          const wasPlaying = this.isPlaying() && !audio.paused;
-          this.stream.switchToBlobSrc(currentTime, wasPlaying);
+          this.playbackEndS = this.durationS();
         }
+      }
+    }
 
-        this.cdr.markForCheck();
-      });
-    };
+    if (seekableMaxS > 0) {
+      this.loadingStream.set(false);
+    }
+
+    if (complete) {
+      this.downloadProgress.set(100);
+      this.streamComplete.set(true);
+      this.streamCompleted.emit();
+    }
+
+    this.cdr.markForCheck();
+  });
+};
 
     this.stream.onError = (message) => {
+      if (generation !== this.connectGeneration) return;
+
       this.zone.run(() => {
         this.streamError.set(message);
         this.loadingStream.set(false);
@@ -898,49 +977,6 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
         if (message && message !== this.lastToastErrorMessage) {
           this.lastToastErrorMessage = message;
           this.toast.error(message);
-        }
-
-        this.cdr.markForCheck();
-      });
-    };
-
-    this.stream.load(url, {
-      audioElement: audio,
-      useMse: 'MediaSource' in window,
-      estimatedDurationS: this.durationS() || 0,
-      windowStartS: 0,
-      // Never use native audio — native sets audio.src to the stream URL directly,
-      // causing the browser to make HTTP range requests on seek (wrong data / static).
-      // Always use MSE + blob regardless of track duration.
-      nativeForLongTracksOverS: Infinity,
-      keepAllChunks: true,
-      maxStoredBytes: Math.max(96 * 1024 * 1024, Math.ceil((this.durationS() || 0) * 40_000)),
-    }).catch((error) => {
-      console.error('WindowEditor stream load failed', error);
-
-      this.zone.run(() => {
-        const message = 'Failed to load audio stream.';
-        this.streamError.set(message);
-        this.loadingStream.set(false);
-        this.toast.error(message);
-        this.cdr.markForCheck();
-      });
-    });
-
-    const onLoadedMetadata = () => {
-      this.zone.run(() => {
-        const duration = this.durationS();
-        if ((!duration || duration <= 0) && isFinite(audio.duration) && audio.duration > 0) {
-          this.tracker.setDuration(audio.duration);
-          this.tracker.setWindow(0, audio.duration);
-        }
-
-        this.audioReady.set(true);
-        this.loadingStream.set(false);
-
-        if (!this.editorStateInitialized) {
-          this.initializeRegionDefaults();
-          this.editorStateInitialized = true;
         }
 
         this.cdr.markForCheck();
@@ -979,10 +1015,112 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
       console.warn('WindowEditor audio element error');
     };
 
-    this.addAudioListener(audio, 'loadedmetadata', onLoadedMetadata);
     this.addAudioListener(audio, 'timeupdate', onTimeUpdate);
     this.addAudioListener(audio, 'ended', onEnded);
     this.addAudioListener(audio, 'error', onError);
+
+    try {
+      await this.stream.load(url, {
+        audioElement: audio,
+        useMse: 'MediaSource' in window,
+        estimatedDurationS: this.durationS() || 0,
+        windowStartS: 0,
+        nativeForLongTracksOverS: Infinity,
+        keepAllChunks: true,
+        maxStoredBytes: Math.max(96 * 1024 * 1024, Math.ceil((this.durationS() || 0) * 40_000)),
+      });
+    } catch (error) {
+      if (generation !== this.connectGeneration) return;
+
+      console.error('WindowEditor stream load failed', error);
+      this.zone.run(() => {
+        const message = 'Failed to load audio stream.';
+        this.streamError.set(message);
+        this.loadingStream.set(false);
+        this.toast.error(message);
+        this.cdr.markForCheck();
+      });
+      return;
+    }
+
+    if (generation !== this.connectGeneration) return;
+
+    const ready = await this.waitForAudioReady(audio, generation);
+    if (!ready || generation !== this.connectGeneration) return;
+
+    try {
+      audio.currentTime = 0;
+    } catch {}
+
+    this.zone.run(() => {
+      const duration = this.durationS();
+      if ((!duration || duration <= 0) && isFinite(audio.duration) && audio.duration > 0) {
+        this.tracker.setDuration(audio.duration);
+        this.tracker.setWindow(0, audio.duration);
+      }
+
+      audio.volume = 1;
+      this.audioReady.set(true);
+      this.loadingStream.set(false);
+
+      if (!this.editorStateInitialized) {
+        this.initializeRegionDefaults();
+        this.editorStateInitialized = true;
+      }
+
+      this.cdr.markForCheck();
+    });
+  }
+
+  private waitForAudioReady(
+    audio: HTMLAudioElement,
+    generation: number,
+  ): Promise<boolean> {
+    if (audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+      return Promise.resolve(generation === this.connectGeneration);
+    }
+
+    return new Promise<boolean>((resolve) => {
+      const onReady = () => {
+        if (audio.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) {
+          return;
+        }
+
+        cleanup();
+        resolve(generation === this.connectGeneration);
+      };
+
+      const onError = () => {
+        cleanup();
+        resolve(false);
+      };
+
+      const poll = setInterval(() => {
+        if (generation !== this.connectGeneration) {
+          cleanup();
+          resolve(false);
+          return;
+        }
+
+        if (audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+          cleanup();
+          resolve(true);
+        }
+      }, 30);
+
+      const cleanup = () => {
+        audio.removeEventListener('loadeddata', onReady);
+        audio.removeEventListener('canplay', onReady);
+        audio.removeEventListener('playing', onReady);
+        audio.removeEventListener('error', onError);
+        clearInterval(poll);
+      };
+
+      audio.addEventListener('loadeddata', onReady);
+      audio.addEventListener('canplay', onReady);
+      audio.addEventListener('playing', onReady);
+      audio.addEventListener('error', onError, { once: true });
+    });
   }
 
   private addAudioListener(
@@ -995,6 +1133,8 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
   }
 
   private destroyStream(): void {
+    this.connectGeneration++;
+
     const audio = this.audioRef?.nativeElement;
     if (audio) {
       for (const listener of this.audioListeners) {
@@ -1004,6 +1144,7 @@ export class WindowEditorComponent implements OnChanges, OnDestroy, AfterViewIni
       this.audioListeners = [];
 
       audio.pause();
+      audio.volume = 1;
       this.suppressNextError = true;
       audio.removeAttribute('src');
       audio.load();
