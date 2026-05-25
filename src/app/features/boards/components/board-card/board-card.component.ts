@@ -352,6 +352,7 @@ export interface PlaylistOptions {
                 [hasSelectedWindow]="hasSelectedWindow()"
                 [repeat]="effectiveRepeat()"
                 [masterVolume]="masterVolume()"
+                [masterFadeRampMs]="masterFadeRampMs()"
                 (playRequested)="play.emit()"
                 (stopRequested)="stop.emit()"
                 (ended)="onPlayerEnded()"
@@ -1102,6 +1103,7 @@ export class BoardCardComponent implements OnInit {
   readonly streamUrl = input<string | null>(null);
   readonly selectedWindowId = input<number | null>(null);
   readonly masterVolume = input(1);
+  readonly masterFadeRampMs = input(0);
   readonly volumePercent = input<number>(100);
   readonly playlistMode = input(false);
   readonly playlistOptions = input<PlaylistOptions>({ random: false });
