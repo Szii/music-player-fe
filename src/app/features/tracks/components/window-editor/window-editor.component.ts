@@ -91,26 +91,43 @@ export interface WindowEditorResult {
       </div>
 
       <div class="we-section we-section--compact" *ngIf="durationS() > 0">
-        <ui-form-row>
-          <div class="we-duration">
-            <span class="we-duration__label">Selection length</span>
-            <span class="we-duration__value">
-              {{ formatTime(regionToS() - regionFromS()) }}
-            </span>
-          </div>
-
-          <div class="we-times">
-            <div class="we-time-chip">
-              <span class="we-time-chip__label">From</span>
-              <span class="we-time-chip__value">{{ formatTime(regionFromS()) }}</span>
+        <div class="we-meta-row">
+          <div class="we-meta-chips">
+            <div class="we-meta-chip">
+              <span class="we-meta-chip__label">Selection length</span>
+              <span class="we-meta-chip__value we-meta-chip__value--accent">
+                {{ formatTime(regionToS() - regionFromS()) }}
+              </span>
             </div>
 
-            <div class="we-time-chip">
-              <span class="we-time-chip__label">To</span>
-              <span class="we-time-chip__value">{{ formatTime(regionToS()) }}</span>
+            <div class="we-meta-chip">
+              <span class="we-meta-chip__label">From</span>
+              <span class="we-meta-chip__value">{{ formatTime(regionFromS()) }}</span>
+            </div>
+
+            <div class="we-meta-chip">
+              <span class="we-meta-chip__label">To</span>
+              <span class="we-meta-chip__value">{{ formatTime(regionToS()) }}</span>
             </div>
           </div>
-        </ui-form-row>
+
+          <div class="we-volume" *ngIf="audioReady()">
+            <span class="we-volume__label">Volume</span>
+
+            <input
+              class="we-volume__range"
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              [value]="volumePercent()"
+              (input)="onVolumeChange($any($event.target).value)"
+              aria-label="Volume"
+            />
+
+            <span class="we-volume__value">{{ volumePercent() }}%</span>
+          </div>
+        </div>
       </div>
 
       <div class="we-seek we-section" *ngIf="audioReady() && durationS() > 0">
@@ -210,47 +227,33 @@ export interface WindowEditorResult {
       padding-bottom: 10px;
     }
 
-    .we-duration {
+    .we-meta-row {
       display: flex;
-      flex-direction: column;
-      gap: 4px;
-      min-width: 120px;
-      justify-content: flex-end;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
     }
 
-    .we-duration__label {
-      font-size: 10px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--app-text-muted);
-    }
-
-    .we-duration__value {
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--app-primary);
-      font-variant-numeric: tabular-nums;
-    }
-
-    .we-times {
+    .we-meta-chips {
       display: flex;
       align-items: center;
       gap: 12px;
       flex-wrap: wrap;
     }
 
-    .we-time-chip {
+    .we-meta-chip {
       display: flex;
       flex-direction: column;
+      align-items: center;
       gap: 2px;
-      padding: 8px 10px;
+      padding: 8px 12px;
       border-radius: 10px;
       background: var(--app-bg-soft);
-      min-width: 82px;
+      min-width: 96px;
+      text-align: center;
     }
 
-    .we-time-chip__label {
+    .we-meta-chip__label {
       font-size: 10px;
       font-weight: 700;
       text-transform: uppercase;
@@ -258,11 +261,16 @@ export interface WindowEditorResult {
       color: var(--app-text-muted);
     }
 
-    .we-time-chip__value {
+    .we-meta-chip__value {
       font-size: 13px;
       font-weight: 700;
       color: var(--app-text);
       font-variant-numeric: tabular-nums;
+    }
+
+    .we-meta-chip__value--accent {
+      font-size: 14px;
+      color: var(--app-primary);
     }
 
     .we-seek {
@@ -309,6 +317,64 @@ export interface WindowEditorResult {
       font-variant-numeric: tabular-nums;
       min-width: 36px;
       text-align: center;
+    }
+
+    .we-volume {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      min-width: 200px;
+      margin-left: auto;
+    }
+
+    .we-volume__label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--app-text-muted);
+    }
+
+    .we-volume__range {
+      flex: 1;
+      min-width: 0;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 5px;
+      border-radius: 3px;
+      border: none;
+      outline: none;
+      background: var(--app-border-color);
+    }
+
+    .we-volume__range::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      background: var(--app-primary);
+      border: 2px solid var(--app-surface);
+      box-shadow: 0 0 0 1px var(--app-primary);
+      cursor: pointer;
+    }
+
+    .we-volume__range::-moz-range-thumb {
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      background: var(--app-primary);
+      border: 2px solid var(--app-surface);
+      cursor: pointer;
+    }
+
+    .we-volume__value {
+      font-size: 11px;
+      color: var(--app-text-muted);
+      font-variant-numeric: tabular-nums;
+      min-width: 36px;
+      text-align: right;
     }
 
     .we-name-field {
@@ -359,6 +425,8 @@ export class WindowEditorComponent implements OnChanges, OnDestroy {
   readonly fadeIn = signal(false);
   readonly fadeOut = signal(false);
   readonly streamComplete = signal(false);
+  readonly masterVolume = signal(0.5);
+  readonly volumePercent = computed(() => Math.round(this.masterVolume() * 100));
 
   readonly waveformReady = computed(
     () => this.waveformPeaks().length > 0 && this.durationS() > 0,
@@ -492,6 +560,18 @@ export class WindowEditorComponent implements OnChanges, OnDestroy {
   onFadeOutChange(value: boolean): void {
     this.fadeOut.set(value);
     this.waveformCanvasRef?.drawWaveform();
+    this.cdr.markForCheck();
+  }
+
+  onVolumeChange(value: string | number): void {
+    const numeric = Math.max(0, Math.min(100, Number(value)));
+    this.masterVolume.set(numeric / 100);
+
+    const audio = this.audioRef?.nativeElement;
+    if (audio && this.audioReady()) {
+      this.applyPreviewFadeVolume(audio.currentTime || 0);
+    }
+
     this.cdr.markForCheck();
   }
 
@@ -781,7 +861,7 @@ private startPlayback(fromS: number, toS: number, mode: 'full' | 'selection'): v
       const currentTime = audio.currentTime || 0;
       this.currentTimeS.set(currentTime);
       this.tracker.displayPositionS = currentTime;
-      audio.volume = 1;
+      audio.volume = this.masterVolume();
     }
 
     this.isPlaying.set(false);
@@ -808,7 +888,7 @@ private startPlayback(fromS: number, toS: number, mode: 'full' | 'selection'): v
 
     if (audio) {
       audio.pause();
-      audio.volume = 1;
+      audio.volume = this.masterVolume();
     }
 
     this.isPlaying.set(false);
@@ -1059,7 +1139,7 @@ this.stream.onProgress = (_bytes, complete, seekableMaxS) => {
         this.tracker.setWindow(0, audio.duration);
       }
 
-      audio.volume = 1;
+      audio.volume = this.masterVolume();
       this.audioReady.set(true);
       this.loadingStream.set(false);
 
@@ -1144,7 +1224,7 @@ this.stream.onProgress = (_bytes, complete, seekableMaxS) => {
       this.audioListeners = [];
 
       audio.pause();
-      audio.volume = 1;
+      audio.volume = this.masterVolume();
       this.suppressNextError = true;
       audio.removeAttribute('src');
       audio.load();
@@ -1227,7 +1307,7 @@ this.stream.onProgress = (_bytes, complete, seekableMaxS) => {
       applyFade(0, this.durationS());
     }
 
-    audio.volume = volume;
+    audio.volume = volume * this.masterVolume();
   }
 
   private getCurrentPlayableMaxS(): number {
