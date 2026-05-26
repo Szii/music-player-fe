@@ -22,12 +22,8 @@ import {
   WaveformCanvasComponent,
   RegionChangeEvent,
 } from '../waveform-canvas/waveform-canvas.component';
-import { WindowTransportComponent } from '../window-transport/window-transport.component';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
-import { UiFormFieldComponent } from '../../../../shared/ui/form-field/ui-form-field.component';
 import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-input.component';
-import { UiFormRowComponent } from '../../../../shared/ui/form-row/ui-form-row.component';
-import { UiFormActionsComponent } from '../../../../shared/ui/form-actions/ui-form-actions.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 
@@ -47,11 +43,7 @@ export interface WindowEditorResult {
     CommonModule,
     FormsModule,
     WaveformCanvasComponent,
-    WindowTransportComponent,
-    UiFormFieldComponent,
     UiTextInputComponent,
-    UiFormRowComponent,
-    UiFormActionsComponent,
     NormalButtonComponent,
   ],
   template: `
@@ -90,73 +82,194 @@ export interface WindowEditorResult {
         </span>
       </div>
 
-      <div class="we-section we-section--compact" *ngIf="durationS() > 0">
-        <ui-form-row>
-          <div class="we-duration">
-            <span class="we-duration__label">Selection length</span>
-            <span class="we-duration__value">
-              {{ formatTime(regionToS() - regionFromS()) }}
-            </span>
+      <div class="we-section we-info" *ngIf="durationS() > 0">
+        <div class="we-info__grid">
+          <div class="we-card">
+            <span class="we-card__label">From</span>
+            <div class="we-card__row">
+              <input
+                type="text"
+                class="we-card__time-input"
+                [value]="formatTime(regionFromS())"
+                (change)="onFromTextChange($any($event.target).value)"
+                aria-label="Selection start time"
+              />
+              <div class="we-card__nudge-group">
+                <button
+                  type="button"
+                  class="we-nudge"
+                  (click)="nudgeFrom(-1)"
+                  aria-label="Decrease start by 1 second"
+                >−</button>
+                <button
+                  type="button"
+                  class="we-nudge"
+                  (click)="nudgeFrom(1)"
+                  aria-label="Increase start by 1 second"
+                >+</button>
+              </div>
+            </div>
           </div>
 
-          <div class="we-times">
-            <div class="we-time-chip">
-              <span class="we-time-chip__label">From</span>
-              <span class="we-time-chip__value">{{ formatTime(regionFromS()) }}</span>
-            </div>
-
-            <div class="we-time-chip">
-              <span class="we-time-chip__label">To</span>
-              <span class="we-time-chip__value">{{ formatTime(regionToS()) }}</span>
+          <div class="we-card">
+            <span class="we-card__label">To</span>
+            <div class="we-card__row">
+              <input
+                type="text"
+                class="we-card__time-input"
+                [value]="formatTime(regionToS())"
+                (change)="onToTextChange($any($event.target).value)"
+                aria-label="Selection end time"
+              />
+              <div class="we-card__nudge-group">
+                <button
+                  type="button"
+                  class="we-nudge"
+                  (click)="nudgeTo(-1)"
+                  aria-label="Decrease end by 1 second"
+                >−</button>
+                <button
+                  type="button"
+                  class="we-nudge"
+                  (click)="nudgeTo(1)"
+                  aria-label="Increase end by 1 second"
+                >+</button>
+              </div>
             </div>
           </div>
-        </ui-form-row>
+
+          <div class="we-card">
+            <span class="we-card__label">Length</span>
+            <div class="we-card__row">
+              <span class="we-card__time-display">
+                {{ formatTime(regionToS() - regionFromS()) }}
+              </span>
+            </div>
+          </div>
+
+          <div class="we-card we-card--volume" *ngIf="audioReady()">
+            <span class="we-card__label">Volume</span>
+            <div class="we-card__row">
+              <svg
+                class="we-volume__icon"
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                aria-hidden="true"
+              >
+                <path d="M3 9v6h4l5 4V5L7 9H3z" fill="currentColor"/>
+                <path
+                  d="M15.5 8.5c1.4 1.1 2.1 2.3 2.1 3.5s-0.7 2.4-2.1 3.5"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  fill="none"
+                />
+              </svg>
+              <input
+                class="we-volume__range"
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                [value]="volumePercent()"
+                (input)="onVolumeChange($any($event.target).value)"
+                aria-label="Volume"
+              />
+              <span class="we-volume__value">{{ volumePercent() }}%</span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class="we-seek we-section" *ngIf="audioReady() && durationS() > 0">
-        <span class="we-seek__time">{{ formatTime(currentTimeS()) }}</span>
+      <div
+        class="we-section we-transport"
+        *ngIf="audioReady() && durationS() > 0"
+      >
+        <div class="we-transport__actions">
+          <button
+            type="button"
+            class="we-pill we-pill--outline"
+            (click)="togglePlaySelection()"
+            [class.we-pill--active]="isPlaying() && playMode() === 'selection'"
+            [disabled]="
+              !streamComplete() && !(isPlaying() && playMode() === 'selection')
+            "
+          >
+            <svg viewBox="0 0 20 20" width="11" height="11" aria-hidden="true">
+              <polygon
+                *ngIf="!(isPlaying() && playMode() === 'selection')"
+                points="4,2 18,10 4,18"
+                fill="currentColor"
+              />
+              <rect
+                *ngIf="isPlaying() && playMode() === 'selection'"
+                x="4"
+                y="4"
+                width="12"
+                height="12"
+                rx="1"
+                fill="currentColor"
+              />
+            </svg>
+            {{
+              isPlaying() && playMode() === 'selection'
+                ? 'Stop'
+                : 'Play selection'
+            }}
+          </button>
 
-        <input
-          class="we-seek__range"
-          type="range"
-          min="0"
-          [max]="durationS()"
-          step="0.1"
-          [value]="tracker.displayPositionS"
-          [style.background]="seekBackground()"
-          (input)="onSeekInput($any($event.target).value)"
-          (change)="onSeekCommit($any($event.target).value)"
-        />
+          <button
+            type="button"
+            class="we-pill we-pill--danger"
+            (click)="stopPlayback()"
+            [disabled]="!isPlaying()"
+          >
+            <svg viewBox="0 0 20 20" width="11" height="11" aria-hidden="true">
+              <rect
+                x="4"
+                y="4"
+                width="12"
+                height="12"
+                rx="1"
+                fill="currentColor"
+              />
+            </svg>
+            Stop
+          </button>
+        </div>
 
-        <span class="we-seek__time">{{ formatTime(durationS()) }}</span>
+        <div class="we-playback">
+          <span class="we-playback__label">Playback</span>
+          <span class="we-playback__time">{{ formatTime(currentTimeS()) }}</span>
+          <input
+            class="we-seek__range"
+            type="range"
+            min="0"
+            [max]="durationS()"
+            step="0.1"
+            [value]="tracker.displayPositionS"
+            [style.background]="seekBackground()"
+            (input)="onSeekInput($any($event.target).value)"
+            (change)="onSeekCommit($any($event.target).value)"
+          />
+          <span class="we-playback__time">{{ formatTime(durationS()) }}</span>
+        </div>
       </div>
-
-      <app-window-transport
-        *ngIf="audioReady()"
-        [isPlaying]="isPlaying()"
-        [playMode]="playMode()"
-        [fadeIn]="fadeIn()"
-        [fadeOut]="fadeOut()"
-        [playSelectionDisabled]="!streamComplete()"
-        (playAll)="togglePlayAll()"
-        (playSelection)="togglePlaySelection()"
-        (fadeInChange)="onFadeInChange($event)"
-        (fadeOutChange)="onFadeOutChange($event)"
-      />
 
       <div class="we-section we-bottom" *ngIf="durationS() > 0">
-        <ui-form-row>
-          <div class="we-name-field">
-            <ui-form-field label="Window name">
-              <ui-text-input
-                [(ngModel)]="windowName"
-                placeholder="e.g. Intro"
-              />
-            </ui-form-field>
-          </div>
-
-          <ui-form-actions>
+        <div class="we-bottom__name-block">
+          <label class="we-bottom__name-label" for="we-window-name">Window name</label>
+          <div class="we-bottom__name-row">
+            <ui-text-input
+              id="we-window-name"
+              class="we-bottom__name-input"
+              [ngModel]="windowName()"
+              (ngModelChange)="windowName.set($event)"
+              placeholder="e.g. Intro"
+            />
             <normal-button
+              class="we-bottom__apply"
               type="button"
               variant="success"
               [disabled]="!canApply()"
@@ -164,8 +277,47 @@ export interface WindowEditorResult {
             >
               {{ applyLabel() }}
             </normal-button>
-          </ui-form-actions>
-        </ui-form-row>
+          </div>
+        </div>
+
+        <div class="we-bottom__tip-row" *ngIf="audioReady()">
+          <span class="we-tip">
+            <span class="we-tip__icon" aria-hidden="true">ⓘ</span>
+            <span><strong>Tip:</strong> You can also play the full track to find the perfect part.</span>
+          </span>
+
+          <button
+            type="button"
+            class="we-pill we-pill--outline"
+            (click)="togglePlayAll()"
+            [class.we-pill--active]="isPlaying() && playMode() === 'full'"
+            [disabled]="
+              !canPlayAll() && !(isPlaying() && playMode() === 'full')
+            "
+          >
+            <svg viewBox="0 0 20 20" width="11" height="11" aria-hidden="true">
+              <polygon
+                *ngIf="!(isPlaying() && playMode() === 'full')"
+                points="4,2 18,10 4,18"
+                fill="currentColor"
+              />
+              <rect
+                *ngIf="isPlaying() && playMode() === 'full'"
+                x="4"
+                y="4"
+                width="12"
+                height="12"
+                rx="1"
+                fill="currentColor"
+              />
+            </svg>
+            {{
+              isPlaying() && playMode() === 'full'
+                ? 'Stop full track'
+                : 'Play full track'
+            }}
+          </button>
+        </div>
       </div>
     </div>
   `,
@@ -182,7 +334,7 @@ export interface WindowEditorResult {
 
     .we-ruler {
       position: relative;
-      height: 20px;
+      height: 16px;
       background: var(--app-surface);
       border-top: var(--app-border);
       overflow: hidden;
@@ -191,84 +343,247 @@ export interface WindowEditorResult {
 
     .we-ruler-mark {
       position: absolute;
-      top: 2px;
+      top: 1px;
       transform: translateX(-50%);
       font-size: 10px;
       color: var(--app-text-muted);
       white-space: nowrap;
     }
 
+    .we-ruler-mark:first-child {
+      transform: translateX(0);
+      padding-left: 2px;
+    }
+
+    .we-ruler-mark:last-child {
+      transform: translateX(-100%);
+      padding-right: 2px;
+    }
+
     .we-section {
-      padding: 12px 16px;
+      padding: 10px 14px;
       border-top: var(--app-border);
       background: var(--app-surface);
       flex-shrink: 0;
     }
 
-    .we-section--compact {
-      padding-top: 10px;
-      padding-bottom: 10px;
+    .we-info {
+      padding: 8px 12px;
     }
 
-    .we-duration {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      min-width: 120px;
-      justify-content: flex-end;
+    .we-info__grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(120px, max-content)) minmax(200px, 1fr);
+      gap: 8px;
+      align-items: stretch;
     }
 
-    .we-duration__label {
-      font-size: 10px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--app-text-muted);
+    @media (max-width: 880px) {
+      .we-info__grid {
+        grid-template-columns: repeat(2, minmax(120px, 1fr));
+      }
+      .we-card--volume {
+        grid-column: 1 / -1;
+      }
     }
 
-    .we-duration__value {
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--app-primary);
-      font-variant-numeric: tabular-nums;
-    }
-
-    .we-times {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-
-    .we-time-chip {
+    .we-card {
       display: flex;
       flex-direction: column;
       gap: 2px;
-      padding: 8px 10px;
-      border-radius: 10px;
-      background: var(--app-bg-soft);
-      min-width: 82px;
+      padding: 6px 10px 7px;
+      border: 1px solid var(--app-border-color-soft);
+      border-radius: var(--app-radius-md);
+      background: var(--app-surface-elevated);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
     }
 
-    .we-time-chip__label {
-      font-size: 10px;
+    .we-card__label {
+      font-size: 9px;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.06em;
       color: var(--app-text-muted);
     }
 
-    .we-time-chip__value {
-      font-size: 13px;
+    .we-card__row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 26px;
+    }
+
+    .we-card--volume .we-card__row {
+      gap: 8px;
+    }
+
+    .we-card__time-input {
+      flex: 0 0 auto;
+      width: 56px;
+      padding: 2px 4px;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--app-text);
+      background: var(--app-bg-soft);
+      border: 1px solid var(--app-border-color-soft);
+      border-radius: var(--app-radius-sm);
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+    }
+
+    .we-card__time-input:focus-visible {
+      outline: none;
+      border-color: var(--app-primary);
+      box-shadow: var(--app-focus-ring);
+    }
+
+    .we-card__time-display {
+      font-size: 15px;
       font-weight: 700;
       color: var(--app-text);
       font-variant-numeric: tabular-nums;
+      padding: 0 2px;
     }
 
-    .we-seek {
+    .we-card__nudge-group {
+      display: inline-flex;
+      gap: 3px;
+    }
+
+    .we-nudge {
+      width: 22px;
+      height: 22px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1;
+      color: var(--app-text);
+      background: var(--app-bg-soft);
+      border: 1px solid var(--app-border-color-soft);
+      border-radius: var(--app-radius-sm);
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s, color 0.12s;
+    }
+
+    .we-nudge:hover:not(:disabled) {
+      background: var(--app-primary-soft);
+      border-color: var(--app-primary);
+      color: var(--app-primary);
+    }
+
+    .we-nudge:focus-visible {
+      outline: none;
+      box-shadow: var(--app-focus-ring);
+    }
+
+    .we-nudge:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .we-transport {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      padding: 8px 14px;
+    }
+
+    .we-transport__actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .we-playback {
       display: flex;
       align-items: center;
       gap: 10px;
+      flex: 1;
+      min-width: 260px;
+    }
+
+    .we-playback__label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--app-text-muted);
+    }
+
+    .we-playback__time {
+      font-size: 12px;
+      color: var(--app-text-muted);
+      font-variant-numeric: tabular-nums;
+      min-width: 36px;
+      text-align: center;
+    }
+
+    .we-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      font: inherit;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      color: var(--app-text);
+      background: var(--app-surface-elevated);
+      border: 1px solid var(--app-border-color-soft);
+      border-radius: var(--app-radius-md);
+      cursor: pointer;
+      white-space: nowrap;
+      transition:
+        background 0.12s,
+        border-color 0.12s,
+        color 0.12s,
+        transform 0.12s,
+        box-shadow 0.12s;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+
+    .we-pill:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+
+    .we-pill:focus-visible {
+      outline: none;
+      box-shadow: var(--app-focus-ring);
+    }
+
+    .we-pill:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .we-pill--outline:hover:not(:disabled),
+    .we-pill--outline.we-pill--active {
+      background: var(--app-primary-soft);
+      border-color: var(--app-primary);
+      color: var(--app-primary);
+    }
+
+    .we-pill--danger {
+      background: var(--app-danger);
+      color: #fff;
+      border-color: var(--app-danger);
+    }
+
+    .we-pill--danger:hover:not(:disabled) {
+      background: #8a1414;
+      border-color: #8a1414;
+      color: #fff;
     }
 
     .we-seek__range {
@@ -311,14 +626,130 @@ export interface WindowEditorResult {
       text-align: center;
     }
 
-    .we-name-field {
+    .we-volume__icon {
+      color: var(--app-text-muted);
+      flex: 0 0 auto;
+    }
+
+    .we-volume__range {
       flex: 1;
-      min-width: 220px;
+      min-width: 0;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 5px;
+      border-radius: 3px;
+      border: none;
+      outline: none;
+      background: var(--app-border-color);
+    }
+
+    .we-volume__range::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      background: var(--app-primary);
+      border: 2px solid var(--app-surface);
+      box-shadow: 0 0 0 1px var(--app-primary);
+      cursor: pointer;
+    }
+
+    .we-volume__range::-moz-range-thumb {
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      background: var(--app-primary);
+      border: 2px solid var(--app-surface);
+      cursor: pointer;
+    }
+
+    .we-volume__value {
+      font-size: 11px;
+      color: var(--app-text-muted);
+      font-variant-numeric: tabular-nums;
+      min-width: 36px;
+      text-align: right;
     }
 
     .we-bottom {
       background: var(--app-bg-soft);
       margin-top: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 8px 14px 10px;
+    }
+
+    .we-bottom__name-block {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .we-bottom__name-label {
+      font-family: var(--app-font-heading);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--app-heading);
+    }
+
+    .we-bottom__name-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .we-bottom__name-input {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .we-bottom__apply {
+      flex: 0 0 auto;
+    }
+
+    .we-bottom__tip-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding-top: 8px;
+      border-top: 1px dashed var(--app-border-color-soft);
+    }
+
+    .we-tip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-style: italic;
+      color: var(--app-text-muted);
+    }
+
+    .we-tip strong {
+      font-style: normal;
+      font-weight: 700;
+      color: var(--app-text-muted);
+    }
+
+    .we-tip__icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--app-bg-muted);
+      color: var(--app-primary);
+      font-size: 12px;
+      font-weight: 700;
+      font-style: normal;
     }
   `],
 })
@@ -359,13 +790,18 @@ export class WindowEditorComponent implements OnChanges, OnDestroy {
   readonly fadeIn = signal(false);
   readonly fadeOut = signal(false);
   readonly streamComplete = signal(false);
+  readonly masterVolume = signal(0.5);
+  readonly volumePercent = computed(() => Math.round(this.masterVolume() * 100));
 
   readonly waveformReady = computed(
     () => this.waveformPeaks().length > 0 && this.durationS() > 0,
   );
 
   readonly canApply = computed(
-    () => this.regionFromS() < this.regionToS() && this.streamComplete(),
+    () =>
+      this.regionFromS() < this.regionToS() &&
+      this.streamComplete() &&
+      this.windowName().trim().length > 0,
   );
 
   readonly rulerMarks = computed(() => {
@@ -410,7 +846,7 @@ export class WindowEditorComponent implements OnChanges, OnDestroy {
       var(--app-border-color) ${loadedPct}%, var(--app-border-color) 100%)`;
   });
 
-  windowName = '';
+  readonly windowName = signal('');
 
   readonly tracker = new PlaybackPositionTracker(
     () => this.audioRef?.nativeElement ?? null,
@@ -492,6 +928,93 @@ export class WindowEditorComponent implements OnChanges, OnDestroy {
   onFadeOutChange(value: boolean): void {
     this.fadeOut.set(value);
     this.waveformCanvasRef?.drawWaveform();
+    this.cdr.markForCheck();
+  }
+
+  onFromTextChange(text: string): void {
+    const parsed = this.parseTimeText(text);
+    if (parsed === null) {
+      this.cdr.markForCheck();
+      return;
+    }
+    this.setRegionFrom(parsed);
+  }
+
+  onToTextChange(text: string): void {
+    const parsed = this.parseTimeText(text);
+    if (parsed === null) {
+      this.cdr.markForCheck();
+      return;
+    }
+    this.setRegionTo(parsed);
+  }
+
+  nudgeFrom(deltaSeconds: number): void {
+    this.setRegionFrom(this.regionFromS() + deltaSeconds);
+  }
+
+  nudgeTo(deltaSeconds: number): void {
+    this.setRegionTo(this.regionToS() + deltaSeconds);
+  }
+
+  private setRegionFrom(seconds: number): void {
+    const maxFrom = Math.max(0, this.regionToS() - 0.1);
+    const next = this.roundToTenth(Math.max(0, Math.min(maxFrom, seconds)));
+    this.regionFromS.set(next);
+
+    if (this.isPlaying() && this.playMode() === 'selection') {
+      this.syncPlaybackToSelectionBounds();
+    }
+
+    this.waveformCanvasRef?.drawWaveform();
+    this.cdr.markForCheck();
+  }
+
+  private setRegionTo(seconds: number): void {
+    const minTo = this.regionFromS() + 0.1;
+    const maxTo = this.durationS();
+    const next = this.roundToTenth(Math.max(minTo, Math.min(maxTo, seconds)));
+    this.regionToS.set(next);
+
+    if (this.isPlaying() && this.playMode() === 'selection') {
+      this.syncPlaybackToSelectionBounds();
+    }
+
+    this.waveformCanvasRef?.drawWaveform();
+    this.cdr.markForCheck();
+  }
+
+  private parseTimeText(text: string): number | null {
+    const trimmed = text.trim();
+    if (!trimmed) return null;
+
+    const colonMatch = /^(\d+):(\d{1,2}(?:\.\d+)?)$/.exec(trimmed);
+    if (colonMatch) {
+      const minutes = Number(colonMatch[1]);
+      const seconds = Number(colonMatch[2]);
+      if (!Number.isFinite(minutes) || !Number.isFinite(seconds) || seconds >= 60) {
+        return null;
+      }
+      return minutes * 60 + seconds;
+    }
+
+    const plainMatch = /^\d+(?:\.\d+)?$/.exec(trimmed);
+    if (plainMatch) {
+      return Number(trimmed);
+    }
+
+    return null;
+  }
+
+  onVolumeChange(value: string | number): void {
+    const numeric = Math.max(0, Math.min(100, Number(value)));
+    this.masterVolume.set(numeric / 100);
+
+    const audio = this.audioRef?.nativeElement;
+    if (audio && this.audioReady()) {
+      this.applyPreviewFadeVolume(audio.currentTime || 0);
+    }
+
     this.cdr.markForCheck();
   }
 
@@ -605,7 +1128,7 @@ togglePlayAll(): void {
     }
 
     this.apply.emit({
-      name: this.windowName.trim(),
+      name: this.windowName().trim(),
       positionFrom: this.regionFromS(),
       positionTo: this.regionToS(),
       fadeIn: this.fadeIn(),
@@ -643,7 +1166,7 @@ togglePlayAll(): void {
     return (
       initialFrom !== currentFrom ||
       initialTo !== currentTo ||
-      this.initialName().trim() !== this.windowName.trim() ||
+      this.initialName().trim() !== this.windowName().trim() ||
       this.initialFadeIn() !== this.fadeIn() ||
       this.initialFadeOut() !== this.fadeOut()
     );
@@ -781,7 +1304,7 @@ private startPlayback(fromS: number, toS: number, mode: 'full' | 'selection'): v
       const currentTime = audio.currentTime || 0;
       this.currentTimeS.set(currentTime);
       this.tracker.displayPositionS = currentTime;
-      audio.volume = 1;
+      audio.volume = this.masterVolume();
     }
 
     this.isPlaying.set(false);
@@ -808,7 +1331,7 @@ private startPlayback(fromS: number, toS: number, mode: 'full' | 'selection'): v
 
     if (audio) {
       audio.pause();
-      audio.volume = 1;
+      audio.volume = this.masterVolume();
     }
 
     this.isPlaying.set(false);
@@ -1059,7 +1582,7 @@ this.stream.onProgress = (_bytes, complete, seekableMaxS) => {
         this.tracker.setWindow(0, audio.duration);
       }
 
-      audio.volume = 1;
+      audio.volume = this.masterVolume();
       this.audioReady.set(true);
       this.loadingStream.set(false);
 
@@ -1144,7 +1667,7 @@ this.stream.onProgress = (_bytes, complete, seekableMaxS) => {
       this.audioListeners = [];
 
       audio.pause();
-      audio.volume = 1;
+      audio.volume = this.masterVolume();
       this.suppressNextError = true;
       audio.removeAttribute('src');
       audio.load();
@@ -1174,7 +1697,7 @@ this.stream.onProgress = (_bytes, complete, seekableMaxS) => {
       }
     }
 
-    this.windowName = this.initialName();
+    this.windowName.set(this.initialName());
     this.fadeIn.set(this.initialFadeIn());
     this.fadeOut.set(this.initialFadeOut());
   }
@@ -1227,7 +1750,7 @@ this.stream.onProgress = (_bytes, complete, seekableMaxS) => {
       applyFade(0, this.durationS());
     }
 
-    audio.volume = volume;
+    audio.volume = volume * this.masterVolume();
   }
 
   private getCurrentPlayableMaxS(): number {

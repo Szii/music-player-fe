@@ -44,3 +44,6 @@ Thumbs.db
 
 .env.local
 /spec/openapi.yaml
+
+.claude/
+CLAUDE.md

@@ -64,11 +64,6 @@ export interface WindowDeleteEvent {
           <button class="panel-modal__close" type="button" (click)="onClose()">✕</button>
         </div>
 
-        <div *ngIf="streamLoading || waveformLoading" class="panel-status">
-          <span class="panel-status__spinner"></span>
-          {{ streamLoading ? 'Starting stream…' : 'Loading waveform…' }}
-        </div>
-
         <div *ngIf="streamError || waveformError" class="panel-error">
           <span>{{ streamError || waveformError }}</span>
           <normal-button size="sm" variant="danger" (clicked)="retryStream()">
@@ -86,18 +81,7 @@ export interface WindowDeleteEvent {
             <div *ngIf="editorStreamComplete" class="panel-side__inner">
               <div class="panel-block__head">
                 <span class="panel-block__title">Existing windows</span>
-
-                <div class="panel-block__head-actions">
-                  <span class="panel-block__meta">{{ windows.length }}</span>
-
-                  <normal-button
-                    size="sm"
-                    variant="secondary"
-                    (clicked)="startCreateWindow()"
-                  >
-                    New window
-                  </normal-button>
-                </div>
+                <span class="panel-block__meta">{{ windows.length }}</span>
               </div>
 
               <div class="panel-side__content">
@@ -337,7 +321,6 @@ export interface WindowDeleteEvent {
       color: var(--app-danger);
     }
 
-    .panel-status,
     .panel-error {
       display: flex;
       align-items: center;
@@ -346,26 +329,8 @@ export interface WindowDeleteEvent {
       border-bottom: var(--app-border);
       flex-shrink: 0;
       font-size: 0.95rem;
-    }
-
-    .panel-status {
-      color: var(--app-text-muted);
-      background: rgba(239, 231, 216, 0.28);
-    }
-
-    .panel-error {
       color: var(--app-danger);
       background: rgba(247, 222, 222, 0.22);
-    }
-
-    .panel-status__spinner {
-      display: inline-block;
-      width: 14px;
-      height: 14px;
-      border: 2px solid var(--app-border-color);
-      border-top-color: var(--app-primary);
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
     }
 
     @keyframes spin {
@@ -445,7 +410,7 @@ export interface WindowDeleteEvent {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      padding-right: 4px;
+      padding: 4px 6px 4px 2px;
     }
 
     .panel-window-item {
@@ -468,14 +433,18 @@ export interface WindowDeleteEvent {
 
     .panel-window-item:hover:not(:disabled) {
       border-color: var(--app-primary);
-      background: rgba(239, 231, 216, 0.22);
-      transform: translateY(-1px);
+      background: var(--app-bg-soft);
     }
 
-    .panel-window-item--selected {
+    .panel-window-item--selected,
+    .panel-window-item--selected:hover:not(:disabled) {
       border-color: var(--app-primary);
       background: var(--app-primary-soft);
-      box-shadow: 0 0 0 1px rgba(122, 92, 46, 0.08);
+      box-shadow: inset 0 0 0 1px rgba(122, 92, 46, 0.22);
+    }
+
+    .panel-window-item--selected:hover:not(:disabled) {
+      box-shadow: inset 0 0 0 1px rgba(122, 92, 46, 0.35);
     }
 
     .panel-window-item--disabled,
@@ -572,7 +541,7 @@ export interface WindowDeleteEvent {
       background: var(--app-surface);
       display: flex;
       flex-direction: column;
-      padding: 20px;
+      padding: 12px;
     }
 
     .panel-editor {
@@ -596,7 +565,7 @@ export interface WindowDeleteEvent {
       align-items: center;
       justify-content: space-between;
       gap: 10px;
-      padding: 16px 18px;
+      padding: 10px 14px;
       border-bottom: var(--app-border);
       background: var(--app-bg-soft);
       flex-shrink: 0;
@@ -624,12 +593,6 @@ export interface WindowDeleteEvent {
       justify-content: space-between;
       gap: 10px;
       flex-shrink: 0;
-    }
-
-    .panel-block__head-actions {
-      display: flex;
-      align-items: center;
-      gap: 10px;
     }
 
     .panel-block__title {
@@ -691,7 +654,6 @@ export interface WindowDeleteEvent {
         font-size: 1.65rem;
       }
 
-      .panel-status,
       .panel-error {
         padding-left: 18px;
         padding-right: 18px;
