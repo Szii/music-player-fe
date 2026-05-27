@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { UsersService } from '../../../../api/generated';
@@ -38,7 +39,7 @@ type VerifyState =
               {{ errorMessage() }}
             </p>
             <div class="verify-page__link">
-              <a routerLink="/register">Back to register</a>
+              <a routerLink="/login">Go to login</a>
             </div>
           }
         }
@@ -85,11 +86,16 @@ export class VerifyEmailPageComponent implements OnInit {
         next: () => this.state.set({ status: 'success' }),
         error: (err: unknown) => {
           console.error(err);
-          this.state.set({
-            status: 'error',
-            message: 'Verification failed. The link may be invalid or expired.',
-          });
+          this.state.set({ status: 'error', message: this.mapError(err) });
         },
       });
+  }
+
+  private mapError(err: unknown): string {
+    if (err instanceof HttpErrorResponse) {
+      if (err.status === 401) return 'This verification link is invalid or has expired.';
+      if (err.status === 404) return 'We could not find an account for this link.';
+    }
+    return 'Verification failed. Please try again.';
   }
 }
