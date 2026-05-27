@@ -1,7 +1,6 @@
-import { Component, DestroyRef, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -15,9 +14,7 @@ import { ToastService } from '../../../../shared/features/toast/toast.service';
 
 @Component({
   selector: 'app-register-page',
-  standalone: true,
   imports: [
-    CommonModule,
     ReactiveFormsModule,
     RouterLink,
     UiCardComponent,
@@ -26,38 +23,57 @@ import { ToastService } from '../../../../shared/features/toast/toast.service';
     UiFormActionsComponent,
     NormalButtonComponent,
   ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="app-page app-page--narrow">
       <ui-card title="Register">
-        <form [formGroup]="form" (ngSubmit)="onSubmit()">
-          <ui-form-field
-            label="Username"
-            [error]="form.controls.name.touched && form.controls.name.invalid ? 'Username is required.' : ''"
-          >
-            <ui-text-input formControlName="name" />
-          </ui-form-field>
+        @if (submittedEmail(); as email) {
+          <p class="auth-page__notice">
+            We sent a verification link to <strong>{{ email }}</strong>. Click the link
+            in the email to activate your account, then sign in.
+          </p>
 
-          <ui-form-field
-            label="Password"
-            [error]="form.controls.password.touched && form.controls.password.invalid ? 'Password must be at least 6 characters.' : ''"
-          >
-            <ui-text-input formControlName="password" type="password" />
-          </ui-form-field>
-
-          <ui-form-actions>
-            <normal-button
-              type="submit"
-              [disabled]="form.invalid || isSubmitting()"
-              [loading]="isSubmitting()"
+          <div class="auth-page__link">
+            <a routerLink="/login">Back to login</a>
+          </div>
+        } @else {
+          <form [formGroup]="form" (ngSubmit)="onSubmit()">
+            <ui-form-field
+              label="Username"
+              [error]="form.controls.name.touched && form.controls.name.invalid ? 'Username is required.' : ''"
             >
-              {{ isSubmitting() ? 'Creating account...' : 'Create account' }}
-            </normal-button>
-          </ui-form-actions>
-        </form>
+              <ui-text-input formControlName="name" />
+            </ui-form-field>
 
-        <div class="auth-page__link">
-          <a routerLink="/login">Already have an account? Login</a>
-        </div>
+            <ui-form-field
+              label="Email"
+              [error]="emailError()"
+            >
+              <ui-text-input formControlName="email" type="email" />
+            </ui-form-field>
+
+            <ui-form-field
+              label="Password"
+              [error]="form.controls.password.touched && form.controls.password.invalid ? 'Password must be at least 6 characters.' : ''"
+            >
+              <ui-text-input formControlName="password" type="password" />
+            </ui-form-field>
+
+            <ui-form-actions>
+              <normal-button
+                type="submit"
+                [disabled]="form.invalid || isSubmitting()"
+                [loading]="isSubmitting()"
+              >
+                {{ isSubmitting() ? 'Creating account...' : 'Create account' }}
+              </normal-button>
+            </ui-form-actions>
+          </form>
+
+          <div class="auth-page__link">
+            <a routerLink="/login">Already have an account? Login</a>
+          </div>
+        }
       </ui-card>
     </div>
   `,
@@ -65,21 +81,34 @@ import { ToastService } from '../../../../shared/features/toast/toast.service';
     .auth-page__link {
       margin-top: 1rem;
     }
+    .auth-page__notice {
+      margin: 0 0 1rem;
+      line-height: 1.5;
+    }
   `],
 })
 export class RegisterPageComponent {
   private readonly fb = inject(FormBuilder);
   private readonly usersApi = inject(UsersService);
-  private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly isSubmitting = signal(false);
+  readonly submittedEmail = signal<string | null>(null);
 
   readonly form = this.fb.nonNullable.group({
     name: ['', [Validators.required]],
+    email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required, Validators.minLength(6)]],
   });
+
+  emailError(): string {
+    const control = this.form.controls.email;
+    if (!control.touched || control.valid) return '';
+    if (control.hasError('required')) return 'Email is required.';
+    if (control.hasError('email')) return 'Enter a valid email address.';
+    return '';
+  }
 
   onSubmit(): void {
     this.form.markAllAsTouched();
@@ -89,6 +118,7 @@ export class RegisterPageComponent {
 
     const body: UserRegisterRequest = {
       name: this.form.controls.name.getRawValue(),
+      email: this.form.controls.email.getRawValue(),
       password: this.form.controls.password.getRawValue(),
     };
 
@@ -99,8 +129,8 @@ export class RegisterPageComponent {
       )
       .subscribe({
         next: () => {
-          this.toast.success('Account created.');
-          void this.router.navigateByUrl('/login');
+          this.toast.success('Account created. Check your email to verify.');
+          this.submittedEmail.set(body.email);
         },
         error: (err: unknown) => {
           console.error(err);
