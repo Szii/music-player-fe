@@ -2,14 +2,13 @@ import { HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { SessionService } from './session.service';
 
+const AUTH_ENDPOINT_MARKER = '/auth/';
+
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const session = inject(SessionService);
   const token = session.getToken();
 
-  console.log('authInterceptor -> url:', req.url);
-  console.log('authInterceptor -> token:', token);
-
-  if (!token) {
+  if (!token || req.url.includes(AUTH_ENDPOINT_MARKER)) {
     return next(req);
   }
 
