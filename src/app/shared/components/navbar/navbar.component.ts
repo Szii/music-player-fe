@@ -1,14 +1,14 @@
-import { Component, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
+
 import { SessionService } from '../../../core/auth/session.service';
-import { NormalButtonComponent } from '../../../shared/ui/buttons/normal-button.component';
 import { BoardPlaybackService } from '../../../core/services/board-playback.service';
+import { UserMenuComponent } from '../user-menu/user-menu.component';
 
 @Component({
   selector: 'app-navbar',
-  standalone: true,
-  imports: [CommonModule, RouterLink, RouterLinkActive, NormalButtonComponent],
+  imports: [RouterLink, RouterLinkActive, UserMenuComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <nav class="app-navbar">
       <div class="app-navbar__inner">
@@ -56,7 +56,9 @@ import { BoardPlaybackService } from '../../../core/services/board-playback.serv
               (click)="closeMenu()"
             >
               Boards
-              <span *ngIf="boardPlayback.isAnyPlaying()" class="app-navbar__playing-dot" aria-label="Playing"></span>
+              @if (boardPlayback.isAnyPlaying()) {
+                <span class="app-navbar__playing-dot" aria-label="Playing"></span>
+              }
             </a>
 
             <a
@@ -79,14 +81,7 @@ import { BoardPlaybackService } from '../../../core/services/board-playback.serv
           </div>
 
           <div class="app-navbar__actions">
-            <normal-button
-              type="button"
-              variant="navbar"
-              size="sm"
-              (clicked)="logout()"
-            >
-              Log off
-            </normal-button>
+            <app-user-menu (logout)="logout()" />
           </div>
         </div>
       </div>
