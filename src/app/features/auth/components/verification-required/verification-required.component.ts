@@ -79,7 +79,7 @@ type ChangeStatus = 'idle' | 'submitting' | 'already-registered' | 'wrong-creden
 
     @if (showChangeEmail()) {
       <form
-        class="verify-required__change-form"
+        class="verify-required__change-form app-form-stack"
         [formGroup]="changeForm"
         (ngSubmit)="onChangeEmail()"
       >

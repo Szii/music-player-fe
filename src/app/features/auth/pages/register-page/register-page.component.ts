@@ -7,6 +7,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { UsersService, UserRegisterRequest } from '../../../../api/generated';
 import { AuthCredentialsStore } from '../../../../core/auth/auth-credentials.store';
+import { matchPasswords } from '../../utils/match-passwords.validator';
 import { UiCardComponent } from '../../../../shared/ui/card/ui-card.component';
 import { UiFormFieldComponent } from '../../../../shared/ui/form-field/ui-form-field.component';
 import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-input.component';
@@ -34,7 +35,7 @@ import { VerificationRequiredComponent } from '../../components/verification-req
         @if (registered()) {
           <app-verification-required (cancel)="onGoToLogin()" />
         } @else {
-          <form [formGroup]="form" (ngSubmit)="onSubmit()">
+          <form class="app-form-stack" [formGroup]="form" (ngSubmit)="onSubmit()">
             <ui-form-field
               label="Username"
               [error]="nameError()"
@@ -54,6 +55,13 @@ import { VerificationRequiredComponent } from '../../components/verification-req
               [error]="passwordError()"
             >
               <ui-text-input formControlName="password" type="password" />
+            </ui-form-field>
+
+            <ui-form-field
+              label="Confirm password"
+              [error]="confirmError()"
+            >
+              <ui-text-input formControlName="confirm" type="password" />
             </ui-form-field>
 
             <ui-form-actions>
@@ -96,7 +104,8 @@ export class RegisterPageComponent implements OnDestroy {
     name: ['', [Validators.required]],
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required, Validators.minLength(6)]],
-  });
+    confirm: ['', [Validators.required]],
+  }, { validators: [matchPasswords()] });
 
   nameError(): string {
     const control = this.form.controls.name;
@@ -116,6 +125,17 @@ export class RegisterPageComponent implements OnDestroy {
     const control = this.form.controls.password;
     if (!this.shouldShowError(control)) return '';
     return 'Password must be at least 6 characters.';
+  }
+
+  confirmError(): string {
+    const control = this.form.controls.confirm;
+    const showControlError = this.shouldShowError(control);
+    if (showControlError && control.hasError('required')) return 'Please confirm your password.';
+
+    const showMismatch = this.form.hasError('passwordMismatch')
+      && (this.submitted() || (control.touched && control.dirty));
+    if (showMismatch) return 'Passwords do not match.';
+    return '';
   }
 
   private shouldShowError(control: { invalid: boolean; touched: boolean; dirty: boolean }): boolean {
