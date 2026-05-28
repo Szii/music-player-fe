@@ -35,7 +35,7 @@ import { VerificationRequiredComponent } from '../../components/verification-req
         @if (needsVerification()) {
           <app-verification-required (cancel)="onBackToLogin()" />
         } @else {
-          <form [formGroup]="form" (ngSubmit)="onSubmit()">
+          <form class="app-form-stack" [formGroup]="form" (ngSubmit)="onSubmit()">
             <ui-form-field
               label="Username"
               [error]="nameError()"
@@ -60,6 +60,10 @@ import { VerificationRequiredComponent } from '../../components/verification-req
               </normal-button>
             </ui-form-actions>
           </form>
+
+          <div class="auth-page__link">
+            <a routerLink="/forgot-password">Forgot password?</a>
+          </div>
 
           <div class="auth-page__link">
             <a routerLink="/register">Need an account? Register</a>

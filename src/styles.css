@@ -308,6 +308,15 @@ select.app-input option:hover {
   flex-wrap: wrap;
 }
 
+/* Vertical rhythm for forms — applied to <form> wrappers that hold
+   ui-form-field / ui-form-actions children. Owns spacing so children
+   stay layout-neutral. */
+.app-form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
 .app-row-active td {
   background: #f0e3c0 !important;
 }

@@ -1,7 +1,7 @@
 {
   "name": "music-player-fe",
   "version": "0.0.0",
-  "backendApiVersion": "v1.10.4",
+  "backendApiVersion": "v1.11.0",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
