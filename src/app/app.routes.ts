@@ -75,6 +75,12 @@ export const routes: Routes = [
             .then(m => m.WorkshopPageComponent),
       },
       {
+        path: 'profile',
+        loadComponent: () =>
+          import('./features/profile/pages/profile-page/profile-page.component')
+            .then(m => m.ProfilePageComponent),
+      },
+      {
         path: '**',
         redirectTo: 'home',
       },
