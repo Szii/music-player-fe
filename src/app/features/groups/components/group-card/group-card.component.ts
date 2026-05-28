@@ -89,19 +89,18 @@ export interface RenameEvent {
         />
       </div>
 
-      <div dialog-footer>
-        <normal-button type="button" variant="secondary" (clicked)="closeRename()">
-          Cancel
-        </normal-button>
+      <normal-button dialog-footer type="button" variant="secondary" (clicked)="closeRename()">
+        Cancel
+      </normal-button>
 
-        <normal-button
-          type="button"
-          [disabled]="!editingName.trim()"
-          (clicked)="confirmRename()"
-        >
-          Save
-        </normal-button>
-      </div>
+      <normal-button
+        dialog-footer
+        type="button"
+        [disabled]="!editingName.trim()"
+        (clicked)="confirmRename()"
+      >
+        Save
+      </normal-button>
     </ui-dialog-shell>
   `,
   styles: [`
