@@ -116,23 +116,23 @@ type TrackFilterMode = 'all' | 'selected';
         </div>
       </div>
 
-      <div dialog-footer>
-        <normal-button
-          type="button"
-          variant="secondary"
-          (clicked)="cancel.emit()"
-        >
-          Cancel
-        </normal-button>
+      <normal-button
+        dialog-footer
+        type="button"
+        variant="secondary"
+        (clicked)="cancel.emit()"
+      >
+        Cancel
+      </normal-button>
 
-        <normal-button
-          type="button"
-          [disabled]="saving"
-          (clicked)="onSave()"
-        >
-          {{ saving ? 'Saving…' : 'Save tracks' }}
-        </normal-button>
-      </div>
+      <normal-button
+        dialog-footer
+        type="button"
+        [disabled]="saving"
+        (clicked)="onSave()"
+      >
+        {{ saving ? 'Saving…' : 'Save tracks' }}
+      </normal-button>
     </ui-dialog-shell>
   `,
   styles: [`
