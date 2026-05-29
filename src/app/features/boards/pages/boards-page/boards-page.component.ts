@@ -679,6 +679,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       boardId,
       boardUpdateRequest: this.baseUpdate(board, {
         selectedTrackId: trackId ?? undefined,
+        selectedWindowId: windowId ?? undefined,
       }),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -749,9 +750,25 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   onWindowSelectionChange(board: Board, windowId: number | null): void {
     if (board.id == null) return;
 
-    this.selectedWindowByBoard.set(board.id, windowId);
+    const boardId = board.id;
+    this.selectedWindowByBoard.set(boardId, windowId);
 
-    if (this.isBoardActive(board.id)) {
+    this.boardsApi.updateUserBoard({
+      boardId,
+      boardUpdateRequest: this.baseUpdate(board, {
+        selectedWindowId: windowId ?? undefined,
+      }),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: updated => this.upsertBoard(updated),
+        error: (err: unknown) => {
+          console.error(err);
+          this.toast.error('Updating window failed.');
+        },
+      });
+
+    if (this.isBoardActive(boardId)) {
       this.playBoardTrack(board);
     }
   }
@@ -1217,6 +1234,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     });
 
     this.syncPersistedVolume(normalizedBoard);
+    this.syncSelectedWindow(normalizedBoard);
   }
 
   private replaceBoard(boards: Board[], board: Board): Board[] {
@@ -1247,6 +1265,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     for (const board of boards) {
       this.ensureBoardStatus(board);
       this.syncPersistedVolume(board);
+      this.syncSelectedWindow(board);
     }
   }
 
@@ -1292,6 +1311,12 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   private syncPersistedVolume(board: Board): void {
     if (board.id != null) {
       this.persistedVolumesByBoard.set(board.id, clampPct(board.volume));
+    }
+  }
+
+  private syncSelectedWindow(board: Board): void {
+    if (board.id != null) {
+      this.selectedWindowByBoard.set(board.id, board.selectedWindow?.id ?? null);
     }
   }
 
