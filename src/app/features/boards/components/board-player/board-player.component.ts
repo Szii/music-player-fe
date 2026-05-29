@@ -16,6 +16,7 @@ import { CommonModule } from '@angular/common';
 import { combineLatest, distinctUntilChanged, skip } from 'rxjs';
 import { BoardPlayerAudioSourceManager } from '../../../../shared/features/audio-stream-manager/board-audio-stream-manager';
 import { PlayerControlsComponent } from '../player-controls/player-controls.component';
+import { LoopBlendKind, LoopBlendService } from './loop-blend.service';
 
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 type AudioSlot = 'A' | 'B';
@@ -86,12 +87,13 @@ interface SlotFadePolicy {
 export class BoardPlayerComponent implements OnInit, OnDestroy {
   private static readonly WINDOW_FADE_DURATION_S = 3;
   private static readonly SWITCH_CROSSFADE_MS = 2000;
-  private static readonly LOOP_CROSSFADE_MS = 2000;
-  private static readonly LOOP_PREPARE_LEAD_MS = 2500;
+  private static readonly LOOP_CROSSFADE_MS = 3000;
+  private static readonly LOOP_PREPARE_LEAD_MS = 3000;
   private static readonly PLAYLIST_PRELOAD_LEAD_MS = 3000;
 
   private readonly zone = inject(NgZone);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly loopBlend = inject(LoopBlendService);
 
   readonly title = input('');
   readonly hasTrack = input(false);
@@ -581,8 +583,14 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
         return;
       }
 
-      this.getStream(fromSlot).abort();
-
+      // Keep the previous stream alive until the crossfade finishes.
+      // Aborting it here can make the outgoing track stop or underrun before
+      // the scheduled gain ramp reaches zero, which sounds like an abrupt fade.
+      // Also suppress the selected-window fade-out on the outgoing slot while
+      // switching. Otherwise the normal window envelope and the switch ramp can
+      // stack together, making the old track disappear before the new one is
+      // fully blended in.
+      this.patchFadePolicy(fromSlot, { suppressFadeOut: true });
       this.patchFadePolicy(toSlot, { suppressFadeIn: true });
 
       this.setGain(toSlot, 0);
@@ -621,6 +629,7 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
         fromSlot,
         toSlot,
         BoardPlayerComponent.SWITCH_CROSSFADE_MS,
+        'switch',
       );
 
       if (seq !== this.switchSequence) return;
@@ -777,6 +786,7 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
     fromSlot: AudioSlot,
     toSlot: AudioSlot,
     durationMs: number,
+    blendKind: LoopBlendKind = 'switch',
   ): Promise<void> {
     this.cancelRamp();
 
@@ -805,15 +815,10 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
     const now = ctx.currentTime;
     const durationS = durationMs / 1000;
 
-    // exponencial crossfade - black magic, do not touch
-    const steps = 64;
-    const fromCurve = new Float32Array(steps);
-    const toCurve = new Float32Array(steps);
-    for (let i = 0; i < steps; i++) {
-      const t = i / (steps - 1);
-      fromCurve[i] = Math.cos((t * Math.PI) / 2);
-      toCurve[i] = Math.sin((t * Math.PI) / 2);
-    }
+    const { fromCurve, toCurve } = this.loopBlend.buildGainCurves({
+      kind: blendKind,
+      steps: 96,
+    });
 
     try {
       fromNode.gain.cancelScheduledValues(now);
@@ -951,7 +956,7 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
 
       if (hardRejected || seq !== this.switchSequence) return;
 
-      await this.crossfadeSlots(fromSlot, toSlot, loopCrossfadeMs);
+      await this.crossfadeSlots(fromSlot, toSlot, loopCrossfadeMs, 'loop');
 
       if (seq !== this.switchSequence) return;
 
