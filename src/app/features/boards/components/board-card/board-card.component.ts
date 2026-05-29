@@ -3,7 +3,6 @@ import {
   Component,
   DestroyRef,
   ElementRef,
-  HostListener,
   OnInit,
   ViewChild,
   computed,
@@ -36,6 +35,9 @@ export interface PlaylistOptions {
     IconButtonComponent,
     UiSelectComponent,
   ],
+  host: {
+    '(document:click)': 'onDocumentClick($event)',
+  },
   template: `
     <div
       class="board-card"
@@ -297,9 +299,20 @@ export interface PlaylistOptions {
 
             <div class="board-card__controls">
               <div class="board-field">
-                <span class="board-field__label">Group</span>
+                <span class="board-field__label">
+                  Group
+                  @if (groupDesynced()) {
+                    <span
+                      class="board-field__desync"
+                      role="img"
+                      title="Selected group does not match the playing track — pick a track to switch"
+                      aria-label="Group out of sync with playing track"
+                    >⚠</span>
+                  }
+                </span>
                 <ui-select
                   class="board-control"
+                  [class.board-control--desynced]="groupDesynced()"
                   [options]="groupOptions()"
                   nullOption="All tracks"
                   [ngModel]="board().selectedGroup?.id ?? null"
@@ -315,9 +328,10 @@ export interface PlaylistOptions {
                     class="board-control"
                     [options]="trackOptions()"
                     nullOption="No track"
-                    [ngModel]="board().selectedTrack?.id ?? null"
+                    [ngModel]="displayedTrack()?.id ?? null"
                     [ngModelOptions]="{ standalone: true }"
                     (ngModelChange)="trackChange.emit($event)"
+                    (subOptionSelected)="trackWithWindowChange.emit($event.sub.value)"
                   />
                 </ng-container>
                 <ng-template #nowPlayingTpl>
@@ -983,12 +997,32 @@ export interface PlaylistOptions {
     }
 
     .board-field__label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       font-family: var(--app-font-heading);
       font-size: 10px;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.07em;
       color: var(--app-heading);
+    }
+
+    .board-field__desync {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 14px;
+      height: 14px;
+      font-size: 11px;
+      line-height: 1;
+      color: var(--app-warning, #9e6e10);
+      cursor: help;
+    }
+
+    .board-control--desynced {
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-warning, #9e6e10) 55%, transparent);
+      border-radius: var(--app-radius-sm);
     }
 
     .board-control {
@@ -1112,6 +1146,7 @@ export class BoardCardComponent implements OnInit {
   readonly groupChange = output<number | null>();
   readonly trackChange = output<number | null>();
   readonly windowChange = output<number | null>();
+  readonly trackWithWindowChange = output<{ trackId: number | null; windowId: number | null }>();
   readonly toggleRepeat = output<void>();
   readonly toggleOverplay = output<void>();
   readonly play = output<void>();
@@ -1147,12 +1182,30 @@ export class BoardCardComponent implements OnInit {
   private previousPlaylistMode: boolean | undefined;
   private previousSelectedGroupId: number | null | undefined;
 
-  readonly windows = computed(() => this.board().selectedTrack?.trackWindows ?? []);
+  readonly displayedTrack = computed(() => {
+    const selected = this.board().selectedTrack;
+    if (!selected) return null;
+    const tracks = this.board().availableTracks ?? [];
+    return tracks.some(t => t.id === selected.id) ? selected : null;
+  });
+
+  readonly groupDesynced = computed(() => {
+    const board = this.board();
+    if (!board.selectedTrack || !board.selectedGroup) return false;
+    const tracks = board.availableTracks ?? [];
+    return !tracks.some(t => t.id === board.selectedTrack?.id);
+  });
+
+  private readonly playingTrackWindows = computed(
+    () => this.board().selectedTrack?.trackWindows ?? [],
+  );
+
+  readonly windows = computed(() => this.displayedTrack()?.trackWindows ?? []);
 
   readonly selectedWindow = computed(() => {
     const id = this.selectedWindowId();
     if (id == null) return null;
-    return this.windows().find(w => (w as any).id === id) ?? null;
+    return this.playingTrackWindows().find(w => (w as any).id === id) ?? null;
   });
 
   readonly selectedWindowStart = computed(() =>
@@ -1219,10 +1272,27 @@ export class BoardCardComponent implements OnInit {
   );
 
   readonly trackOptions = computed(() =>
-    (this.board().availableTracks ?? []).map(t => ({
-      label: t.trackName || t.trackOriginalName || ('Track #' + t.id),
-      value: t.id,
-    })),
+    (this.board().availableTracks ?? []).map(t => {
+      const trackWindows = t.trackWindows ?? [];
+      const subOptions = trackWindows.length > 0
+        ? [
+            {
+              label: 'Whole track',
+              value: { trackId: t.id ?? null, windowId: null },
+            },
+            ...trackWindows.map(w => ({
+              label: `${(w as any).name || 'Window'} (${this.formatTime((w as any).positionFrom ?? 0)}–${this.formatTime((w as any).positionTo ?? 0)})`,
+              value: { trackId: t.id ?? null, windowId: (w as any).id ?? null },
+            })),
+          ]
+        : undefined;
+
+      return {
+        label: t.trackName || t.trackOriginalName || ('Track #' + t.id),
+        value: t.id,
+        subOptions,
+      };
+    }),
   );
 
   readonly windowOptions = computed(() =>
@@ -1387,7 +1457,6 @@ export class BoardCardComponent implements OnInit {
     this.shortcutsService.resumeTriggers();
   }
 
-  @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
     if (!(event.target instanceof Node)) return;
     if (!this.elementRef.nativeElement.contains(event.target)) {

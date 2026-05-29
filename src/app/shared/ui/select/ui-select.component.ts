@@ -2,11 +2,11 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
-  HostListener,
   ViewChild,
   computed,
   forwardRef,
   input,
+  output,
   signal,
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
@@ -15,6 +15,12 @@ import { CommonModule } from '@angular/common';
 export interface UiSelectOption {
   label: string;
   value: any;
+  subOptions?: UiSelectOption[];
+}
+
+export interface UiSelectSubOptionEvent {
+  parent: UiSelectOption;
+  sub: UiSelectOption;
 }
 
 interface PanelRect {
@@ -90,22 +96,51 @@ interface PanelRect {
         </div>
 
         <div class="sel__options" role="listbox">
-          <button
+          <div
             *ngFor="let opt of filteredOptions()"
-            type="button"
-            class="sel__option"
-            [class.sel__option--selected]="currentValue() === opt.value"
-            role="option"
-            [attr.aria-selected]="currentValue() === opt.value"
-            (click)="selectOption(opt)"
+            class="sel__option-wrap"
+            (mouseenter)="onOptionHover(opt, $event)"
+            (mouseleave)="onOptionUnhover()"
           >
-            <span class="sel__option-label">{{ opt.label }}</span>
-            <span
-              *ngIf="currentValue() === opt.value"
-              class="sel__option-check"
-              aria-hidden="true"
-            >✓</span>
-          </button>
+            <button
+              type="button"
+              class="sel__option"
+              [class.sel__option--selected]="currentValue() === opt.value"
+              [class.sel__option--has-sub]="(opt.subOptions?.length ?? 0) > 0"
+              role="option"
+              [attr.aria-selected]="currentValue() === opt.value"
+              (click)="selectOption(opt)"
+            >
+              <span class="sel__option-label">{{ opt.label }}</span>
+              <span
+                *ngIf="(opt.subOptions?.length ?? 0) > 0"
+                class="sel__option-arrow"
+                aria-hidden="true"
+              >▸</span>
+              <span
+                *ngIf="currentValue() === opt.value"
+                class="sel__option-check"
+                aria-hidden="true"
+              >✓</span>
+            </button>
+
+            <div
+              *ngIf="hoveredOptionValue() === opt.value && (opt.subOptions?.length ?? 0) > 0"
+              class="sel__flyout"
+              [ngStyle]="flyoutStyle()"
+              (mouseenter)="onFlyoutHover()"
+              (mouseleave)="onFlyoutUnhover()"
+            >
+              <button
+                *ngFor="let sub of opt.subOptions"
+                type="button"
+                class="sel__flyout-option"
+                (click)="selectSubOption(opt, sub)"
+              >
+                {{ sub.label }}
+              </button>
+            </div>
+          </div>
 
           <div *ngIf="filteredOptions().length === 0" class="sel__no-match">
             No matches
@@ -294,6 +329,62 @@ interface PanelRect {
       white-space: nowrap;
     }
 
+    .sel__option-wrap {
+      position: relative;
+    }
+
+    .sel__option-arrow {
+      flex-shrink: 0;
+      color: var(--app-text-muted);
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    .sel__option--has-sub:hover .sel__option-arrow,
+    .sel__option--has-sub:focus-visible .sel__option-arrow {
+      color: var(--app-primary);
+    }
+
+    .sel__flyout {
+      z-index: 10000;
+      min-width: 200px;
+      width: 220px;
+      max-width: 320px;
+      overflow-y: auto;
+      border: 1px solid var(--app-border-color-soft);
+      border-radius: var(--app-radius-md);
+      background: #faf4e4;
+      box-shadow:
+        0 8px 28px rgba(15, 8, 3, 0.24),
+        0 2px 8px rgba(15, 8, 3, 0.14);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sel__flyout-option {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      padding: 9px 12px;
+      border: none;
+      background: transparent;
+      color: var(--app-text);
+      font-size: 14px;
+      text-align: left;
+      cursor: pointer;
+      border-bottom: 1px solid rgba(158, 98, 53, 0.12);
+      transition: background 0.1s, color 0.1s;
+    }
+
+    .sel__flyout-option:last-child {
+      border-bottom: none;
+    }
+
+    .sel__flyout-option:hover {
+      background: var(--app-primary-soft);
+      color: var(--app-heading);
+    }
+
     .sel__option-check {
       flex-shrink: 0;
       color: var(--app-primary);
@@ -308,12 +399,35 @@ interface PanelRect {
       font-style: italic;
     }
   `],
+  host: {
+    '(keydown)': 'onKeydown($event)',
+    '(document:click)': 'onDocumentClick($event)',
+    '(window:scroll)': 'onScroll()',
+    '(window:resize)': 'onResize()',
+  },
 })
 export class UiSelectComponent implements ControlValueAccessor {
   readonly options = input<UiSelectOption[]>([]);
   readonly nullOption = input<string | undefined>(undefined);
   readonly placeholder = input('Select…');
   readonly enableSearch = input(true);
+
+  readonly subOptionSelected = output<UiSelectSubOptionEvent>();
+
+  readonly hoveredOptionValue = signal<any>(null);
+  readonly flyoutRect = signal<{ top: number; left: number; maxHeight: number } | null>(null);
+  private flyoutCloseTimer: ReturnType<typeof setTimeout> | null = null;
+
+  readonly flyoutStyle = computed(() => {
+    const r = this.flyoutRect();
+    if (!r) return { display: 'none' };
+    return {
+      position: 'fixed',
+      top: `${r.top}px`,
+      left: `${r.left}px`,
+      'max-height': `${r.maxHeight}px`,
+    };
+  });
 
   readonly isOpen = signal(false);
   readonly currentValue = signal<any>(null);
@@ -400,6 +514,8 @@ export class UiSelectComponent implements ControlValueAccessor {
       }
     } else {
       this.isOpen.set(false);
+      this.clearFlyoutTimer();
+      this.hoveredOptionValue.set(null);
     }
 
     this.onTouched();
@@ -411,6 +527,71 @@ export class UiSelectComponent implements ControlValueAccessor {
     this.onTouched();
     this.isOpen.set(false);
     this.searchQuery.set('');
+    this.clearFlyoutTimer();
+    this.hoveredOptionValue.set(null);
+  }
+
+  selectSubOption(parent: UiSelectOption, sub: UiSelectOption): void {
+    this.onTouched();
+    this.isOpen.set(false);
+    this.searchQuery.set('');
+    this.clearFlyoutTimer();
+    this.hoveredOptionValue.set(null);
+    this.subOptionSelected.emit({ parent, sub });
+  }
+
+  onOptionHover(opt: UiSelectOption, event: MouseEvent): void {
+    this.clearFlyoutTimer();
+    if ((opt.subOptions?.length ?? 0) === 0) {
+      this.hoveredOptionValue.set(null);
+      this.flyoutRect.set(null);
+      return;
+    }
+
+    const target = event.currentTarget as HTMLElement | null;
+    if (target) {
+      const r = target.getBoundingClientRect();
+      const vh = window.innerHeight;
+      const vw = window.innerWidth;
+      const GAP = 4;
+      const desiredLeft = r.right + GAP;
+      const FLYOUT_WIDTH = 220;
+      const left = desiredLeft + FLYOUT_WIDTH > vw
+        ? Math.max(8, r.left - FLYOUT_WIDTH - GAP)
+        : desiredLeft;
+      const top = Math.min(r.top, vh - 80);
+      const maxHeight = Math.max(80, vh - top - 16);
+      this.flyoutRect.set({ top, left, maxHeight });
+    }
+
+    this.hoveredOptionValue.set(opt.value);
+  }
+
+  onOptionUnhover(): void {
+    this.scheduleFlyoutClose();
+  }
+
+  onFlyoutHover(): void {
+    this.clearFlyoutTimer();
+  }
+
+  onFlyoutUnhover(): void {
+    this.scheduleFlyoutClose();
+  }
+
+  private scheduleFlyoutClose(): void {
+    this.clearFlyoutTimer();
+    this.flyoutCloseTimer = setTimeout(() => {
+      this.hoveredOptionValue.set(null);
+      this.flyoutCloseTimer = null;
+    }, 180);
+  }
+
+  private clearFlyoutTimer(): void {
+    if (this.flyoutCloseTimer !== null) {
+      clearTimeout(this.flyoutCloseTimer);
+      this.flyoutCloseTimer = null;
+    }
   }
 
   onSearchKeydown(event: KeyboardEvent): void {
@@ -425,15 +606,15 @@ export class UiSelectComponent implements ControlValueAccessor {
     }
   }
 
-  @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
     if (!this.el.nativeElement.contains(event.target)) {
       this.isOpen.set(false);
       this.searchQuery.set('');
+      this.clearFlyoutTimer();
+      this.hoveredOptionValue.set(null);
     }
   }
 
-  @HostListener('keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
     if (event.key === 'Escape') {
       this.isOpen.set(false);
@@ -441,12 +622,10 @@ export class UiSelectComponent implements ControlValueAccessor {
     }
   }
 
-  @HostListener('window:scroll')
   onScroll(): void {
     if (this.isOpen()) this.updatePanelRect();
   }
 
-  @HostListener('window:resize')
   onResize(): void {
     if (this.isOpen()) this.updatePanelRect();
   }

@@ -137,6 +137,7 @@ interface VolumeCommit {
                 (groupChange)="onGroupSelectionChange(board, $event)"
                 (trackChange)="onTrackSelectionChange(board, $event)"
                 (windowChange)="onWindowSelectionChange(board, $event)"
+                (trackWithWindowChange)="onTrackWithWindowChange(board, $event)"
                 (toggleRepeat)="toggleRepeat(board)"
                 (toggleOverplay)="toggleOverplay(board)"
                 (play)="playBoardTrack(board)"
@@ -643,11 +644,12 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   onGroupSelectionChange(board: Board, selectedId: number | null): void {
     if (board.id == null) return;
 
-    const wasActive = this.isBoardActive(board.id);
-    this.selectedWindowByBoard.delete(board.id);
+    const boardId = board.id;
+    const wasActive = this.isBoardActive(boardId);
+    const playingTrack = board.selectedTrack;
 
     this.boardsApi.updateUserBoard({
-      boardId: board.id,
+      boardId,
       boardUpdateRequest: this.baseUpdate(board, {
         selectedGroupId: selectedId ?? undefined,
       }),
@@ -655,10 +657,36 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: updated => {
-          this.upsertBoard(updated);
-          this.clearBoard(updated.id!);
+          if (wasActive && playingTrack) {
+            // Keep audio playing on the previous track; backend reset selectedTrack
+            // to the new group's default, but we restore it so the player doesn't
+            // tear down. The user picks a track from the new group to crossfade.
+            this.boards.update(current => {
+              const existing = current.find(b => b.id === boardId);
+              const normalized: Board = {
+                ...updated,
+                sessionId:
+                  updated.sessionId
+                  ?? existing?.sessionId
+                  ?? this.sessionsStore.selectedSessionId()
+                  ?? undefined,
+                selectedTrack: playingTrack,
+              };
+              const exists = current.some(b => b.id === boardId);
+              const next = exists
+                ? current.map(b => b.id === boardId ? normalized : b)
+                : [...current, normalized];
+              return this.sortBoards(next);
+            });
+            this.syncPersistedVolume(updated);
+          } else {
+            this.selectedWindowByBoard.delete(boardId);
+            this.upsertBoard(updated);
+            this.clearBoard(boardId);
+          }
+
           if (updated.playlistMode && updated.id != null) {
-            this.shuffleBoard(updated.id, updated.availableTracks ?? [], updated.shuffle ?? false, wasActive);
+            this.regeneratePlaylistOrder(updated.id, updated.availableTracks ?? [], updated.shuffle ?? false);
           }
         },
         error: (err: unknown) => {
@@ -668,12 +696,44 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       });
   }
 
-  private shuffleBoard(boardId: number, tracks: Track[], shuffle: boolean, autoPlay: boolean): void {
-    this.regeneratePlaylistOrder(boardId, tracks, shuffle);
-    const board = this.boards().find(b => b.id === boardId);
-    if (board) {
-      this.advancePlaylist(board, autoPlay);
-    }
+  onTrackWithWindowChange(
+    board: Board,
+    payload: { trackId: number | null; windowId: number | null },
+  ): void {
+    if (board.id == null) return;
+
+    const boardId = board.id;
+    const wasActive = this.isBoardActive(boardId);
+    const { trackId, windowId } = payload;
+
+    this.selectedWindowByBoard.set(boardId, windowId);
+
+    this.boardsApi.updateUserBoard({
+      boardId,
+      boardUpdateRequest: this.baseUpdate(board, {
+        selectedTrackId: trackId ?? undefined,
+      }),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: updated => {
+          this.upsertBoard(updated);
+          this.selectedWindowByBoard.set(boardId, windowId);
+
+          if (wasActive && trackId != null) {
+            const fresh = this.boards().find(item => item.id === boardId);
+            if (fresh) {
+              this.playBoardTrack(fresh);
+            }
+          } else {
+            this.clearBoard(boardId);
+          }
+        },
+        error: (err: unknown) => {
+          console.error(err);
+          this.toast.error('Updating board failed.');
+        },
+      });
   }
 
   onTrackSelectionChange(board: Board, selectedId: number | null): void {
