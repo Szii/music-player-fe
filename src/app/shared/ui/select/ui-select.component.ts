@@ -4,6 +4,7 @@ import {
   ElementRef,
   ViewChild,
   computed,
+  effect,
   forwardRef,
   input,
   output,
@@ -95,17 +96,20 @@ interface PanelRect {
           />
         </div>
 
-        <div class="sel__options" role="listbox">
+        <div #optionsList class="sel__options" role="listbox">
           <div
-            *ngFor="let opt of filteredOptions()"
+            *ngFor="let opt of filteredOptions(); let i = index"
             class="sel__option-wrap"
+            [attr.data-option-index]="i"
             (mouseenter)="onOptionHover(opt, $event)"
+            (mousemove)="highlightedIndex.set(i)"
             (mouseleave)="onOptionUnhover()"
           >
             <button
               type="button"
               class="sel__option"
               [class.sel__option--selected]="currentValue() === opt.value"
+              [class.sel__option--highlighted]="highlightedIndex() === i"
               [class.sel__option--has-sub]="(opt.subOptions?.length ?? 0) > 0"
               role="option"
               [attr.aria-selected]="currentValue() === opt.value"
@@ -132,9 +136,12 @@ interface PanelRect {
               (mouseleave)="onFlyoutUnhover()"
             >
               <button
-                *ngFor="let sub of opt.subOptions"
+                *ngFor="let sub of opt.subOptions; let si = index"
                 type="button"
                 class="sel__flyout-option"
+                [class.sel__flyout-option--highlighted]="highlightedSubIndex() === si"
+                [attr.data-sub-index]="si"
+                (mousemove)="highlightedSubIndex.set(si)"
                 (click)="selectSubOption(opt, sub)"
               >
                 {{ sub.label }}
@@ -321,6 +328,12 @@ interface PanelRect {
       background: var(--app-primary-soft);
     }
 
+    .sel__option--highlighted,
+    .sel__option--selected.sel__option--highlighted {
+      background: var(--app-primary-soft);
+      color: var(--app-heading);
+    }
+
     .sel__option-label {
       flex: 1;
       min-width: 0;
@@ -380,7 +393,8 @@ interface PanelRect {
       border-bottom: none;
     }
 
-    .sel__flyout-option:hover {
+    .sel__flyout-option:hover,
+    .sel__flyout-option--highlighted {
       background: var(--app-primary-soft);
       color: var(--app-heading);
     }
@@ -411,11 +425,20 @@ export class UiSelectComponent implements ControlValueAccessor {
   readonly nullOption = input<string | undefined>(undefined);
   readonly placeholder = input('Select…');
   readonly enableSearch = input(true);
+  readonly navigateUpWhenClosed = input(false);
 
   readonly subOptionSelected = output<UiSelectSubOptionEvent>();
+  readonly navigateNext = output<void>();
+  readonly navigatePrev = output<void>();
+  readonly navigateUp = output<void>();
+  readonly escape = output<void>();
+  readonly enterCommitted = output<void>();
 
   readonly hoveredOptionValue = signal<any>(null);
   readonly flyoutRect = signal<{ top: number; left: number; maxHeight: number } | null>(null);
+  readonly highlightedIndex = signal<number>(-1);
+  readonly highlightedSubIndex = signal<number>(-1);
+  readonly inFlyoutMode = computed(() => this.highlightedSubIndex() >= 0);
   private flyoutCloseTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly flyoutStyle = computed(() => {
@@ -437,11 +460,20 @@ export class UiSelectComponent implements ControlValueAccessor {
 
   @ViewChild('trigger') triggerRef?: ElementRef<HTMLButtonElement>;
   @ViewChild('searchInput') searchInputRef?: ElementRef<HTMLInputElement>;
+  @ViewChild('optionsList') optionsListRef?: ElementRef<HTMLElement>;
 
   private onChange: (v: any) => void = () => {};
   private onTouched: () => void = () => {};
 
-  constructor(private readonly el: ElementRef) {}
+  constructor(private readonly el: ElementRef) {
+    effect(() => {
+      const len = this.filteredOptions().length;
+      const idx = this.highlightedIndex();
+      if (idx >= len) {
+        this.highlightedIndex.set(len === 0 ? -1 : len - 1);
+      }
+    });
+  }
 
   readonly allOptions = computed<UiSelectOption[]>(() => {
     const nullLabel = this.nullOption();
@@ -508,6 +540,7 @@ export class UiSelectComponent implements ControlValueAccessor {
       this.updatePanelRect();
       this.searchQuery.set('');
       this.isOpen.set(true);
+      this.resetHighlightFromCurrent();
 
       if (this.enableSearch()) {
         setTimeout(() => this.searchInputRef?.nativeElement.focus(), 0);
@@ -516,28 +549,157 @@ export class UiSelectComponent implements ControlValueAccessor {
       this.isOpen.set(false);
       this.clearFlyoutTimer();
       this.hoveredOptionValue.set(null);
+      this.highlightedIndex.set(-1);
+      this.highlightedSubIndex.set(-1);
     }
 
     this.onTouched();
+  }
+
+  private resetHighlightFromCurrent(): void {
+    this.highlightedIndex.set(this.filteredOptions().length > 0 ? 0 : -1);
+  }
+
+  private moveHighlight(delta: number): void {
+    if (this.inFlyoutMode()) {
+      this.moveSubHighlight(delta);
+      return;
+    }
+
+    const opts = this.filteredOptions();
+    if (opts.length === 0) {
+      this.highlightedIndex.set(-1);
+      return;
+    }
+    const current = this.highlightedIndex();
+    const start = current < 0 ? (delta > 0 ? -1 : 0) : current;
+    const next = (start + delta + opts.length) % opts.length;
+    this.highlightedIndex.set(next);
+    this.hoveredOptionValue.set(null);
+    this.flyoutRect.set(null);
+    this.scrollOptionIntoView(next);
+  }
+
+  private moveSubHighlight(delta: number): void {
+    const parent = this.highlightedParent();
+    const subs = parent?.subOptions ?? [];
+    if (subs.length === 0) return;
+    const current = this.highlightedSubIndex();
+    const start = current < 0 ? (delta > 0 ? -1 : 0) : current;
+    const next = (start + delta + subs.length) % subs.length;
+    this.highlightedSubIndex.set(next);
+    this.scrollSubIntoView(next);
+  }
+
+  private highlightedParent(): UiSelectOption | null {
+    const opts = this.filteredOptions();
+    const idx = this.highlightedIndex();
+    return idx >= 0 && idx < opts.length ? opts[idx] : null;
+  }
+
+  private scrollOptionIntoView(index: number): void {
+    const list = this.optionsListRef?.nativeElement;
+    if (!list) return;
+    const row = list.querySelector(
+      `[data-option-index="${index}"]`,
+    ) as HTMLElement | null;
+    row?.scrollIntoView({ block: 'nearest' });
+  }
+
+  private scrollSubIntoView(index: number): void {
+    const list = this.optionsListRef?.nativeElement;
+    if (!list) return;
+    const row = list.querySelector(
+      `[data-sub-index="${index}"]`,
+    ) as HTMLElement | null;
+    row?.scrollIntoView({ block: 'nearest' });
+  }
+
+  private openFlyoutForHighlighted(): boolean {
+    const parent = this.highlightedParent();
+    if (!parent || (parent.subOptions?.length ?? 0) === 0) return false;
+
+    const list = this.optionsListRef?.nativeElement;
+    const row = list?.querySelector(
+      `[data-option-index="${this.highlightedIndex()}"] .sel__option`,
+    ) as HTMLElement | null;
+    if (row) {
+      const r = row.getBoundingClientRect();
+      const vh = window.innerHeight;
+      const vw = window.innerWidth;
+      const GAP = 4;
+      const FLYOUT_WIDTH = 220;
+      const desiredLeft = r.right + GAP;
+      const left = desiredLeft + FLYOUT_WIDTH > vw
+        ? Math.max(8, r.left - FLYOUT_WIDTH - GAP)
+        : desiredLeft;
+      const top = Math.min(r.top, vh - 80);
+      const maxHeight = Math.max(80, vh - top - 16);
+      this.flyoutRect.set({ top, left, maxHeight });
+    }
+
+    this.clearFlyoutTimer();
+    this.hoveredOptionValue.set(parent.value);
+    this.highlightedSubIndex.set(0);
+    return true;
+  }
+
+  private closeFlyout(): void {
+    this.hoveredOptionValue.set(null);
+    this.flyoutRect.set(null);
+    this.highlightedSubIndex.set(-1);
+    this.clearFlyoutTimer();
+  }
+
+  private commitHighlighted(): boolean {
+    if (this.inFlyoutMode()) {
+      const parent = this.highlightedParent();
+      const subs = parent?.subOptions ?? [];
+      const si = this.highlightedSubIndex();
+      if (!parent || si < 0 || si >= subs.length) return false;
+      this.selectSubOption(parent, subs[si]);
+      this.enterCommitted.emit();
+      return true;
+    }
+
+    const opts = this.filteredOptions();
+    const idx = this.highlightedIndex();
+    if (idx < 0 || idx >= opts.length) return false;
+    this.selectOption(opts[idx]);
+    this.enterCommitted.emit();
+    return true;
+  }
+
+  open(): void {
+    if (this.isDisabled() || this.isOpen()) return;
+    this.toggle();
+  }
+
+  focusTrigger(): void {
+    this.triggerRef?.nativeElement.focus();
   }
 
   selectOption(opt: UiSelectOption): void {
     this.currentValue.set(opt.value);
     this.onChange(opt.value);
     this.onTouched();
-    this.isOpen.set(false);
-    this.searchQuery.set('');
-    this.clearFlyoutTimer();
-    this.hoveredOptionValue.set(null);
+    this.closeAndFocusTrigger();
   }
 
   selectSubOption(parent: UiSelectOption, sub: UiSelectOption): void {
     this.onTouched();
+    this.subOptionSelected.emit({ parent, sub });
+    this.closeAndFocusTrigger();
+  }
+
+  private closeAndFocusTrigger(): void {
     this.isOpen.set(false);
     this.searchQuery.set('');
     this.clearFlyoutTimer();
     this.hoveredOptionValue.set(null);
-    this.subOptionSelected.emit({ parent, sub });
+    this.highlightedIndex.set(-1);
+    this.highlightedSubIndex.set(-1);
+    setTimeout(() => this.triggerRef?.nativeElement.focus(), 0);
   }
 
   onOptionHover(opt: UiSelectOption, event: MouseEvent): void {
@@ -596,12 +758,54 @@ export class UiSelectComponent implements ControlValueAccessor {
 
   onSearchKeydown(event: KeyboardEvent): void {
     if (event.key === 'Escape') {
-      this.isOpen.set(false);
-      this.searchQuery.set('');
-    } else if (event.key === 'Enter') {
+      event.stopPropagation();
+      if (this.inFlyoutMode()) {
+        this.closeFlyout();
+        return;
+      }
+      this.closeAndFocusTrigger();
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      event.stopPropagation();
+      this.moveHighlight(1);
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      event.stopPropagation();
+      this.moveHighlight(-1);
+      return;
+    }
+
+    if (event.key === 'ArrowRight') {
+      if (this.openFlyoutForHighlighted()) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      return;
+    }
+
+    if (event.key === 'ArrowLeft') {
+      if (this.inFlyoutMode()) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.closeFlyout();
+      }
+      return;
+    }
+
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      event.stopPropagation();
+      if (this.commitHighlighted()) return;
       const opts = this.filteredOptions();
       if (opts.length === 1) {
         this.selectOption(opts[0]);
+        this.enterCommitted.emit();
       }
     }
   }
@@ -612,13 +816,87 @@ export class UiSelectComponent implements ControlValueAccessor {
       this.searchQuery.set('');
       this.clearFlyoutTimer();
       this.hoveredOptionValue.set(null);
+      this.highlightedIndex.set(-1);
+      this.highlightedSubIndex.set(-1);
     }
   }
 
   onKeydown(event: KeyboardEvent): void {
     if (event.key === 'Escape') {
-      this.isOpen.set(false);
-      this.searchQuery.set('');
+      if (this.isOpen() && this.inFlyoutMode()) {
+        this.closeFlyout();
+        return;
+      }
+      if (this.isOpen()) {
+        this.closeAndFocusTrigger();
+        return;
+      }
+      event.preventDefault();
+      this.escape.emit();
+      return;
+    }
+
+    if (!this.isOpen()) {
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        this.navigateNext.emit();
+        return;
+      }
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        this.navigatePrev.emit();
+        return;
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        if (this.navigateUpWhenClosed()) {
+          this.navigateUp.emit();
+        } else {
+          this.open();
+        }
+        return;
+      }
+      if (
+        event.key === 'Enter'
+        || event.key === ' '
+        || event.key === 'ArrowDown'
+      ) {
+        event.preventDefault();
+        this.open();
+      }
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      this.moveHighlight(1);
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      this.moveHighlight(-1);
+      return;
+    }
+
+    if (event.key === 'ArrowRight') {
+      if (this.openFlyoutForHighlighted()) {
+        event.preventDefault();
+      }
+      return;
+    }
+
+    if (event.key === 'ArrowLeft') {
+      if (this.inFlyoutMode()) {
+        event.preventDefault();
+        this.closeFlyout();
+      }
+      return;
+    }
+
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      this.commitHighlighted();
     }
   }
 

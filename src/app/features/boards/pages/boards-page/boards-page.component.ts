@@ -1,4 +1,4 @@
-import { Component, DestroyRef, OnDestroy, OnInit, ViewChild, computed, effect, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnDestroy, OnInit, QueryList, ViewChild, ViewChildren, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { Subject, forkJoin, of } from 'rxjs';
@@ -45,7 +45,6 @@ import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog
 import { BoardPlaybackService } from '../../../../core/services/board-playback.service';
 import { BoardShortcutsService } from '../../../../core/services/board-shortcuts.service';
 import { SessionsStore } from '../../../../core/services/sessions-store.service';
-import { SessionService } from '../../../../core/auth/session.service';
 
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 
@@ -65,6 +64,9 @@ interface VolumeCommit {
     UiEmptyStateComponent,
     SessionsDropdownComponent,
   ],
+  host: {
+    '(document:keydown)': 'onGlobalKeydown($event)',
+  },
   template: `
     <div class="app-page board-page">
       <header class="boards-page__header">
@@ -143,13 +145,15 @@ interface VolumeCommit {
                 (play)="playBoardTrack(board)"
                 (stop)="stopBoardTrack(board)"
                 (ended)="onAudioEnded(board)"
-
                 (audioError)="onAudioError(board)"
                 (playlistModeChange)="onPlaylistModeChange(board, $event)"
                 (playlistOptionsChange)="onPlaylistOptionsChange(board, $event)"
                 (volumePreviewChange)="onBoardVolumePreview(board, $event)"
                 (volumeCommit)="onBoardVolumeCommit(board, $event)"
                 (rename)="onBoardRename(board, $event)"
+                (navigateBoardUp)="focusBoardByOffset(board, -1)"
+                (navigateBoardDown)="focusBoardByOffset(board, 1)"
+                (requestPlay)="onBoardRequestPlay(board)"
               />
             </div>
           </div>
@@ -346,8 +350,6 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   readonly createBoardSubmitting = signal(false);
 
   readonly hasSessions = this.sessionsStore.hasSessions;
-  readonly selectedSession = this.sessionsStore.selectedSession;
-
   readonly sessionBoards = computed<Board[]>(() => {
     const sessionId = this.sessionsStore.selectedSessionId();
     if (sessionId == null) return [];
@@ -355,6 +357,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   });
 
   @ViewChild('sessionsDropdown') sessionsDropdownRef?: SessionsDropdownComponent;
+  @ViewChildren(BoardCardComponent) boardCards!: QueryList<BoardCardComponent>;
 
   private readonly streamUrlsByBoard = new Map<number, string>();
   private readonly boardStatuses = new Map<number, PlayerStatus>();
@@ -364,6 +367,8 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   private readonly playlistIndexByBoard = new Map<number, number>();
   private readonly playlistOrderByBoard = new Map<number, number[]>();
   private readonly persistedVolumesByBoard = new Map<number, number>();
+  private readonly pendingTrackUpdateBoardIds = new Set<number>();
+  private readonly playPendingAfterUpdateBoardIds = new Set<number>();
 
   private static readonly CROSSFADE_MS = 2000;
 
@@ -391,14 +396,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         if (stale.id == null) continue;
         if (stale.sessionId != null && !sessionIds.has(stale.sessionId)) {
           this.clearBoard(stale.id);
-          this.boardStatuses.delete(stale.id);
-          this.streamUrlsByBoard.delete(stale.id);
-          this.selectedWindowByBoard.delete(stale.id);
-          this.masterVolumesByBoard.delete(stale.id);
-          this.playlistIndexByBoard.delete(stale.id);
-          this.playlistOrderByBoard.delete(stale.id);
-          this.persistedVolumesByBoard.delete(stale.id);
-          this.shortcuts.clearShortcut(stale.id);
+          this.removeBoardLocalState(stale.id);
         }
       }
       this.boards.set(surviving);
@@ -430,10 +428,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    if (this.crossfadeCleanupTimer !== null) {
-      clearTimeout(this.crossfadeCleanupTimer);
-      this.crossfadeCleanupTimer = null;
-    }
+    this.clearCrossfadeCleanupTimer();
     this.volumeCommit$.complete();
   }
 
@@ -477,15 +472,8 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
           this.tracks.set(this.mergeTracks(ownTracks ?? [], subscribedTracks ?? []));
 
           const mergedBoards = this.flattenSessionBoards(sessions.sessions ?? []);
-          this.persistedVolumesByBoard.clear();
+          this.prepareBoards(mergedBoards, true);
 
-          for (const board of mergedBoards) {
-            if (board.id != null && !this.boardStatuses.has(board.id)) {
-              this.boardStatuses.set(board.id, 'STOPPED');
-            }
-            this.syncPersistedVolume(board);
-          }
-          
           this.boards.set(this.sortBoards(mergedBoards));
         },
         error: (err: unknown) => {
@@ -522,12 +510,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
           const existingIds = new Set(this.boards().map(b => b.id));
           const newBoards = sessionBoards.filter(b => b.id != null && !existingIds.has(b.id));
 
-          for (const board of newBoards) {
-            if (board.id != null) {
-              this.boardStatuses.set(board.id, 'STOPPED');
-            }
-            this.syncPersistedVolume(board);
-          }
+          this.prepareBoards(newBoards);
 
           if (newBoards.length > 0) {
             this.boards.update(current => this.sortBoards([...current, ...newBoards]));
@@ -567,14 +550,8 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         .subscribe({
           next: () => {
             this.boards.update(current => current.filter(b => b.id !== boardId));
-            this.boardStatuses.delete(boardId);
-            this.streamUrlsByBoard.delete(boardId);
-            this.selectedWindowByBoard.delete(boardId);
-            this.masterVolumesByBoard.delete(boardId);
-            this.playlistIndexByBoard.delete(boardId);
-            this.playlistOrderByBoard.delete(boardId);
-            this.persistedVolumesByBoard.delete(boardId);
-            this.shortcuts.clearShortcut(boardId);
+            this.removeBoardLocalState(boardId);
+            this.syncPlayingState();
             this.toast.success('Board deleted.');
           },
           error: (err: unknown) => {
@@ -661,24 +638,13 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
             // Keep audio playing on the previous track; backend reset selectedTrack
             // to the new group's default, but we restore it so the player doesn't
             // tear down. The user picks a track from the new group to crossfade.
+            let normalized: Board = updated;
             this.boards.update(current => {
               const existing = current.find(b => b.id === boardId);
-              const normalized: Board = {
-                ...updated,
-                sessionId:
-                  updated.sessionId
-                  ?? existing?.sessionId
-                  ?? this.sessionsStore.selectedSessionId()
-                  ?? undefined,
-                selectedTrack: playingTrack,
-              };
-              const exists = current.some(b => b.id === boardId);
-              const next = exists
-                ? current.map(b => b.id === boardId ? normalized : b)
-                : [...current, normalized];
-              return this.sortBoards(next);
+              normalized = this.withSessionId({ ...updated, selectedTrack: playingTrack }, existing);
+              return this.replaceBoard(current, normalized);
             });
-            this.syncPersistedVolume(updated);
+            this.syncPersistedVolume(normalized);
           } else {
             this.selectedWindowByBoard.delete(boardId);
             this.upsertBoard(updated);
@@ -707,6 +673,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     const { trackId, windowId } = payload;
 
     this.selectedWindowByBoard.set(boardId, windowId);
+    this.pendingTrackUpdateBoardIds.add(boardId);
 
     this.boardsApi.updateUserBoard({
       boardId,
@@ -719,8 +686,10 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         next: updated => {
           this.upsertBoard(updated);
           this.selectedWindowByBoard.set(boardId, windowId);
+          this.pendingTrackUpdateBoardIds.delete(boardId);
+          const wantsPlay = this.playPendingAfterUpdateBoardIds.delete(boardId);
 
-          if (wasActive && trackId != null) {
+          if (trackId != null && (wasActive || wantsPlay)) {
             const fresh = this.boards().find(item => item.id === boardId);
             if (fresh) {
               this.playBoardTrack(fresh);
@@ -731,6 +700,8 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         },
         error: (err: unknown) => {
           console.error(err);
+          this.pendingTrackUpdateBoardIds.delete(boardId);
+          this.playPendingAfterUpdateBoardIds.delete(boardId);
           this.toast.error('Updating board failed.');
         },
       });
@@ -742,6 +713,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     const boardId = board.id;
     const wasActive = this.isBoardActive(boardId);
     this.selectedWindowByBoard.delete(boardId);
+    this.pendingTrackUpdateBoardIds.add(boardId);
 
     this.boardsApi.updateUserBoard({
       boardId,
@@ -753,8 +725,10 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       .subscribe({
         next: updated => {
           this.upsertBoard(updated);
+          this.pendingTrackUpdateBoardIds.delete(boardId);
+          const wantsPlay = this.playPendingAfterUpdateBoardIds.delete(boardId);
 
-          if (wasActive && selectedId != null) {
+          if (selectedId != null && (wasActive || wantsPlay)) {
             const freshBoard = this.boards().find(item => item.id === boardId);
             if (freshBoard) {
               this.playBoardTrack(freshBoard);
@@ -765,6 +739,8 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         },
         error: (err: unknown) => {
           console.error(err);
+          this.pendingTrackUpdateBoardIds.delete(boardId);
+          this.playPendingAfterUpdateBoardIds.delete(boardId);
           this.toast.error('Updating board failed.');
         },
       });
@@ -782,29 +758,35 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
   onBoardVolumePreview(board: Board, volumePercent: number): void {
     if (board.id == null) return;
-
-    this.boards.update(current =>
-      current.map(item =>
-        item.id === board.id ? { ...item, volume: clampPct(volumePercent) } : item,
-      ),
-    );
+    this.updateBoardVolume(board.id, volumePercent);
   }
 
   onBoardVolumeCommit(board: Board, volumePercent: number): void {
     if (board.id == null) return;
 
-    const clamped = clampPct(volumePercent);
-
-    this.boards.update(current =>
-      current.map(item =>
-        item.id === board.id ? { ...item, volume: clamped } : item,
-      ),
-    );
-
     this.volumeCommit$.next({
       boardId: board.id,
-      volumePercent: clamped,
+      volumePercent: this.updateBoardVolume(board.id, volumePercent),
     });
+  }
+
+  onBoardRequestPlay(board: Board): void {
+    if (board.id == null) return;
+    const boardId = board.id;
+
+    // If a track-update API call is in flight, queue the play to fire after it
+    // resolves — otherwise we'd play the old track.
+    if (this.pendingTrackUpdateBoardIds.has(boardId)) {
+      this.playPendingAfterUpdateBoardIds.add(boardId);
+      return;
+    }
+
+    // Window changes are synchronous; if the board is already active,
+    // onWindowSelectionChange already kicked off a restart. Skip to avoid
+    // double-playing.
+    if (this.isBoardActive(boardId)) return;
+
+    this.playBoardTrack(board);
   }
 
   playBoardTrack(board: Board): void {
@@ -843,10 +825,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         next: state => {
           this.applyPlaybackState(targetId, state);
 
-          if (this.crossfadeCleanupTimer !== null) {
-            clearTimeout(this.crossfadeCleanupTimer);
-            this.crossfadeCleanupTimer = null;
-          }
+          this.clearCrossfadeCleanupTimer();
 
           if (wasActive && boardsToStop.length === 0) {
             return;
@@ -1017,6 +996,31 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       : [selected, ...base];
   }
 
+  onGlobalKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+
+    // Only start board traversal when nothing is focused (i.e. focus on body).
+    // Any other focused control (inputs, dropdowns, dialogs) keeps its own
+    // arrow-key semantics.
+    const active = document.activeElement;
+    if (active != null && active !== document.body) return;
+
+    const cards = this.boardCards?.toArray() ?? [];
+    if (cards.length === 0) return;
+
+    event.preventDefault();
+    const target = event.key === 'ArrowDown' ? cards[0] : cards[cards.length - 1];
+    target?.focusChevron();
+  }
+
+  focusBoardByOffset(board: Board, delta: number): void {
+    const cards = this.boardCards?.toArray() ?? [];
+    const idx = cards.findIndex(c => c.board().id === board.id);
+    if (idx < 0) return;
+    const target = cards[idx + delta];
+    target?.focusChevron();
+  }
+
   getSelectedWindowId(board: Board): number | null {
     return board.id != null
       ? (this.selectedWindowByBoard.get(board.id) ?? null)
@@ -1116,83 +1120,48 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       });
   }
 
-private updateBoard(
-  board: Board,
-  overrides: Partial<BoardUpdateRequest>,
-  errorMessage: string,
-): void {
-  this.updateBoardAndRefreshSession(board, overrides, errorMessage);
-}
+  private updateBoard(
+    board: Board,
+    overrides: Partial<BoardUpdateRequest>,
+    errorMessage: string,
+  ): void {
+    if (board.id == null) return;
 
-private updateBoardAndRefreshSession(
-  board: Board,
-  overrides: Partial<BoardUpdateRequest>,
-  errorMessage: string,
-): void {
-  if (board.id == null) return;
+    const sessionId = board.sessionId ?? this.sessionsStore.selectedSessionId();
 
-  const sessionId = board.sessionId ?? this.sessionsStore.selectedSessionId();
-
-  if (sessionId == null) {
-    this.toast.error('No session selected.');
-    return;
-  }
-
-  this.boardsApi.updateUserBoard({
-    boardId: board.id,
-    boardUpdateRequest: this.baseUpdate(board, overrides),
-  })
-    .pipe(
-      switchMap(() => this.sessionsStore.refreshSession(sessionId)),
-      takeUntilDestroyed(this.destroyRef),
-    )
-    .subscribe({
-      next: session => {
-        this.replaceBoardsFromSession(session);
-      },
-      error: (err: unknown) => {
-        console.error(err);
-        this.toast.error(errorMessage);
-      },
-    });
-}
-
-
-private replaceBoardsFromSession(session: SessionResponse | null): void {
-  if (session?.sessionId == null) return;
-
-  const sessionId = session.sessionId;
-  const sessionBoards = this.stampSessionId(session.boards ?? [], sessionId);
-
-  for (const board of sessionBoards) {
-    if (board.id != null && !this.boardStatuses.has(board.id)) {
-      this.boardStatuses.set(board.id, 'STOPPED');
+    if (sessionId == null) {
+      this.toast.error('No session selected.');
+      return;
     }
 
-    this.syncPersistedVolume(board);
+    this.boardsApi.updateUserBoard({
+      boardId: board.id,
+      boardUpdateRequest: this.baseUpdate(board, overrides),
+    })
+      .pipe(
+        switchMap(() => this.sessionsStore.refreshSession(sessionId)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: session => this.replaceBoardsFromSession(session),
+        error: (err: unknown) => {
+          console.error(err);
+          this.toast.error(errorMessage);
+        },
+      });
   }
 
-  this.boards.update(current => {
-    const boardsFromOtherSessions = current.filter(board => board.sessionId !== sessionId);
+  private replaceBoardsFromSession(session: SessionResponse | null): void {
+    if (session?.sessionId == null) return;
 
-    return this.sortBoards([
-      ...boardsFromOtherSessions,
-      ...sessionBoards,
-    ]);
-  });
-}
+    const sessionId = session.sessionId;
+    const sessionBoards = this.stampSessionId(session.boards ?? [], sessionId);
+    this.prepareBoards(sessionBoards);
 
-  private overridesToBoardPatch(overrides: Partial<BoardUpdateRequest>): Partial<Board> {
-    const patch: Partial<Board> = {};
-
-    if ('name' in overrides) patch.name = overrides.name;
-    if ('repeat' in overrides) patch.repeat = overrides.repeat;
-    if ('overplay' in overrides) patch.overplay = overrides.overplay;
-    if ('playlistMode' in overrides) patch.playlistMode = overrides.playlistMode;
-    if ('shuffle' in overrides) patch.shuffle = overrides.shuffle;
-    if ('volume' in overrides) patch.volume = overrides.volume;
-
-    return patch;
+    this.boards.update(current => {
+      const boardsFromOtherSessions = current.filter(board => board.sessionId !== sessionId);
+      return this.sortBoards([...boardsFromOtherSessions, ...sessionBoards]);
+    });
   }
 
   private baseUpdate(
@@ -1236,33 +1205,89 @@ private replaceBoardsFromSession(session: SessionResponse | null): void {
     return status === 'PLAYING' || status === 'PAUSED';
   }
 
-private upsertBoard(updated: Board): void {
-  if (updated.id == null) return;
+  private upsertBoard(updated: Board): void {
+    if (updated.id == null) return;
 
-  let normalizedBoard: Board = updated;
+    let normalizedBoard: Board = updated;
 
-  this.boards.update(current => {
-    const existingBoard = current.find(item => item.id === updated.id);
+    this.boards.update(current => {
+      const existingBoard = current.find(item => item.id === updated.id);
+      normalizedBoard = this.withSessionId(updated, existingBoard);
+      return this.replaceBoard(current, normalizedBoard);
+    });
 
-    normalizedBoard = {
-      ...updated,
+    this.syncPersistedVolume(normalizedBoard);
+  }
+
+  private replaceBoard(boards: Board[], board: Board): Board[] {
+    const exists = boards.some(item => item.id === board.id);
+    const next = exists
+      ? boards.map(item => item.id === board.id ? board : item)
+      : [...boards, board];
+
+    return this.sortBoards(next);
+  }
+
+  private withSessionId(board: Board, existing?: Board): Board {
+    return {
+      ...board,
       sessionId:
-        updated.sessionId
-        ?? existingBoard?.sessionId
+        board.sessionId
+        ?? existing?.sessionId
         ?? this.sessionsStore.selectedSessionId()
         ?? undefined,
     };
+  }
 
-    const exists = current.some(item => item.id === updated.id);
-    const next = exists
-      ? current.map(item => item.id === updated.id ? normalizedBoard : item)
-      : [...current, normalizedBoard];
+  private prepareBoards(boards: Board[], resetPersistedVolumes = false): void {
+    if (resetPersistedVolumes) {
+      this.persistedVolumesByBoard.clear();
+    }
 
-    return this.sortBoards(next);
-  });
+    for (const board of boards) {
+      this.ensureBoardStatus(board);
+      this.syncPersistedVolume(board);
+    }
+  }
 
-  this.syncPersistedVolume(normalizedBoard);
-}
+  private ensureBoardStatus(board: Board): void {
+    if (board.id != null && !this.boardStatuses.has(board.id)) {
+      this.boardStatuses.set(board.id, 'STOPPED');
+    }
+  }
+
+  private updateBoardVolume(boardId: number, volumePercent: number): number {
+    const clamped = clampPct(volumePercent);
+
+    this.boards.update(current =>
+      current.map(item =>
+        item.id === boardId ? { ...item, volume: clamped } : item,
+      ),
+    );
+
+    return clamped;
+  }
+
+  private removeBoardLocalState(boardId: number): void {
+    this.boardStatuses.delete(boardId);
+    this.streamUrlsByBoard.delete(boardId);
+    this.selectedWindowByBoard.delete(boardId);
+    this.masterVolumesByBoard.delete(boardId);
+    this.masterFadeRampMsByBoard.delete(boardId);
+    this.playlistIndexByBoard.delete(boardId);
+    this.playlistOrderByBoard.delete(boardId);
+    this.persistedVolumesByBoard.delete(boardId);
+    this.pendingTrackUpdateBoardIds.delete(boardId);
+    this.playPendingAfterUpdateBoardIds.delete(boardId);
+    this.shortcuts.clearShortcut(boardId);
+  }
+
+  private clearCrossfadeCleanupTimer(): void {
+    if (this.crossfadeCleanupTimer !== null) {
+      clearTimeout(this.crossfadeCleanupTimer);
+      this.crossfadeCleanupTimer = null;
+    }
+  }
 
   private syncPersistedVolume(board: Board): void {
     if (board.id != null) {
@@ -1330,12 +1355,7 @@ private upsertBoard(updated: Board): void {
 
         const mergedBoards = this.flattenSessionBoards(sessions.sessions ?? []);
 
-        for (const board of mergedBoards) {
-          if (board.id != null && !this.boardStatuses.has(board.id)) {
-            this.boardStatuses.set(board.id, 'STOPPED');
-          }
-          this.syncPersistedVolume(board);
-        }
+        this.prepareBoards(mergedBoards);
 
         // Merge fresh board data but preserve selectedTrack for active boards
         // so that an in-progress stream is not torn down just because the track
@@ -1358,10 +1378,7 @@ private upsertBoard(updated: Board): void {
   }
 
   private stopAllBoards(): void {
-    if (this.crossfadeCleanupTimer !== null) {
-      clearTimeout(this.crossfadeCleanupTimer);
-      this.crossfadeCleanupTimer = null;
-    }
+    this.clearCrossfadeCleanupTimer();
 
     for (const board of this.boards()) {
       if (board.id == null || !this.isBoardActive(board.id)) continue;
@@ -1385,12 +1402,12 @@ private upsertBoard(updated: Board): void {
     return boards.map(b => ({ ...b, sessionId }));
   }
 
-  private sortBoards(boards: Board[]): Board[]{
-      return [...boards].sort((a, b) => {
-        const nameA = a.name ?? '';
-        const nameB = b.name ?? '';
-        return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
-      });
+  private sortBoards(boards: Board[]): Board[] {
+    return [...boards].sort((a, b) => {
+      const nameA = a.name ?? '';
+      const nameB = b.name ?? '';
+      return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+    });
   }
 
 }
