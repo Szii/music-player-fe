@@ -3,7 +3,6 @@ import {
   Component,
   DestroyRef,
   ElementRef,
-  HostListener,
   OnInit,
   ViewChild,
   computed,
@@ -18,7 +17,9 @@ import { FormsModule } from '@angular/forms';
 import { Board, Group, Track } from '../../../../api/generated';
 import { BoardPlayerComponent } from '../board-player/board-player.component';
 import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
-import { UiSelectComponent } from '../../../../shared/ui/select/ui-select.component';
+import {
+  UiSelectComponent,
+} from '../../../../shared/ui/select/ui-select.component';
 import { BoardShortcutsService } from '../../../../core/services/board-shortcuts.service';
 
 export interface PlaylistOptions {
@@ -36,28 +37,29 @@ export interface PlaylistOptions {
     IconButtonComponent,
     UiSelectComponent,
   ],
+  host: {
+    '(document:click)': 'onDocumentClick($event)',
+  },
   template: `
     <div
       class="board-card"
-      [class.board-card--playing]="status() === 'PLAYING'"
-      [class.board-card--expanded]="expanded()"
-      [class.board-card--playlist]="playlistMode()">
+      [class.board-card--playing]="isPlaying()">
 
       <div class="board-card__summary">
         <div class="board-card__summary-left">
           <div
             class="board-card__play-wrap"
             [class.board-card__play-wrap--playlist]="playlistMode()"
-            [class.board-card__play-wrap--playing]="status() === 'PLAYING'">
+            [class.board-card__play-wrap--playing]="isPlaying()">
             <button
               type="button"
               class="board-card__summary-play"
-              [class.board-card__summary-play--stop]="status() === 'PLAYING'"
+              [class.board-card__summary-play--stop]="isPlaying()"
               [disabled]="!canStartPlayback()"
               (click)="onPrimaryAction()"
-              [attr.aria-label]="status() === 'PLAYING' ? 'Stop playback' : 'Play board'">
-              <span *ngIf="status() !== 'PLAYING'">▶</span>
-              <span *ngIf="status() === 'PLAYING'">■</span>
+              [attr.aria-label]="isPlaying() ? 'Stop playback' : 'Play board'">
+              <span *ngIf="!isPlaying()">▶</span>
+              <span *ngIf="isPlaying()">■</span>
             </button>
           </div>
 
@@ -143,8 +145,8 @@ export interface PlaylistOptions {
                   step="1"
                   [value]="displayedVolumePercent()"
                   aria-label="Board volume"
-                  (input)="onVolumeInput($event)"
-                  (change)="onVolumeChange($event)"
+                  (input)="onVolumeChange($event, false)"
+                  (change)="onVolumeChange($event, true)"
                 />
                 <span class="board-card__summary-volume-value">{{ displayedVolumePercent() }}%</span>
               </div>
@@ -162,10 +164,12 @@ export interface PlaylistOptions {
           />
 
           <button
+            #chevronBtn
             type="button"
             class="board-card__chevron"
             [class.board-card__chevron--open]="expanded()"
             (click)="toggleExpanded()"
+            (keydown)="onChevronKeydown($event)"
             [attr.aria-label]="expanded() ? 'Collapse board' : 'Expand board'">
             ▾
           </button>
@@ -211,13 +215,11 @@ export interface PlaylistOptions {
                     *ngIf="settingsOpen()"
                     #settingsMenu
                     class="board-settings-menu"
-                    [class.board-settings-menu--multi]="settingsItemsMaxHeight() != null"
                     (click)="$event.stopPropagation()">
                     <div class="board-settings-menu__title">Playback settings</div>
 
                     <div
                       class="board-settings-menu__items"
-                      [class.board-settings-menu__items--multi]="settingsItemsMaxHeight() != null"
                       [style.--settings-items-max-h.px]="settingsItemsMaxHeight()">
                     <label class="board-settings-item">
                       <div class="board-settings-item__copy">
@@ -234,7 +236,7 @@ export interface PlaylistOptions {
                         type="checkbox"
                         [checked]="secondaryOptionChecked()"
                         [disabled]="playlistMode()"
-                        (change)="onSecondaryOptionToggle($event)" />
+                        (change)="onSecondaryOptionToggle()" />
                     </label>
 
                     <label class="board-settings-item">
@@ -297,14 +299,30 @@ export interface PlaylistOptions {
 
             <div class="board-card__controls">
               <div class="board-field">
-                <span class="board-field__label">Group</span>
+                <span class="board-field__label">
+                  Group
+                  @if (groupDesynced()) {
+                    <span
+                      class="board-field__desync"
+                      role="img"
+                      title="Selected group does not match the playing track — pick a track to switch"
+                      aria-label="Group out of sync with playing track"
+                    >⚠</span>
+                  }
+                </span>
                 <ui-select
+                  #groupSelectRef
                   class="board-control"
+                  [class.board-control--desynced]="groupDesynced()"
+                  [navigateUpWhenClosed]="true"
                   [options]="groupOptions()"
                   nullOption="All tracks"
                   [ngModel]="board().selectedGroup?.id ?? null"
                   [ngModelOptions]="{ standalone: true }"
-                  (ngModelChange)="onGroupSelected($event)"
+                  (ngModelChange)="groupChange.emit($event)"
+                  (navigateNext)="focusTrack()"
+                  (navigateUp)="focusChevron()"
+                  (escape)="focusChevron()"
                 />
               </div>
 
@@ -312,12 +330,20 @@ export interface PlaylistOptions {
                 <span class="board-field__label">{{ playlistMode() ? 'Now playing' : 'Track' }}</span>
                 <ng-container *ngIf="!playlistMode(); else nowPlayingTpl">
                   <ui-select
+                    #trackSelectRef
                     class="board-control"
+                    [navigateUpWhenClosed]="true"
                     [options]="trackOptions()"
                     nullOption="No track"
-                    [ngModel]="board().selectedTrack?.id ?? null"
+                    [ngModel]="displayedTrack()?.id ?? null"
                     [ngModelOptions]="{ standalone: true }"
                     (ngModelChange)="trackChange.emit($event)"
+                    (subOptionSelected)="trackWithWindowChange.emit($event.sub.value)"
+                    (enterCommitted)="requestPlay.emit()"
+                    (navigateNext)="focusWindow()"
+                    (navigatePrev)="focusGroup()"
+                    (navigateUp)="focusChevron()"
+                    (escape)="focusChevron()"
                   />
                 </ng-container>
                 <ng-template #nowPlayingTpl>
@@ -328,12 +354,18 @@ export interface PlaylistOptions {
               <div class="board-field" *ngIf="showWindowSelector()">
                 <span class="board-field__label">Window</span>
                 <ui-select
+                  #windowSelectRef
                   class="board-control"
+                  [navigateUpWhenClosed]="true"
                   [options]="windowOptions()"
                   nullOption="Whole track"
                   [ngModel]="selectedWindowId()"
                   [ngModelOptions]="{ standalone: true }"
                   (ngModelChange)="windowChange.emit($event)"
+                  (enterCommitted)="requestPlay.emit()"
+                  (navigatePrev)="focusTrack()"
+                  (navigateUp)="focusChevron()"
+                  (escape)="focusChevron()"
                 />
               </div>
             </div>
@@ -355,8 +387,8 @@ export interface PlaylistOptions {
                 [masterFadeRampMs]="masterFadeRampMs()"
                 (playRequested)="play.emit()"
                 (stopRequested)="stop.emit()"
-                (ended)="onPlayerEnded()"
-                (nearEnd)="onPlayerNearEnd()"
+                (ended)="ended.emit()"
+                (nearEnd)="nearEnd.emit()"
                 (audioError)="audioError.emit()"
               />
             </div>
@@ -691,7 +723,36 @@ export interface PlaylistOptions {
       flex-shrink: 0;
     }
 
-    .board-card__chevron,
+    .board-card__chevron {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--app-radius-sm);
+      border: 1px solid var(--app-border-color-soft);
+      background: #faf4e4;
+      color: var(--app-primary);
+      font-size: 16px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 0.15s, box-shadow 0.15s, background 0.15s, transform 0.18s ease;
+    }
+
+    .board-card__chevron:hover {
+      border-color: var(--app-border-color);
+      background: #f5edd8;
+    }
+
+    .board-card__chevron:focus {
+      outline: none;
+      border-color: var(--app-primary);
+      box-shadow: var(--app-focus-ring);
+    }
+
+    .board-card__chevron--open {
+      transform: rotate(180deg);
+    }
+
     .board-icon-btn {
       width: 36px;
       height: 36px;
@@ -704,31 +765,14 @@ export interface PlaylistOptions {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      transition: transform 0.18s ease, background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
     }
 
-    .board-card__chevron:hover,
     .board-icon-btn:hover,
     .board-icon-btn--active {
       color: var(--app-primary);
       border-color: rgba(88, 24, 13, 0.3);
       background: var(--app-primary-soft);
-    }
-
-    .board-card__chevron--open {
-      transform: rotate(180deg);
-      color: var(--app-primary);
-    }
-
-    .board-icon-btn--danger {
-      color: var(--app-danger);
-      border-color: rgba(158, 24, 24, 0.2);
-    }
-
-    .board-icon-btn--danger:hover {
-      background: var(--app-danger-soft);
-      color: var(--app-danger);
-      border-color: rgba(158, 24, 24, 0.35);
     }
 
     .board-card__details {
@@ -983,12 +1027,32 @@ export interface PlaylistOptions {
     }
 
     .board-field__label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       font-family: var(--app-font-heading);
       font-size: 10px;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.07em;
       color: var(--app-heading);
+    }
+
+    .board-field__desync {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 14px;
+      height: 14px;
+      font-size: 11px;
+      line-height: 1;
+      color: var(--app-warning, #9e6e10);
+      cursor: help;
+    }
+
+    .board-control--desynced {
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-warning, #9e6e10) 55%, transparent);
+      border-radius: var(--app-radius-sm);
     }
 
     .board-control {
@@ -1108,10 +1172,13 @@ export class BoardCardComponent implements OnInit {
   readonly playlistMode = input(false);
   readonly playlistOptions = input<PlaylistOptions>({ random: false });
 
+  readonly isPlaying = computed(() => this.status() === 'PLAYING');
+
   readonly delete = output<void>();
   readonly groupChange = output<number | null>();
   readonly trackChange = output<number | null>();
   readonly windowChange = output<number | null>();
+  readonly trackWithWindowChange = output<{ trackId: number | null; windowId: number | null }>();
   readonly toggleRepeat = output<void>();
   readonly toggleOverplay = output<void>();
   readonly play = output<void>();
@@ -1124,6 +1191,9 @@ export class BoardCardComponent implements OnInit {
   readonly volumePreviewChange = output<number>();
   readonly volumeCommit = output<number>();
   readonly rename = output<string>();
+  readonly navigateBoardUp = output<void>();
+  readonly navigateBoardDown = output<void>();
+  readonly requestPlay = output<void>();
 
   readonly settingsOpen = signal(false);
   readonly expanded = signal(false);
@@ -1134,6 +1204,54 @@ export class BoardCardComponent implements OnInit {
   readonly settingsItemsMaxHeight = signal<number | null>(null);
 
   @ViewChild('settingsMenu') settingsMenuRef?: ElementRef<HTMLElement>;
+  @ViewChild('renameInput') renameInputRef?: ElementRef<HTMLInputElement>;
+  @ViewChild('groupSelectRef') groupSelectRef?: UiSelectComponent;
+  @ViewChild('trackSelectRef') trackSelectRef?: UiSelectComponent;
+  @ViewChild('windowSelectRef') windowSelectRef?: UiSelectComponent;
+  @ViewChild('chevronBtn') chevronBtnRef?: ElementRef<HTMLButtonElement>;
+
+  focusGroup(): void {
+    this.groupSelectRef?.focusTrigger();
+  }
+
+  focusTrack(): void {
+    this.trackSelectRef?.focusTrigger();
+  }
+
+  focusWindow(): void {
+    this.windowSelectRef?.focusTrigger();
+  }
+
+  focusChevron(): void {
+    this.chevronBtnRef?.nativeElement.focus();
+  }
+
+  onChevronKeydown(event: KeyboardEvent): void {
+    switch (event.key) {
+      case 'ArrowDown':
+        event.preventDefault();
+        this.expanded() ? this.focusGroup() : this.navigateBoardDown.emit();
+        return;
+
+      case 'ArrowUp':
+        event.preventDefault();
+        this.navigateBoardUp.emit();
+        return;
+
+      case 'Escape':
+        if (this.expanded()) {
+          event.preventDefault();
+          this.setExpanded(false);
+        }
+        return;
+
+      case 'Enter':
+      case ' ':
+        event.preventDefault();
+        this.toggleExpanded();
+        return;
+    }
+  }
 
   private readonly shortcutsService = inject(BoardShortcutsService);
   private shortcutCaptureHandler: ((event: KeyboardEvent) => void) | null = null;
@@ -1147,12 +1265,30 @@ export class BoardCardComponent implements OnInit {
   private previousPlaylistMode: boolean | undefined;
   private previousSelectedGroupId: number | null | undefined;
 
-  readonly windows = computed(() => this.board().selectedTrack?.trackWindows ?? []);
+  readonly displayedTrack = computed(() => {
+    const selected = this.board().selectedTrack;
+    if (!selected) return null;
+    const tracks = this.board().availableTracks ?? [];
+    return tracks.some(t => t.id === selected.id) ? selected : null;
+  });
+
+  readonly groupDesynced = computed(() => {
+    const board = this.board();
+    if (!board.selectedTrack || !board.selectedGroup) return false;
+    const tracks = board.availableTracks ?? [];
+    return !tracks.some(t => t.id === board.selectedTrack?.id);
+  });
+
+  private readonly playingTrackWindows = computed(
+    () => this.board().selectedTrack?.trackWindows ?? [],
+  );
+
+  readonly windows = computed(() => this.displayedTrack()?.trackWindows ?? []);
 
   readonly selectedWindow = computed(() => {
     const id = this.selectedWindowId();
     if (id == null) return null;
-    return this.windows().find(w => (w as any).id === id) ?? null;
+    return this.playingTrackWindows().find(w => (w as any).id === id) ?? null;
   });
 
   readonly selectedWindowStart = computed(() =>
@@ -1219,10 +1355,27 @@ export class BoardCardComponent implements OnInit {
   );
 
   readonly trackOptions = computed(() =>
-    (this.board().availableTracks ?? []).map(t => ({
-      label: t.trackName || t.trackOriginalName || ('Track #' + t.id),
-      value: t.id,
-    })),
+    (this.board().availableTracks ?? []).map(t => {
+      const trackWindows = t.trackWindows ?? [];
+      const subOptions = trackWindows.length > 0
+        ? [
+            {
+              label: 'Whole track',
+              value: { trackId: t.id ?? null, windowId: null },
+            },
+            ...trackWindows.map(w => ({
+              label: `${(w as any).name || 'Window'} (${this.formatTime((w as any).positionFrom ?? 0)}–${this.formatTime((w as any).positionTo ?? 0)})`,
+              value: { trackId: t.id ?? null, windowId: (w as any).id ?? null },
+            })),
+          ]
+        : undefined;
+
+      return {
+        label: t.trackName || t.trackOriginalName || ('Track #' + t.id),
+        value: t.id,
+        subOptions,
+      };
+    }),
   );
 
   readonly windowOptions = computed(() =>
@@ -1387,7 +1540,6 @@ export class BoardCardComponent implements OnInit {
     this.shortcutsService.resumeTriggers();
   }
 
-  @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
     if (!(event.target instanceof Node)) return;
     if (!this.elementRef.nativeElement.contains(event.target)) {
@@ -1397,17 +1549,18 @@ export class BoardCardComponent implements OnInit {
   }
 
   toggleExpanded(): void {
-    this.expanded.update(v => !v);
-    if (!this.expanded()) this.settingsOpen.set(false);
+    this.setExpanded(!this.expanded());
+  }
+
+  private setExpanded(expanded: boolean): void {
+    this.expanded.set(expanded);
+    if (!expanded) this.settingsOpen.set(false);
   }
 
   startRename(): void {
     this.renameValue.set(this.board().name || '');
     this.renaming.set(true);
-    setTimeout(() => {
-      const input = this.elementRef.nativeElement.querySelector('.board-card__rename-input') as HTMLInputElement | null;
-      input?.select();
-    }, 0);
+    setTimeout(() => this.renameInputRef?.nativeElement.select(), 0);
   }
 
   commitRename(): void {
@@ -1446,20 +1599,7 @@ export class BoardCardComponent implements OnInit {
     this.playlistModeChange.emit(isPlaylist);
   }
 
-  boardContextItems() {
-    const items = [
-      { label: 'Group', value: this.currentGroupLabel() },
-      { label: this.playlistMode() ? 'Now playing' : 'Track', value: this.currentTrackLabel() },
-    ];
-
-    if (!this.playlistMode()) {
-      items.push({ label: 'Window', value: this.currentWindowLabel() });
-    }
-
-    return items;
-  }
-
-  onSecondaryOptionToggle(_event: Event): void {
+  onSecondaryOptionToggle(): void {
     if (this.playlistMode()) {
       this.playlistOptionsChange.emit({
         ...this.playlistOptions(),
@@ -1471,20 +1611,19 @@ export class BoardCardComponent implements OnInit {
     this.toggleRepeat.emit();
   }
 
-  onVolumeInput(event: Event): void {
+  onVolumeChange(event: Event, commit: boolean): void {
     const value = clampPct(Number((event.target as HTMLInputElement).value));
     this.displayedVolumePercent.set(value);
-    this.volumePreviewChange.emit(value);
-  }
 
-  onVolumeChange(event: Event): void {
-    const value = clampPct(Number((event.target as HTMLInputElement).value));
-    this.displayedVolumePercent.set(value);
-    this.volumeCommit.emit(value);
+    if (commit) {
+      this.volumeCommit.emit(value);
+    } else {
+      this.volumePreviewChange.emit(value);
+    }
   }
 
   onPrimaryAction(): void {
-    if (this.status() === 'PLAYING') {
+    if (this.isPlaying()) {
       this.stop.emit();
       return;
     }
@@ -1492,17 +1631,7 @@ export class BoardCardComponent implements OnInit {
     this.play.emit();
   }
 
-  onGroupSelected(groupId: number | null): void {
-    this.groupChange.emit(groupId);
-  }
 
-  onPlayerNearEnd(): void {
-    this.nearEnd.emit();
-  }
-
-  onPlayerEnded(): void {
-    this.ended.emit();
-  }
 
   formatTime(s: number): string {
     const safe = Math.max(0, Math.floor(s));
