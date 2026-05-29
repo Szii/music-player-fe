@@ -56,6 +56,7 @@ export class BoardPlayerAudioSourceManager {
   private firstPlayableResolve: (() => void) | null = null;
 
   private nativeCleanup: (() => void) | null = null;
+  private stallCleanup: (() => void) | null = null;
 
   private get downloadedLocalEndS(): number {
     if (this.streamComplete) {
@@ -129,6 +130,8 @@ export class BoardPlayerAudioSourceManager {
     if (!audio) {
       return;
     }
+
+    this.attachStallListeners(audio);
 
     const canUseMse =
       options.useMse !== false &&
@@ -574,6 +577,7 @@ export class BoardPlayerAudioSourceManager {
   destroy(): void {
     this.loadToken++;
     this.abort();
+    this.detachStallListeners();
     this.tearDownMse();
     this.tearDownBlob();
     this.tearDownNative();
@@ -679,12 +683,18 @@ export class BoardPlayerAudioSourceManager {
   }
 
   private promoteCompletedMseToBlob(): boolean {
-    const audio = this.audioElement;
-    if (!audio) {
+    if (!this.shouldPromoteCompletedMseToBlob()) {
       return false;
     }
 
-    if (!this.shouldPromoteCompletedMseToBlob()) {
+    return this.promoteMseToBlob(
+      'board-player promote completed MSE to blob failed',
+    );
+  }
+
+  private promoteMseToBlob(logPrefix: string): boolean {
+    const audio = this.audioElement;
+    if (!audio || !this.usingMse) {
       return false;
     }
 
@@ -693,7 +703,16 @@ export class BoardPlayerAudioSourceManager {
       return false;
     }
 
+    // In MSE mode, audio.currentTime is the source-local time which equals
+    // the track-local time (chunks were appended starting at 0).
     const currentLocalTimeS = Math.max(0, audio.currentTime || 0);
+
+    // Refuse to switch if the blob doesn't cover the playhead — seeking past
+    // its end would leave the audio in an unloadable region.
+    if (!this.isBlobSeekable(currentLocalTimeS)) {
+      return false;
+    }
+
     const wasPlaying = !audio.paused && !audio.ended;
 
     if (this.blobObjectUrl) {
@@ -714,10 +733,128 @@ export class BoardPlayerAudioSourceManager {
       this.blobObjectUrl,
       this.toBlobLocalTime(currentLocalTimeS),
       wasPlaying,
-      'board-player promote completed MSE to blob failed',
+      logPrefix,
     );
 
     return true;
+  }
+
+  private refreshBlobToCurrentDownload(logPrefix: string): boolean {
+    const audio = this.audioElement;
+    if (!audio || !this.usingBlob) {
+      return false;
+    }
+
+    if (this.isCurrentBlobSnapshotFresh()) {
+      return false;
+    }
+
+    const oldRetainedStartS =
+      this.blobSnapshotEvictedHeadBytes / this.bytesPerSecond;
+    const currentTrackTimeS =
+      (audio.currentTime || 0) + oldRetainedStartS;
+    const wasPlaying = !audio.paused && !audio.ended;
+
+    const src = this.rebuildBlobObjectUrl();
+    if (!src) {
+      return false;
+    }
+
+    this.assignSourceAndSeek(
+      audio,
+      src,
+      this.toBlobLocalTime(currentTrackTimeS),
+      wasPlaying,
+      logPrefix,
+    );
+
+    return true;
+  }
+
+  private isMseBufferedAheadOf(targetTimeS: number, marginS: number): boolean {
+    const sb = this.sourceBuffer;
+    if (!sb) {
+      return false;
+    }
+
+    try {
+      for (let i = 0; i < sb.buffered.length; i++) {
+        const start = sb.buffered.start(i);
+        const end = sb.buffered.end(i);
+
+        if (start <= targetTimeS + 0.5 && end > targetTimeS + marginS) {
+          return true;
+        }
+      }
+    } catch {}
+
+    return false;
+  }
+
+  private attachStallListeners(audio: HTMLAudioElement): void {
+    this.detachStallListeners();
+
+    const handler = () => this.handleAudioStall();
+
+    audio.addEventListener('waiting', handler);
+    audio.addEventListener('stalled', handler);
+
+    this.stallCleanup = () => {
+      audio.removeEventListener('waiting', handler);
+      audio.removeEventListener('stalled', handler);
+    };
+  }
+
+  private detachStallListeners(): void {
+    this.stallCleanup?.();
+    this.stallCleanup = null;
+  }
+
+  private disableMseAndPromoteToBlob(): void {
+    this.mseAppendDisabled = true;
+
+    // Promote to blob immediately so playback doesn't have to wait until it
+    // hits the end of the frozen MSE buffer and stalls. The blob covers
+    // everything that's been downloaded so far, and the rest of fetchStream
+    // keeps appending to storedChunks; on streamComplete we refresh the URL.
+    if (this.usingMse) {
+      this.promoteMseToBlob(
+        'board-player MSE append disabled → blob fallback failed',
+      );
+    }
+
+    this.emitProgress(false);
+    this.resolveFirstPlayable();
+  }
+
+  private handleAudioStall(): void {
+    const audio = this.audioElement;
+    if (!audio) {
+      return;
+    }
+
+    if (this.usingMse) {
+      const localTimeS = Math.max(0, audio.currentTime || 0);
+
+      // If MSE still has data ahead of the playhead, the stall is transient
+      // (e.g. waiting for next append) and will resolve on its own.
+      if (this.isMseBufferedAheadOf(localTimeS, 1)) {
+        return;
+      }
+
+      if (this.storedChunks.length === 0 && !this.cachedBlob) {
+        return;
+      }
+
+      this.promoteMseToBlob('board-player MSE stall → blob fallback failed');
+      return;
+    }
+
+    if (this.usingBlob) {
+      this.refreshBlobToCurrentDownload(
+        'board-player blob refresh on stall failed',
+      );
+    }
   }
 
   private updateBytesPerSecondFromExpectedSize(): void {
@@ -952,6 +1089,18 @@ export class BoardPlayerAudioSourceManager {
             this.cachedBlob = new Blob(this.storedChunks, { type: 'audio/mpeg' });
           }
 
+          // If we already switched to a partial blob during streaming, refresh
+          // the object URL so the newly downloaded tail becomes playable.
+          if (this.usingBlob && !this.isCurrentBlobSnapshotFresh()) {
+            this.refreshBlobToCurrentDownload(
+              'board-player blob refresh after stream complete failed',
+            );
+
+            this.emitProgress(true);
+            this.resolveFirstPlayable();
+            break;
+          }
+
           if (this.shouldPromoteCompletedMseToBlob()) {
             const promoted = this.promoteCompletedMseToBlob();
 
@@ -1075,14 +1224,10 @@ export class BoardPlayerAudioSourceManager {
                     this.resolveFirstPlayable();
                   }
                 } catch {
-                  this.mseAppendDisabled = true;
-                  this.emitProgress(false);
-                  this.resolveFirstPlayable();
+                  this.disableMseAndPromoteToBlob();
                 }
               } else {
-                this.mseAppendDisabled = true;
-                this.emitProgress(false);
-                this.resolveFirstPlayable();
+                this.disableMseAndPromoteToBlob();
               }
             } else {
               console.warn('board-player appendBuffer error', error);
