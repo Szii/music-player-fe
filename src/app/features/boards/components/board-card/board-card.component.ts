@@ -21,6 +21,7 @@ import {
   UiSelectComponent,
 } from '../../../../shared/ui/select/ui-select.component';
 import { UiVolumeSliderComponent } from '../../../../shared/ui/volume-slider/ui-volume-slider.component';
+import { UiPlayButtonComponent } from '../../../../shared/ui/play-button/ui-play-button.component';
 import { BoardShortcutsService } from '../../../../core/services/board-shortcuts.service';
 
 export interface PlaylistOptions {
@@ -38,6 +39,7 @@ export interface PlaylistOptions {
     IconButtonComponent,
     UiSelectComponent,
     UiVolumeSliderComponent,
+    UiPlayButtonComponent,
   ],
   host: {
     '(document:click)': 'onDocumentClick($event)',
@@ -53,16 +55,13 @@ export interface PlaylistOptions {
             class="board-card__play-wrap"
             [class.board-card__play-wrap--playlist]="playlistMode()"
             [class.board-card__play-wrap--playing]="isPlaying()">
-            <button
-              type="button"
-              class="board-card__summary-play"
-              [class.board-card__summary-play--stop]="isPlaying()"
+            <ui-play-button
+              size="md"
+              [playing]="isPlaying()"
               [disabled]="!canStartPlayback()"
-              (click)="onPrimaryAction()"
-              [attr.aria-label]="isPlaying() ? 'Stop playback' : 'Play board'">
-              <span *ngIf="!isPlaying()">▶</span>
-              <span *ngIf="isPlaying()">■</span>
-            </button>
+              [ariaLabel]="isPlaying() ? 'Stop playback' : 'Play board'"
+              (clicked)="onPrimaryAction()"
+            />
           </div>
 
           <div class="board-card__summary-content">
@@ -437,33 +436,6 @@ export interface PlaylistOptions {
       grid-template-columns: auto minmax(0, 1fr);
       gap: 12px;
       align-items: center;
-    }
-
-    .board-card__summary-play {
-      width: 42px;
-      height: 42px;
-      border: 0;
-      border-radius: 999px;
-      background: var(--app-primary);
-      color: #fff;
-      font-size: 18px;
-      font-weight: 800;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      box-shadow: 0 8px 16px color-mix(in srgb, var(--app-primary) 18%, transparent);
-    }
-
-    .board-card__summary-play:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-      box-shadow: none;
-    }
-
-    .board-card__summary-play--stop {
-      background: var(--app-danger);
     }
 
     .board-card__summary-content {

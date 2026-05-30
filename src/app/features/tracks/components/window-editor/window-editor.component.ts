@@ -25,6 +25,7 @@ import {
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-input.component';
 import { UiVolumeSliderComponent } from '../../../../shared/ui/volume-slider/ui-volume-slider.component';
+import { UiPlayButtonComponent } from '../../../../shared/ui/play-button/ui-play-button.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 
@@ -47,6 +48,7 @@ export interface WindowEditorResult {
     UiTextInputComponent,
     NormalButtonComponent,
     UiVolumeSliderComponent,
+    UiPlayButtonComponent,
   ],
   template: `
     <div class="we-root">
@@ -164,37 +166,13 @@ export interface WindowEditorResult {
         *ngIf="audioReady() && durationS() > 0"
       >
         <div class="we-transport__actions">
-          <button
-            type="button"
-            class="we-pill we-pill--outline"
-            (click)="togglePlaySelection()"
-            [class.we-pill--active]="isPlaying() && playMode() === 'selection'"
-            [disabled]="
-              !streamComplete() && !(isPlaying() && playMode() === 'selection')
-            "
-          >
-            <svg viewBox="0 0 20 20" width="11" height="11" aria-hidden="true">
-              <polygon
-                *ngIf="!(isPlaying() && playMode() === 'selection')"
-                points="4,2 18,10 4,18"
-                fill="currentColor"
-              />
-              <rect
-                *ngIf="isPlaying() && playMode() === 'selection'"
-                x="4"
-                y="4"
-                width="12"
-                height="12"
-                rx="1"
-                fill="currentColor"
-              />
-            </svg>
-            {{
-              isPlaying() && playMode() === 'selection'
-                ? 'Stop'
-                : 'Play selection'
-            }}
-          </button>
+          <ui-play-button
+            size="sm"
+            label="Play selection"
+            [playing]="isPlaying() && playMode() === 'selection'"
+            [disabled]="!streamComplete() && !(isPlaying() && playMode() === 'selection')"
+            (clicked)="togglePlaySelection()"
+          />
 
           <button
             type="button"
@@ -220,7 +198,7 @@ export interface WindowEditorResult {
           <span class="we-playback__label">Playback</span>
           <span class="we-playback__time">{{ formatTime(currentTimeS()) }}</span>
           <input
-            class="we-seek__range app-range"
+            class="we-seek__range app-range app-range--seek"
             type="range"
             min="0"
             [max]="durationS()"
@@ -570,7 +548,13 @@ export interface WindowEditorResult {
     }
 
     .we-volume {
-      grid-column: 1 / -1;
+      min-width: 0;
+    }
+
+    @media (max-width: 880px) {
+      .we-volume {
+        grid-column: 1 / -1;
+      }
     }
 
     .we-bottom {
