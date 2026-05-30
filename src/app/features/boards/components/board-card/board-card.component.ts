@@ -121,14 +121,25 @@ export interface PlaylistOptions {
 
             <div class="board-card__summary-bottom">
               <div class="board-card__meta-line">
-                <ui-chip variant="neutral" keyLabel="Group">{{ currentGroupLabel() }}</ui-chip>
+                <ui-chip
+                  variant="neutral"
+                  keyLabel="Group"
+                  [tooltip]="currentGroupLabel()"
+                >{{ currentGroupLabel() }}</ui-chip>
 
                 <ui-chip
                   variant="neutral"
                   [keyLabel]="playlistMode() ? 'Now playing' : 'Track'"
+                  [tooltip]="currentTrackLabel()"
                 >{{ currentTrackLabel() }}</ui-chip>
 
-                <ui-chip *ngIf="!playlistMode()" variant="neutral" keyLabel="Window">{{ currentWindowLabel() }}</ui-chip>
+                @if (!playlistMode()) {
+                  <ui-chip
+                    variant="neutral"
+                    keyLabel="Window"
+                    [tooltip]="currentWindowLabel()"
+                  >{{ currentWindowLabel() }}</ui-chip>
+                }
               </div>
 
               <ui-volume-slider

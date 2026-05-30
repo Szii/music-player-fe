@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/cor
 
 import { ProfileStore } from '../../data-access/profile-store.service';
 import { UiCardComponent } from '../../../../shared/ui/card/ui-card.component';
+import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { ChangePasswordFormComponent } from '../../components/change-password-form/change-password-form.component';
 import { ChangeEmailFormComponent } from '../../components/change-email-form/change-email-form.component';
 import { UserLimitsCardComponent } from '../../components/user-limits-card/user-limits-card.component';
@@ -10,6 +11,7 @@ import { UserLimitsCardComponent } from '../../components/user-limits-card/user-
   selector: 'app-profile-page',
   imports: [
     UiCardComponent,
+    UiPageTitleComponent,
     ChangePasswordFormComponent,
     ChangeEmailFormComponent,
     UserLimitsCardComponent,
@@ -17,7 +19,7 @@ import { UserLimitsCardComponent } from '../../components/user-limits-card/user-
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="app-page">
-      <h1 class="app-page__title">User profile</h1>
+      <ui-page-title title="User profile" />
 
       @switch (status()) {
         @case ('loading') {

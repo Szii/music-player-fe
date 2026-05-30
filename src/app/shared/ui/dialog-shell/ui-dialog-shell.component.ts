@@ -11,6 +11,7 @@ import { UiCloseButtonComponent } from '../buttons/ui-close-button.component';
       <div
         class="ui-dialog"
         [class.ui-dialog--wide]="wide"
+        [class.ui-dialog--extra-wide]="extraWide"
         role="dialog"
         aria-modal="true"
         [attr.aria-labelledby]="titleId"
@@ -46,6 +47,7 @@ export class UiDialogShellComponent {
   @Input() subtitle = '';
   @Input() titleId = 'dialog-title';
   @Input() wide = false;
+  @Input() extraWide = false;
   @Input() showFooter = false;
 
   @Output() closed = new EventEmitter<void>();

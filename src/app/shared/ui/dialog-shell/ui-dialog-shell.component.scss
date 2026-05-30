@@ -65,6 +65,10 @@
   width: min(100%, 860px);
 }
 
+.ui-dialog--extra-wide {
+  width: min(96vw, 1360px);
+}
+
 @keyframes ui-dialog-slide-in {
   from {
     opacity: 0;

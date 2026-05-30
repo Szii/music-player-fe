@@ -25,6 +25,7 @@ import {
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empty-state.component';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
+import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
 import {
   TrackPreviewSessionService,
   TrackPreviewState,
@@ -51,29 +52,25 @@ export interface WindowDeleteEvent {
     NormalButtonComponent,
     UiEmptyStateComponent,
     UiChipComponent,
+    UiDialogShellComponent,
   ],
   template: `
-    <div class="panel-backdrop" *ngIf="track" (click)="onClose()">
-      <div class="panel-modal" (click)="$event.stopPropagation()">
-        <div class="panel-modal__header">
-          <div class="panel-modal__heading">
-            <h2 class="panel-modal__title">Windows</h2>
-            <p class="panel-modal__sub">
-              {{ track.trackName || track.trackOriginalName || ('Track #' + track.id) }}
-            </p>
-          </div>
+    <ui-dialog-shell
+      *ngIf="track"
+      title="Windows"
+      [subtitle]="track.trackName || track.trackOriginalName || ('Track #' + track.id)"
+      titleId="track-windows-title"
+      [extraWide]="true"
+      (closed)="onClose()"
+    >
+      <div *ngIf="streamError || waveformError" class="panel-error">
+        <span>{{ streamError || waveformError }}</span>
+        <normal-button size="sm" variant="danger" (clicked)="retryStream()">
+          Retry
+        </normal-button>
+      </div>
 
-          <button class="panel-modal__close" type="button" (click)="onClose()">✕</button>
-        </div>
-
-        <div *ngIf="streamError || waveformError" class="panel-error">
-          <span>{{ streamError || waveformError }}</span>
-          <normal-button size="sm" variant="danger" (clicked)="retryStream()">
-            Retry
-          </normal-button>
-        </div>
-
-        <div class="panel-modal__body panel-modal__body--split">
+      <div class="panel-body panel-body--split">
           <aside class="panel-side">
             <div *ngIf="!editorStreamComplete" class="panel-side__loading">
               <span class="panel-side__loading-spinner"></span>
@@ -90,7 +87,7 @@ export interface WindowDeleteEvent {
                 <ui-empty-state
                   *ngIf="windows.length === 0"
                   title="No windows yet"
-                  message="Create your first one on the right."
+                  message="Create your first one in the editor."
                 />
 
                 <div *ngIf="windows.length > 0" class="panel-side__table-wrap">
@@ -194,8 +191,7 @@ export interface WindowDeleteEvent {
             </ng-template>
           </section>
         </div>
-      </div>
-    </div>
+      </ui-dialog-shell>
   `,
   styles: [`
     @keyframes fade-in {
@@ -225,98 +221,6 @@ export interface WindowDeleteEvent {
       animation: spin 0.7s linear infinite;
     }
 
-    .panel-backdrop {
-      position: fixed;
-      inset: 0;
-      background:
-        radial-gradient(ellipse at center, rgba(88, 24, 13, 0.1), transparent 60%),
-        linear-gradient(180deg, rgba(10, 5, 2, 0.6), rgba(10, 5, 2, 0.72));
-      backdrop-filter: blur(3px);
-      display: flex;
-      align-items: flex-start;
-      justify-content: center;
-      z-index: 900;
-      padding: 135px 24px 24px;
-      overflow: auto;
-      animation: fade-in 0.5s ease;
-      box-sizing: border-box;
-    }
-
-    .panel-modal {
-      width: min(96vw, 1360px);
-      max-height: calc(100dvh - 228px);
-      display: flex;
-      flex-direction: column;
-      background: var(--app-parchment);
-      border: 1px solid var(--app-border-color);
-      border-top: 3px solid var(--app-primary);
-      border-radius: var(--app-radius-lg);
-      box-shadow:
-        0 28px 72px rgba(8, 3, 1, 0.48),
-        0 10px 30px rgba(8, 3, 1, 0.26),
-        inset 0 0 0 3px rgba(201, 164, 76, 0.1);
-      overflow: hidden;
-      animation: slide-in 0.18s ease;
-      min-height: 0;
-    }
-
-    @keyframes slide-in {
-      from { opacity: 0; transform: translateY(-14px) scale(0.98); }
-      to   { opacity: 1; transform: translateY(0) scale(1); }
-    }
-
-    .panel-modal__header {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 16px;
-      padding: 24px 28px 18px;
-      border-bottom: var(--app-border);
-      flex-shrink: 0;
-    }
-
-    .panel-modal__heading {
-      min-width: 0;
-    }
-
-    .panel-modal__title {
-      margin: 0 0 6px;
-      font-size: 2rem;
-      font-weight: 700;
-      line-height: 1.1;
-      color: var(--app-text);
-    }
-
-    .panel-modal__sub {
-      margin: 0;
-      font-size: 1rem;
-      color: var(--app-text-muted);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .panel-modal__close {
-      flex-shrink: 0;
-      width: 38px;
-      height: 38px;
-      border-radius: 10px;
-      border: none;
-      background: transparent;
-      color: var(--app-text-muted);
-      font-size: 20px;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      transition: background 0.15s ease, color 0.15s ease;
-    }
-
-    .panel-modal__close:hover {
-      background: var(--app-danger-soft);
-      color: var(--app-danger);
-    }
-
     .panel-error {
       display: flex;
       align-items: center;
@@ -333,35 +237,58 @@ export interface WindowDeleteEvent {
       to { transform: rotate(360deg); }
     }
 
-    .panel-modal__body {
+    .panel-body {
       flex: 1 1 auto;
       min-height: 0;
     }
 
-    .panel-modal__body--split {
+    .panel-body--split {
+      box-sizing: border-box;
       display: grid;
-      grid-template-columns: minmax(420px, 520px) minmax(0, 1fr);
+      grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+      gap: 14px;
       min-height: 0;
       overflow: hidden;
+      padding: 14px 4px 4px;
+      background: transparent;
     }
 
     .panel-side {
+      grid-column: 1;
+      grid-row: 1;
       min-width: 0;
       min-height: 0;
       overflow: hidden;
-      border-right: var(--app-border);
-      background: rgba(239, 231, 216, 0.16);
+      background: transparent;
       display: flex;
       flex-direction: column;
+      position: relative;
+    }
+
+    .panel-side::after {
+      content: '';
+      position: absolute;
+      top: 14px;
+      right: -7px;
+      bottom: 14px;
+      width: 1px;
+      background: linear-gradient(
+        180deg,
+        transparent,
+        var(--app-border-color-soft) 18%,
+        var(--app-border-color-soft) 82%,
+        transparent
+      );
+      pointer-events: none;
     }
 
     .panel-side__inner {
-      padding: 22px 20px;
+      padding: 14px 0 4px;
       min-height: 0;
       flex: 1 1 auto;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 14px;
       overflow: hidden;
     }
 
@@ -377,9 +304,9 @@ export interface WindowDeleteEvent {
     .panel-side__notice {
       flex: 0 0 auto;
       padding: 10px 12px;
-      border: var(--app-border);
-      border-radius: 12px;
-      background: var(--app-surface);
+      border: 1px solid var(--app-border-color-soft);
+      border-radius: var(--app-radius-md);
+      background: var(--app-parchment-soft);
       color: var(--app-text-muted);
       font-size: 0.9rem;
       line-height: 1.4;
@@ -405,21 +332,24 @@ export interface WindowDeleteEvent {
       overflow-x: hidden;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      padding: 4px 6px 4px 2px;
+      gap: 12px;
+      padding: 4px 4px 6px 0;
     }
 
     .panel-window-item {
       width: 100%;
-      border: var(--app-border);
-      border-radius: 14px;
-      background: var(--app-surface);
+      border: 1px solid var(--app-border-color-soft);
+      border-radius: var(--app-radius-md);
+      background: var(--app-parchment-soft);
       padding: 12px 14px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 10px;
       text-align: left;
       cursor: pointer;
+      box-shadow:
+        var(--app-shadow-soft),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
       transition:
         border-color 0.12s ease,
         background 0.12s ease,
@@ -428,19 +358,19 @@ export interface WindowDeleteEvent {
     }
 
     .panel-window-item:hover:not(:disabled) {
-      border-color: var(--app-primary);
-      background: var(--app-bg-soft);
+      border-color: var(--app-border-color);
+      background: var(--app-parchment);
+      transform: translateY(-1px);
     }
 
     .panel-window-item--selected,
     .panel-window-item--selected:hover:not(:disabled) {
       border-color: var(--app-primary);
-      background: var(--app-primary-soft);
-      box-shadow: inset 0 0 0 1px rgba(122, 92, 46, 0.22);
-    }
-
-    .panel-window-item--selected:hover:not(:disabled) {
-      box-shadow: inset 0 0 0 1px rgba(122, 92, 46, 0.35);
+      background: var(--app-parchment);
+      box-shadow:
+        var(--app-shadow-soft),
+        inset 0 0 0 1px var(--app-primary),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
     }
 
     .panel-window-item--disabled,
@@ -497,24 +427,30 @@ export interface WindowDeleteEvent {
     }
 
     .panel-main {
+      grid-column: 2;
+      grid-row: 1;
       min-width: 0;
       min-height: 0;
       overflow: hidden;
-      background: var(--app-surface);
+      background: transparent;
       display: flex;
       flex-direction: column;
-      padding: 12px;
+      padding: 0;
     }
 
     .panel-editor {
       min-width: 0;
       min-height: 0;
+      width: 100%;
       height: 100%;
       display: flex;
       flex-direction: column;
-      background: var(--app-surface);
-      border: var(--app-border);
-      border-radius: 16px;
+      background: var(--app-parchment-soft);
+      border: 1px solid var(--app-border-color-soft);
+      border-radius: var(--app-radius-md);
+      box-shadow:
+        var(--app-shadow-soft),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
       overflow: hidden;
     }
 
@@ -527,9 +463,9 @@ export interface WindowDeleteEvent {
       align-items: center;
       justify-content: space-between;
       gap: 10px;
-      padding: 10px 14px;
-      border-bottom: var(--app-border);
-      background: var(--app-bg-soft);
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--app-border-color-soft);
+      background: var(--app-header-surface);
       flex-shrink: 0;
     }
 
@@ -537,7 +473,7 @@ export interface WindowDeleteEvent {
       min-height: 0;
       flex: 1 1 auto;
       overflow: auto;
-      background: var(--app-surface);
+      background: transparent;
     }
 
     .panel-editor__placeholder {
@@ -555,87 +491,108 @@ export interface WindowDeleteEvent {
       justify-content: space-between;
       gap: 10px;
       flex-shrink: 0;
+      padding: 0 4px 0 0;
     }
 
     .panel-block__title {
-      font-size: 12px;
+      font-family: var(--app-font-heading);
+      font-size: 0.82rem;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--app-text-muted);
+      letter-spacing: 0.06em;
+      color: var(--app-heading);
+      text-shadow: 0 1px 2px rgba(88, 24, 13, 0.08);
     }
 
     .panel-block__title--primary {
-      font-size: 13px;
-      color: var(--app-text);
+      font-size: 0.92rem;
       text-transform: none;
-      letter-spacing: 0;
+      letter-spacing: 0.02em;
     }
 
     .panel-block__meta {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      min-width: 2rem;
-      height: 2rem;
-      padding: 0 0.6rem;
+      min-width: 1.75rem;
+      height: 1.75rem;
+      padding: 0 0.55rem;
       border-radius: 999px;
       background: var(--app-surface-muted);
-      color: var(--app-text-muted);
-      font-size: 0.88rem;
+      color: var(--app-heading);
+      font-family: var(--app-font-heading);
+      font-size: 0.82rem;
       font-weight: 700;
+      border: 1px solid var(--app-border-color-soft);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
     }
 
     @media (max-width: 1100px) {
-      .panel-modal__body--split {
-        grid-template-columns: 1fr;
-        grid-template-rows: minmax(240px, 320px) minmax(0, 1fr);
+      .panel-body--split {
+        grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+        gap: 12px;
+        padding: 12px;
       }
 
-      .panel-side {
-        border-right: none;
-        border-bottom: var(--app-border);
+      .panel-side::after {
+        right: -6px;
+      }
+
+      .panel-side__inner {
+        padding: 12px 0 4px;
+      }
+
+      .panel-window-item {
+        padding: 12px 14px;
       }
     }
 
     @media (max-width: 700px) {
-      .panel-backdrop {
-        padding: 64px 12px 12px;
-      }
-
-      .panel-modal {
-        width: 100%;
-        max-height: calc(100dvh - 76px);
-      }
-
-      .panel-modal__header {
-        padding: 18px 18px 14px;
-      }
-
-      .panel-modal__title {
-        font-size: 1.65rem;
-      }
-
       .panel-error {
         padding-left: 18px;
         padding-right: 18px;
       }
 
-      .panel-side__inner {
-        padding: 16px;
+      .panel-body--split {
+        grid-template-columns: minmax(170px, 40vw) minmax(0, 1fr);
+        gap: 8px;
+        padding: 8px;
       }
 
-      .panel-main {
-        padding: 16px;
+      .panel-side::after {
+        display: none;
+      }
+
+      .panel-side__inner {
+        padding: 10px 0;
+        gap: 10px;
+      }
+
+      .panel-window-list {
+        gap: 10px;
+        padding: 2px 2px 4px 0;
+      }
+
+      .panel-window-item {
+        padding: 10px 11px;
+      }
+
+      .panel-window-item__top {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .panel-window-item__bottom {
+        align-items: flex-start;
+      }
+
+      .panel-window-item__actions {
+        align-self: flex-start;
       }
 
       .panel-editor__head {
-        padding: 16px;
-      }
-
-      .panel-window-item__top,
-      .panel-window-item__bottom {
-        align-items: flex-start;
+        padding: 12px;
       }
     }
   `],

@@ -18,7 +18,7 @@ export type ChipShape = 'pill' | 'hex';
   selector: 'ui-chip',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <span class="ui-chip" [class]="classList()">
+    <span class="ui-chip" [class]="classList()" [attr.title]="tooltip()">
       @if (dot()) {
         <span class="ui-chip__dot" aria-hidden="true"></span>
       }
@@ -48,6 +48,7 @@ export type ChipShape = 'pill' | 'hex';
         letter-spacing: 0.06em;
         text-transform: uppercase;
         white-space: nowrap;
+        max-width: var(--ui-chip-max-width, 32ch);
         box-shadow:
           inset 0 1px 0 rgba(255, 255, 255, 0.14),
           0 1px 3px rgba(15, 8, 3, 0.08);
@@ -88,9 +89,12 @@ export type ChipShape = 'pill' | 'hex';
         opacity: 0.6;
       }
 
-      /* Body (projected content slot) — grows to fit text */
+      /* Body (projected content slot) — truncates with ellipsis when over max-width */
       .ui-chip__body {
+        min-width: 0;
         white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       /* Meta mode — value styling on the body */
@@ -193,6 +197,7 @@ export class UiChipComponent {
   readonly shape = input<ChipShape>('pill');
   readonly dot = input<boolean>(false);
   readonly keyLabel = input<string | null>(null);
+  readonly tooltip = input<string | null>(null);
 
   readonly classList = computed(
     () => `ui-chip--${this.variant()} ui-chip--${this.size()} ui-chip--${this.shape()}`,
