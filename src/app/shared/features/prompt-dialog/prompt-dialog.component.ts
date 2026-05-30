@@ -75,9 +75,11 @@ import { PromptDialogService } from './prompt-dialog.service';
   `,
   styles: [`
     /* Layer above any underlying ui-dialog-shell (z-index 1000) — prompt dialogs
-       are routinely opened from inside other modals. */
+       are routinely opened from inside other modals. Skip the backdrop blur so
+       the modal underneath doesn't visibly blur/unblur when the prompt opens. */
     :host ::ng-deep .ui-dialog-backdrop {
       z-index: 1300;
+      backdrop-filter: none;
     }
 
     .prompt-dialog__form {

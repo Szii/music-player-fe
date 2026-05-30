@@ -47,7 +47,7 @@ import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog
         <ui-alert variant="danger">{{ errorMessage() }}</ui-alert>
       }
 
-      @if (loading()) {
+      @if (!hasLoaded()) {
         <div class="app-muted">Loading...</div>
       } @else {
         <div class="workshop-page__body">
@@ -96,6 +96,7 @@ export class WorkshopPageComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly loading = signal(false);
+  readonly hasLoaded = signal(false);
   readonly errorMessage = signal('');
   readonly busyTrackId = signal<number | null>(null);
   readonly myTracksOpen = signal(false);
@@ -174,6 +175,7 @@ export class WorkshopPageComponent implements OnInit {
           this.myTracks.set(ownTracks ?? []);
           this.publishedTracks.set(publishedTracks ?? []);
           this.subscribedTracks.set(subscribedTracks ?? []);
+          this.hasLoaded.set(true);
         },
         error: (err: unknown) => {
           console.error(err);

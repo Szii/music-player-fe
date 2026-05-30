@@ -45,9 +45,11 @@ import { ConfirmDialogService } from './confirm-dialog.service';
   `,
   styles: [`
     /* Layer above any underlying ui-dialog-shell (z-index 1000) — confirm dialogs
-       are routinely opened from inside other modals. */
+       are routinely opened from inside other modals. Skip the backdrop blur so
+       the modal underneath doesn't visibly blur/unblur when the confirm opens. */
     :host ::ng-deep .ui-dialog-backdrop {
       z-index: 1300;
+      backdrop-filter: none;
     }
 
     .confirm-dialog__message {
