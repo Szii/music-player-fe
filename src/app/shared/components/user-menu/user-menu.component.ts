@@ -37,10 +37,10 @@ import { ProfileStore } from '../../../features/profile/data-access/profile-stor
       </button>
 
       @if (isOpen()) {
-        <div class="um__panel" role="menu">
+        <div class="app-popover-surface um__panel" role="menu">
           <a
             routerLink="/profile"
-            class="um__item"
+            class="app-popover-item"
             role="menuitem"
             (click)="close()"
           >
@@ -57,7 +57,7 @@ import { ProfileStore } from '../../../features/profile/data-access/profile-stor
 
           <button
             type="button"
-            class="um__item um__item--danger"
+            class="app-popover-item app-popover-item--danger"
             role="menuitem"
             (click)="onLogout()"
           >
@@ -165,53 +165,11 @@ import { ProfileStore } from '../../../features/profile/data-access/profile-stor
       right: 0;
       z-index: 1100;
       min-width: 220px;
-      display: flex;
-      flex-direction: column;
-      background: #faf4e4;
-      border: 1px solid var(--app-border-color-soft);
-      border-radius: var(--app-radius-md);
-      box-shadow:
-        0 12px 32px rgba(15, 8, 3, 0.32),
-        0 4px 12px rgba(15, 8, 3, 0.16);
-      overflow: hidden;
       padding: 0.35rem;
-      animation: um-open 0.13s ease;
     }
 
-    @keyframes um-open {
-      from { opacity: 0; transform: translateY(-4px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .um__item {
-      display: flex;
-      align-items: center;
-      gap: 0.6rem;
-      padding: 0.55rem 0.7rem;
-      border: 1px solid transparent;
+    .um__panel .app-popover-item {
       border-radius: var(--app-radius-sm);
-      background: transparent;
-      color: var(--app-text);
-      font-family: var(--app-font-body);
-      font-size: 0.92rem;
-      text-align: left;
-      text-decoration: none;
-      cursor: pointer;
-      transition: background 0.12s ease, color 0.12s ease;
-    }
-
-    .um__item:hover {
-      background: var(--app-primary-soft);
-      color: var(--app-heading);
-    }
-
-    .um__item--danger {
-      color: var(--app-danger);
-    }
-
-    .um__item--danger:hover {
-      background: var(--app-danger-soft);
-      color: var(--app-danger);
     }
 
     .um__item-icon {

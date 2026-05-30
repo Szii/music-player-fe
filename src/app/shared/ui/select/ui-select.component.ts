@@ -11,7 +11,6 @@ import {
   signal,
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
-import { CommonModule } from '@angular/common';
 
 export interface UiSelectOption {
   label: string;
@@ -34,9 +33,7 @@ interface PanelRect {
 
 @Component({
   selector: 'ui-select',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule],
   providers: [
     {
       provide: NG_VALUE_ACCESSOR,
@@ -77,83 +74,91 @@ interface PanelRect {
         </span>
       </button>
 
-      <div
-        *ngIf="isOpen()"
-        class="sel__panel"
-        [ngStyle]="panelStyle()"
-      >
-        <div *ngIf="enableSearch()" class="sel__search-wrap">
-          <input
-            #searchInput
-            type="text"
-            class="sel__search"
-            placeholder="Search…"
-            autocomplete="off"
-            [value]="searchQuery()"
-            (input)="searchQuery.set($any($event.target).value)"
-            (click)="$event.stopPropagation()"
-            (keydown)="onSearchKeydown($event)"
-          />
-        </div>
-
-        <div #optionsList class="sel__options" role="listbox">
-          <div
-            *ngFor="let opt of filteredOptions(); let i = index"
-            class="sel__option-wrap"
-            [attr.data-option-index]="i"
-            (mouseenter)="onOptionHover(opt, $event)"
-            (mousemove)="highlightedIndex.set(i)"
-            (mouseleave)="onOptionUnhover()"
-          >
-            <button
-              type="button"
-              class="sel__option"
-              [class.sel__option--selected]="currentValue() === opt.value"
-              [class.sel__option--highlighted]="highlightedIndex() === i"
-              [class.sel__option--has-sub]="(opt.subOptions?.length ?? 0) > 0"
-              role="option"
-              [attr.aria-selected]="currentValue() === opt.value"
-              (click)="selectOption(opt)"
-            >
-              <span class="sel__option-label">{{ opt.label }}</span>
-              <span
-                *ngIf="(opt.subOptions?.length ?? 0) > 0"
-                class="sel__option-arrow"
-                aria-hidden="true"
-              >▸</span>
-              <span
-                *ngIf="currentValue() === opt.value"
-                class="sel__option-check"
-                aria-hidden="true"
-              >✓</span>
-            </button>
-
-            <div
-              *ngIf="hoveredOptionValue() === opt.value && (opt.subOptions?.length ?? 0) > 0"
-              class="sel__flyout"
-              [ngStyle]="flyoutStyle()"
-              (mouseenter)="onFlyoutHover()"
-              (mouseleave)="onFlyoutUnhover()"
-            >
-              <button
-                *ngFor="let sub of opt.subOptions; let si = index"
-                type="button"
-                class="sel__flyout-option"
-                [class.sel__flyout-option--highlighted]="highlightedSubIndex() === si"
-                [attr.data-sub-index]="si"
-                (mousemove)="highlightedSubIndex.set(si)"
-                (click)="selectSubOption(opt, sub)"
-              >
-                {{ sub.label }}
-              </button>
+      @if (isOpen() && panelRect(); as panel) {
+        <div
+          class="app-popover-surface sel__panel"
+          [style.top]="panel.top != null ? panel.top + 'px' : 'auto'"
+          [style.bottom]="panel.bottom != null ? panel.bottom + 'px' : 'auto'"
+          [style.left.px]="panel.left"
+          [style.width.px]="panel.width"
+          [style.max-height.px]="panel.maxHeight"
+        >
+          @if (enableSearch()) {
+            <div class="sel__search-wrap">
+              <input
+                #searchInput
+                type="text"
+                class="sel__search"
+                placeholder="Search…"
+                autocomplete="off"
+                [value]="searchQuery()"
+                (input)="searchQuery.set($any($event.target).value)"
+                (click)="$event.stopPropagation()"
+                (keydown)="onSearchKeydown($event)"
+              />
             </div>
-          </div>
+          }
 
-          <div *ngIf="filteredOptions().length === 0" class="sel__no-match">
-            No matches
+          <div #optionsList class="sel__options" role="listbox">
+            @for (opt of filteredOptions(); track opt.value; let i = $index) {
+              <div
+                class="sel__option-wrap"
+                [attr.data-option-index]="i"
+                (mouseenter)="onOptionHover(opt, $event)"
+                (mousemove)="highlightedIndex.set(i)"
+                (mouseleave)="onOptionUnhover()"
+              >
+                <button
+                  type="button"
+                  class="app-popover-item sel__option"
+                  [class.app-popover-item--selected]="currentValue() === opt.value"
+                  [class.app-popover-item--highlighted]="highlightedIndex() === i"
+                  [class.sel__option--has-sub]="(opt.subOptions?.length ?? 0) > 0"
+                  role="option"
+                  [attr.aria-selected]="currentValue() === opt.value"
+                  (click)="selectOption(opt)"
+                >
+                  <span class="sel__option-label">{{ opt.label }}</span>
+                  @if ((opt.subOptions?.length ?? 0) > 0) {
+                    <span class="sel__option-arrow" aria-hidden="true">▸</span>
+                  }
+                  @if (currentValue() === opt.value) {
+                    <span class="sel__option-check" aria-hidden="true">✓</span>
+                  }
+                </button>
+
+                @if (hoveredOptionValue() === opt.value && (opt.subOptions?.length ?? 0) > 0 && flyoutRect(); as fly) {
+                  <div
+                    class="app-popover-surface sel__flyout"
+                    [style.top.px]="fly.top"
+                    [style.left.px]="fly.left"
+                    [style.max-height.px]="fly.maxHeight"
+                    (mouseenter)="onFlyoutHover()"
+                    (mouseleave)="onFlyoutUnhover()"
+                  >
+                    @for (sub of opt.subOptions; track sub.value; let si = $index) {
+                      <button
+                        type="button"
+                        class="app-popover-item sel__flyout-option"
+                        [class.app-popover-item--highlighted]="highlightedSubIndex() === si"
+                        [attr.data-sub-index]="si"
+                        (mousemove)="highlightedSubIndex.set(si)"
+                        (click)="selectSubOption(opt, sub)"
+                      >
+                        {{ sub.label }}
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+            }
+
+            @if (filteredOptions().length === 0) {
+              <div class="sel__no-match">No matches</div>
+            }
           </div>
         </div>
-      </div>
+      }
     </div>
   `,
   styles: [`
@@ -232,27 +237,13 @@ interface PanelRect {
     }
 
     .sel__panel {
+      position: fixed;
       z-index: 9999;
-      display: flex;
-      flex-direction: column;
-      border: 1px solid var(--app-border-color-soft);
-      border-radius: var(--app-radius-md);
-      background: #faf4e4;
-      box-shadow:
-        0 8px 28px rgba(15, 8, 3, 0.24),
-        0 2px 8px rgba(15, 8, 3, 0.14);
-      animation: sel-open 0.13s ease;
-      overflow: hidden;
-    }
-
-    @keyframes sel-open {
-      from { opacity: 0; transform: translateY(-4px); }
-      to   { opacity: 1; transform: translateY(0); }
     }
 
     .sel__search-wrap {
       flex-shrink: 0;
-      padding: 8px 10px 6px;
+      padding: 12px 10px 6px;
       border-bottom: 1px solid rgba(158, 98, 53, 0.15);
       background:
         linear-gradient(90deg,
@@ -265,7 +256,6 @@ interface PanelRect {
           transparent 100%
         ) top / 100% 3px no-repeat,
         #faf4e4;
-      padding-top: 12px;
     }
 
     .sel__search {
@@ -292,46 +282,17 @@ interface PanelRect {
       min-height: 0;
     }
 
-    .sel__option {
-      display: flex;
-      align-items: center;
+    /* Local-only: tighten the shared item visuals for the select rows,
+       add justify-content + per-row divider that the generic class doesn't carry. */
+    .sel__option,
+    .sel__flyout-option {
       justify-content: space-between;
-      gap: 8px;
-      width: 100%;
-      padding: 9px 12px;
-      border: none;
-      background: transparent;
-      color: var(--app-text);
-      font-size: 14px;
-      text-align: left;
-      cursor: pointer;
       border-bottom: 1px solid rgba(158, 98, 53, 0.12);
-      transition: background 0.1s, color 0.1s;
     }
 
-    .sel__option:last-child {
+    .sel__option:last-child,
+    .sel__flyout-option:last-child {
       border-bottom: none;
-    }
-
-    .sel__option:hover {
-      background: var(--app-primary-soft);
-      color: var(--app-heading);
-    }
-
-    .sel__option--selected {
-      background: rgba(88, 24, 13, 0.06);
-      color: var(--app-primary);
-      font-weight: 600;
-    }
-
-    .sel__option--selected:hover {
-      background: var(--app-primary-soft);
-    }
-
-    .sel__option--highlighted,
-    .sel__option--selected.sel__option--highlighted {
-      background: var(--app-primary-soft);
-      color: var(--app-heading);
     }
 
     .sel__option-label {
@@ -359,44 +320,12 @@ interface PanelRect {
     }
 
     .sel__flyout {
+      position: fixed;
       z-index: 10000;
       min-width: 200px;
       width: 220px;
       max-width: 320px;
       overflow-y: auto;
-      border: 1px solid var(--app-border-color-soft);
-      border-radius: var(--app-radius-md);
-      background: #faf4e4;
-      box-shadow:
-        0 8px 28px rgba(15, 8, 3, 0.24),
-        0 2px 8px rgba(15, 8, 3, 0.14);
-      display: flex;
-      flex-direction: column;
-    }
-
-    .sel__flyout-option {
-      display: flex;
-      align-items: center;
-      width: 100%;
-      padding: 9px 12px;
-      border: none;
-      background: transparent;
-      color: var(--app-text);
-      font-size: 14px;
-      text-align: left;
-      cursor: pointer;
-      border-bottom: 1px solid rgba(158, 98, 53, 0.12);
-      transition: background 0.1s, color 0.1s;
-    }
-
-    .sel__flyout-option:last-child {
-      border-bottom: none;
-    }
-
-    .sel__flyout-option:hover,
-    .sel__flyout-option--highlighted {
-      background: var(--app-primary-soft);
-      color: var(--app-heading);
     }
 
     .sel__option-check {
@@ -441,17 +370,6 @@ export class UiSelectComponent implements ControlValueAccessor {
   readonly inFlyoutMode = computed(() => this.highlightedSubIndex() >= 0);
   private flyoutCloseTimer: ReturnType<typeof setTimeout> | null = null;
 
-  readonly flyoutStyle = computed(() => {
-    const r = this.flyoutRect();
-    if (!r) return { display: 'none' };
-    return {
-      position: 'fixed',
-      top: `${r.top}px`,
-      left: `${r.left}px`,
-      'max-height': `${r.maxHeight}px`,
-    };
-  });
-
   readonly isOpen = signal(false);
   readonly currentValue = signal<any>(null);
   readonly isDisabled = signal(false);
@@ -494,19 +412,6 @@ export class UiSelectComponent implements ControlValueAccessor {
   readonly isNullValue = computed(() => {
     const v = this.currentValue();
     return v === null || v === undefined;
-  });
-
-  readonly panelStyle = computed(() => {
-    const r = this.panelRect();
-    if (!r) return { display: 'none' };
-    return {
-      position: 'fixed',
-      top: r.top != null ? `${r.top}px` : 'auto',
-      bottom: r.bottom != null ? `${r.bottom}px` : 'auto',
-      left: `${r.left}px`,
-      width: `${r.width}px`,
-      'max-height': `${r.maxHeight}px`,
-    };
   });
 
   readonly selectedLabel = computed(() => {

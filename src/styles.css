@@ -510,6 +510,95 @@ input[type="range"].app-range--seek::-webkit-slider-thumb {
   box-shadow: var(--app-shadow);
 }
 
+/* Shared popover/dropdown surface — used by ui-select, user-menu, sessions-dropdown.
+   Positioning is left to the consumer (some use absolute, some fixed). */
+.app-popover-surface {
+  display: flex;
+  flex-direction: column;
+  background: #faf4e4;
+  border: 1px solid var(--app-border-color-soft);
+  border-radius: var(--app-radius-md);
+  box-shadow:
+    0 12px 32px rgba(15, 8, 3, 0.32),
+    0 4px 12px rgba(15, 8, 3, 0.16);
+  overflow: hidden;
+  animation: app-popover-open 0.13s ease;
+}
+
+@keyframes app-popover-open {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Decorative header band for popovers (gold-tipped divider underline) */
+.app-popover-header {
+  flex-shrink: 0;
+  padding: 10px 14px 8px;
+  font-family: var(--app-font-heading);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--app-text-muted);
+  border-bottom: 1px solid rgba(158, 98, 53, 0.18);
+  background:
+    linear-gradient(90deg,
+      transparent 0%,
+      rgba(201, 164, 76, 0.55) 12%,
+      #58180d 30%,
+      rgba(201, 164, 76, 0.9) 50%,
+      #58180d 70%,
+      rgba(201, 164, 76, 0.55) 88%,
+      transparent 100%
+    ) bottom / 100% 2px no-repeat,
+    #faf4e4;
+}
+
+/* Item row base — consistent hover and selected behavior across popovers.
+   Consumers may extend padding/font-size locally if needed. */
+.app-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  background: transparent;
+  color: var(--app-text);
+  font-family: var(--app-font-body);
+  font-size: 14px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.app-popover-item:hover,
+.app-popover-item--highlighted {
+  background: var(--app-primary-soft);
+  color: var(--app-heading);
+}
+
+.app-popover-item--selected {
+  background: rgba(88, 24, 13, 0.06);
+  color: var(--app-primary);
+  font-weight: 600;
+}
+
+.app-popover-item--selected:hover,
+.app-popover-item--selected.app-popover-item--highlighted {
+  background: var(--app-primary-soft);
+  color: var(--app-heading);
+}
+
+.app-popover-item--danger {
+  color: var(--app-danger);
+}
+
+.app-popover-item--danger:hover {
+  background: var(--app-danger-soft);
+  color: var(--app-danger);
+}
+
 /* Navbar */
 .app-navbar {
   background:
