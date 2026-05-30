@@ -173,31 +173,13 @@ export interface WindowEditorResult {
             [disabled]="!streamComplete() && !(isPlaying() && playMode() === 'selection')"
             (clicked)="togglePlaySelection()"
           />
-
-          <button
-            type="button"
-            class="we-pill we-pill--danger"
-            (click)="stopPlayback()"
-            [disabled]="!isPlaying()"
-          >
-            <svg viewBox="0 0 20 20" width="11" height="11" aria-hidden="true">
-              <rect
-                x="4"
-                y="4"
-                width="12"
-                height="12"
-                rx="1"
-                fill="currentColor"
-              />
-            </svg>
-            Stop
-          </button>
         </div>
 
         <div class="we-playback">
           <span class="we-playback__label">Playback</span>
           <span class="we-playback__time">{{ formatTime(currentTimeS()) }}</span>
           <input
+            #seekRange
             class="we-seek__range app-range app-range--seek"
             type="range"
             min="0"
@@ -207,6 +189,8 @@ export interface WindowEditorResult {
             [style.--app-range-track]="seekBackground()"
             (input)="onSeekInput($any($event.target).value)"
             (change)="onSeekCommit($any($event.target).value)"
+            (mouseup)="seekRange.blur()"
+            (touchend)="seekRange.blur()"
           />
           <span class="we-playback__time">{{ formatTime(durationS()) }}</span>
         </div>

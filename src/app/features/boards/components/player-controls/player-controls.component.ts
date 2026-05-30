@@ -37,6 +37,7 @@ import { UiPlayButtonComponent } from '../../../../shared/ui/play-button/ui-play
         </div>
 
         <input
+          #seek
           type="range"
           class="player__range app-range app-range--seek"
           min="0"
@@ -46,7 +47,9 @@ import { UiPlayButtonComponent } from '../../../../shared/ui/play-button/ui-play
           [style.--app-range-track]="sliderBackground"
           [disabled]="!hasTrack || disabled || durationS <= 0 || status === 'STOPPED'"
           (input)="onSeekInput($event)"
-          (change)="onSeekChange($event)" />
+          (change)="onSeekChange($event)"
+          (mouseup)="seek.blur()"
+          (touchend)="seek.blur()" />
 
         <div class="player__times">
           <span class="player__time player__time--current">{{ formatTime(positionS) }}</span>

@@ -14,6 +14,7 @@ export type PlayButtonSize = 'sm' | 'md' | 'lg';
       [class]="sizeClass()"
       [disabled]="disabled()"
       [attr.aria-label]="effectiveAriaLabel()"
+      (mousedown)="$event.preventDefault()"
       (click)="clicked.emit()"
     >
       <span class="ui-play-button__icon" aria-hidden="true">

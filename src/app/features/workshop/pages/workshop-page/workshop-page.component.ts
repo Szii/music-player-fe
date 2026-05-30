@@ -1,6 +1,5 @@
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
 import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 
@@ -27,7 +26,6 @@ import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog
   selector: 'app-workshop-page',
   standalone: true,
   imports: [
-    CommonModule,
     MyTracksComponent,
     TrackCatalogComponent,
     UiAlertComponent,
@@ -45,32 +43,35 @@ import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog
         </normal-button>
       </ui-page-title>
 
-      <ui-alert *ngIf="errorMessage()" variant="danger">
-        {{ errorMessage() }}
-      </ui-alert>
+      @if (errorMessage()) {
+        <ui-alert variant="danger">{{ errorMessage() }}</ui-alert>
+      }
 
-      <div *ngIf="loading()" class="app-muted">Loading...</div>
+      @if (loading()) {
+        <div class="app-muted">Loading...</div>
+      } @else {
+        <div class="workshop-page__body">
+          <app-track-catalog
+            [tracks]="catalogTracks()"
+            [subscribedIds]="subscribedIds()"
+            [busyTrackId]="busyTrackId()"
+            (subscribe)="subscribeFromCatalog($event)"
+            (unsubscribe)="unsubscribe($event)"
+          />
 
-      <div *ngIf="!loading()" class="workshop-page__body">
-        <app-track-catalog
-          [tracks]="catalogTracks()"
-          [subscribedIds]="subscribedIds()"
-          [busyTrackId]="busyTrackId()"
-          (subscribe)="subscribeFromCatalog($event)"
-          (unsubscribe)="unsubscribe($event)"
-        />
+          <hr class="workshop-page__divider" />
+        </div>
+      }
 
-        <hr class="workshop-page__divider" />
-
+      @if (myTracksOpen()) {
         <app-my-tracks
-          *ngIf="myTracksOpen()"
           [tracks]="myTracks()"
           [busyTrackId]="busyTrackId()"
           (publish)="publishTrack($event)"
           (unpublish)="unpublishTrack($event)"
           (close)="closeMyTracks()"
         />
-      </div>
+      }
     </div>
   `,
   styles: [`

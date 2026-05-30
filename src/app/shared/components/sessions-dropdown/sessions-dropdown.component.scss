@@ -127,32 +127,6 @@
   gap: 2px;
 }
 
-.sd__icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--app-radius-sm);
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--app-text-muted);
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
-}
-
-.sd__icon-btn:hover {
-  background: rgba(88, 24, 13, 0.08);
-  border-color: rgba(88, 24, 13, 0.18);
-  color: var(--app-text);
-}
-
-.sd__icon-btn--danger:hover {
-  background: var(--app-danger-soft);
-  border-color: rgba(158, 24, 24, 0.28);
-  color: var(--app-danger);
-}
-
 .sd__create {
   display: flex;
   align-items: center;

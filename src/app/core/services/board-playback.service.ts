@@ -23,4 +23,11 @@ export class BoardPlaybackService {
   setPlaying(value: boolean): void {
     this.isAnyPlaying.set(value);
   }
+
+  /** Called on logout: stop any audio AND reset the navbar indicator
+      regardless of whether a boards page was alive to handle stopAll. */
+  reset(): void {
+    this.stopAllFn?.();
+    this.isAnyPlaying.set(false);
+  }
 }

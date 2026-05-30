@@ -18,6 +18,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
         </svg>
       </span>
       <input
+        #range
         type="range"
         class="ui-volume-slider__range app-range"
         min="0"
@@ -29,6 +30,8 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
         [attr.aria-label]="ariaLabel()"
         (input)="onInput($event)"
         (change)="onCommit($event)"
+        (mouseup)="range.blur()"
+        (touchend)="range.blur()"
       />
       <span class="ui-volume-slider__value">{{ value() }}%</span>
     </div>

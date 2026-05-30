@@ -1,11 +1,10 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  EventEmitter,
-  Input,
-  Output,
+  computed,
+  input,
+  output,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
 
 export type AppIconName =
   | 'edit'
@@ -17,6 +16,7 @@ export type AppIconName =
   | 'pause'
   | 'save'
   | 'plus'
+  | 'copy'
   | 'bookmark'
   | 'bookmark-remove';
 
@@ -27,28 +27,20 @@ export type AppIconButtonVariant =
   | 'danger'
   | 'ghost';
 
-export type AppIconButtonSize = 'sm' | 'md' | 'lg';
+export type AppIconButtonSize = 'xs' | 'sm' | 'md' | 'lg';
 
 @Component({
   selector: 'app-icon-button',
-  standalone: true,
-  imports: [CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <button
       type="button"
       class="app-icon-btn"
-      [class.app-icon-btn--sm]="size === 'sm'"
-      [class.app-icon-btn--md]="size === 'md'"
-      [class.app-icon-btn--lg]="size === 'lg'"
-      [class.app-icon-btn--neutral]="variant === 'neutral'"
-      [class.app-icon-btn--primary]="variant === 'primary'"
-      [class.app-icon-btn--secondary]="variant === 'secondary'"
-      [class.app-icon-btn--danger]="variant === 'danger'"
-      [class.app-icon-btn--ghost]="variant === 'ghost'"
-      [disabled]="disabled"
-      [attr.aria-label]="label"
-      [attr.title]="label"
+      [class]="classList()"
+      [disabled]="disabled()"
+      [attr.aria-label]="label()"
+      [attr.title]="label()"
+      (mousedown)="$event.preventDefault()"
       (click)="clicked.emit()"
     >
       <svg
@@ -58,79 +50,69 @@ export type AppIconButtonSize = 'sm' | 'md' | 'lg';
         stroke="currentColor"
         stroke-linecap="round"
         stroke-linejoin="round"
-        [attr.stroke-width]="1.9"
+        stroke-width="1.9"
         aria-hidden="true"
       >
-        <ng-container [ngSwitch]="icon">
-          <ng-container *ngSwitchCase="'edit'">
+        @switch (icon()) {
+          @case ('edit') {
             <path d="M4 20h4l10-10-4-4L4 16v4Z" />
             <path d="M12.5 5.5l4 4" />
-          </ng-container>
-
-          <ng-container *ngSwitchCase="'delete'">
+          }
+          @case ('delete') {
             <path d="M5 7h14" />
             <path d="M10 11v6" />
             <path d="M14 11v6" />
             <path d="M8 7l1-2h6l1 2" />
             <path d="M7 7l1 12h8l1-12" />
-          </ng-container>
-
-          <ng-container *ngSwitchCase="'tracks'">
+          }
+          @case ('tracks') {
             <path d="M9 18V7l10-2v11" />
             <path d="M9 18a2 2 0 1 1-4 0a2 2 0 0 1 4 0Z" />
             <path d="M19 16a2 2 0 1 1-4 0a2 2 0 0 1 4 0Z" />
-          </ng-container>
-
-          <ng-container *ngSwitchCase="'windows'">
-            <!-- boundary markers -->
+          }
+          @case ('windows') {
             <path d="M5 6v12" />
             <path d="M19 6v12" />
-            <!-- selected segment -->
             <path d="M8 12h8" />
-            <!-- inward arrows -->
             <path d="M10 10l-2 2 2 2" />
             <path d="M14 10l2 2-2 2" />
-          </ng-container>
-
-          <ng-container *ngSwitchCase="'close'">
+          }
+          @case ('close') {
             <path d="M6 6l12 12" />
             <path d="M18 6L6 18" />
-          </ng-container>
-
-          <ng-container *ngSwitchCase="'play'">
+          }
+          @case ('play') {
             <path d="M8 6l10 6-10 6V6Z" fill="currentColor" stroke="none" />
-          </ng-container>
-
-          <ng-container *ngSwitchCase="'pause'">
+          }
+          @case ('pause') {
             <path d="M8 6v12" />
             <path d="M16 6v12" />
-          </ng-container>
-
-          <ng-container *ngSwitchCase="'save'">
+          }
+          @case ('save') {
             <path d="M5 6a1 1 0 0 1 1-1h9l4 4v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6Z" />
             <path d="M8 5v5h8" />
             <path d="M8 19v-5h8v5" />
-          </ng-container>
-
-          <ng-container *ngSwitchCase="'plus'">
+          }
+          @case ('plus') {
             <path d="M12 5v14" />
             <path d="M5 12h14" />
-          </ng-container>
-
-          <ng-container *ngSwitchCase="'bookmark'">
+          }
+          @case ('copy') {
+            <rect x="9" y="9" width="11" height="11" rx="1.5" />
+            <path d="M5 15V5a1 1 0 0 1 1-1h10" />
+          }
+          @case ('bookmark') {
             <path d="M7 4h10a1 1 0 0 1 1 1v15l-6-4-6 4V5a1 1 0 0 1 1-1Z" />
-          </ng-container>
-
-          <ng-container *ngSwitchCase="'bookmark-remove'">
+          }
+          @case ('bookmark-remove') {
             <path d="M7 4h10a1 1 0 0 1 1 1v15l-6-4-6 4V5a1 1 0 0 1 1-1Z" fill="currentColor" stroke="none" />
             <path d="M9 10l6 6" stroke="white" stroke-width="2" />
             <path d="M15 10l-6 6" stroke="white" stroke-width="2" />
-          </ng-container>
-
-          <ng-container *ngSwitchDefault>
+          }
+          @default {
             <circle cx="12" cy="12" r="7" />
-          </ng-container>
-        </ng-container>
+          }
+        }
       </svg>
     </button>
   `,
@@ -171,6 +153,11 @@ export type AppIconButtonSize = 'sm' | 'md' | 'lg';
       cursor: not-allowed;
     }
 
+    .app-icon-btn--xs {
+      width: 24px;
+      height: 24px;
+    }
+
     .app-icon-btn--sm {
       width: 30px;
       height: 30px;
@@ -191,6 +178,11 @@ export type AppIconButtonSize = 'sm' | 'md' | 'lg';
       width: 16px;
       height: 16px;
       flex: 0 0 auto;
+    }
+
+    .app-icon-btn--xs .app-icon-btn__icon {
+      width: 13px;
+      height: 13px;
     }
 
     .app-icon-btn--lg .app-icon-btn__icon {
@@ -265,11 +257,15 @@ export type AppIconButtonSize = 'sm' | 'md' | 'lg';
   `],
 })
 export class IconButtonComponent {
-  @Input() icon: AppIconName = 'edit';
-  @Input() label = 'Action';
-  @Input() variant: AppIconButtonVariant = 'neutral';
-  @Input() size: AppIconButtonSize = 'md';
-  @Input() disabled = false;
+  readonly icon = input<AppIconName>('edit');
+  readonly label = input('Action');
+  readonly variant = input<AppIconButtonVariant>('neutral');
+  readonly size = input<AppIconButtonSize>('md');
+  readonly disabled = input(false);
 
-  @Output() clicked = new EventEmitter<void>();
+  readonly clicked = output<void>();
+
+  readonly classList = computed(
+    () => `app-icon-btn--${this.size()} app-icon-btn--${this.variant()}`,
+  );
 }

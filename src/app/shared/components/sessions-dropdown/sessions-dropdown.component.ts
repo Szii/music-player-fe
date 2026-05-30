@@ -15,9 +15,11 @@ import { ToastService } from '../../features/toast/toast.service';
 import { ConfirmDialogService } from '../../features/confirm-dialog/confirm-dialog.service';
 import { PromptDialogService } from '../../features/prompt-dialog/prompt-dialog.service';
 import { BoardPlaybackService } from '../../../core/services/board-playback.service';
+import { IconButtonComponent } from '../../ui/buttons/ui-icon-button.component';
 
 @Component({
   selector: 'app-sessions-dropdown',
+  imports: [IconButtonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '(document:click)': 'onDocumentClick($event)',
@@ -69,37 +71,20 @@ import { BoardPlaybackService } from '../../../core/services/board-playback.serv
                     </button>
 
                     <div class="sd__item-actions">
-                      <button
-                        type="button"
-                        class="sd__icon-btn"
-                        aria-label="Rename session"
-                        title="Rename"
-                        (click)="startRename(s); $event.stopPropagation()"
-                      >
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
-                          stroke="currentColor" stroke-width="1.9"
-                          stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M4 20h4l10-10-4-4L4 16v4Z" />
-                          <path d="M12.5 5.5l4 4" />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        class="sd__icon-btn sd__icon-btn--danger"
-                        aria-label="Delete session"
-                        title="Delete"
-                        (click)="confirmDelete(s); $event.stopPropagation()"
-                      >
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
-                          stroke="currentColor" stroke-width="1.9"
-                          stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M5 7h14" />
-                          <path d="M10 11v6" />
-                          <path d="M14 11v6" />
-                          <path d="M8 7l1-2h6l1 2" />
-                          <path d="M7 7l1 12h8l1-12" />
-                        </svg>
-                      </button>
+                      <app-icon-button
+                        icon="edit"
+                        size="xs"
+                        variant="ghost"
+                        label="Rename session"
+                        (clicked)="startRename(s)"
+                      />
+                      <app-icon-button
+                        icon="delete"
+                        size="xs"
+                        variant="ghost"
+                        label="Delete session"
+                        (clicked)="confirmDelete(s)"
+                      />
                     </div>
                   </li>
                 }

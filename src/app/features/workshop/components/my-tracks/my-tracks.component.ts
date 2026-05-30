@@ -10,6 +10,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import { Track } from '../../../../api/generated';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
+import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
 import { UiListToolbarComponent } from '../../../../shared/ui/list-toolbar/ui-list-toolbar.component';
@@ -27,13 +28,13 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
   selector: 'app-my-tracks',
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [FormsModule, NormalButtonComponent, UiListToolbarComponent, UiChipComponent, UiDialogShellComponent],
+  imports: [FormsModule, NormalButtonComponent, IconButtonComponent, UiListToolbarComponent, UiChipComponent, UiDialogShellComponent],
   template: `
     <ui-dialog-shell
       title="My tracks"
       subtitle="Publish your tracks so other users can find and subscribe to them."
       titleId="my-tracks-title"
-      [wide]="true"
+      size="wide"
       (closed)="close.emit()"
     >
       @if (tracks().length > 0) {
@@ -77,14 +78,13 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
                       {{ track.trackShare!.shareCode }}
                     </code>
 
-                    <button
-                      class="icon-btn"
-                      type="button"
-                      (click)="copyToClipboard(track.trackShare!.shareCode!)"
-                      title="Copy"
-                    >
-                      ⎘
-                    </button>
+                    <app-icon-button
+                      icon="copy"
+                      size="xs"
+                      variant="ghost"
+                      label="Copy share code"
+                      (clicked)="copyToClipboard(track.trackShare!.shareCode!)"
+                    />
                   </div>
                 }
               </div>
@@ -238,27 +238,6 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
       text-overflow: ellipsis;
       white-space: nowrap;
       display: inline-block;
-    }
-
-    .icon-btn {
-      width: 24px;
-      height: 24px;
-      border-radius: 5px;
-      border: var(--app-border);
-      background: var(--app-surface);
-      color: var(--app-text-muted);
-      cursor: pointer;
-      font-size: 13px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: background 0.12s, color 0.12s;
-      flex: 0 0 auto;
-    }
-
-    .icon-btn:hover {
-      background: var(--app-primary-soft);
-      color: var(--app-primary);
     }
 
     .track-row__actions {

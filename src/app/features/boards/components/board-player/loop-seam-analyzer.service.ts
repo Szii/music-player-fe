@@ -48,15 +48,23 @@ export class LoopSeamAnalyzerService {
   private static readonly OFFSET_STEP_MS = 10;
   private static readonly MAX_OFFSET_WINDOW_PORTION = 0.08;
 
-  private static readonly MIN_SCORE = 0.28;
-  private static readonly MIN_CORRELATION = 0.18;
+  private static readonly MIN_SCORE = 0.42;
+  private static readonly MIN_CORRELATION = 0.32;
 
   private static readonly NORMALIZED_DIFFERENCE_WEIGHT = 0.78;
   private static readonly RMS_DIFFERENCE_WEIGHT = 0.18;
   private static readonly EDGE_DIFFERENCE_WEIGHT = 0.14;
+  private static readonly ENVELOPE_DIFFERENCE_WEIGHT = 0.32;
+  private static readonly CONTEXT_DROP_WEIGHT = 0.45;
   private static readonly PREFERRED_OVERLAP_WEIGHT = 0.035;
   private static readonly LONG_OVERLAP_WEIGHT = 0.045;
   private static readonly OFFSET_WEIGHT = 0.09;
+
+  private static readonly MIN_CANDIDATE_RMS_TO_WINDOW_RMS = 0.18;
+  private static readonly CONTEXT_MS = 140;
+  private static readonly FADE_BUCKETS = 6;
+  private static readonly FADE_REJECT_RATIO = 0.52;
+  private static readonly CONTEXT_SILENCE_RATIO = 0.45;
 
   private static readonly RESULT_CACHE_LIMIT = 80;
   private static readonly AUDIO_BUFFER_CACHE_LIMIT = 3;
@@ -131,6 +139,14 @@ export class LoopSeamAnalyzerService {
 
     if (windowFrames <= sampleRate * 0.25) return null;
 
+    const windowMono = this.copyMonoSegment(
+      audioBuffer,
+      windowStartFrame,
+      windowFrames,
+    );
+
+    const windowRms = this.getRms(windowMono);
+
     const windowDurationMs = windowDurationS * 1000;
     const maxOverlapMs = Math.min(
       LoopSeamAnalyzerService.MAX_OVERLAP_MS,
@@ -160,6 +176,11 @@ export class LoopSeamAnalyzerService {
     const maxEndOffsetMs = this.getMaxOffsetMs(
       windowDurationMs,
       LoopSeamAnalyzerService.MAX_END_OFFSET_MS,
+    );
+
+    const contextFrames = this.millisecondsToFrame(
+      LoopSeamAnalyzerService.CONTEXT_MS,
+      sampleRate,
     );
 
     let best: LoopSeamAnalysisResult | null = null;
@@ -197,6 +218,26 @@ export class LoopSeamAnalyzerService {
           if (tailFrame <= headFrame) continue;
 
           const tail = this.copyMonoSegment(audioBuffer, tailFrame, overlapFrames);
+
+          const tailBeforeStartFrame = Math.max(
+            windowStartFrame,
+            tailFrame - contextFrames,
+          );
+
+          const tailBefore = this.copyMonoSegment(
+            audioBuffer,
+            tailBeforeStartFrame,
+            Math.min(contextFrames, tailFrame - tailBeforeStartFrame),
+          );
+
+          const headAfterStartFrame = headFrame + overlapFrames;
+
+          const headAfter = this.copyMonoSegment(
+            audioBuffer,
+            headAfterStartFrame,
+            Math.min(contextFrames, windowEndFrame - headAfterStartFrame),
+          );
+
           const score = this.scoreOverlap(
             head,
             tail,
@@ -204,6 +245,9 @@ export class LoopSeamAnalyzerService {
             preferredMs,
             startOffsetMs,
             endOffsetMs,
+            windowRms,
+            tailBefore,
+            headAfter,
           );
 
           if (!best || score.score > best.score) {
@@ -270,6 +314,8 @@ export class LoopSeamAnalyzerService {
     startFrame: number,
     frameCount: number,
   ): Float32Array {
+    if (frameCount <= 0 || buffer.length <= 0) return new Float32Array(0);
+
     const safeStart = Math.max(0, Math.min(startFrame, buffer.length - 1));
     const safeCount = Math.max(
       0,
@@ -296,16 +342,46 @@ export class LoopSeamAnalyzerService {
     preferredMs: number,
     startOffsetMs: number,
     endOffsetMs: number,
+    windowRms: number,
+    tailBefore: Float32Array,
+    headAfter: Float32Array,
   ): OverlapScore {
     const n = Math.min(head.length, tail.length);
     if (n <= 0) {
-      return {
-        score: Number.NEGATIVE_INFINITY,
-        correlation: -1,
-        rmsDifference: 1,
-        normalizedDifference: 1,
-        edgeDifference: 1,
-      };
+      return this.rejectedScore();
+    }
+
+    const rawHeadRms = this.getRms(head);
+    const rawTailRms = this.getRms(tail);
+    const candidateRms = (rawHeadRms + rawTailRms) * 0.5;
+
+    if (
+      windowRms > 1e-9 &&
+      candidateRms <
+        windowRms * LoopSeamAnalyzerService.MIN_CANDIDATE_RMS_TO_WINDOW_RMS
+    ) {
+      return this.rejectedScore();
+    }
+
+    const tailBeforeRms = this.getRms(tailBefore);
+    const headAfterRms = this.getRms(headAfter);
+
+    const tailFallsIntoSilence =
+      tailBeforeRms > 1e-9 &&
+      rawTailRms <
+        tailBeforeRms * LoopSeamAnalyzerService.CONTEXT_SILENCE_RATIO;
+
+    const headRisesFromSilence =
+      headAfterRms > 1e-9 &&
+      rawHeadRms <
+        headAfterRms * LoopSeamAnalyzerService.CONTEXT_SILENCE_RATIO;
+
+    if (tailFallsIntoSilence && headRisesFromSilence) {
+      return this.rejectedScore();
+    }
+
+    if (this.isFadeOutToFadeIn(tail, head)) {
+      return this.rejectedScore();
     }
 
     let meanHead = 0;
@@ -340,17 +416,23 @@ export class LoopSeamAnalyzerService {
     const rmsTail = Math.sqrt(energyTail / n);
     const rmsDifference = Math.abs(rmsHead - rmsTail);
     const correlation = dot / Math.sqrt((energyHead + epsilon) * (energyTail + epsilon));
-    const normalizedDifference = Math.sqrt(diffEnergy / n) / (rmsHead + rmsTail + epsilon);
+    const normalizedDifference =
+      Math.sqrt(diffEnergy / n) / (rmsHead + rmsTail + epsilon);
     const edgeDifference = this.getEdgeDifference(head, tail, rmsHead, rmsTail);
+    const envelopeDifference = this.getEnvelopeDifference(head, tail);
     const preferredPenalty = Math.abs(overlapMs - preferredMs) / 1000;
     const longOverlapPenalty = overlapMs / 1000;
     const offsetPenalty = (startOffsetMs + endOffsetMs) / 1000;
+    const contextDropPenalty =
+      Number(tailFallsIntoSilence) + Number(headRisesFromSilence);
 
     const score =
       correlation -
       normalizedDifference * LoopSeamAnalyzerService.NORMALIZED_DIFFERENCE_WEIGHT -
       rmsDifference * LoopSeamAnalyzerService.RMS_DIFFERENCE_WEIGHT -
       edgeDifference * LoopSeamAnalyzerService.EDGE_DIFFERENCE_WEIGHT -
+      envelopeDifference * LoopSeamAnalyzerService.ENVELOPE_DIFFERENCE_WEIGHT -
+      contextDropPenalty * LoopSeamAnalyzerService.CONTEXT_DROP_WEIGHT -
       preferredPenalty * LoopSeamAnalyzerService.PREFERRED_OVERLAP_WEIGHT -
       longOverlapPenalty * LoopSeamAnalyzerService.LONG_OVERLAP_WEIGHT -
       offsetPenalty * LoopSeamAnalyzerService.OFFSET_WEIGHT;
@@ -362,6 +444,88 @@ export class LoopSeamAnalyzerService {
       normalizedDifference,
       edgeDifference,
     };
+  }
+
+  private rejectedScore(): OverlapScore {
+    return {
+      score: Number.NEGATIVE_INFINITY,
+      correlation: -1,
+      rmsDifference: 1,
+      normalizedDifference: 1,
+      edgeDifference: 1,
+    };
+  }
+
+  private getRms(samples: Float32Array): number {
+    if (samples.length === 0) return 0;
+
+    let sum = 0;
+    for (let i = 0; i < samples.length; i++) {
+      sum += samples[i] * samples[i];
+    }
+
+    return Math.sqrt(sum / samples.length);
+  }
+
+  private getEnvelope(samples: Float32Array, buckets: number): number[] {
+    if (samples.length === 0 || buckets <= 0) return [];
+
+    const result: number[] = [];
+
+    for (let b = 0; b < buckets; b++) {
+      const start = Math.floor((samples.length * b) / buckets);
+      const end = Math.floor((samples.length * (b + 1)) / buckets);
+      result.push(this.getRms(samples.subarray(start, Math.max(start + 1, end))));
+    }
+
+    return result;
+  }
+
+  private getEnvelopeDifference(head: Float32Array, tail: Float32Array): number {
+    const buckets = LoopSeamAnalyzerService.FADE_BUCKETS;
+    const headEnvelope = this.getEnvelope(head, buckets);
+    const tailEnvelope = this.getEnvelope(tail, buckets);
+
+    if (headEnvelope.length !== buckets || tailEnvelope.length !== buckets) {
+      return 1;
+    }
+
+    let diff = 0;
+    let scale = 1e-9;
+
+    for (let i = 0; i < buckets; i++) {
+      diff += Math.abs(headEnvelope[i] - tailEnvelope[i]);
+      scale += headEnvelope[i] + tailEnvelope[i];
+    }
+
+    return diff / scale;
+  }
+
+  private isFadeOutToFadeIn(tail: Float32Array, head: Float32Array): boolean {
+    const buckets = LoopSeamAnalyzerService.FADE_BUCKETS;
+    const tailEnvelope = this.getEnvelope(tail, buckets);
+    const headEnvelope = this.getEnvelope(head, buckets);
+
+    if (tailEnvelope.length !== buckets || headEnvelope.length !== buckets) {
+      return false;
+    }
+
+    const tailStart = tailEnvelope[0];
+    const tailEnd = tailEnvelope[tailEnvelope.length - 1];
+    const headStart = headEnvelope[0];
+    const headEnd = headEnvelope[headEnvelope.length - 1];
+
+    const epsilon = 1e-9;
+
+    const tailDrop =
+      tailStart > epsilon &&
+      tailEnd / tailStart < LoopSeamAnalyzerService.FADE_REJECT_RATIO;
+
+    const headRise =
+      headEnd > epsilon &&
+      headStart / headEnd < LoopSeamAnalyzerService.FADE_REJECT_RATIO;
+
+    return tailDrop && headRise;
   }
 
   private getEdgeDifference(

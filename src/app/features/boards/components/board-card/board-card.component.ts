@@ -79,6 +79,7 @@ export interface PlaylistOptions {
                     type="button"
                     class="board-card__rename-btn"
                     aria-label="Rename board"
+                    (mousedown)="$event.preventDefault()"
                     (click)="startRename()"
                   >✎</button>
                 </ng-container>
@@ -186,6 +187,7 @@ export interface PlaylistOptions {
                   type="button"
                   class="board-mode-switch__btn"
                   [class.board-mode-switch__btn--active]="!playlistMode()"
+                  (mousedown)="$event.preventDefault()"
                   (click)="setPlaybackMode(false)">
                   ♫ Single
                 </button>
@@ -193,6 +195,7 @@ export interface PlaylistOptions {
                   type="button"
                   class="board-mode-switch__btn"
                   [class.board-mode-switch__btn--active]="playlistMode()"
+                  (mousedown)="$event.preventDefault()"
                   (click)="setPlaybackMode(true)">
                   ♫ Playlist
                 </button>
@@ -204,6 +207,7 @@ export interface PlaylistOptions {
                     type="button"
                     class="board-icon-btn"
                     [class.board-icon-btn--active]="settingsOpen()"
+                    (mousedown)="$event.preventDefault()"
                     (click)="toggleSettingsMenu($event)"
                     title="Board settings"
                     aria-label="Board settings">
@@ -278,6 +282,7 @@ export interface PlaylistOptions {
                         <button
                           type="button"
                           class="board-shortcut__btn"
+                          (mousedown)="$event.preventDefault()"
                           (click)="toggleCaptureShortcut()">
                           {{ capturingShortcut() ? 'Cancel' : (shortcut() ? 'Change' : 'Set') }}
                         </button>
@@ -285,6 +290,7 @@ export interface PlaylistOptions {
                           type="button"
                           class="board-shortcut__btn board-shortcut__btn--danger"
                           *ngIf="shortcut() && !capturingShortcut()"
+                          (mousedown)="$event.preventDefault()"
                           (click)="clearShortcut()">
                           Clear
                         </button>

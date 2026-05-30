@@ -9,6 +9,7 @@ import {
   UserRegisterRequest,
   UsersService,
 } from '../../../api/generated';
+import { SessionService } from '../../../core/auth/session.service';
 
 type ProfileState =
   | { status: 'idle' }
@@ -20,8 +21,13 @@ type ProfileState =
 export class ProfileStore {
   private readonly usersApi = inject(UsersService);
   private readonly tracksApi = inject(MusicTracksService);
+  private readonly session = inject(SessionService);
 
   private readonly state = signal<ProfileState>({ status: 'idle' });
+
+  constructor() {
+    this.session.logout$.subscribe(() => this.state.set({ status: 'idle' }));
+  }
 
   readonly status = computed(() => this.state().status);
   readonly user = computed<User | null>(() => {

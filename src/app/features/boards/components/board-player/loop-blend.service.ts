@@ -5,6 +5,17 @@ export type LoopBlendKind = 'switch' | 'loop';
 export interface LoopBlendCurveOptions {
   kind: LoopBlendKind;
   steps?: number;
+
+  /**
+   * Optional similarity from LoopSeamAnalyzerService.
+   *
+   * High correlation means the two sides are related, so a mostly-linear
+   * constant-amplitude blend is better.
+   *
+   * Lower correlation means the two sides are less related, so we add more
+   * equal-power behavior to avoid a perceived volume dip.
+   */
+  correlation?: number;
 }
 
 export interface LoopBlendCurves {
@@ -30,12 +41,14 @@ export class LoopBlendService {
         const equalPowerFrom = Math.cos((eased * Math.PI) / 2);
         const equalPowerTo = Math.sin((eased * Math.PI) / 2);
 
-        // Looped windows usually overlap two highly related copies of the same
-        // audio. A mostly constant-amplitude blend avoids the mid-fade loudness
-        // bump that pure equal-power curves can create on correlated material.
-        // A small equal-power component keeps the blend from dipping too much
-        // when the selected end/start are not perfectly correlated.
-        const equalPowerAmount = 0.18;
+        const correlation = this.clamp(options.correlation ?? 0.72, 0, 1);
+
+        // Highly correlated loop seams should stay close to linear, because
+        // equal-power can create a loudness bump when both copies contain
+        // nearly the same waveform. Weak-but-accepted seams get more
+        // equal-power behavior to avoid a volume hole during the blend.
+        const equalPowerAmount = this.lerp(0.08, 0.42, 1 - correlation);
+
         fromCurve[i] = this.lerp(linearFrom, equalPowerFrom, equalPowerAmount);
         toCurve[i] = this.lerp(linearTo, equalPowerTo, equalPowerAmount);
       } else {
@@ -57,11 +70,15 @@ export class LoopBlendService {
   }
 
   private smootherStep(t: number): number {
-    const x = Math.max(0, Math.min(t, 1));
+    const x = this.clamp(t, 0, 1);
     return x * x * x * (x * (x * 6 - 15) + 10);
   }
 
   private lerp(a: number, b: number, t: number): number {
     return a + (b - a) * t;
+  }
+
+  private clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(value, max));
   }
 }

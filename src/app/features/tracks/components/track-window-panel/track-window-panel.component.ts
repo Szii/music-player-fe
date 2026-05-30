@@ -60,7 +60,7 @@ export interface WindowDeleteEvent {
       title="Windows"
       [subtitle]="track.trackName || track.trackOriginalName || ('Track #' + track.id)"
       titleId="track-windows-title"
-      [extraWide]="true"
+      size="extra-wide"
       (closed)="onClose()"
     >
       <div *ngIf="streamError || waveformError" class="panel-error">

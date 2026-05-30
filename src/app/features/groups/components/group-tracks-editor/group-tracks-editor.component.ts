@@ -31,7 +31,7 @@ type TrackFilterMode = 'all' | 'selected';
     <ui-dialog-shell
       title="Edit tracks"
       [subtitle]="dialogSubtitle()"
-      [wide]="true"
+      size="wide"
       [showFooter]="true"
       (closed)="cancel.emit()"
     >
