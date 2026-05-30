@@ -16,7 +16,9 @@ export type AppIconName =
   | 'play'
   | 'pause'
   | 'save'
-  | 'plus';
+  | 'plus'
+  | 'bookmark'
+  | 'bookmark-remove';
 
 export type AppIconButtonVariant =
   | 'neutral'
@@ -113,6 +115,16 @@ export type AppIconButtonSize = 'sm' | 'md' | 'lg';
           <ng-container *ngSwitchCase="'plus'">
             <path d="M12 5v14" />
             <path d="M5 12h14" />
+          </ng-container>
+
+          <ng-container *ngSwitchCase="'bookmark'">
+            <path d="M7 4h10a1 1 0 0 1 1 1v15l-6-4-6 4V5a1 1 0 0 1 1-1Z" />
+          </ng-container>
+
+          <ng-container *ngSwitchCase="'bookmark-remove'">
+            <path d="M7 4h10a1 1 0 0 1 1 1v15l-6-4-6 4V5a1 1 0 0 1 1-1Z" fill="currentColor" stroke="none" />
+            <path d="M9 10l6 6" stroke="white" stroke-width="2" />
+            <path d="M15 10l-6 6" stroke="white" stroke-width="2" />
           </ng-container>
 
           <ng-container *ngSwitchDefault>

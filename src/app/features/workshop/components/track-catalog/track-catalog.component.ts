@@ -9,13 +9,14 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Track } from '../../../../api/generated';
-import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
+import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
 import { UiSearchBoxComponent } from '../../../../shared/ui/search-box/ui-search-box.component';
 import {
   UiDataTableColumn,
   UiDataTableComponent,
 } from '../../../../shared/ui/data-table/ui-data-table.component';
 import { UiSelectComponent } from '../../../../shared/ui/select/ui-select.component';
+import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 
 type CatalogFilterMode = 'all' | 'available' | 'subscribed';
 
@@ -34,10 +35,11 @@ type TrackCatalogSortMode =
   imports: [
     CommonModule,
     FormsModule,
-    NormalButtonComponent,
+    IconButtonComponent,
     UiDataTableComponent,
     UiSearchBoxComponent,
     UiSelectComponent,
+    UiChipComponent,
   ],
   template: `
     <div class="section">
@@ -118,34 +120,31 @@ type TrackCatalogSortMode =
             </td>
 
             <td class="col-status">
-              <span *ngIf="isSubscribed(track)" class="badge badge--success">
-                <span class="badge__dot" aria-hidden="true"></span>Inscribed
-              </span>
-              <span *ngIf="!isSubscribed(track)" class="badge badge--muted">
-                <span class="badge__dot" aria-hidden="true"></span>Available
-              </span>
+              <ui-chip *ngIf="isSubscribed(track)" variant="success" size="sm" shape="hex" [dot]="true">Inscribed</ui-chip>
+              <ui-chip *ngIf="!isSubscribed(track)" variant="gold" size="sm" shape="hex" [dot]="true">Available</ui-chip>
             </td>
 
             <td class="col-actions">
               <div class="app-actions">
-                <normal-button
+                <app-icon-button
                   *ngIf="!isSubscribed(track)"
-                  size="sm"
+                  icon="bookmark"
+                  variant="secondary"
+                  size="md"
+                  label="Subscribe"
                   [disabled]="busyTrackId() === track.id"
                   (clicked)="subscribe.emit(track)"
-                >
-                  Subscribe
-                </normal-button>
+                />
 
-                <normal-button
+                <app-icon-button
                   *ngIf="isSubscribed(track)"
-                  size="sm"
+                  icon="bookmark-remove"
                   variant="danger"
+                  size="md"
+                  label="Unsubscribe"
                   [disabled]="busyTrackId() === track.id"
                   (clicked)="unsubscribe.emit(track)"
-                >
-                  Unsubscribe
-                </normal-button>
+                />
               </div>
             </td>
           </tr>
@@ -209,57 +208,6 @@ type TrackCatalogSortMode =
       color: var(--app-text-muted);
     }
 
-    .badge {
-      position: relative;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 12px 4px 10px;
-      font-family: var(--app-font-heading);
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      white-space: nowrap;
-      border-radius: var(--app-radius-xs);
-      clip-path: polygon(8px 0%, calc(100% - 8px) 0%, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0% 50%);
-      margin: 0 auto;
-    }
-
-    .badge__dot {
-      display: inline-block;
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-
-    .badge--success {
-      background: linear-gradient(135deg, #2e5e24 0%, #3a7a2e 100%);
-      color: #d8f0c8;
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.15),
-        0 2px 6px rgba(46, 94, 36, 0.4);
-    }
-
-    .badge--success .badge__dot {
-      background: #8fdd6a;
-      box-shadow: 0 0 4px rgba(143, 221, 106, 0.8);
-    }
-
-    .badge--muted {
-      background: linear-gradient(135deg, #5a3e20 0%, #7a5228 100%);
-      color: #e8d8b8;
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.1),
-        0 2px 6px rgba(60, 30, 10, 0.35);
-    }
-
-    .badge--muted .badge__dot {
-      background: #c9a44c;
-      box-shadow: 0 0 4px rgba(201, 164, 76, 0.6);
-    }
-
     .empty {
       color: var(--app-text-muted);
       font-size: 13px;
@@ -313,8 +261,8 @@ export class TrackCatalogComponent {
     { label: 'Owner', className: 'col-owner', width: '16%' },
     { label: 'Duration', className: 'col-duration', width: '90px' },
     { label: 'Description', className: 'col-desc' },
-    { label: 'Status', className: 'col-status', width: '110px' },
-    { label: 'Actions', className: 'col-actions', width: '150px' },
+    { label: 'Status', className: 'col-status', width: '170px' },
+    { label: 'Actions', className: 'col-actions', width: '110px' },
   ];
 
   readonly filteredTracks = computed(() => {

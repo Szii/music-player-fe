@@ -16,6 +16,7 @@ import {
   UiDataTableComponent,
 } from '../../../../shared/ui/data-table/ui-data-table.component';
 import { UiSelectComponent } from '../../../../shared/ui/select/ui-select.component';
+import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 
 type TrackFilterMode =
   | 'all'
@@ -38,6 +39,7 @@ type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
     UiSearchBoxComponent,
     UiDataTableComponent,
     UiSelectComponent,
+    UiChipComponent,
   ],
   template: `
     <div class="track-table">
@@ -141,12 +143,8 @@ type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
               </td>
 
               <td class="col-status">
-                <span *ngIf="isSubscribed(track)" class="track-badge track-badge--subscribed">
-                  <span class="track-badge__dot" aria-hidden="true"></span>Subscribed
-                </span>
-                <span *ngIf="!isSubscribed(track)" class="track-badge track-badge--own">
-                  <span class="track-badge__dot" aria-hidden="true"></span>Own
-                </span>
+                <ui-chip *ngIf="isSubscribed(track)" variant="success" size="sm" shape="hex" [dot]="true">Subscribed</ui-chip>
+                <ui-chip *ngIf="!isSubscribed(track)" variant="gold" size="sm" shape="hex" [dot]="true">Own</ui-chip>
               </td>
 
               <td class="col-actions">
@@ -247,57 +245,6 @@ type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
       white-space: nowrap;
     }
 
-    .track-badge {
-      position: relative;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 12px 4px 10px;
-      font-family: var(--app-font-heading);
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      white-space: nowrap;
-      border-radius: var(--app-radius-xs);
-      clip-path: polygon(8px 0%, calc(100% - 8px) 0%, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0% 50%);
-      margin: 0 auto;
-    }
-
-    .track-badge__dot {
-      display: inline-block;
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-
-    .track-badge--subscribed {
-      background: linear-gradient(135deg, #2e5e24 0%, #3a7a2e 100%);
-      color: #d8f0c8;
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.15),
-        0 2px 6px rgba(46, 94, 36, 0.4);
-    }
-
-    .track-badge--subscribed .track-badge__dot {
-      background: #8fdd6a;
-      box-shadow: 0 0 4px rgba(143, 221, 106, 0.8);
-    }
-
-    .track-badge--own {
-      background: linear-gradient(135deg, #5a3e20 0%, #7a5228 100%);
-      color: #e8d8b8;
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.1),
-        0 2px 6px rgba(60, 30, 10, 0.35);
-    }
-
-    .track-badge--own .track-badge__dot {
-      background: #c9a44c;
-      box-shadow: 0 0 4px rgba(201, 164, 76, 0.6);
-    }
-
     .track-row--subscribed td {
       background: rgba(238, 198, 145, 0.12);
     }
@@ -359,7 +306,7 @@ export class TrackTableComponent {
     { label: 'Owner', className: 'col-owner', width: '120px' },
     { label: 'Duration', className: 'col-duration', width: '110px' },
     { label: 'Link', className: 'col-link', width: '110px' },
-    { label: 'Status', className: 'col-status', width: '110px' },
+    { label: 'Status', className: 'col-status', width: '170px' },
     { label: 'Actions', className: 'col-actions', width: '200px' },
   ];
 

@@ -24,6 +24,7 @@ import {
 } from '../window-editor/window-editor.component';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empty-state.component';
+import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 import {
   TrackPreviewSessionService,
   TrackPreviewState,
@@ -49,6 +50,7 @@ export interface WindowDeleteEvent {
     WindowEditorComponent,
     NormalButtonComponent,
     UiEmptyStateComponent,
+    UiChipComponent,
   ],
   template: `
     <div class="panel-backdrop" *ngIf="track" (click)="onClose()">
@@ -121,19 +123,13 @@ export interface WindowDeleteEvent {
 
                       <div class="panel-window-item__bottom">
                         <div class="panel-window-item__meta">
-                          <span class="panel-window-item__chip">
-                            <span class="panel-window-item__chip-label">From</span>
-                            <span class="panel-window-item__chip-value">
-                              {{ formatTime(win.positionFrom ?? 0) }}
-                            </span>
-                          </span>
+                          <ui-chip variant="neutral" size="sm" keyLabel="From">
+                            {{ formatTime(win.positionFrom ?? 0) }}
+                          </ui-chip>
 
-                          <span class="panel-window-item__chip">
-                            <span class="panel-window-item__chip-label">To</span>
-                            <span class="panel-window-item__chip-value">
-                              {{ formatTime(win.positionTo ?? 0) }}
-                            </span>
-                          </span>
+                          <ui-chip variant="neutral" size="sm" keyLabel="To">
+                            {{ formatTime(win.positionTo ?? 0) }}
+                          </ui-chip>
                         </div>
                       </div>
                     </button>
@@ -492,40 +488,6 @@ export interface WindowDeleteEvent {
       flex-wrap: wrap;
       gap: 8px;
       min-width: 0;
-    }
-
-    .panel-window-item__chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      min-height: 26px;
-      padding: 4px 9px;
-      border-radius: 999px;
-      background: transparent;
-      border: 1px solid var(--app-border-color);
-      color: var(--app-text-muted);
-      font-size: 12px;
-      white-space: nowrap;
-    }
-
-    .panel-window-item__chip-label {
-      font-weight: 700;
-      color: var(--app-text-muted);
-    }
-
-    .panel-window-item__chip-value {
-      font-weight: 600;
-      color: var(--app-text);
-    }
-
-    .panel-window-item__chip--active {
-      background: rgba(122, 92, 46, 0.06);
-      border-color: rgba(122, 92, 46, 0.25);
-    }
-
-    .panel-window-item__chip--active .panel-window-item__chip-label,
-    .panel-window-item__chip--active .panel-window-item__chip-value {
-      color: var(--app-primary);
     }
 
     .panel-window-item__actions {

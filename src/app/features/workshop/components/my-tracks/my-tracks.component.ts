@@ -13,6 +13,7 @@ import { Track } from '../../../../api/generated';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiSearchBoxComponent } from '../../../../shared/ui/search-box/ui-search-box.component';
 import { UiSelectComponent } from '../../../../shared/ui/select/ui-select.component';
+import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 
@@ -27,7 +28,7 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
   selector: 'app-my-tracks',
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [CommonModule, FormsModule, NormalButtonComponent, UiSearchBoxComponent, UiSelectComponent],
+  imports: [CommonModule, FormsModule, NormalButtonComponent, UiSearchBoxComponent, UiSelectComponent, UiChipComponent],
   template: `
     <div class="modal-backdrop" (click)="close.emit()">
       <div
@@ -85,14 +86,14 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
                 </div>
 
                 <div class="track-row__mid">
-                  <span
-                    class="badge"
-                    [class.badge--success]="track.trackShare"
-                    [class.badge--muted]="!track.trackShare"
+                  <ui-chip
+                    [variant]="track.trackShare ? 'success' : 'gold'"
+                    size="sm"
+                    shape="hex"
+                    [dot]="true"
                   >
-                    <span class="badge__dot" aria-hidden="true"></span>
                     {{ track.trackShare ? 'Published' : 'Unpublished' }}
-                  </span>
+                  </ui-chip>
 
                   <div *ngIf="track.trackShare?.shareCode" class="track-row__code">
                     <code class="code" [title]="track.trackShare!.shareCode">
@@ -432,57 +433,6 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
     .icon-btn:hover {
       background: var(--app-primary-soft);
       color: var(--app-primary);
-    }
-
-    .badge {
-      position: relative;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 12px 4px 10px;
-      font-family: var(--app-font-heading);
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      white-space: nowrap;
-      flex: 0 0 auto;
-      border-radius: var(--app-radius-xs);
-      clip-path: polygon(8px 0%, calc(100% - 8px) 0%, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0% 50%);
-    }
-
-    .badge__dot {
-      display: inline-block;
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-
-    .badge--success {
-      background: linear-gradient(135deg, #2e5e24 0%, #3a7a2e 100%);
-      color: #d8f0c8;
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.15),
-        0 2px 6px rgba(46, 94, 36, 0.4);
-    }
-
-    .badge--success .badge__dot {
-      background: #8fdd6a;
-      box-shadow: 0 0 4px rgba(143, 221, 106, 0.8);
-    }
-
-    .badge--muted {
-      background: linear-gradient(135deg, #5a3e20 0%, #7a5228 100%);
-      color: #e8d8b8;
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.1),
-        0 2px 6px rgba(60, 30, 10, 0.35);
-    }
-
-    .badge--muted .badge__dot {
-      background: #c9a44c;
-      box-shadow: 0 0 4px rgba(201, 164, 76, 0.6);
     }
 
     .track-row__actions {

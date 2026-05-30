@@ -34,7 +34,7 @@
 
 .app-table thead th {
   height: 56px;
-  padding: 14px 18px;
+  padding: 14px 24px;
   text-align: center;
   vertical-align: middle;
   font-family: var(--app-font-heading);
@@ -65,7 +65,7 @@
 
 .app-table td {
   height: 56px;
-  padding: 16px 18px;
+  padding: 16px 24px;
   text-align: left;
   vertical-align: middle;
   border-bottom: 1px solid var(--app-border-color-soft);
@@ -102,12 +102,18 @@
 .app-table td.col-duration,
 .app-table th.col-link,
 .app-table td.col-link,
-.app-table th.col-status {
+.app-table th.col-status,
+.app-table td.col-status {
   text-align: center;
 }
 
+.app-table th.col-status,
 .app-table td.col-status {
-  text-align: center;
+  min-width: 160px;
+}
+
+.app-table td.col-status > * {
+  vertical-align: middle;
 }
 
 .app-table th.col-actions,
