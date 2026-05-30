@@ -25,14 +25,17 @@ import { UserLimitsCardComponent } from '../../components/user-limits-card/user-
         @case ('loading') {
           <p class="app-muted">Loading your profile...</p>
         }
+
         @case ('error') {
           <p class="profile-error">{{ errorMessage() }}</p>
         }
+
         @case ('loaded') {
           <ui-card title="Account">
             <dl class="profile-identity">
               <dt>Username</dt>
               <dd>{{ user()?.name || '—' }}</dd>
+
               <dt>Email</dt>
               <dd>{{ user()?.email || '—' }}</dd>
             </dl>
@@ -53,6 +56,7 @@ import { UserLimitsCardComponent } from '../../components/user-limits-card/user-
               <app-user-limits-card
                 [limits]="user()?.limits ?? null"
                 [trackNames]="trackNames()"
+                [sessionNames]="sessionNames()"
               />
             </ui-card>
           </div>
@@ -123,6 +127,7 @@ export class ProfilePageComponent implements OnInit {
   readonly status = this.store.status;
   readonly user = this.store.user;
   readonly trackNames = this.store.trackNames;
+  readonly sessionNames = this.store.sessionNames;
   readonly errorMessage = this.store.errorMessage;
 
   ngOnInit(): void {
