@@ -23,11 +23,13 @@ export interface UiSelectSubOptionEvent {
   sub: UiSelectOption;
 }
 
-interface PanelRect {
-  top: number | null;
-  bottom: number | null;
-  left: number;
-  width: number;
+interface PanelLayout {
+  upward: boolean;
+  maxHeight: number;
+}
+
+interface FlyoutLayout {
+  alignLeft: boolean;
   maxHeight: number;
 }
 
@@ -74,14 +76,11 @@ interface PanelRect {
         </span>
       </button>
 
-      @if (isOpen() && panelRect(); as panel) {
+      @if (isOpen()) {
         <div
           class="app-popover-surface sel__panel"
-          [style.top]="panel.top != null ? panel.top + 'px' : 'auto'"
-          [style.bottom]="panel.bottom != null ? panel.bottom + 'px' : 'auto'"
-          [style.left.px]="panel.left"
-          [style.width.px]="panel.width"
-          [style.max-height.px]="panel.maxHeight"
+          [class.sel__panel--upward]="panelLayout().upward"
+          [style.max-height.px]="panelLayout().maxHeight"
         >
           @if (enableSearch()) {
             <div class="sel__search-wrap">
@@ -127,12 +126,11 @@ interface PanelRect {
                   }
                 </button>
 
-                @if (hoveredOptionValue() === opt.value && (opt.subOptions?.length ?? 0) > 0 && flyoutRect(); as fly) {
+                @if (hoveredOptionValue() === opt.value && (opt.subOptions?.length ?? 0) > 0) {
                   <div
                     class="app-popover-surface sel__flyout"
-                    [style.top.px]="fly.top"
-                    [style.left.px]="fly.left"
-                    [style.max-height.px]="fly.maxHeight"
+                    [class.sel__flyout--left]="flyoutLayout().alignLeft"
+                    [style.max-height.px]="flyoutLayout().maxHeight"
                     (mouseenter)="onFlyoutHover()"
                     (mouseleave)="onFlyoutUnhover()"
                   >
@@ -237,8 +235,16 @@ interface PanelRect {
     }
 
     .sel__panel {
-      position: fixed;
-      z-index: 9999;
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      right: 0;
+      z-index: 100;
+    }
+
+    .sel__panel--upward {
+      top: auto;
+      bottom: calc(100% + 8px);
     }
 
     .sel__search-wrap {
@@ -320,12 +326,19 @@ interface PanelRect {
     }
 
     .sel__flyout {
-      position: fixed;
-      z-index: 10000;
+      position: absolute;
+      top: 0;
+      left: calc(100% + 4px);
+      z-index: 101;
       min-width: 200px;
       width: 220px;
       max-width: 320px;
       overflow-y: auto;
+    }
+
+    .sel__flyout--left {
+      left: auto;
+      right: calc(100% + 4px);
     }
 
     .sel__option-check {
@@ -364,7 +377,7 @@ export class UiSelectComponent implements ControlValueAccessor {
   readonly enterCommitted = output<void>();
 
   readonly hoveredOptionValue = signal<any>(null);
-  readonly flyoutRect = signal<{ top: number; left: number; maxHeight: number } | null>(null);
+  readonly flyoutLayout = signal<FlyoutLayout>({ alignLeft: false, maxHeight: 280 });
   readonly highlightedIndex = signal<number>(-1);
   readonly highlightedSubIndex = signal<number>(-1);
   readonly inFlyoutMode = computed(() => this.highlightedSubIndex() >= 0);
@@ -373,7 +386,7 @@ export class UiSelectComponent implements ControlValueAccessor {
   readonly isOpen = signal(false);
   readonly currentValue = signal<any>(null);
   readonly isDisabled = signal(false);
-  readonly panelRect = signal<PanelRect | null>(null);
+  readonly panelLayout = signal<PanelLayout>({ upward: false, maxHeight: 280 });
   readonly searchQuery = signal('');
 
   @ViewChild('trigger') triggerRef?: ElementRef<HTMLButtonElement>;
@@ -442,7 +455,7 @@ export class UiSelectComponent implements ControlValueAccessor {
     if (this.isDisabled()) return;
 
     if (!this.isOpen()) {
-      this.updatePanelRect();
+      this.updatePanelLayout();
       this.searchQuery.set('');
       this.isOpen.set(true);
       this.resetHighlightFromCurrent();
@@ -481,7 +494,6 @@ export class UiSelectComponent implements ControlValueAccessor {
     const next = (start + delta + opts.length) % opts.length;
     this.highlightedIndex.set(next);
     this.hoveredOptionValue.set(null);
-    this.flyoutRect.set(null);
     this.scrollOptionIntoView(next);
   }
 
@@ -529,18 +541,7 @@ export class UiSelectComponent implements ControlValueAccessor {
       `[data-option-index="${this.highlightedIndex()}"] .sel__option`,
     ) as HTMLElement | null;
     if (row) {
-      const r = row.getBoundingClientRect();
-      const vh = window.innerHeight;
-      const vw = window.innerWidth;
-      const GAP = 4;
-      const FLYOUT_WIDTH = 220;
-      const desiredLeft = r.right + GAP;
-      const left = desiredLeft + FLYOUT_WIDTH > vw
-        ? Math.max(8, r.left - FLYOUT_WIDTH - GAP)
-        : desiredLeft;
-      const top = Math.min(r.top, vh - 80);
-      const maxHeight = Math.max(80, vh - top - 16);
-      this.flyoutRect.set({ top, left, maxHeight });
+      this.updateFlyoutLayout(row);
     }
 
     this.clearFlyoutTimer();
@@ -549,9 +550,20 @@ export class UiSelectComponent implements ControlValueAccessor {
     return true;
   }
 
+  private updateFlyoutLayout(row: HTMLElement): void {
+    const r = row.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const FLYOUT_WIDTH = 220;
+    const GAP = 4;
+
+    const alignLeft = r.right + GAP + FLYOUT_WIDTH > vw;
+    const maxHeight = Math.max(80, vh - r.top - 16);
+    this.flyoutLayout.set({ alignLeft, maxHeight });
+  }
+
   private closeFlyout(): void {
     this.hoveredOptionValue.set(null);
-    this.flyoutRect.set(null);
     this.highlightedSubIndex.set(-1);
     this.clearFlyoutTimer();
   }
@@ -611,24 +623,12 @@ export class UiSelectComponent implements ControlValueAccessor {
     this.clearFlyoutTimer();
     if ((opt.subOptions?.length ?? 0) === 0) {
       this.hoveredOptionValue.set(null);
-      this.flyoutRect.set(null);
       return;
     }
 
     const target = event.currentTarget as HTMLElement | null;
     if (target) {
-      const r = target.getBoundingClientRect();
-      const vh = window.innerHeight;
-      const vw = window.innerWidth;
-      const GAP = 4;
-      const desiredLeft = r.right + GAP;
-      const FLYOUT_WIDTH = 220;
-      const left = desiredLeft + FLYOUT_WIDTH > vw
-        ? Math.max(8, r.left - FLYOUT_WIDTH - GAP)
-        : desiredLeft;
-      const top = Math.min(r.top, vh - 80);
-      const maxHeight = Math.max(80, vh - top - 16);
-      this.flyoutRect.set({ top, left, maxHeight });
+      this.updateFlyoutLayout(target);
     }
 
     this.hoveredOptionValue.set(opt.value);
@@ -806,14 +806,14 @@ export class UiSelectComponent implements ControlValueAccessor {
   }
 
   onScroll(): void {
-    if (this.isOpen()) this.updatePanelRect();
+    if (this.isOpen()) this.updatePanelLayout();
   }
 
   onResize(): void {
-    if (this.isOpen()) this.updatePanelRect();
+    if (this.isOpen()) this.updatePanelLayout();
   }
 
-  private updatePanelRect(): void {
+  private updatePanelLayout(): void {
     const trigger = this.triggerRef?.nativeElement
       ?? this.el.nativeElement.querySelector('button');
     if (!trigger) return;
@@ -826,26 +826,10 @@ export class UiSelectComponent implements ControlValueAccessor {
     const spaceBelow = vh - r.bottom - GAP;
     const spaceAbove = r.top - GAP;
 
-    const openUpward = spaceAbove > spaceBelow && spaceBelow < MAX_HEIGHT;
-    const availableSpace = openUpward ? spaceAbove : spaceBelow;
-    const maxHeight = Math.min(MAX_HEIGHT, availableSpace);
+    const upward = spaceAbove > spaceBelow && spaceBelow < MAX_HEIGHT;
+    const availableSpace = upward ? spaceAbove : spaceBelow;
+    const maxHeight = Math.min(MAX_HEIGHT, Math.max(80, availableSpace));
 
-    if (openUpward) {
-      this.panelRect.set({
-        top: null,
-        bottom: vh - r.top + GAP,
-        left: r.left,
-        width: r.width,
-        maxHeight,
-      });
-    } else {
-      this.panelRect.set({
-        top: r.bottom + GAP,
-        bottom: null,
-        left: r.left,
-        width: r.width,
-        maxHeight,
-      });
-    }
+    this.panelLayout.set({ upward, maxHeight });
   }
 }

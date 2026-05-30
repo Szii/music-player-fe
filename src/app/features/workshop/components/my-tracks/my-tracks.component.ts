@@ -7,14 +7,12 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Track } from '../../../../api/generated';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
-import { UiSearchBoxComponent } from '../../../../shared/ui/search-box/ui-search-box.component';
-import { UiSelectComponent } from '../../../../shared/ui/select/ui-select.component';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
+import { UiListToolbarComponent } from '../../../../shared/ui/list-toolbar/ui-list-toolbar.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 
@@ -29,7 +27,7 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
   selector: 'app-my-tracks',
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [CommonModule, FormsModule, NormalButtonComponent, UiSearchBoxComponent, UiSelectComponent, UiChipComponent, UiDialogShellComponent],
+  imports: [FormsModule, NormalButtonComponent, UiListToolbarComponent, UiChipComponent, UiDialogShellComponent],
   template: `
     <ui-dialog-shell
       title="My tracks"
@@ -38,109 +36,96 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
       [wide]="true"
       (closed)="close.emit()"
     >
-      <div class="my-tracks__toolbar" *ngIf="tracks().length > 0">
-        <ui-search-box
-          class="my-tracks__search"
-          [value]="search()"
-          placeholder="Search tracks by name"
-          (valueChange)="search.set($event)"
+      @if (tracks().length > 0) {
+        <ui-list-toolbar
+          [(search)]="search"
+          searchPlaceholder="Search tracks by name"
+          [filterValue]="filterMode()"
+          [filterOptions]="filterOptions"
+          filterLabel="Status"
+          (filterValueChange)="setFilterMode($event)"
+          [filteredCount]="filteredTracks().length"
+          [totalCount]="tracks().length"
+          itemLabel="track"
         />
+      }
 
-        <div class="my-tracks__field">
-          <span class="my-tracks__label">Status</span>
-          <ui-select
-            [options]="filterOptions"
-            [ngModel]="filterMode()"
-            [enableSearch]="false"
-            [ngModelOptions]="{ standalone: true }"
-            (ngModelChange)="filterMode.set($event)"
-          />
-        </div>
-      </div>
-
-      <div class="my-tracks__meta" *ngIf="tracks().length > 0">
-        {{ filteredTracks().length }} / {{ tracks().length }}
-        track{{ tracks().length === 1 ? '' : 's' }}
-      </div>
-
-      <ng-container *ngIf="filteredTracks().length > 0; else emptyState">
+      @if (filteredTracks().length > 0) {
         <div class="track-list">
-          <div *ngFor="let track of filteredTracks(); trackBy: trackById" class="track-row">
-            <div class="track-row__name">
-              <span class="track-row__title" [title]="displayName(track)">
-                {{ displayName(track) }}
-              </span>
-              <span class="track-row__duration">{{ formatDuration(track.duration) }}</span>
-            </div>
+          @for (track of filteredTracks(); track track.id) {
+            <div class="track-row">
+              <div class="track-row__name">
+                <span class="track-row__title" [title]="displayName(track)">
+                  {{ displayName(track) }}
+                </span>
+                <span class="track-row__duration">{{ formatDuration(track.duration) }}</span>
+              </div>
 
-            <div class="track-row__mid">
-              <ui-chip
-                [variant]="track.trackShare ? 'success' : 'gold'"
-                size="sm"
-                shape="hex"
-                [dot]="true"
-              >
-                {{ track.trackShare ? 'Published' : 'Unpublished' }}
-              </ui-chip>
-
-              <div *ngIf="track.trackShare?.shareCode" class="track-row__code">
-                <code class="code" [title]="track.trackShare!.shareCode">
-                  {{ track.trackShare!.shareCode }}
-                </code>
-
-                <button
-                  class="icon-btn"
-                  type="button"
-                  (click)="copyToClipboard(track.trackShare!.shareCode!)"
-                  title="Copy"
+              <div class="track-row__mid">
+                <ui-chip
+                  [variant]="track.trackShare ? 'success' : 'gold'"
+                  size="sm"
+                  shape="hex"
+                  [dot]="true"
                 >
-                  ⎘
-                </button>
+                  {{ track.trackShare ? 'Published' : 'Unpublished' }}
+                </ui-chip>
+
+                @if (track.trackShare?.shareCode) {
+                  <div class="track-row__code">
+                    <code class="code" [title]="track.trackShare!.shareCode">
+                      {{ track.trackShare!.shareCode }}
+                    </code>
+
+                    <button
+                      class="icon-btn"
+                      type="button"
+                      (click)="copyToClipboard(track.trackShare!.shareCode!)"
+                      title="Copy"
+                    >
+                      ⎘
+                    </button>
+                  </div>
+                }
+              </div>
+
+              <div class="track-row__actions">
+                @if (!track.trackShare) {
+                  <normal-button
+                    size="sm"
+                    [disabled]="busyTrackId() === track.id"
+                    (clicked)="openPublish(track)"
+                  >
+                    Publish
+                  </normal-button>
+                } @else {
+                  <normal-button
+                    size="sm"
+                    variant="danger"
+                    [disabled]="busyTrackId() === track.id"
+                    (clicked)="requestUnpublish(track)"
+                  >
+                    Unpublish
+                  </normal-button>
+                }
               </div>
             </div>
-
-            <div class="track-row__actions">
-              <normal-button
-                *ngIf="!track.trackShare"
-                size="sm"
-                [disabled]="busyTrackId() === track.id"
-                (clicked)="openPublish(track)"
-              >
-                Publish
-              </normal-button>
-
-              <normal-button
-                *ngIf="track.trackShare"
-                size="sm"
-                variant="danger"
-                [disabled]="busyTrackId() === track.id"
-                (clicked)="requestUnpublish(track)"
-              >
-                Unpublish
-              </normal-button>
-            </div>
-          </div>
+          }
         </div>
-      </ng-container>
-
-      <ng-template #emptyState>
-        <p *ngIf="tracks().length === 0" class="empty">
-          No tracks yet. Create some on the Home page.
-        </p>
-
-        <p *ngIf="tracks().length > 0 && filteredTracks().length === 0" class="empty">
-          No tracks match the current search or filter.
-        </p>
-      </ng-template>
+      } @else if (tracks().length === 0) {
+        <p class="empty">No tracks yet. Create some on the Home page.</p>
+      } @else {
+        <p class="empty">No tracks match the current search or filter.</p>
+      }
     </ui-dialog-shell>
 
-    <ui-dialog-shell
-      *ngIf="publishTrack()"
-      title="Publish track"
-      titleId="publish-track-title"
-      [showFooter]="true"
-      (closed)="closePublish()"
-    >
+    @if (publishTrack()) {
+      <ui-dialog-shell
+        title="Publish track"
+        titleId="publish-track-title"
+        [showFooter]="true"
+        (closed)="closePublish()"
+      >
       <div class="publish-form">
         <p class="publish-form__track-name">
           {{ publishTrack()!.trackName || publishTrack()!.trackOriginalName }}
@@ -169,50 +154,26 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
           Publish
         </normal-button>
       </ng-container>
-    </ui-dialog-shell>
+      </ui-dialog-shell>
+    }
   `,
   styles: [`
     :host {
       display: block;
     }
 
-    .my-tracks__toolbar {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 180px;
-      gap: 12px;
-      align-items: end;
+    ui-list-toolbar {
       margin-bottom: 10px;
-    }
-
-    .my-tracks__search {
-      min-width: 0;
-    }
-
-    .my-tracks__field {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      min-width: 0;
-    }
-
-    .my-tracks__label {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--app-text-muted);
-    }
-
-    .my-tracks__meta {
-      margin-bottom: 10px;
-      font-size: 0.92rem;
-      color: var(--app-text-muted);
+      display: block;
     }
 
     .track-list {
       display: flex;
       flex-direction: column;
       gap: 8px;
+      max-height: min(46vh, 380px);
+      overflow-y: auto;
+      padding-right: 4px;
     }
 
     .track-row {
@@ -339,10 +300,6 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
     }
 
     @media (max-width: 900px) {
-      .my-tracks__toolbar {
-        grid-template-columns: 1fr;
-      }
-
       .track-row {
         grid-template-columns: 1fr;
         align-items: start;
@@ -375,6 +332,10 @@ export class MyTracksComponent {
   readonly publishDesc = signal('');
   readonly search = signal('');
   readonly filterMode = signal<PublishFilterMode>('all');
+
+  setFilterMode(value: unknown): void {
+    this.filterMode.set(value as PublishFilterMode);
+  }
 
   readonly filteredTracks = computed(() => {
     const query = this.search().trim().toLowerCase();

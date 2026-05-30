@@ -7,15 +7,13 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { Track } from '../../../../api/generated';
 import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
-import { UiSearchBoxComponent } from '../../../../shared/ui/search-box/ui-search-box.component';
 import {
   UiDataTableColumn,
   UiDataTableComponent,
 } from '../../../../shared/ui/data-table/ui-data-table.component';
-import { UiSelectComponent } from '../../../../shared/ui/select/ui-select.component';
+import { UiListToolbarComponent } from '../../../../shared/ui/list-toolbar/ui-list-toolbar.component';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 
 type TrackFilterMode =
@@ -34,72 +32,48 @@ type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
-    FormsModule,
     IconButtonComponent,
-    UiSearchBoxComponent,
     UiDataTableComponent,
-    UiSelectComponent,
+    UiListToolbarComponent,
     UiChipComponent,
   ],
   template: `
     <div class="track-table">
-      <div *ngIf="loading()" class="app-muted">Loading tracks…</div>
-
-      <ng-container *ngIf="!loading()">
-        <div class="track-table-toolbar" *ngIf="tracks().length > 0">
-          <ui-search-box
-            class="track-table-toolbar__search"
-            [value]="search()"
-            placeholder="Search tracks"
-            (valueChange)="search.set($event)"
+      @if (loading()) {
+        <div class="app-muted">Loading tracks…</div>
+      } @else {
+        @if (tracks().length > 0) {
+          <ui-list-toolbar
+            [(search)]="search"
+            searchPlaceholder="Search tracks"
+            [filterValue]="filterMode()"
+            [filterOptions]="filterOptions"
+            (filterValueChange)="setFilterMode($event)"
+            [sortValue]="sortMode()"
+            [sortOptions]="sortOptions"
+            (sortValueChange)="setSortMode($event)"
+            [filteredCount]="filteredTracks().length"
+            [totalCount]="tracks().length"
+            itemLabel="track"
           />
+        }
 
-          <div class="track-table-toolbar__controls">
-            <div class="track-table-toolbar__field">
-              <span class="track-table-toolbar__label">Filter</span>
-              <ui-select
-                [options]="filterOptions"
-                [ngModel]="filterMode()"
-                [enableSearch]="false"
-                [ngModelOptions]="{ standalone: true }"
-                (ngModelChange)="filterMode.set($event)"
-              />
-            </div>
+        @if (tracks().length === 0) {
+          <p class="app-muted">No tracks yet.</p>
+        }
 
-            <div class="track-table-toolbar__field">
-              <span class="track-table-toolbar__label">Sort</span>
-              <ui-select
-                [options]="sortOptions"
-                [ngModel]="sortMode()"
-                [enableSearch]="false"
-                [ngModelOptions]="{ standalone: true }"
-                (ngModelChange)="sortMode.set($event)"
-              />
-            </div>
-          </div>
-        </div>
+        @if (tracks().length > 0 && filteredTracks().length === 0) {
+          <p class="app-muted">No tracks match the current search or filter.</p>
+        }
 
-        <div *ngIf="tracks().length > 0" class="track-table-meta">
-          {{ filteredTracks().length }} / {{ tracks().length }}
-          track{{ tracks().length === 1 ? '' : 's' }}
-        </div>
-
-        <p *ngIf="tracks().length === 0" class="app-muted">
-          No tracks yet.
-        </p>
-
-        <p *ngIf="tracks().length > 0 && filteredTracks().length === 0" class="app-muted">
-          No tracks match the current search or filter.
-        </p>
-
-        <ui-data-table
-          *ngIf="filteredTracks().length > 0"
-          [rows]="filteredTracks()"
-          [columns]="columns"
-          [trackBy]="trackByTrackId"
-          [maxHeight]="'var(--track-table-max-height)'"
-          [tableClass]="'app-table--tracks'"
-        >
+        @if (filteredTracks().length > 0) {
+          <ui-data-table
+            [rows]="filteredTracks()"
+            [columns]="columns"
+            [trackBy]="trackByTrackId"
+            [maxHeight]="'var(--track-table-max-height)'"
+            [tableClass]="'app-table--tracks'"
+          >
           <ng-template let-track>
             <tr [class.track-row--subscribed]="isSubscribed(track)">
               <td class="col-name">
@@ -131,20 +105,25 @@ type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
               </td>
 
               <td class="col-link">
-                <a
-                  *ngIf="track.trackLink"
-                  [href]="track.trackLink"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Open ↗
-                </a>
-                <span *ngIf="!track.trackLink" class="app-muted">—</span>
+                @if (track.trackLink) {
+                  <a
+                    [href]="track.trackLink"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Open ↗
+                  </a>
+                } @else {
+                  <span class="app-muted">—</span>
+                }
               </td>
 
               <td class="col-status">
-                <ui-chip *ngIf="isSubscribed(track)" variant="success" size="sm" shape="hex" [dot]="true">Subscribed</ui-chip>
-                <ui-chip *ngIf="!isSubscribed(track)" variant="gold" size="sm" shape="hex" [dot]="true">Own</ui-chip>
+                @if (isSubscribed(track)) {
+                  <ui-chip variant="success" size="sm" shape="hex" [dot]="true">Subscribed</ui-chip>
+                } @else {
+                  <ui-chip variant="gold" size="sm" shape="hex" [dot]="true">Own</ui-chip>
+                }
               </td>
 
               <td class="col-actions">
@@ -180,7 +159,8 @@ type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
             </tr>
           </ng-template>
         </ui-data-table>
-      </ng-container>
+        }
+      }
     </div>
   `,
   styles: [`
@@ -194,49 +174,8 @@ type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
       min-width: 0;
     }
 
-    .track-table-toolbar {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 12px;
-      align-items: end;
+    ui-list-toolbar {
       margin-bottom: 12px;
-    }
-
-    .track-table-toolbar__search {
-      min-width: 0;
-    }
-
-    .track-table-toolbar__controls {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-    }
-
-    .track-table-toolbar__field {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      min-width: 160px;
-    }
-
-    .track-table-toolbar__label {
-      font-family: var(--app-font-heading);
-      font-size: 10px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--app-heading);
-    }
-
-    .track-table-toolbar__select {
-      min-width: 0;
-    }
-
-    .track-table-meta {
-      margin-bottom: 12px;
-      font-size: 0.92rem;
-      color: var(--app-text-muted);
     }
 
     .col-duration,
@@ -256,14 +195,6 @@ type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
     @media (max-width: 860px) {
       :host {
         --track-table-max-height: min(55dvh, 640px);
-      }
-
-      .track-table-toolbar {
-        grid-template-columns: 1fr;
-      }
-
-      .track-table-toolbar__controls {
-        justify-content: flex-start;
       }
 
       .app-table--tracks {
@@ -323,6 +254,14 @@ export class TrackTableComponent {
 
     return [...filtered].sort((a, b) => this.compareTracks(a, b, sort));
   });
+
+  setFilterMode(value: unknown): void {
+    this.filterMode.set(value as TrackFilterMode);
+  }
+
+  setSortMode(value: unknown): void {
+    this.sortMode.set(value as TrackSortMode);
+  }
 
   trackByTrackId = (index: number, track: Track): number | string => track.id ?? index;
 

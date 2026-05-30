@@ -7,15 +7,13 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { Track } from '../../../../api/generated';
 import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
-import { UiSearchBoxComponent } from '../../../../shared/ui/search-box/ui-search-box.component';
 import {
   UiDataTableColumn,
   UiDataTableComponent,
 } from '../../../../shared/ui/data-table/ui-data-table.component';
-import { UiSelectComponent } from '../../../../shared/ui/select/ui-select.component';
+import { UiListToolbarComponent } from '../../../../shared/ui/list-toolbar/ui-list-toolbar.component';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 
 type CatalogFilterMode = 'all' | 'available' | 'subscribed';
@@ -34,61 +32,37 @@ type TrackCatalogSortMode =
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
-    FormsModule,
     IconButtonComponent,
     UiDataTableComponent,
-    UiSearchBoxComponent,
-    UiSelectComponent,
+    UiListToolbarComponent,
     UiChipComponent,
   ],
   template: `
     <div class="section">
-      <div *ngIf="tracks().length > 0" class="catalog-toolbar">
-        <ui-search-box
-          class="catalog-toolbar__search"
-          [value]="search()"
-          placeholder="Search shared tracks"
-          (valueChange)="search.set($event)"
+      @if (tracks().length > 0) {
+        <ui-list-toolbar
+          [(search)]="search"
+          searchPlaceholder="Search shared tracks"
+          [filterValue]="filterMode()"
+          [filterOptions]="filterOptions"
+          (filterValueChange)="setFilterMode($event)"
+          [sortValue]="sortMode()"
+          [sortOptions]="sortOptions"
+          (sortValueChange)="setSortMode($event)"
+          [filteredCount]="filteredTracks().length"
+          [totalCount]="tracks().length"
+          itemLabel="track"
         />
+      }
 
-        <div class="catalog-toolbar__controls">
-          <div class="catalog-toolbar__field">
-            <span class="catalog-toolbar__label">Filter</span>
-            <ui-select
-              [options]="filterOptions"
-              [ngModel]="filterMode()"
-              [enableSearch]="false"
-              [ngModelOptions]="{ standalone: true }"
-              (ngModelChange)="filterMode.set($event)"
-            />
-          </div>
-
-          <div class="catalog-toolbar__field">
-            <span class="catalog-toolbar__label">Sort</span>
-            <ui-select
-              [options]="sortOptions"
-              [ngModel]="sortMode()"
-              [enableSearch]="false"
-              [ngModelOptions]="{ standalone: true }"
-              (ngModelChange)="sortMode.set($event)"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div *ngIf="tracks().length > 0" class="catalog-meta">
-        {{ filteredTracks().length }} / {{ tracks().length }}
-        track{{ tracks().length === 1 ? '' : 's' }}
-      </div>
-
-      <ui-data-table
-        *ngIf="filteredTracks().length > 0; else emptyOrNoMatch"
-        [rows]="filteredTracks()"
-        [columns]="columns"
-        [trackBy]="trackById"
-        [maxHeight]="'min(52dvh, 620px)'"
-        [tableClass]="'app-table--workshop'"
-      >
+      @if (filteredTracks().length > 0) {
+        <ui-data-table
+          [rows]="filteredTracks()"
+          [columns]="columns"
+          [trackBy]="trackById"
+          [maxHeight]="'min(52dvh, 620px)'"
+          [tableClass]="'app-table--workshop'"
+        >
         <ng-template let-track>
           <tr>
             <td class="col-title">
@@ -120,41 +94,44 @@ type TrackCatalogSortMode =
             </td>
 
             <td class="col-status">
-              <ui-chip *ngIf="isSubscribed(track)" variant="success" size="sm" shape="hex" [dot]="true">Inscribed</ui-chip>
-              <ui-chip *ngIf="!isSubscribed(track)" variant="gold" size="sm" shape="hex" [dot]="true">Available</ui-chip>
+              @if (isSubscribed(track)) {
+                <ui-chip variant="success" size="sm" shape="hex" [dot]="true">Inscribed</ui-chip>
+              } @else {
+                <ui-chip variant="gold" size="sm" shape="hex" [dot]="true">Available</ui-chip>
+              }
             </td>
 
             <td class="col-actions">
               <div class="app-actions">
-                <app-icon-button
-                  *ngIf="!isSubscribed(track)"
-                  icon="bookmark"
-                  variant="secondary"
-                  size="md"
-                  label="Subscribe"
-                  [disabled]="busyTrackId() === track.id"
-                  (clicked)="subscribe.emit(track)"
-                />
-
-                <app-icon-button
-                  *ngIf="isSubscribed(track)"
-                  icon="bookmark-remove"
-                  variant="danger"
-                  size="md"
-                  label="Unsubscribe"
-                  [disabled]="busyTrackId() === track.id"
-                  (clicked)="unsubscribe.emit(track)"
-                />
+                @if (!isSubscribed(track)) {
+                  <app-icon-button
+                    icon="bookmark"
+                    variant="secondary"
+                    size="md"
+                    label="Subscribe"
+                    [disabled]="busyTrackId() === track.id"
+                    (clicked)="subscribe.emit(track)"
+                  />
+                } @else {
+                  <app-icon-button
+                    icon="bookmark-remove"
+                    variant="danger"
+                    size="md"
+                    label="Unsubscribe"
+                    [disabled]="busyTrackId() === track.id"
+                    (clicked)="unsubscribe.emit(track)"
+                  />
+                }
               </div>
             </td>
           </tr>
         </ng-template>
-      </ui-data-table>
-
-      <ng-template #emptyOrNoMatch>
-        <p *ngIf="tracks().length === 0" class="empty">Nothing is published right now.</p>
-        <p *ngIf="tracks().length > 0" class="empty">No tracks match the current search or filter.</p>
-      </ng-template>
+        </ui-data-table>
+      } @else if (tracks().length === 0) {
+        <p class="empty">Nothing is published right now.</p>
+      } @else {
+        <p class="empty">No tracks match the current search or filter.</p>
+      }
     </div>
   `,
   styles: [`
@@ -163,49 +140,8 @@ type TrackCatalogSortMode =
       min-width: 0;
     }
 
-    .catalog-toolbar {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 12px;
-      align-items: end;
+    ui-list-toolbar {
       margin-bottom: 12px;
-    }
-
-    .catalog-toolbar__search {
-      min-width: 0;
-    }
-
-    .catalog-toolbar__controls {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-    }
-
-    .catalog-toolbar__field {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      min-width: 160px;
-    }
-
-    .catalog-toolbar__label {
-      font-family: var(--app-font-heading);
-      font-size: 10px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--app-heading);
-    }
-
-    .catalog-toolbar__select {
-      min-width: 0;
-    }
-
-    .catalog-meta {
-      margin-bottom: 12px;
-      font-size: 0.92rem;
-      color: var(--app-text-muted);
     }
 
     .empty {
@@ -215,14 +151,6 @@ type TrackCatalogSortMode =
     }
 
     @media (max-width: 900px) {
-      .catalog-toolbar {
-        grid-template-columns: 1fr;
-      }
-
-      .catalog-toolbar__controls {
-        justify-content: flex-start;
-      }
-
       .app-table--workshop {
         min-width: 880px;
       }
@@ -264,6 +192,14 @@ export class TrackCatalogComponent {
     { label: 'Status', className: 'col-status', width: '170px' },
     { label: 'Actions', className: 'col-actions', width: '110px' },
   ];
+
+  setFilterMode(value: unknown): void {
+    this.filterMode.set(value as CatalogFilterMode);
+  }
+
+  setSortMode(value: unknown): void {
+    this.sortMode.set(value as TrackCatalogSortMode);
+  }
 
   readonly filteredTracks = computed(() => {
     const query = this.search().trim().toLowerCase();
