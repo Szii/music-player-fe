@@ -24,6 +24,7 @@ import {
 } from '../waveform-canvas/waveform-canvas.component';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-input.component';
+import { UiVolumeSliderComponent } from '../../../../shared/ui/volume-slider/ui-volume-slider.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 
@@ -45,6 +46,7 @@ export interface WindowEditorResult {
     WaveformCanvasComponent,
     UiTextInputComponent,
     NormalButtonComponent,
+    UiVolumeSliderComponent,
   ],
   template: `
     <div class="we-root">
@@ -147,38 +149,13 @@ export interface WindowEditorResult {
             </div>
           </div>
 
-          <div class="we-card we-card--volume" *ngIf="audioReady()">
-            <span class="we-card__label">Volume</span>
-            <div class="we-card__row">
-              <svg
-                class="we-volume__icon"
-                viewBox="0 0 24 24"
-                width="18"
-                height="18"
-                aria-hidden="true"
-              >
-                <path d="M3 9v6h4l5 4V5L7 9H3z" fill="currentColor"/>
-                <path
-                  d="M15.5 8.5c1.4 1.1 2.1 2.3 2.1 3.5s-0.7 2.4-2.1 3.5"
-                  stroke="currentColor"
-                  stroke-width="1.6"
-                  stroke-linecap="round"
-                  fill="none"
-                />
-              </svg>
-              <input
-                class="we-volume__range"
-                type="range"
-                min="0"
-                max="100"
-                step="1"
-                [value]="volumePercent()"
-                (input)="onVolumeChange($any($event.target).value)"
-                aria-label="Volume"
-              />
-              <span class="we-volume__value">{{ volumePercent() }}%</span>
-            </div>
-          </div>
+          <ui-volume-slider
+            class="we-volume"
+            *ngIf="audioReady()"
+            [value]="volumePercent()"
+            (preview)="onVolumeChange($event)"
+            (commit)="onVolumeChange($event)"
+          />
         </div>
       </div>
 
@@ -243,13 +220,13 @@ export interface WindowEditorResult {
           <span class="we-playback__label">Playback</span>
           <span class="we-playback__time">{{ formatTime(currentTimeS()) }}</span>
           <input
-            class="we-seek__range"
+            class="we-seek__range app-range"
             type="range"
             min="0"
             [max]="durationS()"
             step="0.1"
             [value]="tracker.displayPositionS"
-            [style.background]="seekBackground()"
+            [style.--app-range-track]="seekBackground()"
             (input)="onSeekInput($any($event.target).value)"
             (change)="onSeekCommit($any($event.target).value)"
           />
@@ -382,9 +359,6 @@ export interface WindowEditorResult {
       .we-info__grid {
         grid-template-columns: repeat(2, minmax(120px, 1fr));
       }
-      .we-card--volume {
-        grid-column: 1 / -1;
-      }
     }
 
     .we-card {
@@ -411,10 +385,6 @@ export interface WindowEditorResult {
       align-items: center;
       gap: 6px;
       min-height: 26px;
-    }
-
-    .we-card--volume .we-card__row {
-      gap: 8px;
     }
 
     .we-card__time-input {
@@ -589,33 +559,6 @@ export interface WindowEditorResult {
     .we-seek__range {
       flex: 1;
       min-width: 0;
-      cursor: pointer;
-      -webkit-appearance: none;
-      appearance: none;
-      height: 5px;
-      border-radius: 3px;
-      border: none;
-      outline: none;
-    }
-
-    .we-seek__range::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 13px;
-      height: 13px;
-      border-radius: 50%;
-      background: var(--app-primary);
-      border: 2px solid var(--app-surface);
-      box-shadow: 0 0 0 1px var(--app-primary);
-      cursor: pointer;
-    }
-
-    .we-seek__range::-moz-range-thumb {
-      width: 13px;
-      height: 13px;
-      border-radius: 50%;
-      background: var(--app-primary);
-      border: 2px solid var(--app-surface);
-      cursor: pointer;
     }
 
     .we-seek__time {
@@ -626,50 +569,8 @@ export interface WindowEditorResult {
       text-align: center;
     }
 
-    .we-volume__icon {
-      color: var(--app-text-muted);
-      flex: 0 0 auto;
-    }
-
-    .we-volume__range {
-      flex: 1;
-      min-width: 0;
-      cursor: pointer;
-      -webkit-appearance: none;
-      appearance: none;
-      height: 5px;
-      border-radius: 3px;
-      border: none;
-      outline: none;
-      background: var(--app-border-color);
-    }
-
-    .we-volume__range::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 13px;
-      height: 13px;
-      border-radius: 50%;
-      background: var(--app-primary);
-      border: 2px solid var(--app-surface);
-      box-shadow: 0 0 0 1px var(--app-primary);
-      cursor: pointer;
-    }
-
-    .we-volume__range::-moz-range-thumb {
-      width: 13px;
-      height: 13px;
-      border-radius: 50%;
-      background: var(--app-primary);
-      border: 2px solid var(--app-surface);
-      cursor: pointer;
-    }
-
-    .we-volume__value {
-      font-size: 11px;
-      color: var(--app-text-muted);
-      font-variant-numeric: tabular-nums;
-      min-width: 36px;
-      text-align: right;
+    .we-volume {
+      grid-column: 1 / -1;
     }
 
     .we-bottom {

@@ -20,6 +20,7 @@ import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-butto
 import {
   UiSelectComponent,
 } from '../../../../shared/ui/select/ui-select.component';
+import { UiVolumeSliderComponent } from '../../../../shared/ui/volume-slider/ui-volume-slider.component';
 import { BoardShortcutsService } from '../../../../core/services/board-shortcuts.service';
 
 export interface PlaylistOptions {
@@ -36,6 +37,7 @@ export interface PlaylistOptions {
     BoardPlayerComponent,
     IconButtonComponent,
     UiSelectComponent,
+    UiVolumeSliderComponent,
   ],
   host: {
     '(document:click)': 'onDocumentClick($event)',
@@ -135,21 +137,13 @@ export interface PlaylistOptions {
                 </span>
               </div>
 
-              <div class="board-card__summary-volume">
-                <span class="board-card__summary-volume-icon" aria-hidden="true">🔊</span>
-                <input
-                  type="range"
-                  class="board-card__summary-volume-slider"
-                  min="0"
-                  max="100"
-                  step="1"
-                  [value]="displayedVolumePercent()"
-                  aria-label="Board volume"
-                  (input)="onVolumeChange($event, false)"
-                  (change)="onVolumeChange($event, true)"
-                />
-                <span class="board-card__summary-volume-value">{{ displayedVolumePercent() }}%</span>
-              </div>
+              <ui-volume-slider
+                ariaLabel="Board volume"
+                [value]="displayedVolumePercent()"
+                (preview)="onVolumePreview($event)"
+                (commit)="onVolumeCommit($event)"
+              />
+
             </div>
           </div>
         </div>
@@ -685,37 +679,6 @@ export interface PlaylistOptions {
       color: var(--app-text);
     }
 
-    .board-card__summary-volume {
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr) auto;
-      gap: 8px;
-      align-items: center;
-      padding: 6px 10px;
-      border-radius: var(--app-radius-sm);
-      border: 1px solid var(--app-border-color-soft);
-      background: var(--app-surface-elevated);
-    }
-
-    .board-card__summary-volume-icon {
-      font-size: 13px;
-      color: var(--app-primary);
-    }
-
-    .board-card__summary-volume-slider {
-      width: 100%;
-      height: 4px;
-      accent-color: var(--app-primary);
-      cursor: pointer;
-    }
-
-    .board-card__summary-volume-value {
-      font-size: 12px;
-      font-weight: 800;
-      color: var(--app-primary);
-      min-width: 36px;
-      text-align: right;
-    }
-
     .board-card__summary-actions {
       display: flex;
       align-items: center;
@@ -1141,10 +1104,6 @@ export interface PlaylistOptions {
 
       .board-card__meta-pill--track {
         max-width: 100%;
-      }
-
-      .board-card__summary-volume {
-        min-width: 0;
       }
 
       .board-settings-menu {
@@ -1611,15 +1570,16 @@ export class BoardCardComponent implements OnInit {
     this.toggleRepeat.emit();
   }
 
-  onVolumeChange(event: Event, commit: boolean): void {
-    const value = clampPct(Number((event.target as HTMLInputElement).value));
-    this.displayedVolumePercent.set(value);
+  onVolumePreview(value: number): void {
+    const v = clampPct(value);
+    this.displayedVolumePercent.set(v);
+    this.volumePreviewChange.emit(v);
+  }
 
-    if (commit) {
-      this.volumeCommit.emit(value);
-    } else {
-      this.volumePreviewChange.emit(value);
-    }
+  onVolumeCommit(value: number): void {
+    const v = clampPct(value);
+    this.displayedVolumePercent.set(v);
+    this.volumeCommit.emit(v);
   }
 
   onPrimaryAction(): void {
