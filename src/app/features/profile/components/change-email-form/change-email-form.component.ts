@@ -10,6 +10,7 @@ import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-i
 import { UiFormActionsComponent } from '../../../../shared/ui/form-actions/ui-form-actions.component';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
+import { SHOW_EMAIL_INPUTS } from '../../../../core/config/feature-flags';
 
 @Component({
   selector: 'app-change-email-form',
@@ -27,7 +28,16 @@ import { ToastService } from '../../../../shared/features/toast/toast.service';
       The change becomes active once you click that link.
     </p>
 
-    <form class="app-form-stack" [formGroup]="form" (ngSubmit)="onSubmit()">
+    @if (!showEmailInputs) {
+      <p class="change-email__disabled-note">Email changes are currently unavailable.</p>
+    }
+
+    <form
+      class="app-form-stack"
+      [class.change-email__form--disabled]="!showEmailInputs"
+      [formGroup]="form"
+      (ngSubmit)="onSubmit()"
+    >
       <ui-form-field
         label="New email"
         [error]="emailError()"
@@ -45,7 +55,7 @@ import { ToastService } from '../../../../shared/features/toast/toast.service';
       <ui-form-actions>
         <normal-button
           type="submit"
-          [disabled]="form.invalid || isSubmitting()"
+          [disabled]="form.invalid || isSubmitting() || !showEmailInputs"
           [loading]="isSubmitting()"
         >
           {{ isSubmitting() ? 'Sending...' : 'Send verification' }}
@@ -59,6 +69,14 @@ import { ToastService } from '../../../../shared/features/toast/toast.service';
       line-height: 1.5;
       color: var(--app-text-muted);
     }
+    .change-email__disabled-note {
+      margin: 0 0 1rem;
+      line-height: 1.5;
+      color: var(--app-text-muted);
+    }
+    .change-email__form--disabled {
+      opacity: 0.6;
+    }
   `],
 })
 export class ChangeEmailFormComponent {
@@ -67,6 +85,8 @@ export class ChangeEmailFormComponent {
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
 
+  readonly showEmailInputs = SHOW_EMAIL_INPUTS;
+
   readonly isSubmitting = signal(false);
   readonly submitted = signal(false);
 
@@ -74,6 +94,12 @@ export class ChangeEmailFormComponent {
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required]],
   });
+
+  constructor() {
+    if (!SHOW_EMAIL_INPUTS) {
+      this.form.disable();
+    }
+  }
 
   emailError(): string {
     const control = this.form.controls.email;
@@ -95,6 +121,8 @@ export class ChangeEmailFormComponent {
   }
 
   onSubmit(): void {
+    if (!this.showEmailInputs) return;
+
     this.submitted.set(true);
     this.form.markAllAsTouched();
     if (this.form.invalid) return;

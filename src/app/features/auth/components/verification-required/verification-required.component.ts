@@ -6,6 +6,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { UsersService } from '../../../../api/generated';
 import { AuthCredentialsStore } from '../../../../core/auth/auth-credentials.store';
+import { SHOW_EMAIL_INPUTS } from '../../../../core/config/feature-flags';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { UiFormFieldComponent } from '../../../../shared/ui/form-field/ui-form-field.component';
 import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-input.component';
@@ -36,10 +37,16 @@ type ChangeStatus = 'idle' | 'submitting' | 'already-registered' | 'wrong-creden
       and click the verification link to activate your account.
     </p>
 
+    @if (!showEmailInputs) {
+      <p class="verify-required__status verify-required__status--error">
+        Email actions are currently unavailable.
+      </p>
+    }
+
     <div class="verify-required__actions">
       <normal-button
         variant="primary"
-        [disabled]="resendStatus() === 'sending'"
+        [disabled]="!showEmailInputs || resendStatus() === 'sending'"
         [loading]="resendStatus() === 'sending'"
         (clicked)="onResend()"
       >
@@ -48,6 +55,7 @@ type ChangeStatus = 'idle' | 'submitting' | 'already-registered' | 'wrong-creden
 
       <normal-button
         variant="secondary"
+        [disabled]="!showEmailInputs"
         (clicked)="toggleChangeEmail()"
       >
         {{ showChangeEmail() ? 'Cancel change' : 'Change email address' }}
@@ -165,6 +173,8 @@ export class VerificationRequiredComponent {
   readonly email = input<string | null>(null);
   readonly cancel = output<void>();
 
+  readonly showEmailInputs = SHOW_EMAIL_INPUTS;
+
   readonly currentEmail = computed(
     () => this.credentialsStore.credentials()?.email ?? this.email() ?? null,
   );
@@ -188,6 +198,7 @@ export class VerificationRequiredComponent {
   }
 
   toggleChangeEmail(): void {
+    if (!this.showEmailInputs) return;
     this.showChangeEmail.update(v => !v);
     if (!this.showChangeEmail()) {
       this.changeForm.reset({ newEmail: '' });
@@ -197,6 +208,7 @@ export class VerificationRequiredComponent {
   }
 
   onResend(): void {
+    if (!this.showEmailInputs) return;
     const credentials = this.credentialsStore.credentials();
     if (!credentials) {
       this.resendStatus.set('wrong-credentials');
@@ -229,6 +241,7 @@ export class VerificationRequiredComponent {
   }
 
   onChangeEmail(): void {
+    if (!this.showEmailInputs) return;
     this.submittedChange.set(true);
     this.changeForm.markAllAsTouched();
     if (this.changeForm.invalid) return;
