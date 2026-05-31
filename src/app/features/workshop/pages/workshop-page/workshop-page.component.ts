@@ -1,5 +1,6 @@
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
 import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 
@@ -70,6 +71,7 @@ import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog
           (publish)="publishTrack($event)"
           (unpublish)="unpublishTrack($event)"
           (close)="closeMyTracks()"
+          (addTrack)="goToAddTrack()"
         />
       }
     </div>
@@ -94,6 +96,7 @@ export class WorkshopPageComponent implements OnInit {
   private readonly toast = inject(ToastService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly router = inject(Router);
 
   readonly loading = signal(false);
   readonly hasLoaded = signal(false);
@@ -137,6 +140,11 @@ export class WorkshopPageComponent implements OnInit {
 
   closeMyTracks(): void {
     this.myTracksOpen.set(false);
+  }
+
+  goToAddTrack(): void {
+    this.closeMyTracks();
+    this.router.navigate(['/tracks']);
   }
 
   loadAll(): void {

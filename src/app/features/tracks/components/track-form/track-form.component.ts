@@ -8,7 +8,6 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiFormFieldComponent } from '../../../../shared/ui/form-field/ui-form-field.component';
@@ -26,7 +25,6 @@ export interface TrackFormEvent {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     ReactiveFormsModule,
     NormalButtonComponent,
     UiFormFieldComponent,
@@ -35,57 +33,60 @@ export interface TrackFormEvent {
     UiDialogShellComponent,
   ],
   template: `
-    <app-icon-button
-      icon="plus"
-      label="Add track"
-      variant="primary"
-      size="lg"
-      (clicked)="open()"
-    />
+    @if (showTrigger()) {
+      <app-icon-button
+        icon="plus"
+        label="Add track"
+        variant="primary"
+        size="lg"
+        (clicked)="open()"
+      />
+    }
 
-    <ui-dialog-shell
-      *ngIf="isOpen()"
-      [title]="isEditing() ? 'Edit track' : 'Add track'"
-      titleId="track-modal-title"
-      [showFooter]="true"
-      (closed)="close()"
-    >
-      <form [formGroup]="form" (ngSubmit)="onSubmit()" class="track-form">
-        <ui-form-field label="Track name">
-          <ui-text-input
-            formControlName="trackName"
-            placeholder="e.g. Dark Forest Ambience"
-          />
-        </ui-form-field>
+    @if (isOpen()) {
+      <ui-dialog-shell
+        [title]="isEditing() ? 'Edit track' : 'Add track'"
+        titleId="track-modal-title"
+        [showFooter]="true"
+        (closed)="close()"
+      >
+        <form [formGroup]="form" (ngSubmit)="onSubmit()" class="track-form">
+          <ui-form-field label="Track name">
+            <ui-text-input
+              formControlName="trackName"
+              placeholder="e.g. Dark Forest Ambience"
+            />
+          </ui-form-field>
 
-        <ui-form-field label="Track link" [error]="trackLinkError()">
-          <ui-text-input
-            formControlName="trackLink"
-            type="url"
-            placeholder="https://youtube.com/..."
-          />
-        </ui-form-field>
-      </form>
+          <ui-form-field label="Track link" [error]="trackLinkError()">
+            <ui-text-input
+              formControlName="trackLink"
+              type="url"
+              placeholder="https://youtube.com/..."
+            />
+          </ui-form-field>
+        </form>
 
-      <ng-container dialog-footer>
-        <normal-button
-          type="button"
-          variant="secondary"
-          (clicked)="close()"
-        >
-          Cancel
-        </normal-button>
+        <ng-container dialog-footer>
+          <normal-button
+            type="button"
+            variant="secondary"
+            (clicked)="close()"
+          >
+            Cancel
+          </normal-button>
 
-        <normal-button
-          type="submit"
-          [disabled]="form.invalid || submitting()"
-          [loading]="submitting()"
-          (clicked)="onSubmit()"
-        >
-          {{ isEditing() ? 'Save changes' : 'Add track' }}
-        </normal-button>
-      </ng-container>
-    </ui-dialog-shell>
+          <normal-button
+            type="submit"
+            [disabled]="form.invalid || submitting()"
+            [loading]="submitting()"
+            (clicked)="onSubmit()"
+          >
+            {{ isEditing() ? 'Save changes' : 'Add track' }}
+          </normal-button>
+        </ng-container>
+      </ui-dialog-shell>
+    }
   `,
   styles: [`
     .track-form {
@@ -102,6 +103,7 @@ export class TrackFormComponent {
   readonly editTrackName = input('');
   readonly editTrackLink = input('');
   readonly submitting = input(false);
+  readonly showTrigger = input(true);
 
   readonly save = output<TrackFormEvent>();
   readonly cancel = output<void>();

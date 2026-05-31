@@ -7,7 +7,6 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
 import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 
@@ -28,6 +27,7 @@ import {
 } from '../../../../api/generated';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
+import { UiCreateCtaComponent } from '../../../../shared/ui/create-cta/ui-create-cta.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 import { BoardPlaybackService } from '../../../../core/services/board-playback.service';
@@ -36,11 +36,11 @@ import { BoardPlaybackService } from '../../../../core/services/board-playback.s
   selector: 'app-tracks-page',
   standalone: true,
   imports: [
-    CommonModule,
     TrackTableComponent,
     TrackFormComponent,
     TrackWindowsPanelComponent,
     UiAlertComponent,
+    UiCreateCtaComponent,
     UiPageTitleComponent,
   ],
   template: `
@@ -48,31 +48,42 @@ import { BoardPlaybackService } from '../../../../core/services/board-playback.s
       <ui-page-title title="Tracks" />
 
       <app-track-form
+        #trackForm
         [editingTrackId]="editingTrackId()"
         [editTrackName]="editTrackName()"
         [editTrackLink]="editTrackLink()"
         [submitting]="createSubmitting()"
+        [showTrigger]="tracks().length > 0"
         (save)="saveTrack($event)"
         (cancel)="cancelEdit()"
       />
 
-      <ui-alert *ngIf="errorMessage()" variant="danger">
-        {{ errorMessage() }}
-      </ui-alert>
+      @if (errorMessage()) {
+        <ui-alert variant="danger">
+          {{ errorMessage() }}
+        </ui-alert>
+      }
 
-      <div class="tracks-page__section">
-        <div class="tracks-page__table-wrap">
-          <app-track-table
-            [tracks]="tracks()"
-            [loading]="loading()"
-            (edit)="onEdit($event)"
-            (remove)="onRemove($event)"
-            (windows)="onWindows($event)"
-          />
+      @if (!loading() && tracks().length === 0) {
+        <ui-create-cta
+          label="Create your first track"
+          (clicked)="trackForm.open()"
+        />
+      } @else {
+        <div class="tracks-page__section">
+          <div class="tracks-page__table-wrap">
+            <app-track-table
+              [tracks]="tracks()"
+              [loading]="loading()"
+              (edit)="onEdit($event)"
+              (remove)="onRemove($event)"
+              (windows)="onWindows($event)"
+            />
+          </div>
+
+          <hr class="tracks-page__divider" />
         </div>
-
-        <hr class="tracks-page__divider" />
-      </div>
+      }
 
       <app-track-windows-panel
         [track]="windowTrack()"

@@ -1,5 +1,5 @@
 import { Component, OnInit, ViewChild, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
 
 import {
   MusicGroupsService,
@@ -16,7 +16,7 @@ import {
   GroupTracksSaveEvent,
 } from '../../components/group-tracks-editor/group-tracks-editor.component';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
-import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empty-state.component';
+import { UiCreateCtaComponent } from '../../../../shared/ui/create-cta/ui-create-cta.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
@@ -25,12 +25,11 @@ import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog
   selector: 'app-groups-page',
   standalone: true,
   imports: [
-    CommonModule,
     CreateGroupFormComponent,
     GroupCardComponent,
     GroupTracksEditorComponent,
     UiAlertComponent,
-    UiEmptyStateComponent,
+    UiCreateCtaComponent,
     UiPageTitleComponent,
   ],
   template: `
@@ -39,43 +38,51 @@ import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog
 
       <app-create-group-form
         #createForm
+        [showTrigger]="groups.length > 0"
         (groupCreateRequested)="createGroup($event)"
       />
 
-      <ui-alert *ngIf="errorMessage" variant="danger">
-        {{ errorMessage }}
-      </ui-alert>
+      @if (errorMessage) {
+        <ui-alert variant="danger">
+          {{ errorMessage }}
+        </ui-alert>
+      }
 
-      <div *ngIf="loading" class="app-muted groups-page__loading">Loading...</div>
-
-      <ui-empty-state
-        *ngIf="!loading && groups.length === 0"
-        title="No groups yet"
-        message="Create your first group to get started."
-      />
-
-      <div *ngIf="!loading && groups.length > 0" class="groups-list-wrap">
-        <div class="groups-list">
-          <app-group-card
-            *ngFor="let group of groups; trackBy: trackByGroupId"
-            [group]="group"
-            [tracks]="tracks"
-            [updating]="updatingGroupId === group.id"
-            (deleteRequested)="deleteGroup($event)"
-            (renameRequested)="renameGroup($event)"
-            (editTracksRequested)="openTrackEditor($event)"
-          />
+      @if (loading) {
+        <div class="app-muted groups-page__loading">Loading...</div>
+      } @else if (groups.length === 0) {
+        <ui-create-cta
+          label="Create your first group"
+          (clicked)="createForm.open()"
+        />
+      } @else {
+        <div class="groups-list-wrap">
+          <div class="groups-list">
+            @for (group of groups; track group.id) {
+              <app-group-card
+                [group]="group"
+                [tracks]="tracks"
+                [updating]="updatingGroupId === group.id"
+                (deleteRequested)="deleteGroup($event)"
+                (renameRequested)="renameGroup($event)"
+                (editTracksRequested)="openTrackEditor($event)"
+              />
+            }
+          </div>
         </div>
-      </div>
+      }
 
-      <app-group-tracks-editor
-        *ngIf="editingGroup"
-        [group]="editingGroup"
-        [tracks]="tracks"
-        [saving]="updatingGroupId === editingGroup.id"
-        (cancel)="closeTrackEditor()"
-        (save)="saveGroupTracks($event)"
-      />
+      @if (editingGroup; as group) {
+        <app-group-tracks-editor
+          [group]="group"
+          [tracks]="tracks"
+          [saving]="updatingGroupId === group.id"
+          (cancel)="closeTrackEditor()"
+          (save)="saveGroupTracks($event)"
+          (addTrack)="goToAddTrack()"
+          (browseWorkshop)="goToWorkshop()"
+        />
+      }
     </div>
   `,
   styles: [`
@@ -116,6 +123,7 @@ export class GroupsPageComponent implements OnInit {
   private tracksApi = inject(MusicTracksService);
   private toast = inject(ToastService);
   private confirmDialog = inject(ConfirmDialogService);
+  private router = inject(Router);
 
   groups: Group[] = [];
   tracks: Track[] = [];
@@ -253,13 +261,19 @@ async deleteGroup(group: Group): Promise<void> {
     this.editingGroup = null;
   }
 
+  goToAddTrack(): void {
+    this.closeTrackEditor();
+    this.router.navigate(['/tracks']);
+  }
+
+  goToWorkshop(): void {
+    this.closeTrackEditor();
+    this.router.navigate(['/workshop']);
+  }
+
   saveGroupTracks({ group, trackIds }: GroupTracksSaveEvent): void {
     if (group.id == null) return;
     this.updateGroup(group.id, group.listName ?? '', trackIds, true);
-  }
-
-  trackByGroupId(_: number, group: Group): number {
-    return group.id ?? 0;
   }
 
   private updateGroup(

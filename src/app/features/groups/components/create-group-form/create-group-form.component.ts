@@ -1,11 +1,11 @@
 import {
-  Component,
-  EventEmitter,
-  Output,
-  inject,
   ChangeDetectionStrategy,
+  Component,
+  inject,
+  input,
+  output,
+  signal,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { GroupRequest } from '../../../../api/generated';
 import { UiFormFieldComponent } from '../../../../shared/ui/form-field/ui-form-field.component';
@@ -19,7 +19,6 @@ import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-di
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     ReactiveFormsModule,
     UiFormFieldComponent,
     UiTextInputComponent,
@@ -28,44 +27,47 @@ import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-di
     UiDialogShellComponent,
   ],
   template: `
-    <app-icon-button
-      icon="plus"
-      label="Add group"
-      variant="primary"
-      size="lg"
-      (clicked)="open()"
-    />
+    @if (showTrigger()) {
+      <app-icon-button
+        icon="plus"
+        label="Add group"
+        variant="primary"
+        size="lg"
+        (clicked)="open()"
+      />
+    }
 
-    <ui-dialog-shell
-      *ngIf="isOpen"
-      title="Create group"
-      titleId="create-group-title"
-      [showFooter]="true"
-      (closed)="close()"
-    >
-      <form [formGroup]="createForm" (ngSubmit)="submit()" class="create-group-form">
-        <ui-form-field label="Group name">
-          <ui-text-input
-            formControlName="listName"
-            placeholder="e.g. Combat Music"
-          />
-        </ui-form-field>
-      </form>
+    @if (isOpen()) {
+      <ui-dialog-shell
+        title="Create group"
+        titleId="create-group-title"
+        [showFooter]="true"
+        (closed)="close()"
+      >
+        <form [formGroup]="createForm" (ngSubmit)="submit()" class="create-group-form">
+          <ui-form-field label="Group name">
+            <ui-text-input
+              formControlName="listName"
+              placeholder="e.g. Combat Music"
+            />
+          </ui-form-field>
+        </form>
 
-      <ng-container dialog-footer>
-        <normal-button type="button" variant="secondary" (clicked)="close()">
-          Cancel
-        </normal-button>
-        <normal-button
-          type="submit"
-          [disabled]="submitting || !createForm.value.listName?.trim()"
-          [loading]="submitting"
-          (clicked)="submit()"
-        >
-          Create group
-        </normal-button>
-      </ng-container>
-    </ui-dialog-shell>
+        <ng-container dialog-footer>
+          <normal-button type="button" variant="secondary" (clicked)="close()">
+            Cancel
+          </normal-button>
+          <normal-button
+            type="submit"
+            [disabled]="submitting() || !createForm.value.listName?.trim()"
+            [loading]="submitting()"
+            (clicked)="submit()"
+          >
+            Create group
+          </normal-button>
+        </ng-container>
+      </ui-dialog-shell>
+    }
   `,
   styles: [`
     .create-group-form {
@@ -76,31 +78,33 @@ import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-di
   `],
 })
 export class CreateGroupFormComponent {
-  @Output() groupCreateRequested = new EventEmitter<GroupRequest>();
+  private readonly fb = inject(FormBuilder);
 
-  private fb = inject(FormBuilder);
+  readonly showTrigger = input(true);
 
-  isOpen = false;
-  submitting = false;
+  readonly groupCreateRequested = output<GroupRequest>();
 
-  createForm = this.fb.group({
+  readonly isOpen = signal(false);
+  readonly submitting = signal(false);
+
+  readonly createForm = this.fb.group({
     listName: [''],
   });
 
   open(): void {
-    this.isOpen = true;
+    this.isOpen.set(true);
   }
 
   close(): void {
-    this.isOpen = false;
+    this.isOpen.set(false);
     this.createForm.reset({ listName: '' });
-    this.submitting = false;
+    this.submitting.set(false);
   }
 
   submit(): void {
     const listName = this.createForm.value.listName?.trim();
     if (!listName) return;
-    this.submitting = true;
+    this.submitting.set(true);
     this.groupCreateRequested.emit({ listName });
   }
 
