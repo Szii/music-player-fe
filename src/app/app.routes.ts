@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/auth/auth.guards';
+import { emailInputsGuard } from './core/config/email-inputs.guard';
 
 export const routes: Routes = [
   {
@@ -16,18 +17,21 @@ export const routes: Routes = [
   },
   {
     path: 'verify-email',
+    canActivate: [emailInputsGuard],
     loadComponent: () =>
       import('./features/auth/pages/verify-email-page/verify-email-page.component')
         .then(m => m.VerifyEmailPageComponent),
   },
   {
     path: 'forgot-password',
+    canActivate: [emailInputsGuard],
     loadComponent: () =>
       import('./features/auth/pages/forgot-password-request-page/forgot-password-request-page.component')
         .then(m => m.ForgotPasswordRequestPageComponent),
   },
   {
     path: 'reset-password',
+    canActivate: [emailInputsGuard],
     loadComponent: () =>
       import('./features/auth/pages/reset-password-page/reset-password-page.component')
         .then(m => m.ResetPasswordPageComponent),

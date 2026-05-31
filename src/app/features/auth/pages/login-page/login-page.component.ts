@@ -15,6 +15,7 @@ import { UiFormActionsComponent } from '../../../../shared/ui/form-actions/ui-fo
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { VerificationRequiredComponent } from '../../components/verification-required/verification-required.component';
+import { SHOW_EMAIL_INPUTS } from '../../../../core/config/feature-flags';
 
 @Component({
   selector: 'app-login-page',
@@ -62,7 +63,11 @@ import { VerificationRequiredComponent } from '../../components/verification-req
           </form>
 
           <div class="auth-page__link">
-            <a routerLink="/forgot-password">Forgot password?</a>
+            @if (showEmailInputs) {
+              <a routerLink="/forgot-password">Forgot password?</a>
+            } @else {
+              <span class="auth-page__link--disabled" aria-disabled="true">Forgot password?</span>
+            }
           </div>
 
           <div class="auth-page__link">
@@ -76,6 +81,11 @@ import { VerificationRequiredComponent } from '../../components/verification-req
     .auth-page__link {
       margin-top: 1rem;
     }
+    .auth-page__link--disabled {
+      color: var(--app-text-muted);
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
   `],
 })
 export class LoginPageComponent implements OnDestroy {
@@ -86,6 +96,8 @@ export class LoginPageComponent implements OnDestroy {
   private readonly toast = inject(ToastService);
   private readonly credentialsStore = inject(AuthCredentialsStore);
   private readonly destroyRef = inject(DestroyRef);
+
+  readonly showEmailInputs = SHOW_EMAIL_INPUTS;
 
   readonly isSubmitting = signal(false);
   readonly submitted = signal(false);
