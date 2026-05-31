@@ -25,6 +25,7 @@ export type ButtonSize = 'sm' | 'md' | 'lg';
       [type]="type"
       [disabled]="disabled || loading"
       [class]="classes"
+      (mousedown)="$event.preventDefault()"
       (click)="clicked.emit($event)"
     >
       <span *ngIf="loading" class="app-btn__spinner" aria-hidden="true"></span>

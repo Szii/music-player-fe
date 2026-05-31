@@ -38,6 +38,7 @@ import {
   PlaylistOptions,
 } from '../../components/board-card/board-card.component';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
+import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empty-state.component';
 import { SessionsDropdownComponent } from '../../../../shared/components/sessions-dropdown/sessions-dropdown.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
@@ -63,19 +64,19 @@ interface VolumeCommit {
     UiAlertComponent,
     UiEmptyStateComponent,
     SessionsDropdownComponent,
+    UiPageTitleComponent,
   ],
   host: {
     '(document:keydown)': 'onGlobalKeydown($event)',
   },
   template: `
     <div class="app-page board-page">
-      <header class="boards-page__header">
-        <h1 class="app-page__title">Boards</h1>
+      <ui-page-title title="Boards">
         <app-sessions-dropdown
           #sessionsDropdown
           class="boards-page__sessions"
         />
-      </header>
+      </ui-page-title>
 
       <ui-alert *ngIf="errorMessage()" variant="danger">
         {{ errorMessage() }}
@@ -170,14 +171,6 @@ interface VolumeCommit {
     .boards-page__loading {
       margin-top: 1rem;
       color: var(--app-text-muted);
-    }
-
-    .boards-page__header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
-      flex-wrap: wrap;
     }
 
     .boards-page__sessions {
@@ -629,6 +622,8 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       boardId,
       boardUpdateRequest: this.baseUpdate(board, {
         selectedGroupId: selectedId ?? undefined,
+        selectedTrackId:  undefined,
+        selectedWindowId: undefined,
       }),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -720,6 +715,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       boardId,
       boardUpdateRequest: this.baseUpdate(board, {
         selectedTrackId: selectedId ?? undefined,
+        selectedWindowId: undefined
       }),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -1189,6 +1185,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       name: board.name ?? undefined,
       selectedTrackId: board.selectedTrack?.id ?? undefined,
       selectedGroupId: board.selectedGroup?.id ?? undefined,
+      selectedWindowId: board.selectedWindow?.id ?? undefined,
       volume: board.volume ?? undefined,
       repeat: board.repeat ?? undefined,
       overplay: board.overplay ?? undefined,

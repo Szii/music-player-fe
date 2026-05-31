@@ -1,10 +1,16 @@
-import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import { Group, Track } from '../../../../api/generated';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
-import { UiSearchBoxComponent } from '../../../../shared/ui/search-box/ui-search-box.component';
+import { UiListToolbarComponent } from '../../../../shared/ui/list-toolbar/ui-list-toolbar.component';
 
 export interface GroupTracksSaveEvent {
   group: Group;
@@ -15,54 +21,31 @@ type TrackFilterMode = 'all' | 'selected';
 
 @Component({
   selector: 'app-group-tracks-editor',
-  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
-    FormsModule,
     NormalButtonComponent,
     UiDialogShellComponent,
-    UiSearchBoxComponent,
+    UiListToolbarComponent,
   ],
   template: `
     <ui-dialog-shell
-      [title]="'Edit tracks'"
-      [subtitle]="dialogSubtitle"
-      [wide]="true"
+      title="Edit tracks"
+      [subtitle]="dialogSubtitle()"
+      size="wide"
       [showFooter]="true"
       (closed)="cancel.emit()"
     >
       <div class="editor">
-        <div class="editor__toolbar">
-          <ui-search-box
-            class="editor__search"
-            [value]="search"
-            placeholder="Search by name, original name, or owner"
-            (valueChange)="search = $event"
-          />
-
-          <div class="editor__filters">
-            <button
-              type="button"
-              class="editor__filter"
-              [class.editor__filter--active]="filterMode === 'all'"
-              (click)="filterMode = 'all'"
-            >
-              All
-            </button>
-
-            <button
-              type="button"
-              class="editor__filter"
-              [class.editor__filter--active]="filterMode === 'selected'"
-              (click)="filterMode = 'selected'"
-            >
-              Selected only
-            </button>
-          </div>
-        </div>
+        <ui-list-toolbar
+          [(search)]="search"
+          searchPlaceholder="Search by name, original name, or owner"
+          [filterValue]="filterMode()"
+          [filterOptions]="filterOptions"
+          (filterValueChange)="setFilterMode($event)"
+        />
 
         <div class="editor__meta">
-          <span>{{ selectedCount }} selected</span>
+          <span>{{ selectedCount() }} selected</span>
 
           <div class="editor__bulk-actions">
             <button type="button" class="editor__link-btn" (click)="selectAllFiltered()">
@@ -74,46 +57,49 @@ type TrackFilterMode = 'all' | 'selected';
           </div>
         </div>
 
-        <div *ngIf="filteredTracks.length === 0" class="editor__empty">
-          No matching tracks.
-        </div>
+        @if (filteredTracks().length === 0) {
+          <div class="editor__empty">No matching tracks.</div>
+        } @else {
+          <div class="editor__list">
+            @for (track of filteredTracks(); track track.id) {
+              <label
+                class="editor-row"
+                [class.editor-row--checked]="isSelected(track)"
+              >
+                <div class="editor-row__check">
+                  <input
+                    type="checkbox"
+                    [checked]="isSelected(track)"
+                    [disabled]="saving() || track.id == null"
+                    (change)="toggleTrack(track, $any($event.target).checked)"
+                  />
+                </div>
 
-        <div *ngIf="filteredTracks.length > 0" class="editor__list">
-          <label
-            *ngFor="let track of filteredTracks; trackBy: trackByTrackId"
-            class="editor-row"
-            [class.editor-row--checked]="isSelected(track)"
-          >
-            <div class="editor-row__check">
-              <input
-                type="checkbox"
-                [checked]="isSelected(track)"
-                [disabled]="saving || track.id == null"
-                (change)="toggleTrack(track, $any($event.target).checked)"
-              />
-            </div>
+                <div class="editor-row__main">
+                  <div class="editor-row__title">
+                    {{ displayName(track) }}
+                  </div>
 
-            <div class="editor-row__main">
-              <div class="editor-row__title">
-                {{ displayName(track) }}
-              </div>
+                  <div class="editor-row__sub">
+                    @if (track.trackOriginalName && track.trackOriginalName !== displayName(track)) {
+                      <span>Original: {{ track.trackOriginalName }}</span>
+                    }
+                    @if (track.owner?.name) {
+                      <span>
+                        {{ track.trackOriginalName && track.trackOriginalName !== displayName(track) ? ' · ' : '' }}
+                        Owner: {{ track.owner?.name }}
+                      </span>
+                    }
+                  </div>
+                </div>
 
-              <div class="editor-row__sub">
-                <span *ngIf="track.trackOriginalName && track.trackOriginalName !== displayName(track)">
-                  Original: {{ track.trackOriginalName }}
-                </span>
-                <span *ngIf="track.owner?.name">
-                  {{ track.trackOriginalName && track.trackOriginalName !== displayName(track) ? ' · ' : '' }}
-                  Owner: {{ track.owner?.name }}
-                </span>
-              </div>
-            </div>
-
-            <div class="editor-row__meta">
-              {{ formatDuration(track.duration) }}
-            </div>
-          </label>
-        </div>
+                <div class="editor-row__meta">
+                  {{ formatDuration(track.duration) }}
+                </div>
+              </label>
+            }
+          </div>
+        }
       </div>
 
       <normal-button
@@ -128,10 +114,10 @@ type TrackFilterMode = 'all' | 'selected';
       <normal-button
         dialog-footer
         type="button"
-        [disabled]="saving"
+        [disabled]="saving()"
         (clicked)="onSave()"
       >
-        {{ saving ? 'Saving…' : 'Save tracks' }}
+        {{ saving() ? 'Saving…' : 'Save tracks' }}
       </normal-button>
     </ui-dialog-shell>
   `,
@@ -145,46 +131,6 @@ type TrackFilterMode = 'all' | 'selected';
       flex-direction: column;
       gap: 14px;
       min-height: 0;
-    }
-
-    .editor__toolbar {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 12px;
-      align-items: center;
-    }
-
-    .editor__search {
-      min-width: 0;
-    }
-
-    .editor__filters {
-      display: inline-flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .editor__filter {
-      border: 1px solid var(--app-border-color);
-      background: var(--app-surface);
-      color: var(--app-text-muted);
-      border-radius: 999px;
-      padding: 0.5rem 0.85rem;
-      font-size: 0.92rem;
-      cursor: pointer;
-      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-    }
-
-    .editor__filter:hover {
-      background: var(--app-surface-muted);
-      color: var(--app-text);
-    }
-
-    .editor__filter--active {
-      background: var(--app-primary-soft);
-      color: var(--app-primary);
-      border-color: var(--app-primary);
-      font-weight: 600;
     }
 
     .editor__meta {
@@ -219,7 +165,7 @@ type TrackFilterMode = 'all' | 'selected';
     .editor__empty {
       padding: 1rem;
       border: var(--app-border);
-      border-radius: 12px;
+      border-radius: var(--app-radius-md);
       color: var(--app-text-muted);
       background: var(--app-bg);
       font-style: italic;
@@ -227,7 +173,7 @@ type TrackFilterMode = 'all' | 'selected';
 
     .editor__list {
       border: var(--app-border);
-      border-radius: 14px;
+      border-radius: var(--app-radius-md);
       overflow: auto;
       max-height: min(46vh, 380px);
       background: var(--app-surface);
@@ -293,10 +239,6 @@ type TrackFilterMode = 'all' | 'selected';
     }
 
     @media (max-width: 720px) {
-      .editor__toolbar {
-        grid-template-columns: 1fr;
-      }
-
       .editor__meta {
         align-items: flex-start;
         flex-direction: column;
@@ -312,39 +254,39 @@ type TrackFilterMode = 'all' | 'selected';
     }
   `],
 })
-export class GroupTracksEditorComponent implements OnChanges {
-  @Input({ required: true }) group!: Group;
-  @Input() tracks: Track[] = [];
-  @Input() saving = false;
+export class GroupTracksEditorComponent {
+  readonly group = input.required<Group>();
+  readonly tracks = input<Track[]>([]);
+  readonly saving = input(false);
 
-  @Output() cancel = new EventEmitter<void>();
-  @Output() save = new EventEmitter<GroupTracksSaveEvent>();
+  readonly cancel = output<void>();
+  readonly save = output<GroupTracksSaveEvent>();
 
-  search = '';
-  filterMode: TrackFilterMode = 'all';
-  private selectedIds = new Set<number>();
+  readonly search = signal('');
+  readonly filterMode = signal<TrackFilterMode>('all');
+  readonly selectedIds = signal<ReadonlySet<number>>(new Set<number>());
 
-  ngOnChanges(changes: SimpleChanges): void {
-    if ('group' in changes || 'tracks' in changes) {
-      this.resetSelectionFromGroup();
-    }
-  }
+  readonly filterOptions = [
+    { label: 'All', value: 'all' },
+    { label: 'Selected only', value: 'selected' },
+  ];
 
-  get dialogSubtitle(): string {
-    const name = this.group?.listName || `Group #${this.group?.id}`;
-    return `${name} · ${this.selectedCount} selected`;
-  }
+  readonly selectedCount = computed(() => this.selectedIds().size);
 
-  get selectedCount(): number {
-    return this.selectedIds.size;
-  }
+  readonly dialogSubtitle = computed(() => {
+    const g = this.group();
+    const name = g.listName || `Group #${g.id}`;
+    return `${name} · ${this.selectedCount()} selected`;
+  });
 
-  get filteredTracks(): Track[] {
-    const q = this.search.trim().toLowerCase();
+  readonly filteredTracks = computed(() => {
+    const q = this.search().trim().toLowerCase();
+    const mode = this.filterMode();
+    const selected = this.selectedIds();
 
-    return (this.tracks ?? []).filter(track => {
+    return this.tracks().filter(track => {
       const matchesFilter =
-        this.filterMode === 'all' || (track.id != null && this.selectedIds.has(track.id));
+        mode === 'all' || (track.id != null && selected.has(track.id));
 
       if (!matchesFilter) return false;
       if (!q) return true;
@@ -360,41 +302,56 @@ export class GroupTracksEditorComponent implements OnChanges {
 
       return haystack.includes(q);
     });
+  });
+
+  constructor() {
+    effect(() => {
+      const g = this.group();
+      this.tracks();
+      this.resetSelectionFromGroup(g);
+    });
   }
 
-  trackByTrackId(index: number, track: Track): number | string {
-    return track.id ?? index;
+  setFilterMode(value: unknown): void {
+    this.filterMode.set(value as TrackFilterMode);
   }
 
   isSelected(track: Track): boolean {
-    return track.id != null && this.selectedIds.has(track.id);
+    return track.id != null && this.selectedIds().has(track.id);
   }
 
   toggleTrack(track: Track, checked: boolean): void {
     if (track.id == null) return;
-    if (checked) {
-      this.selectedIds.add(track.id);
-    } else {
-      this.selectedIds.delete(track.id);
-    }
+    const id = track.id;
+    this.selectedIds.update(prev => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
   }
 
   selectAllFiltered(): void {
-    for (const track of this.filteredTracks) {
-      if (track.id != null) {
-        this.selectedIds.add(track.id);
+    this.selectedIds.update(prev => {
+      const next = new Set(prev);
+      for (const track of this.filteredTracks()) {
+        if (track.id != null) next.add(track.id);
       }
-    }
+      return next;
+    });
   }
 
   clearAll(): void {
-    this.selectedIds.clear();
+    this.selectedIds.set(new Set<number>());
   }
 
   onSave(): void {
     this.save.emit({
-      group: this.group,
-      trackIds: Array.from(this.selectedIds.values()),
+      group: this.group(),
+      trackIds: Array.from(this.selectedIds().values()),
     });
   }
 
@@ -414,13 +371,13 @@ export class GroupTracksEditorComponent implements OnChanges {
     return `${m}:${String(s).padStart(2, '0')}`;
   }
 
-  private resetSelectionFromGroup(): void {
-    const ids = (this.group?.tracks ?? [])
+  private resetSelectionFromGroup(group: Group | undefined): void {
+    const ids = (group?.tracks ?? [])
       .map(track => track.id)
       .filter((id): id is number => id != null);
 
-    this.selectedIds = new Set(ids);
-    this.search = '';
-    this.filterMode = 'all';
+    this.selectedIds.set(new Set(ids));
+    this.search.set('');
+    this.filterMode.set('all');
   }
 }

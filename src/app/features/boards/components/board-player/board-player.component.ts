@@ -90,6 +90,10 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
   private static readonly LOOP_CROSSFADE_MS = 3000;
   private static readonly LOOP_PREPARE_LEAD_MS = 3000;
   private static readonly PLAYLIST_PRELOAD_LEAD_MS = 3000;
+  /** Fade applied to a plain start (stopped → playing) and a plain stop
+      (playing → stopped). Crossfades between tracks/loops use their own
+      longer fades and bypass this. */
+  private static readonly MANUAL_FADE_MS = 400;
 
   private readonly zone = inject(NgZone);
   private readonly destroyRef = inject(DestroyRef);
@@ -136,6 +140,8 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
   private windowBoundaryTimer: ReturnType<typeof setTimeout> | null = null;
   private loopPrepareTimer: ReturnType<typeof setTimeout> | null = null;
   private playlistPreloadTimer: ReturnType<typeof setTimeout> | null = null;
+  private naturalFadeOutTimer: ReturnType<typeof setTimeout> | null = null;
+  private naturalFadeOutKey: string | null = null;
 
   private activeSlot: AudioSlot = 'A';
   private currentStreamUrl: string | null = null;
@@ -375,6 +381,12 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
     this.displayPositionS.set(clamped);
     this.seekLocalStreaming(clamped);
     this.applyAllVolumes();
+    // Seeking can land before the natural-fade-out point — restore the slot
+    // gain to 1 and re-arm the schedule from the new position.
+    this.clearNaturalFadeOutTimer();
+    if (!this.repeat() && this.localStatus() === 'PLAYING') {
+      this.rampSlotGain(this.activeSlot, this.getSlotGain(this.activeSlot), 1, 0);
+    }
   }
 
   onAudioTimeUpdate(slot: AudioSlot): void {
@@ -547,16 +559,45 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
       this.clearWindowBoundaryTimer();
       this.clearLoopPrepareTimer();
       this.clearPlaylistPreloadTimer();
-      this.cancelRamp();
-      this.pendingStreamUrl = null;
-      this.pendingTrackSwitchTrackId = null;
-      this.emittedNearEndKey = null;
-      this.loopCrossfadeInProgress = false;
-      this.pendingSelectionReload = false;
-      this.uiPinnedToWindowStart = false;
-      this.pendingTargetContext = null;
-      this.tearDownAll();
+
+      const wasAudiblyPlaying =
+        this.localStatus() === 'PLAYING' && !!this.audioCtx;
+
+      if (wasAudiblyPlaying) {
+        // Manual fade-out before teardown. A subsequent operation (new play,
+        // track switch, etc.) bumps switchSequence and the scheduled teardown
+        // bails out.
+        const slot = this.activeSlot;
+        this.rampSlotGain(slot, this.getSlotGain(slot), 0, BoardPlayerComponent.MANUAL_FADE_MS);
+        this.localStatus.set('STOPPED');
+        const seq = ++this.switchSequence;
+        setTimeout(() => {
+          if (seq !== this.switchSequence) return;
+          if (this.status() !== 'STOPPED') return;
+          this.finalizeStop();
+        }, BoardPlayerComponent.MANUAL_FADE_MS);
+        return;
+      }
+
+      this.finalizeStop();
     }
+  }
+
+  private finalizeStop(): void {
+    this.cancelRamp();
+    this.clearNaturalFadeOutTimer();
+    this.pendingStreamUrl = null;
+    this.pendingTrackSwitchTrackId = null;
+    this.emittedNearEndKey = null;
+    this.loopCrossfadeInProgress = false;
+    this.pendingSelectionReload = false;
+    this.uiPinnedToWindowStart = false;
+    this.pendingTargetContext = null;
+    this.tearDownAll();
+  }
+
+  private getSlotGain(slot: AudioSlot): number {
+    return slot === 'A' ? this.gainA : this.gainB;
   }
 
   private async crossfadeToUrl(
@@ -716,7 +757,10 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
       this.uiPinnedToWindowStart = false;
       this.pendingTargetContext = null;
       this.emittedNearEndKey = null;
-      this.setGain(slot, 1);
+      this.clearNaturalFadeOutTimer();
+      // Manual fade-in on plain start.
+      this.setGain(slot, 0);
+      this.rampSlotGain(slot, 0, 1, BoardPlayerComponent.MANUAL_FADE_MS);
 
       this.displayPositionS.set(slotContext.startS);
       this.seekableMaxS.set(slotContext.startS);
@@ -1113,6 +1157,9 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
     this.clearWindowBoundaryTimer();
     this.clearLoopPrepareTimer();
     this.clearPlaylistPreloadTimer();
+    if (this.repeat()) {
+      this.clearNaturalFadeOutTimer();
+    }
 
     if (this.localStatus() !== 'PLAYING') return;
     if (
@@ -1130,6 +1177,8 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
     const remainingMs = Math.max(0, (ctx.durationS - audio.currentTime) * 1000);
 
     if (!this.repeat()) {
+      this.scheduleNaturalFadeOut(remainingMs, ctx);
+
       const nearEndKey = this.getNearEndKey();
 
       if (remainingMs <= BoardPlayerComponent.PLAYLIST_PRELOAD_LEAD_MS) {
@@ -1210,6 +1259,58 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
       clearTimeout(this.playlistPreloadTimer);
       this.playlistPreloadTimer = null;
     }
+  }
+
+  private clearNaturalFadeOutTimer(): void {
+    if (this.naturalFadeOutTimer !== null) {
+      clearTimeout(this.naturalFadeOutTimer);
+      this.naturalFadeOutTimer = null;
+    }
+    this.naturalFadeOutKey = null;
+  }
+
+  /** Schedule a fade-out that finishes at the track's natural end when loop
+      is off, so playback doesn't cut off abruptly. Re-entrant on every
+      timeupdate; only the first call per playback actually schedules. */
+  private scheduleNaturalFadeOut(remainingMs: number, ctx: SlotPlaybackContext): void {
+    if (this.repeat()) return;
+    if (this.pendingStreamUrl) return;
+    if (this.localStatus() !== 'PLAYING') return;
+    if (ctx.durationS <= 0) return;
+
+    const slot = this.activeSlot;
+    const key = `${slot}:${this.currentStreamUrl}:${ctx.startS}:${ctx.durationS}`;
+
+    if (this.naturalFadeOutKey === key) return;
+
+    const fadeMs = BoardPlayerComponent.MANUAL_FADE_MS;
+    const triggerInMs = remainingMs - fadeMs;
+
+    this.naturalFadeOutKey = key;
+
+    if (triggerInMs <= 0) {
+      // We're already inside the fade-out window — start immediately,
+      // shortened to whatever time remains.
+      const duration = Math.max(0, remainingMs);
+      this.rampSlotGain(slot, this.getSlotGain(slot), 0, duration);
+      return;
+    }
+
+    this.zone.runOutsideAngular(() => {
+      this.naturalFadeOutTimer = setTimeout(() => {
+        this.zone.run(() => {
+          if (
+            this.localStatus() !== 'PLAYING' ||
+            this.repeat() ||
+            this.pendingStreamUrl ||
+            this.naturalFadeOutKey !== key
+          ) {
+            return;
+          }
+          this.rampSlotGain(slot, this.getSlotGain(slot), 0, fadeMs);
+        });
+      }, triggerInMs);
+    });
   }
 
   private applyAllVolumes(): void {
@@ -1295,6 +1396,7 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
     this.clearWindowBoundaryTimer();
     this.clearLoopPrepareTimer();
     this.clearPlaylistPreloadTimer();
+    this.clearNaturalFadeOutTimer();
 
     this.tearDownSlot('A');
     this.tearDownSlot('B');
@@ -1431,6 +1533,33 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
         } catch {}
       }
     }
+  }
+
+  /** Linear ramp of a slot gain from `from` to `to` over `durationMs`. Used
+      for plain start/stop fades; crossfade paths drive their own ramps. */
+  private rampSlotGain(
+    slot: AudioSlot,
+    from: number,
+    to: number,
+    durationMs: number,
+  ): void {
+    if (slot === 'A') this.gainA = to;
+    else this.gainB = to;
+
+    if (!this.audioCtx) return;
+    const node = this.getGainNode(slot);
+    if (!node) return;
+
+    const now = this.audioCtx.currentTime;
+    try {
+      node.gain.cancelScheduledValues(now);
+      node.gain.setValueAtTime(from, now);
+      if (durationMs > 0) {
+        node.gain.linearRampToValueAtTime(to, now + durationMs / 1000);
+      } else {
+        node.gain.setValueAtTime(to, now);
+      }
+    } catch {}
   }
 
   private getGainNode(slot: AudioSlot): GainNode | null {

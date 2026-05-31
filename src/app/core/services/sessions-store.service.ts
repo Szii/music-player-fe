@@ -6,12 +6,14 @@ import {
   SessionsResponse,
   SessionsService,
 } from '../../api/generated';
+import { SessionService } from '../auth/session.service';
 
 const STORAGE_KEY = 'music-player.selected-session-id';
 
 @Injectable({ providedIn: 'root' })
 export class SessionsStore {
   private readonly api = inject(SessionsService);
+  private readonly session = inject(SessionService);
 
   readonly sessions = signal<SessionResponse[]>([]);
   readonly selectedSessionId = signal<number | null>(loadStoredId());
@@ -34,6 +36,13 @@ export class SessionsStore {
       } else {
         localStorage.setItem(STORAGE_KEY, String(id));
       }
+    });
+
+    this.session.logout$.subscribe(() => {
+      this.sessions.set([]);
+      this.selectedSessionId.set(null);
+      this.loaded.set(false);
+      this.loading.set(false);
     });
   }
 

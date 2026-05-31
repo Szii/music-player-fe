@@ -8,6 +8,14 @@ interface Quota {
   readonly reached: boolean;
 }
 
+interface BoardRow {
+  readonly key: string;
+  readonly label: string;
+  readonly used: number;
+  readonly max: number;
+  readonly reached: boolean;
+}
+
 interface WindowRow {
   readonly key: string;
   readonly label: string;
@@ -38,6 +46,22 @@ interface WindowRow {
           </li>
         }
       </ul>
+
+      @if (perSessionBoards().length > 0) {
+        <details class="limits__details" open>
+          <summary class="limits__summary">
+            Per-session board quotas ({{ perSessionBoards().length }})
+          </summary>
+          <ul class="limits__list limits__list--scroll">
+            @for (b of perSessionBoards(); track b.key) {
+              <li class="limits__row" [class.limits__row--reached]="b.reached">
+                <span class="limits__row-label" [title]="b.label">{{ b.label }}</span>
+                <span class="limits__row-value">{{ b.used }} / {{ b.max }}</span>
+              </li>
+            }
+          </ul>
+        </details>
+      }
 
       @if (perTrackWindows().length > 0) {
         <details class="limits__details">
@@ -162,6 +186,7 @@ interface WindowRow {
 export class UserLimitsCardComponent {
   readonly limits = input<UserLimits | null>(null);
   readonly trackNames = input<ReadonlyMap<number, string>>(new Map());
+  readonly sessionNames = input<ReadonlyMap<number, string>>(new Map());
 
   readonly rankLabel = computed(() => {
     const level = this.limits()?.level;
@@ -175,15 +200,9 @@ export class UserLimitsCardComponent {
   readonly quotas = computed<Quota[]>(() => {
     const l = this.limits();
     if (!l) return [];
+
     const out: Quota[] = [];
-    if (l.boards) {
-      out.push({
-        label: 'Boards',
-        used: l.boards.actualBoards ?? 0,
-        max: l.boards.maxBoards ?? 0,
-        reached: l.boards.boardLimitReached ?? false,
-      });
-    }
+
     if (l.groups) {
       out.push({
         label: 'Groups',
@@ -192,6 +211,7 @@ export class UserLimitsCardComponent {
         reached: l.groups.groupLimitReached ?? false,
       });
     }
+
     if (l.tracks) {
       out.push({
         label: 'Tracks',
@@ -200,6 +220,7 @@ export class UserLimitsCardComponent {
         reached: l.tracks.trackLimitReached ?? false,
       });
     }
+
     if (l.sessions) {
       out.push({
         label: 'Sessions',
@@ -208,6 +229,7 @@ export class UserLimitsCardComponent {
         reached: l.sessions.sessionLimitReached ?? false,
       });
     }
+
     if (l.subscribes) {
       out.push({
         label: 'Shared tracks',
@@ -216,16 +238,39 @@ export class UserLimitsCardComponent {
         reached: l.subscribes.subscribeLimitReached ?? false,
       });
     }
+
     return out;
+  });
+
+  readonly perSessionBoards = computed<BoardRow[]>(() => {
+    const boards = this.limits()?.boards ?? [];
+    const names = this.sessionNames();
+
+    return boards
+      .filter(b => b.sessionId != null)
+      .map(b => {
+        const sessionId = b.sessionId as number;
+        const sessionName = names.get(sessionId);
+
+        return {
+          key: `session:${sessionId}`,
+          label: sessionName ?? `Session #${sessionId}`,
+          used: b.actualBoards ?? 0,
+          max: b.maxBoards ?? 0,
+          reached: b.boardLimitReached ?? false,
+        };
+      });
   });
 
   readonly perTrackWindows = computed<WindowRow[]>(() => {
     const windows = this.limits()?.windows ?? [];
     const names = this.trackNames();
+
     return windows
       .filter(w => w.trackId != null)
       .map(w => {
         const trackId = w.trackId as number;
+
         return {
           key: `id:${trackId}`,
           label: names.get(trackId) ?? `Track #${trackId}`,

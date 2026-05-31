@@ -19,6 +19,7 @@ import { CommonModule } from '@angular/common';
         <button
           type="button"
           class="we-btn"
+          (mousedown)="$event.preventDefault()"
           (click)="playAll.emit()"
           [class.active]="isPlaying && playMode === 'full'"
         >
@@ -44,6 +45,7 @@ import { CommonModule } from '@angular/common';
         <button
           type="button"
           class="we-btn we-btn--accent"
+          (mousedown)="$event.preventDefault()"
           (click)="playSelection.emit()"
           [class.active]="isPlaying && playMode === 'selection'"
           [disabled]="playSelectionDisabled && !(isPlaying && playMode === 'selection')"

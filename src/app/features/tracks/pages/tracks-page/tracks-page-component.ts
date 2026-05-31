@@ -27,6 +27,7 @@ import {
   TrackRequest,
 } from '../../../../api/generated';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
+import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 import { BoardPlaybackService } from '../../../../core/services/board-playback.service';
@@ -40,10 +41,11 @@ import { BoardPlaybackService } from '../../../../core/services/board-playback.s
     TrackFormComponent,
     TrackWindowsPanelComponent,
     UiAlertComponent,
+    UiPageTitleComponent,
   ],
   template: `
     <div class="app-page tracks-page">
-      <h1 class="app-page__title">Tracks</h1>
+      <ui-page-title title="Tracks" />
 
       <app-track-form
         [editingTrackId]="editingTrackId()"

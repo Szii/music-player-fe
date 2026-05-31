@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { RouterLink, RouterLinkActive } from '@angular/router';
 
 import { SessionService } from '../../../core/auth/session.service';
 import { BoardPlaybackService } from '../../../core/services/board-playback.service';
@@ -93,7 +93,6 @@ export class NavbarComponent {
   private static nextMenuId = 0;
 
   private readonly session = inject(SessionService);
-  private readonly router = inject(Router);
   readonly boardPlayback = inject(BoardPlaybackService);
 
   readonly menuId = `app-navbar-menu-${NavbarComponent.nextMenuId++}`;
@@ -110,7 +109,6 @@ export class NavbarComponent {
 
   logout(): void {
     this.closeMenu();
-    this.session.clear();
-    void this.router.navigateByUrl('/login');
+    this.session.logout();
   }
 }

@@ -20,6 +20,9 @@ import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-butto
 import {
   UiSelectComponent,
 } from '../../../../shared/ui/select/ui-select.component';
+import { UiVolumeSliderComponent } from '../../../../shared/ui/volume-slider/ui-volume-slider.component';
+import { UiPlayButtonComponent } from '../../../../shared/ui/play-button/ui-play-button.component';
+import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 import { BoardShortcutsService } from '../../../../core/services/board-shortcuts.service';
 
 export interface PlaylistOptions {
@@ -36,6 +39,9 @@ export interface PlaylistOptions {
     BoardPlayerComponent,
     IconButtonComponent,
     UiSelectComponent,
+    UiVolumeSliderComponent,
+    UiPlayButtonComponent,
+    UiChipComponent,
   ],
   host: {
     '(document:click)': 'onDocumentClick($event)',
@@ -51,16 +57,13 @@ export interface PlaylistOptions {
             class="board-card__play-wrap"
             [class.board-card__play-wrap--playlist]="playlistMode()"
             [class.board-card__play-wrap--playing]="isPlaying()">
-            <button
-              type="button"
-              class="board-card__summary-play"
-              [class.board-card__summary-play--stop]="isPlaying()"
+            <ui-play-button
+              size="md"
+              [playing]="isPlaying()"
               [disabled]="!canStartPlayback()"
-              (click)="onPrimaryAction()"
-              [attr.aria-label]="isPlaying() ? 'Stop playback' : 'Play board'">
-              <span *ngIf="!isPlaying()">▶</span>
-              <span *ngIf="isPlaying()">■</span>
-            </button>
+              [ariaLabel]="isPlaying() ? 'Stop playback' : 'Play board'"
+              (clicked)="onPrimaryAction()"
+            />
           </div>
 
           <div class="board-card__summary-content">
@@ -76,6 +79,7 @@ export interface PlaylistOptions {
                     type="button"
                     class="board-card__rename-btn"
                     aria-label="Rename board"
+                    (mousedown)="$event.preventDefault()"
                     (click)="startRename()"
                   >✎</button>
                 </ng-container>
@@ -93,63 +97,59 @@ export interface PlaylistOptions {
               </div>
 
               <div class="board-card__feature-chips">
-                <span
-                  class="board-card__mode-chip"
-                  [class.board-card__mode-chip--playlist]="playlistMode()">
-                  <span class="board-chip__dot" aria-hidden="true"></span>
+                <ui-chip variant="crimson" size="sm" shape="hex" [dot]="true">
                   {{ playlistMode() ? '♫ Playlist' : '♫ Single' }}
-                </span>
-                <span
-                  class="board-card__feature-chip"
-                  *ngFor="let feature of compactFeatureLabels()">
-                  <span class="board-chip__dot" aria-hidden="true"></span>
+                </ui-chip>
+                <ui-chip
+                  *ngFor="let feature of compactFeatureLabels()"
+                  variant="gold"
+                  size="sm"
+                  shape="hex"
+                  [dot]="true"
+                >
                   {{ feature }}
-                </span>
-                <span
+                </ui-chip>
+                <ui-chip
                   *ngIf="shortcut()"
-                  class="board-card__shortcut-chip"
-                  [title]="'Keyboard shortcut: ' + shortcut()">
-                  <span class="board-card__shortcut-chip-icon" aria-hidden="true">⌨</span>
-                  {{ shortcut() }}
-                </span>
+                  variant="neutral"
+                  size="sm"
+                  [attr.title]="'Keyboard shortcut: ' + shortcut()"
+                >
+                  ⌨ {{ shortcut() }}
+                </ui-chip>
               </div>
             </div>
 
             <div class="board-card__summary-bottom">
               <div class="board-card__meta-line">
-                <span class="board-card__meta-pill board-card__meta-pill--group">
-                  <span class="board-card__meta-key">Group</span>
-                  <span class="board-card__meta-value">{{ currentGroupLabel() }}</span>
-                </span>
+                <ui-chip
+                  variant="neutral"
+                  keyLabel="Group"
+                  [tooltip]="currentGroupLabel()"
+                >{{ currentGroupLabel() }}</ui-chip>
 
-                <span class="board-card__meta-pill board-card__meta-pill--track">
-                  <span class="board-card__meta-key">{{ playlistMode() ? 'Now playing' : 'Track' }}</span>
-                  <span class="board-card__meta-value">{{ currentTrackLabel() }}</span>
-                </span>
+                <ui-chip
+                  variant="neutral"
+                  [keyLabel]="playlistMode() ? 'Now playing' : 'Track'"
+                  [tooltip]="currentTrackLabel()"
+                >{{ currentTrackLabel() }}</ui-chip>
 
-                <span
-                  *ngIf="!playlistMode()"
-                  class="board-card__meta-pill board-card__meta-pill--window">
-                  <span class="board-card__meta-key">Window</span>
-                  <span class="board-card__meta-value">{{ currentWindowLabel() }}</span>
-                </span>
+                @if (!playlistMode()) {
+                  <ui-chip
+                    variant="neutral"
+                    keyLabel="Window"
+                    [tooltip]="currentWindowLabel()"
+                  >{{ currentWindowLabel() }}</ui-chip>
+                }
               </div>
 
-              <div class="board-card__summary-volume">
-                <span class="board-card__summary-volume-icon" aria-hidden="true">🔊</span>
-                <input
-                  type="range"
-                  class="board-card__summary-volume-slider"
-                  min="0"
-                  max="100"
-                  step="1"
-                  [value]="displayedVolumePercent()"
-                  aria-label="Board volume"
-                  (input)="onVolumeChange($event, false)"
-                  (change)="onVolumeChange($event, true)"
-                />
-                <span class="board-card__summary-volume-value">{{ displayedVolumePercent() }}%</span>
-              </div>
+              <ui-volume-slider
+                ariaLabel="Board volume"
+                [value]="displayedVolumePercent()"
+                (preview)="onVolumePreview($event)"
+                (commit)="onVolumeCommit($event)"
+              />
+
             </div>
           </div>
         </div>
@@ -187,6 +187,7 @@ export interface PlaylistOptions {
                   type="button"
                   class="board-mode-switch__btn"
                   [class.board-mode-switch__btn--active]="!playlistMode()"
+                  (mousedown)="$event.preventDefault()"
                   (click)="setPlaybackMode(false)">
                   ♫ Single
                 </button>
@@ -194,6 +195,7 @@ export interface PlaylistOptions {
                   type="button"
                   class="board-mode-switch__btn"
                   [class.board-mode-switch__btn--active]="playlistMode()"
+                  (mousedown)="$event.preventDefault()"
                   (click)="setPlaybackMode(true)">
                   ♫ Playlist
                 </button>
@@ -205,6 +207,7 @@ export interface PlaylistOptions {
                     type="button"
                     class="board-icon-btn"
                     [class.board-icon-btn--active]="settingsOpen()"
+                    (mousedown)="$event.preventDefault()"
                     (click)="toggleSettingsMenu($event)"
                     title="Board settings"
                     aria-label="Board settings">
@@ -279,6 +282,7 @@ export interface PlaylistOptions {
                         <button
                           type="button"
                           class="board-shortcut__btn"
+                          (mousedown)="$event.preventDefault()"
                           (click)="toggleCaptureShortcut()">
                           {{ capturingShortcut() ? 'Cancel' : (shortcut() ? 'Change' : 'Set') }}
                         </button>
@@ -286,6 +290,7 @@ export interface PlaylistOptions {
                           type="button"
                           class="board-shortcut__btn board-shortcut__btn--danger"
                           *ngIf="shortcut() && !capturingShortcut()"
+                          (mousedown)="$event.preventDefault()"
                           (click)="clearShortcut()">
                           Clear
                         </button>
@@ -445,33 +450,6 @@ export interface PlaylistOptions {
       align-items: center;
     }
 
-    .board-card__summary-play {
-      width: 42px;
-      height: 42px;
-      border: 0;
-      border-radius: 999px;
-      background: var(--app-primary);
-      color: #fff;
-      font-size: 18px;
-      font-weight: 800;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      box-shadow: 0 8px 16px color-mix(in srgb, var(--app-primary) 18%, transparent);
-    }
-
-    .board-card__summary-play:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-      box-shadow: none;
-    }
-
-    .board-card__summary-play--stop {
-      background: var(--app-danger);
-    }
-
     .board-card__summary-content {
       min-width: 0;
       display: flex;
@@ -548,45 +526,6 @@ export interface PlaylistOptions {
       flex-shrink: 0;
     }
 
-    .board-card__mode-chip,
-    .board-card__feature-chip {
-      position: relative;
-      flex-shrink: 0;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 12px 4px 10px;
-      font-family: var(--app-font-heading);
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      white-space: nowrap;
-      border-radius: var(--app-radius-xs);
-      clip-path: polygon(8px 0%, calc(100% - 8px) 0%, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0% 50%);
-    }
-
-    .board-chip__dot {
-      display: inline-block;
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-
-    .board-card__mode-chip {
-      background: linear-gradient(135deg, #3d1008 0%, #58180d 100%);
-      color: #f5dfc8;
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.12),
-        0 2px 6px rgba(88, 24, 13, 0.45);
-    }
-
-    .board-card__mode-chip .board-chip__dot {
-      background: #8b5b33;
-      box-shadow: 0 0 4px rgba(201, 164, 76, 0.8);
-    }
-
     .board-card__play-wrap {
       position: relative;
       display: inline-flex;
@@ -615,19 +554,6 @@ export interface PlaylistOptions {
       to { transform: rotate(360deg); }
     }
 
-    .board-card__feature-chip {
-      background: linear-gradient(135deg, #5a3e20 0%, #7a5228 100%);
-      color: #e8d8b8;
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.1),
-        0 2px 6px rgba(60, 30, 10, 0.35);
-    }
-
-    .board-card__feature-chip .board-chip__dot {
-      background: rgba(201, 164, 76, 0.7);
-      box-shadow: 0 0 3px rgba(201, 164, 76, 0.5);
-    }
-
     .board-card__summary-bottom {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(200px, 300px);
@@ -641,79 +567,6 @@ export interface PlaylistOptions {
       gap: 10px;
       flex-wrap: wrap;
       min-width: 0;
-    }
-
-    .board-card__meta-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      min-width: 0;
-      max-width: 100%;
-      padding: 6px 12px;
-      border: 1px solid rgba(122, 66, 32, 0.24);
-      border-radius: 999px;
-      background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0)),
-        color-mix(in srgb, var(--app-surface) 94%, white 6%);
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.14),
-        0 1px 3px rgba(88, 24, 13, 0.06);
-    }
-
-    .board-card__meta-pill--track {
-      max-width: min(100%, 420px);
-    }
-
-    .board-card__meta-key {
-      flex: 0 0 auto;
-      font-family: var(--app-font-heading);
-      font-size: 10px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--app-text-muted);
-      white-space: nowrap;
-    }
-
-    .board-card__meta-value {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--app-text);
-    }
-
-    .board-card__summary-volume {
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr) auto;
-      gap: 8px;
-      align-items: center;
-      padding: 6px 10px;
-      border-radius: var(--app-radius-sm);
-      border: 1px solid var(--app-border-color-soft);
-      background: var(--app-surface-elevated);
-    }
-
-    .board-card__summary-volume-icon {
-      font-size: 13px;
-      color: var(--app-primary);
-    }
-
-    .board-card__summary-volume-slider {
-      width: 100%;
-      height: 4px;
-      accent-color: var(--app-primary);
-      cursor: pointer;
-    }
-
-    .board-card__summary-volume-value {
-      font-size: 12px;
-      font-weight: 800;
-      color: var(--app-primary);
-      min-width: 36px;
-      text-align: right;
     }
 
     .board-card__summary-actions {
@@ -1133,18 +986,6 @@ export interface PlaylistOptions {
 
       .board-card__meta-line {
         gap: 8px;
-      }
-
-      .board-card__meta-pill {
-        width: 100%;
-      }
-
-      .board-card__meta-pill--track {
-        max-width: 100%;
-      }
-
-      .board-card__summary-volume {
-        min-width: 0;
       }
 
       .board-settings-menu {
@@ -1611,15 +1452,16 @@ export class BoardCardComponent implements OnInit {
     this.toggleRepeat.emit();
   }
 
-  onVolumeChange(event: Event, commit: boolean): void {
-    const value = clampPct(Number((event.target as HTMLInputElement).value));
-    this.displayedVolumePercent.set(value);
+  onVolumePreview(value: number): void {
+    const v = clampPct(value);
+    this.displayedVolumePercent.set(v);
+    this.volumePreviewChange.emit(v);
+  }
 
-    if (commit) {
-      this.volumeCommit.emit(value);
-    } else {
-      this.volumePreviewChange.emit(value);
-    }
+  onVolumeCommit(value: number): void {
+    const v = clampPct(value);
+    this.displayedVolumePercent.set(v);
+    this.volumeCommit.emit(v);
   }
 
   onPrimaryAction(): void {

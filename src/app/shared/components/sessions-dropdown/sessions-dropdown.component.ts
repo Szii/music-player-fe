@@ -3,12 +3,10 @@ import {
   Component,
   DestroyRef,
   ElementRef,
-  HostListener,
   computed,
   inject,
   signal,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { SessionResponse } from '../../../api/generated';
@@ -17,103 +15,94 @@ import { ToastService } from '../../features/toast/toast.service';
 import { ConfirmDialogService } from '../../features/confirm-dialog/confirm-dialog.service';
 import { PromptDialogService } from '../../features/prompt-dialog/prompt-dialog.service';
 import { BoardPlaybackService } from '../../../core/services/board-playback.service';
+import { IconButtonComponent } from '../../ui/buttons/ui-icon-button.component';
 
 @Component({
   selector: 'app-sessions-dropdown',
-  standalone: true,
+  imports: [IconButtonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule],
+  host: {
+    '(document:click)': 'onDocumentClick($event)',
+    '(document:keydown.escape)': 'onEscape()',
+  },
   template: `
-    <div class="sd" [class.sd--open]="isOpen()" *ngIf="showTrigger()">
-      <button
-        type="button"
-        class="sd__trigger"
-        [attr.aria-expanded]="isOpen()"
-        aria-haspopup="menu"
-        (click)="toggle()"
-      >
-        <span class="sd__label">{{ triggerLabel() }}</span>
-        <span class="sd__arrow" aria-hidden="true">
-          <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
-            <path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.6"
-              stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-        </span>
-      </button>
-
-      <div *ngIf="isOpen()" class="sd__panel" role="menu">
-        <div class="sd__header">Sessions</div>
-
-        <div *ngIf="sessions().length === 0" class="sd__empty">
-          No sessions yet.
-        </div>
-
-        <ul class="sd__list" *ngIf="sessions().length > 0">
-          <li
-            *ngFor="let s of sessions(); trackBy: trackBySessionId"
-            class="sd__item"
-            [class.sd__item--selected]="s.sessionId === selectedId()"
-          >
-            <button
-              type="button"
-              class="sd__item-select"
-              (click)="select(s)"
-              [attr.aria-current]="s.sessionId === selectedId() ? 'true' : null"
-            >
-              <span class="sd__item-name">{{ s.sessionName || 'Untitled session' }}</span>
-              <span
-                *ngIf="s.sessionId === selectedId()"
-                class="sd__item-check"
-                aria-hidden="true"
-              >✓</span>
-            </button>
-
-            <div class="sd__item-actions">
-              <button
-                type="button"
-                class="sd__icon-btn"
-                aria-label="Rename session"
-                title="Rename"
-                (click)="startRename(s); $event.stopPropagation()"
-              >
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
-                  stroke="currentColor" stroke-width="1.9"
-                  stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M4 20h4l10-10-4-4L4 16v4Z" />
-                  <path d="M12.5 5.5l4 4" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="sd__icon-btn sd__icon-btn--danger"
-                aria-label="Delete session"
-                title="Delete"
-                (click)="confirmDelete(s); $event.stopPropagation()"
-              >
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
-                  stroke="currentColor" stroke-width="1.9"
-                  stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M5 7h14" />
-                  <path d="M10 11v6" />
-                  <path d="M14 11v6" />
-                  <path d="M8 7l1-2h6l1 2" />
-                  <path d="M7 7l1 12h8l1-12" />
-                </svg>
-              </button>
-            </div>
-          </li>
-        </ul>
-
+    @if (showTrigger()) {
+      <div class="sd" [class.sd--open]="isOpen()">
         <button
           type="button"
-          class="sd__create"
-          (click)="startCreate()"
+          class="sd__trigger"
+          [attr.aria-expanded]="isOpen()"
+          aria-haspopup="menu"
+          (click)="toggle()"
         >
-          <span class="sd__create-plus" aria-hidden="true">＋</span>
-          <span>New session</span>
+          <span class="sd__label">{{ triggerLabel() }}</span>
+          <span class="sd__arrow" aria-hidden="true">
+            <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
+              <path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.6"
+                stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </span>
         </button>
+
+        @if (isOpen()) {
+          <div class="app-popover-surface sd__panel" role="menu">
+            <div class="app-popover-header">Sessions</div>
+
+            @if (sessions().length === 0) {
+              <div class="sd__empty">No sessions yet.</div>
+            } @else {
+              <ul class="sd__list">
+                @for (s of sessions(); track s.sessionId) {
+                  <li
+                    class="sd__item"
+                    [class.sd__item--selected]="s.sessionId === selectedId()"
+                  >
+                    <button
+                      type="button"
+                      class="app-popover-item sd__item-select"
+                      [class.app-popover-item--selected]="s.sessionId === selectedId()"
+                      (click)="select(s)"
+                      [attr.aria-current]="s.sessionId === selectedId() ? 'true' : null"
+                    >
+                      <span class="sd__item-name">{{ s.sessionName || 'Untitled session' }}</span>
+                      @if (s.sessionId === selectedId()) {
+                        <span class="sd__item-check" aria-hidden="true">✓</span>
+                      }
+                    </button>
+
+                    <div class="sd__item-actions">
+                      <app-icon-button
+                        icon="edit"
+                        size="xs"
+                        variant="ghost"
+                        label="Rename session"
+                        (clicked)="startRename(s)"
+                      />
+                      <app-icon-button
+                        icon="delete"
+                        size="xs"
+                        variant="ghost"
+                        label="Delete session"
+                        (clicked)="confirmDelete(s)"
+                      />
+                    </div>
+                  </li>
+                }
+              </ul>
+            }
+
+            <button
+              type="button"
+              class="sd__create"
+              (click)="startCreate()"
+            >
+              <span class="sd__create-plus" aria-hidden="true">＋</span>
+              <span>New session</span>
+            </button>
+          </div>
+        }
       </div>
-    </div>
+    }
   `,
   styleUrls: ['./sessions-dropdown.component.scss'],
 })
@@ -252,18 +241,12 @@ export class SessionsDropdownComponent {
       });
   }
 
-  trackBySessionId(_index: number, session: SessionResponse): number {
-    return session.sessionId ?? -1;
-  }
-
-  @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
     if (!this.isOpen()) return;
     if (this.host.nativeElement.contains(event.target as Node)) return;
     this.close();
   }
 
-  @HostListener('document:keydown.escape')
   onEscape(): void {
     if (this.isOpen()) this.close();
   }

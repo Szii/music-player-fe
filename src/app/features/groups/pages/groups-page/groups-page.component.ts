@@ -17,6 +17,7 @@ import {
 } from '../../components/group-tracks-editor/group-tracks-editor.component';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empty-state.component';
+import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 
@@ -30,10 +31,11 @@ import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog
     GroupTracksEditorComponent,
     UiAlertComponent,
     UiEmptyStateComponent,
+    UiPageTitleComponent,
   ],
   template: `
     <div class="app-page group-page">
-      <h1 class="app-page__title">Groups</h1>
+      <ui-page-title title="Groups" />
 
       <app-create-group-form
         #createForm

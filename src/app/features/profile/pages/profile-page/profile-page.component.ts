@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/cor
 
 import { ProfileStore } from '../../data-access/profile-store.service';
 import { UiCardComponent } from '../../../../shared/ui/card/ui-card.component';
+import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { ChangePasswordFormComponent } from '../../components/change-password-form/change-password-form.component';
 import { ChangeEmailFormComponent } from '../../components/change-email-form/change-email-form.component';
 import { UserLimitsCardComponent } from '../../components/user-limits-card/user-limits-card.component';
@@ -10,6 +11,7 @@ import { UserLimitsCardComponent } from '../../components/user-limits-card/user-
   selector: 'app-profile-page',
   imports: [
     UiCardComponent,
+    UiPageTitleComponent,
     ChangePasswordFormComponent,
     ChangeEmailFormComponent,
     UserLimitsCardComponent,
@@ -17,20 +19,23 @@ import { UserLimitsCardComponent } from '../../components/user-limits-card/user-
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="app-page">
-      <h1 class="app-page__title">User profile</h1>
+      <ui-page-title title="User profile" />
 
       @switch (status()) {
         @case ('loading') {
           <p class="app-muted">Loading your profile...</p>
         }
+
         @case ('error') {
           <p class="profile-error">{{ errorMessage() }}</p>
         }
+
         @case ('loaded') {
           <ui-card title="Account">
             <dl class="profile-identity">
               <dt>Username</dt>
               <dd>{{ user()?.name || '—' }}</dd>
+
               <dt>Email</dt>
               <dd>{{ user()?.email || '—' }}</dd>
             </dl>
@@ -51,6 +56,7 @@ import { UserLimitsCardComponent } from '../../components/user-limits-card/user-
               <app-user-limits-card
                 [limits]="user()?.limits ?? null"
                 [trackNames]="trackNames()"
+                [sessionNames]="sessionNames()"
               />
             </ui-card>
           </div>
@@ -121,6 +127,7 @@ export class ProfilePageComponent implements OnInit {
   readonly status = this.store.status;
   readonly user = this.store.user;
   readonly trackNames = this.store.trackNames;
+  readonly sessionNames = this.store.sessionNames;
   readonly errorMessage = this.store.errorMessage;
 
   ngOnInit(): void {

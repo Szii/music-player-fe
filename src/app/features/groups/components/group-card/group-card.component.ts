@@ -1,16 +1,16 @@
 import {
-  Component,
-  EventEmitter,
-  Input,
-  Output,
   ChangeDetectionStrategy,
+  Component,
+  computed,
+  input,
+  output,
+  signal,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Group, Track } from '../../../../api/generated';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
-import {IconButtonComponent} from "../../../../shared/ui/buttons/ui-icon-button.component"
+import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
 
 export interface RenameEvent {
   group: Group;
@@ -19,96 +19,89 @@ export interface RenameEvent {
 
 @Component({
   selector: 'app-group-card',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, NormalButtonComponent, UiDialogShellComponent, IconButtonComponent],
+  imports: [FormsModule, NormalButtonComponent, UiDialogShellComponent, IconButtonComponent],
   template: `
     <div class="group-card">
       <div class="group-card__header">
         <div class="group-card__identity">
           <span class="group-card__title">
-            {{ group.listName || ('Group #' + group.id) }}
+            {{ group().listName || ('Group #' + group().id) }}
           </span>
 
           <span class="group-card__count">
-            {{ trackCount }} track{{ trackCount === 1 ? '' : 's' }}
+            {{ trackCount() }} track{{ trackCount() === 1 ? '' : 's' }}
           </span>
         </div>
 
         <div class="group-card__actions">
-
-        <app-icon-button
-              icon="tracks"
-              label=" Edit tracks"
-              variant="primary"
-              size="md"
-              (click)="editTracksRequested.emit(group)"
-            />
-
-        <app-icon-button
-              icon="edit"
-              label=" Rename group"
-              variant="secondary"
-              size="md"
-              (click)="openRename()"
-            />
+          <app-icon-button
+            icon="tracks"
+            label="Edit tracks"
+            variant="primary"
+            size="md"
+            (clicked)="editTracksRequested.emit(group())"
+          />
 
           <app-icon-button
-              icon="delete"
-              label="Delete group"
-              variant="danger"
-              size="md"
-              (click)="deleteRequested.emit(group)"
-            />
+            icon="edit"
+            label="Rename group"
+            variant="secondary"
+            size="md"
+            (clicked)="openRename()"
+          />
 
+          <app-icon-button
+            icon="delete"
+            label="Delete group"
+            variant="danger"
+            size="md"
+            (clicked)="deleteRequested.emit(group())"
+          />
         </div>
       </div>
-
-      <ng-template #noTracksTpl>
-        <div class="group-card__empty">
-          No tracks assigned yet.
-        </div>
-      </ng-template>
     </div>
 
-    <ui-dialog-shell
-      *ngIf="renameOpen"
-      title="Rename group"
-      [showFooter]="true"
-      (closed)="closeRename()"
-    >
-      <div class="rename-form">
-        <label class="app-form-label">Group name</label>
-        <input
-          class="app-input"
-          type="text"
-          [(ngModel)]="editingName"
-          placeholder="e.g. Combat Music"
-          (keydown.enter)="confirmRename()"
-          (keydown.escape)="closeRename()"
-        />
-      </div>
-
-      <normal-button dialog-footer type="button" variant="secondary" (clicked)="closeRename()">
-        Cancel
-      </normal-button>
-
-      <normal-button
-        dialog-footer
-        type="button"
-        [disabled]="!editingName.trim()"
-        (clicked)="confirmRename()"
+    @if (renameOpen()) {
+      <ui-dialog-shell
+        title="Rename group"
+        [showFooter]="true"
+        (closed)="closeRename()"
       >
-        Save
-      </normal-button>
-    </ui-dialog-shell>
+        <div class="rename-form">
+          <label class="app-form-label">Group name</label>
+          <input
+            class="app-input"
+            type="text"
+            [ngModel]="editingName()"
+            (ngModelChange)="editingName.set($event)"
+            [ngModelOptions]="{ standalone: true }"
+            placeholder="e.g. Combat Music"
+            (keydown.enter)="confirmRename()"
+            (keydown.escape)="closeRename()"
+          />
+        </div>
+
+        <normal-button dialog-footer type="button" variant="secondary" (clicked)="closeRename()">
+          Cancel
+        </normal-button>
+
+        <normal-button
+          dialog-footer
+          type="button"
+          [disabled]="!editingName().trim()"
+          (clicked)="confirmRename()"
+        >
+          Save
+        </normal-button>
+      </ui-dialog-shell>
+    }
   `,
   styles: [`
     :host {
       display: block;
     }
 
-  
     .group-card {
       display: flex;
       flex-direction: column;
@@ -168,57 +161,6 @@ export interface RenameEvent {
       justify-content: flex-end;
     }
 
-    .group-card__icon-btn {
-      width: 36px;
-      height: 36px;
-      border-radius: var(--app-radius-sm);
-      border: 1px solid var(--app-border-color-soft);
-      background: var(--app-surface-elevated);
-      color: var(--app-text-muted);
-      font-size: 15px;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      line-height: 1;
-      padding: 0;
-      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-    }
-
-    .group-card__icon-btn--rename:hover {
-      background: var(--app-primary-soft);
-      border-color: var(--app-primary);
-      color: var(--app-primary);
-    }
-
-    .group-card__icon-btn--delete {
-      border-color: var(--app-danger-soft);
-      color: var(--app-danger);
-    }
-
-    .group-card__icon-btn--delete:hover {
-      background: var(--app-danger-soft);
-      border-color: var(--app-danger);
-    }
-
-    .group-card__preview {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .group-card__preview-label {
-      font-size: 0.9rem;
-      font-weight: 600;
-      color: var(--app-text-muted);
-    }
-
-    .group-card__empty {
-      color: var(--app-text-muted);
-      font-style: italic;
-      font-size: 0.95rem;
-    }
-
     .rename-form {
       display: flex;
       flex-direction: column;
@@ -242,45 +184,33 @@ export interface RenameEvent {
   `],
 })
 export class GroupCardComponent {
-  @Input({ required: true }) group!: Group;
-  @Input() tracks: Track[] = [];
-  @Input() updating = false;
+  readonly group = input.required<Group>();
+  readonly tracks = input<Track[]>([]);
+  readonly updating = input(false);
 
-  @Output() deleteRequested = new EventEmitter<Group>();
-  @Output() renameRequested = new EventEmitter<RenameEvent>();
-  @Output() editTracksRequested = new EventEmitter<Group>();
+  readonly deleteRequested = output<Group>();
+  readonly renameRequested = output<RenameEvent>();
+  readonly editTracksRequested = output<Group>();
 
-  renameOpen = false;
-  editingName = '';
+  readonly renameOpen = signal(false);
+  readonly editingName = signal('');
 
-  get trackCount(): number {
-    return this.group?.tracks?.length ?? 0;
-  }
-
-  get previewTrackNames(): string[] {
-    return (this.group?.tracks ?? [])
-      .slice(0, 3)
-      .map(track => track.trackName || track.trackOriginalName || `Track #${track.id}`);
-  }
-
-  get remainingCount(): number {
-    return Math.max(0, this.trackCount - this.previewTrackNames.length);
-  }
+  readonly trackCount = computed(() => this.group().tracks?.length ?? 0);
 
   openRename(): void {
-    this.editingName = this.group.listName ?? '';
-    this.renameOpen = true;
+    this.editingName.set(this.group().listName ?? '');
+    this.renameOpen.set(true);
   }
 
   closeRename(): void {
-    this.renameOpen = false;
-    this.editingName = '';
+    this.renameOpen.set(false);
+    this.editingName.set('');
   }
 
   confirmRename(): void {
-    const name = this.editingName.trim();
+    const name = this.editingName().trim();
     if (!name) return;
-    this.renameRequested.emit({ group: this.group, newName: name });
+    this.renameRequested.emit({ group: this.group(), newName: name });
     this.closeRename();
   }
 }

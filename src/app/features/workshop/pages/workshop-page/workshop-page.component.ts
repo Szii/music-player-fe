@@ -1,6 +1,5 @@
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
 import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 
@@ -19,6 +18,7 @@ import {
 import { TrackCatalogComponent } from '../../components/track-catalog/track-catalog.component';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
+import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 
@@ -26,79 +26,55 @@ import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog
   selector: 'app-workshop-page',
   standalone: true,
   imports: [
-    CommonModule,
     MyTracksComponent,
     TrackCatalogComponent,
     UiAlertComponent,
     NormalButtonComponent,
+    UiPageTitleComponent,
   ],
   template: `
     <div class="app-page workshop-page">
-      <div class="workshop-page__header">
-        <div>
-          <h1 class="workshop-page__title">Workshop</h1>
-          <p class="workshop-page__subtitle">
-            Manage publishing and subscriptions for your tracks.
-          </p>
-        </div>
+      <ui-page-title
+        title="Workshop"
 
+      >
         <normal-button type="button" (clicked)="openMyTracks()">
           My tracks
         </normal-button>
-      </div>
+      </ui-page-title>
 
-      <ui-alert *ngIf="errorMessage()" variant="danger">
-        {{ errorMessage() }}
-      </ui-alert>
+      @if (errorMessage()) {
+        <ui-alert variant="danger">{{ errorMessage() }}</ui-alert>
+      }
 
-      <div *ngIf="loading()" class="app-muted">Loading...</div>
+      @if (!hasLoaded()) {
+        <div class="app-muted">Loading...</div>
+      } @else {
+        <div class="workshop-page__body">
+          <app-track-catalog
+            [tracks]="catalogTracks()"
+            [subscribedIds]="subscribedIds()"
+            [busyTrackId]="busyTrackId()"
+            (subscribe)="subscribeFromCatalog($event)"
+            (unsubscribe)="unsubscribe($event)"
+          />
 
-      <div *ngIf="!loading()" class="workshop-page__body">
-        <app-track-catalog
-          [tracks]="catalogTracks()"
-          [subscribedIds]="subscribedIds()"
-          [busyTrackId]="busyTrackId()"
-          (subscribe)="subscribeFromCatalog($event)"
-          (unsubscribe)="unsubscribe($event)"
-        />
+          <hr class="workshop-page__divider" />
+        </div>
+      }
 
-        <hr class="workshop-page__divider" />
-
+      @if (myTracksOpen()) {
         <app-my-tracks
-          *ngIf="myTracksOpen()"
           [tracks]="myTracks()"
           [busyTrackId]="busyTrackId()"
           (publish)="publishTrack($event)"
           (unpublish)="unpublishTrack($event)"
           (close)="closeMyTracks()"
         />
-      </div>
+      }
     </div>
   `,
   styles: [`
-    .workshop-page__header {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 1.5rem;
-    }
-
-    .workshop-page__title {
-      margin: 0;
-      font-family: var(--app-font-heading);
-      font-size: 1.8rem;
-      font-weight: 700;
-      letter-spacing: 0.03em;
-      color: var(--app-heading);
-      text-shadow: 0 1px 2px rgba(88, 24, 13, 0.12);
-    }
-
-    .workshop-page__subtitle {
-      margin: 0.35rem 0 0;
-      color: var(--app-text-muted);
-      font-size: 0.95rem;
-    }
 
     .workshop-page__divider {
       border: none;
@@ -110,12 +86,6 @@ import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog
       min-height: 0;
     }
 
-    @media (max-width: 720px) {
-      .workshop-page__header {
-        flex-direction: column;
-        align-items: stretch;
-      }
-    }
   `],
 })
 export class WorkshopPageComponent implements OnInit {
@@ -126,6 +96,7 @@ export class WorkshopPageComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly loading = signal(false);
+  readonly hasLoaded = signal(false);
   readonly errorMessage = signal('');
   readonly busyTrackId = signal<number | null>(null);
   readonly myTracksOpen = signal(false);
@@ -204,6 +175,7 @@ export class WorkshopPageComponent implements OnInit {
           this.myTracks.set(ownTracks ?? []);
           this.publishedTracks.set(publishedTracks ?? []);
           this.subscribedTracks.set(subscribedTracks ?? []);
+          this.hasLoaded.set(true);
         },
         error: (err: unknown) => {
           console.error(err);

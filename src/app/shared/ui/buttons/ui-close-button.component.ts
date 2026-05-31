@@ -14,6 +14,7 @@ export type CloseButtonTone = 'default' | 'danger' | 'muted';
       [disabled]="disabled"
       [attr.aria-label]="ariaLabel"
       [class]="classes"
+      (mousedown)="$event.preventDefault()"
       (click)="clicked.emit()"
     >
       <span class="ui-close-button__icon" aria-hidden="true">✕</span>

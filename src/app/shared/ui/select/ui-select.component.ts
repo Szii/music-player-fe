@@ -11,7 +11,6 @@ import {
   signal,
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
-import { CommonModule } from '@angular/common';
 
 export interface UiSelectOption {
   label: string;
@@ -34,9 +33,7 @@ interface PanelRect {
 
 @Component({
   selector: 'ui-select',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule],
   providers: [
     {
       provide: NG_VALUE_ACCESSOR,
@@ -77,83 +74,98 @@ interface PanelRect {
         </span>
       </button>
 
-      <div
-        *ngIf="isOpen()"
-        class="sel__panel"
-        [ngStyle]="panelStyle()"
-      >
-        <div *ngIf="enableSearch()" class="sel__search-wrap">
-          <input
-            #searchInput
-            type="text"
-            class="sel__search"
-            placeholder="Search…"
-            autocomplete="off"
-            [value]="searchQuery()"
-            (input)="searchQuery.set($any($event.target).value)"
-            (click)="$event.stopPropagation()"
-            (keydown)="onSearchKeydown($event)"
-          />
-        </div>
-
-        <div #optionsList class="sel__options" role="listbox">
-          <div
-            *ngFor="let opt of filteredOptions(); let i = index"
-            class="sel__option-wrap"
-            [attr.data-option-index]="i"
-            (mouseenter)="onOptionHover(opt, $event)"
-            (mousemove)="highlightedIndex.set(i)"
-            (mouseleave)="onOptionUnhover()"
-          >
-            <button
-              type="button"
-              class="sel__option"
-              [class.sel__option--selected]="currentValue() === opt.value"
-              [class.sel__option--highlighted]="highlightedIndex() === i"
-              [class.sel__option--has-sub]="(opt.subOptions?.length ?? 0) > 0"
-              role="option"
-              [attr.aria-selected]="currentValue() === opt.value"
-              (click)="selectOption(opt)"
-            >
-              <span class="sel__option-label">{{ opt.label }}</span>
-              <span
-                *ngIf="(opt.subOptions?.length ?? 0) > 0"
-                class="sel__option-arrow"
-                aria-hidden="true"
-              >▸</span>
-              <span
-                *ngIf="currentValue() === opt.value"
-                class="sel__option-check"
-                aria-hidden="true"
-              >✓</span>
-            </button>
-
-            <div
-              *ngIf="hoveredOptionValue() === opt.value && (opt.subOptions?.length ?? 0) > 0"
-              class="sel__flyout"
-              [ngStyle]="flyoutStyle()"
-              (mouseenter)="onFlyoutHover()"
-              (mouseleave)="onFlyoutUnhover()"
-            >
-              <button
-                *ngFor="let sub of opt.subOptions; let si = index"
-                type="button"
-                class="sel__flyout-option"
-                [class.sel__flyout-option--highlighted]="highlightedSubIndex() === si"
-                [attr.data-sub-index]="si"
-                (mousemove)="highlightedSubIndex.set(si)"
-                (click)="selectSubOption(opt, sub)"
-              >
-                {{ sub.label }}
-              </button>
+      @if (isOpen() && panelRect(); as panel) {
+        <div
+          class="app-popover-surface sel__panel"
+          [style.top]="panel.top != null ? panel.top + 'px' : 'auto'"
+          [style.bottom]="panel.bottom != null ? panel.bottom + 'px' : 'auto'"
+          [style.left.px]="panel.left"
+          [style.width.px]="panel.width"
+          [style.max-height.px]="panel.maxHeight"
+        >
+          @if (enableSearch()) {
+            <div class="sel__search-wrap">
+              <input
+                #searchInput
+                type="text"
+                class="sel__search"
+                placeholder="Search…"
+                autocomplete="off"
+                [value]="searchQuery()"
+                (input)="searchQuery.set($any($event.target).value)"
+                (click)="$event.stopPropagation()"
+                (keydown)="onSearchKeydown($event)"
+              />
             </div>
-          </div>
+          }
 
-          <div *ngIf="filteredOptions().length === 0" class="sel__no-match">
-            No matches
+          <div #optionsList class="sel__options" role="listbox">
+            @for (opt of filteredOptions(); track opt.value; let i = $index) {
+              <div
+                class="sel__option-wrap"
+                [attr.data-option-index]="i"
+                (mouseenter)="onOptionHover(opt, i, $event)"
+                (mousemove)="highlightedIndex.set(i); highlightedSubIndex.set(-1)"
+                (mouseleave)="onOptionUnhover()"
+              >
+                <button
+                  type="button"
+                  class="app-popover-item sel__option"
+                  [class.app-popover-item--selected]="currentValue() === opt.value"
+                  [class.app-popover-item--highlighted]="highlightedIndex() === i"
+                  [class.sel__option--has-sub]="(opt.subOptions?.length ?? 0) > 0"
+                  role="option"
+                  [attr.aria-selected]="currentValue() === opt.value"
+                  (click)="selectOption(opt)"
+                >
+                  <span class="sel__option-label">{{ opt.label }}</span>
+
+                  @if ((opt.subOptions?.length ?? 0) > 0) {
+                    <span class="sel__option-subhint" aria-hidden="true">
+                      <span class="sel__option-subhint-text">More</span>
+                      <span class="sel__option-subhint-icon">›</span>
+                    </span>
+                  }
+
+                  <span class="sel__option-check-slot" aria-hidden="true">
+                    @if (currentValue() === opt.value) {
+                      <span class="sel__option-check">✓</span>
+                    }
+                  </span>
+                </button>
+
+                @if (hoveredOptionValue() === opt.value && (opt.subOptions?.length ?? 0) > 0 && flyoutRect(); as fly) {
+                  <div
+                    class="app-popover-surface sel__flyout"
+                    [style.top.px]="fly.top"
+                    [style.left.px]="fly.left"
+                    [style.max-height.px]="fly.maxHeight"
+                    (mouseenter)="onFlyoutHover()"
+                    (mouseleave)="onFlyoutUnhover()"
+                  >
+                    @for (sub of opt.subOptions; track sub.value; let si = $index) {
+                      <button
+                        type="button"
+                        class="app-popover-item sel__flyout-option"
+                        [class.app-popover-item--highlighted]="highlightedSubIndex() === si"
+                        [attr.data-sub-index]="si"
+                        (mousemove)="highlightedSubIndex.set(si)"
+                        (click)="selectSubOption(opt, sub)"
+                      >
+                        {{ sub.label }}
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+            }
+
+            @if (filteredOptions().length === 0) {
+              <div class="sel__no-match">No matches</div>
+            }
           </div>
         </div>
-      </div>
+      }
     </div>
   `,
   styles: [`
@@ -232,27 +244,13 @@ interface PanelRect {
     }
 
     .sel__panel {
+      position: fixed;
       z-index: 9999;
-      display: flex;
-      flex-direction: column;
-      border: 1px solid var(--app-border-color-soft);
-      border-radius: var(--app-radius-md);
-      background: #faf4e4;
-      box-shadow:
-        0 8px 28px rgba(15, 8, 3, 0.24),
-        0 2px 8px rgba(15, 8, 3, 0.14);
-      animation: sel-open 0.13s ease;
-      overflow: hidden;
-    }
-
-    @keyframes sel-open {
-      from { opacity: 0; transform: translateY(-4px); }
-      to   { opacity: 1; transform: translateY(0); }
     }
 
     .sel__search-wrap {
       flex-shrink: 0;
-      padding: 8px 10px 6px;
+      padding: 12px 10px 6px;
       border-bottom: 1px solid rgba(158, 98, 53, 0.15);
       background:
         linear-gradient(90deg,
@@ -265,7 +263,6 @@ interface PanelRect {
           transparent 100%
         ) top / 100% 3px no-repeat,
         #faf4e4;
-      padding-top: 12px;
     }
 
     .sel__search {
@@ -292,50 +289,31 @@ interface PanelRect {
       min-height: 0;
     }
 
-    .sel__option {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      width: 100%;
-      padding: 9px 12px;
-      border: none;
-      background: transparent;
-      color: var(--app-text);
-      font-size: 14px;
-      text-align: left;
-      cursor: pointer;
+    .sel__option,
+    .sel__flyout-option {
       border-bottom: 1px solid rgba(158, 98, 53, 0.12);
-      transition: background 0.1s, color 0.1s;
     }
 
-    .sel__option:last-child {
+    .sel__option {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto 24px;
+      align-items: center;
+      column-gap: 10px;
+      width: 100%;
+    }
+
+    .sel__flyout-option {
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .sel__option:last-child,
+    .sel__flyout-option:last-child {
       border-bottom: none;
     }
 
-    .sel__option:hover {
-      background: var(--app-primary-soft);
-      color: var(--app-heading);
-    }
-
-    .sel__option--selected {
-      background: rgba(88, 24, 13, 0.06);
-      color: var(--app-primary);
-      font-weight: 600;
-    }
-
-    .sel__option--selected:hover {
-      background: var(--app-primary-soft);
-    }
-
-    .sel__option--highlighted,
-    .sel__option--selected.sel__option--highlighted {
-      background: var(--app-primary-soft);
-      color: var(--app-heading);
-    }
-
     .sel__option-label {
-      flex: 1;
+      grid-column: 1;
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -346,64 +324,69 @@ interface PanelRect {
       position: relative;
     }
 
-    .sel__option-arrow {
-      flex-shrink: 0;
-      color: var(--app-text-muted);
+    .sel__option-subhint {
+      grid-column: 2;
+      display: inline-flex;
+      align-items: center;
+      justify-self: end;
+      gap: 6px;
+      padding: 3px 7px 3px 8px;
+      border: 1px solid rgba(88, 24, 13, 0.28);
+      border-radius: 999px;
+      background: rgba(201, 164, 76, 0.22);
+      color: #58180d;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 248, 236, 0.7),
+        0 1px 2px rgba(88, 24, 13, 0.12);
+      transition:
+        transform 0.15s ease,
+        border-color 0.15s ease,
+        background 0.15s ease,
+        color 0.15s ease;
+    }
+
+    .sel__option-subhint-icon {
+      font-size: 18px;
+      line-height: 0.8;
+      font-weight: 900;
+    }
+
+    .sel__option--has-sub:hover .sel__option-subhint,
+    .sel__option--has-sub:focus-visible .sel__option-subhint,
+    .sel__option--has-sub.app-popover-item--highlighted .sel__option-subhint {
+      border-color: var(--app-primary);
+      background: rgba(201, 164, 76, 0.38);
+      color: var(--app-primary);
+      transform: translateX(2px);
+    }
+
+    .sel__option-check-slot {
+      grid-column: 3;
+      width: 24px;
+      min-width: 24px;
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .sel__option-check {
+      color: var(--app-primary);
       font-size: 12px;
+      font-weight: 800;
       line-height: 1;
     }
 
-    .sel__option--has-sub:hover .sel__option-arrow,
-    .sel__option--has-sub:focus-visible .sel__option-arrow {
-      color: var(--app-primary);
-    }
-
     .sel__flyout {
+      position: fixed;
       z-index: 10000;
       min-width: 200px;
       width: 220px;
       max-width: 320px;
       overflow-y: auto;
-      border: 1px solid var(--app-border-color-soft);
-      border-radius: var(--app-radius-md);
-      background: #faf4e4;
-      box-shadow:
-        0 8px 28px rgba(15, 8, 3, 0.24),
-        0 2px 8px rgba(15, 8, 3, 0.14);
-      display: flex;
-      flex-direction: column;
-    }
-
-    .sel__flyout-option {
-      display: flex;
-      align-items: center;
-      width: 100%;
-      padding: 9px 12px;
-      border: none;
-      background: transparent;
-      color: var(--app-text);
-      font-size: 14px;
-      text-align: left;
-      cursor: pointer;
-      border-bottom: 1px solid rgba(158, 98, 53, 0.12);
-      transition: background 0.1s, color 0.1s;
-    }
-
-    .sel__flyout-option:last-child {
-      border-bottom: none;
-    }
-
-    .sel__flyout-option:hover,
-    .sel__flyout-option--highlighted {
-      background: var(--app-primary-soft);
-      color: var(--app-heading);
-    }
-
-    .sel__option-check {
-      flex-shrink: 0;
-      color: var(--app-primary);
-      font-size: 11px;
-      font-weight: 700;
     }
 
     .sel__no-match {
@@ -440,17 +423,6 @@ export class UiSelectComponent implements ControlValueAccessor {
   readonly highlightedSubIndex = signal<number>(-1);
   readonly inFlyoutMode = computed(() => this.highlightedSubIndex() >= 0);
   private flyoutCloseTimer: ReturnType<typeof setTimeout> | null = null;
-
-  readonly flyoutStyle = computed(() => {
-    const r = this.flyoutRect();
-    if (!r) return { display: 'none' };
-    return {
-      position: 'fixed',
-      top: `${r.top}px`,
-      left: `${r.left}px`,
-      'max-height': `${r.maxHeight}px`,
-    };
-  });
 
   readonly isOpen = signal(false);
   readonly currentValue = signal<any>(null);
@@ -569,15 +541,19 @@ export class UiSelectComponent implements ControlValueAccessor {
     const opts = this.filteredOptions();
     if (opts.length === 0) {
       this.highlightedIndex.set(-1);
+      this.closeFlyout();
       return;
     }
+
     const current = this.highlightedIndex();
     const start = current < 0 ? (delta > 0 ? -1 : 0) : current;
     const next = (start + delta + opts.length) % opts.length;
+
     this.highlightedIndex.set(next);
-    this.hoveredOptionValue.set(null);
-    this.flyoutRect.set(null);
+    this.highlightedSubIndex.set(-1);
     this.scrollOptionIntoView(next);
+
+    this.openFlyoutForIndex(next, false);
   }
 
   private moveSubHighlight(delta: number): void {
@@ -616,32 +592,53 @@ export class UiSelectComponent implements ControlValueAccessor {
   }
 
   private openFlyoutForHighlighted(): boolean {
-    const parent = this.highlightedParent();
-    if (!parent || (parent.subOptions?.length ?? 0) === 0) return false;
+    const idx = this.highlightedIndex();
+    if (idx < 0) return false;
+
+    return this.openFlyoutForIndex(idx, true);
+  }
+
+  private openFlyoutForIndex(index: number, enterFlyoutMode: boolean): boolean {
+    const opts = this.filteredOptions();
+    const parent = opts[index];
+
+    if (!parent || (parent.subOptions?.length ?? 0) === 0) {
+      this.closeFlyout();
+      return false;
+    }
 
     const list = this.optionsListRef?.nativeElement;
     const row = list?.querySelector(
-      `[data-option-index="${this.highlightedIndex()}"] .sel__option`,
+      `[data-option-index="${index}"] .sel__option`,
     ) as HTMLElement | null;
+
     if (row) {
-      const r = row.getBoundingClientRect();
-      const vh = window.innerHeight;
-      const vw = window.innerWidth;
-      const GAP = 4;
-      const FLYOUT_WIDTH = 220;
-      const desiredLeft = r.right + GAP;
-      const left = desiredLeft + FLYOUT_WIDTH > vw
-        ? Math.max(8, r.left - FLYOUT_WIDTH - GAP)
-        : desiredLeft;
-      const top = Math.min(r.top, vh - 80);
-      const maxHeight = Math.max(80, vh - top - 16);
-      this.flyoutRect.set({ top, left, maxHeight });
+      this.positionFlyoutFromElement(row);
     }
 
     this.clearFlyoutTimer();
     this.hoveredOptionValue.set(parent.value);
-    this.highlightedSubIndex.set(0);
+    this.highlightedSubIndex.set(enterFlyoutMode ? 0 : -1);
+
     return true;
+  }
+
+  private positionFlyoutFromElement(source: HTMLElement): void {
+    const r = source.getBoundingClientRect();
+    const vh = window.innerHeight;
+    const vw = window.innerWidth;
+    const GAP = 4;
+    const FLYOUT_WIDTH = 220;
+
+    const desiredLeft = r.right + GAP;
+    const left = desiredLeft + FLYOUT_WIDTH > vw
+      ? Math.max(8, r.left - FLYOUT_WIDTH - GAP)
+      : desiredLeft;
+
+    const top = Math.min(r.top, vh - 80);
+    const maxHeight = Math.max(80, vh - top - 16);
+
+    this.flyoutRect.set({ top, left, maxHeight });
   }
 
   private closeFlyout(): void {
@@ -702,8 +699,11 @@ export class UiSelectComponent implements ControlValueAccessor {
     setTimeout(() => this.triggerRef?.nativeElement.focus(), 0);
   }
 
-  onOptionHover(opt: UiSelectOption, event: MouseEvent): void {
+  onOptionHover(opt: UiSelectOption, index: number, event: MouseEvent): void {
+    this.highlightedIndex.set(index);
+    this.highlightedSubIndex.set(-1);
     this.clearFlyoutTimer();
+
     if ((opt.subOptions?.length ?? 0) === 0) {
       this.hoveredOptionValue.set(null);
       this.flyoutRect.set(null);
@@ -712,18 +712,7 @@ export class UiSelectComponent implements ControlValueAccessor {
 
     const target = event.currentTarget as HTMLElement | null;
     if (target) {
-      const r = target.getBoundingClientRect();
-      const vh = window.innerHeight;
-      const vw = window.innerWidth;
-      const GAP = 4;
-      const desiredLeft = r.right + GAP;
-      const FLYOUT_WIDTH = 220;
-      const left = desiredLeft + FLYOUT_WIDTH > vw
-        ? Math.max(8, r.left - FLYOUT_WIDTH - GAP)
-        : desiredLeft;
-      const top = Math.min(r.top, vh - 80);
-      const maxHeight = Math.max(80, vh - top - 16);
-      this.flyoutRect.set({ top, left, maxHeight });
+      this.positionFlyoutFromElement(target);
     }
 
     this.hoveredOptionValue.set(opt.value);
