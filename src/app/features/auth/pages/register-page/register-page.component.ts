@@ -15,6 +15,7 @@ import { UiFormActionsComponent } from '../../../../shared/ui/form-actions/ui-fo
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { VerificationRequiredComponent } from '../../components/verification-required/verification-required.component';
+import { SHOW_EMAIL_INPUTS } from '../../../../core/config/feature-flags';
 
 @Component({
   selector: 'app-register-page',
@@ -96,6 +97,8 @@ export class RegisterPageComponent implements OnDestroy {
   private readonly credentialsStore = inject(AuthCredentialsStore);
   private readonly destroyRef = inject(DestroyRef);
 
+  readonly showEmailInputs = SHOW_EMAIL_INPUTS;
+
   readonly isSubmitting = signal(false);
   readonly submitted = signal(false);
   readonly registered = signal(false);
@@ -167,6 +170,13 @@ export class RegisterPageComponent implements OnDestroy {
       )
       .subscribe({
         next: () => {
+          if (!this.showEmailInputs) {
+            // Email verification is disabled: the account is auto-activated,
+            // so skip the verification step and send the user to login.
+            this.toast.success('Account created. You can now sign in.');
+            void this.router.navigateByUrl('/login');
+            return;
+          }
           this.credentialsStore.set({
             name: body.name,
             password: body.password,
