@@ -1,6 +1,5 @@
 import { Component, DestroyRef, OnDestroy, OnInit, QueryList, ViewChild, ViewChildren, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
 import { Subject, forkJoin, of } from 'rxjs';
 import {
   catchError,
@@ -39,7 +38,7 @@ import {
 } from '../../components/board-card/board-card.component';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
-import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empty-state.component';
+import { UiCreateCtaComponent } from '../../../../shared/ui/create-cta/ui-create-cta.component';
 import { SessionsDropdownComponent } from '../../../../shared/components/sessions-dropdown/sessions-dropdown.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
@@ -58,11 +57,10 @@ interface VolumeCommit {
   selector: 'app-boards-page',
   standalone: true,
   imports: [
-    CommonModule,
     CreateBoardFormComponent,
     BoardCardComponent,
     UiAlertComponent,
-    UiEmptyStateComponent,
+    UiCreateCtaComponent,
     SessionsDropdownComponent,
     UiPageTitleComponent,
   ],
@@ -78,88 +76,76 @@ interface VolumeCommit {
         />
       </ui-page-title>
 
-      <ui-alert *ngIf="errorMessage()" variant="danger">
-        {{ errorMessage() }}
-      </ui-alert>
+      @if (errorMessage()) {
+        <ui-alert variant="danger">
+          {{ errorMessage() }}
+        </ui-alert>
+      }
 
-      <div *ngIf="loading()" class="app-muted boards-page__loading">
-        Loading boards…
-      </div>
+      @if (loading()) {
+        <div class="app-muted boards-page__loading">
+          Loading boards…
+        </div>
+      } @else if (!hasSessions()) {
+        <ui-create-cta
+          label="Create your first session"
+          (clicked)="openCreateSession($event)"
+        />
+      } @else {
+        <app-create-board-form
+          #createBoardForm
+          class="boards-page__create-board-form"
+          [tracks]="tracks()"
+          [submitting]="createBoardSubmitting()"
+          [showTrigger]="sessionBoards().length > 0"
+          (create)="createBoard($event)"
+        />
 
-      <ng-container *ngIf="!loading()">
-        <ng-container *ngIf="!hasSessions(); else withSession">
-          <div class="boards-page__no-session">
-            <button
-              type="button"
-              class="boards-page__create-cta"
-              aria-label="Create your first session"
-              (click)="openCreateSession($event)"
-            >
-              <span class="boards-page__create-plus" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="36" height="36" fill="none"
-                  stroke="currentColor" stroke-width="2.4"
-                  stroke-linecap="round">
-                  <path d="M12 5v14" />
-                  <path d="M5 12h14" />
-                </svg>
-              </span>
-              <span class="boards-page__create-cta-label">Create your first session</span>
-            </button>
-          </div>
-        </ng-container>
-
-        <ng-template #withSession>
-          <app-create-board-form
-            class="boards-page__create-board-form"
-            [tracks]="tracks()"
-            [submitting]="createBoardSubmitting()"
-            (create)="createBoard($event)"
+        @if (sessionBoards().length === 0) {
+          <ui-create-cta
+            label="Create your first music board in this session"
+            (clicked)="createBoardForm.open()"
           />
-
-          <ui-empty-state
-            *ngIf="sessionBoards().length === 0"
-            title="No boards yet"
-            message="Create your first board in this session."
-          />
-
-          <div *ngIf="sessionBoards().length > 0" class="boards-list-wrap">
+        } @else {
+          <div class="boards-list-wrap">
             <div class="boards-list">
-              <app-board-card
-                *ngFor="let board of sessionBoards(); trackBy: trackByBoardId"
-                [board]="board"
-                [availableGroups]="getGroupsForBoard(board)"
-                [status]="getBoardStatus(board)"
-                [streamUrl]="getStreamUrl(board)"
-                [selectedWindowId]="getSelectedWindowId(board)"
-                [masterVolume]="getMasterVolume(board)"
-                [masterFadeRampMs]="getMasterFadeRampMs(board)"
-                [volumePercent]="getBoardVolumePercent(board)"
-                [playlistMode]="board.playlistMode ?? false"
-                [playlistOptions]="getPlaylistOptions(board)"
-                (delete)="deleteBoard(board)"
-                (groupChange)="onGroupSelectionChange(board, $event)"
-                (trackChange)="onTrackSelectionChange(board, $event)"
-                (windowChange)="onWindowSelectionChange(board, $event)"
-                (trackWithWindowChange)="onTrackWithWindowChange(board, $event)"
-                (toggleRepeat)="toggleRepeat(board)"
-                (toggleOverplay)="toggleOverplay(board)"
-                (play)="playBoardTrack(board)"
-                (stop)="stopBoardTrack(board)"
-                (ended)="onAudioEnded(board)"
-                (audioError)="onAudioError(board)"
-                (playlistModeChange)="onPlaylistModeChange(board, $event)"
-                (playlistOptionsChange)="onPlaylistOptionsChange(board, $event)"
-                (volumePreviewChange)="onBoardVolumePreview(board, $event)"
-                (volumeCommit)="onBoardVolumeCommit(board, $event)"
-                (rename)="onBoardRename(board, $event)"
-                (navigateBoardUp)="focusBoardByOffset(board, -1)"
-                (navigateBoardDown)="focusBoardByOffset(board, 1)"
-                (requestPlay)="onBoardRequestPlay(board)"
-              />
+              @for (board of sessionBoards(); track board.id) {
+                <app-board-card
+                  [board]="board"
+                  [availableGroups]="getGroupsForBoard(board)"
+                  [status]="getBoardStatus(board)"
+                  [streamUrl]="getStreamUrl(board)"
+                  [selectedWindowId]="getSelectedWindowId(board)"
+                  [masterVolume]="getMasterVolume(board)"
+                  [masterFadeRampMs]="getMasterFadeRampMs(board)"
+                  [volumePercent]="getBoardVolumePercent(board)"
+                  [playlistMode]="board.playlistMode ?? false"
+                  [playlistOptions]="getPlaylistOptions(board)"
+                  (delete)="deleteBoard(board)"
+                  (groupChange)="onGroupSelectionChange(board, $event)"
+                  (trackChange)="onTrackSelectionChange(board, $event)"
+                  (windowChange)="onWindowSelectionChange(board, $event)"
+                  (trackWithWindowChange)="onTrackWithWindowChange(board, $event)"
+                  (toggleRepeat)="toggleRepeat(board)"
+                  (toggleOverplay)="toggleOverplay(board)"
+                  (play)="playBoardTrack(board)"
+                  (stop)="stopBoardTrack(board)"
+                  (ended)="onAudioEnded(board)"
+                  (audioError)="onAudioError(board)"
+                  (playlistModeChange)="onPlaylistModeChange(board, $event)"
+                  (playlistOptionsChange)="onPlaylistOptionsChange(board, $event)"
+                  (volumePreviewChange)="onBoardVolumePreview(board, $event)"
+                  (volumeCommit)="onBoardVolumeCommit(board, $event)"
+                  (rename)="onBoardRename(board, $event)"
+                  (navigateBoardUp)="focusBoardByOffset(board, -1)"
+                  (navigateBoardDown)="focusBoardByOffset(board, 1)"
+                  (requestPlay)="onBoardRequestPlay(board)"
+                />
+              }
             </div>
           </div>
-        </ng-template>
-      </ng-container>
+        }
+      }
     </div>
   `,
   styles: [`
@@ -198,122 +184,13 @@ interface VolumeCommit {
     .boards-list-wrap,
     .boards-list,
     app-create-board-form,
-    ui-empty-state {
+    ui-create-cta {
       position: relative;
-    }
-
-    .boards-page__no-session {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 4rem 1rem;
-    }
-
-    .boards-page__create-cta {
-      display: inline-flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 1rem;
-      padding: 2.2rem 2.4rem 2.6rem;
-      min-width: 260px;
-      background: var(--app-parchment);
-      border: 1px solid var(--app-border-color-soft);
-      border-radius: var(--app-radius-md);
-      color: var(--app-heading);
-      cursor: pointer;
-      box-shadow: var(--app-shadow);
-      user-select: none;
-      -webkit-user-select: none;
-      -webkit-tap-highlight-color: transparent;
-      transition:
-        border-color 0.15s ease,
-        transform 0.12s ease,
-        box-shadow 0.18s ease,
-        background-color 0.15s ease;
-    }
-
-    .boards-page__create-cta:hover {
-      border-color: var(--app-primary);
-      transform: translateY(-1px);
-      box-shadow:
-        0 16px 38px rgba(15, 8, 3, 0.28),
-        0 4px 14px rgba(15, 8, 3, 0.16);
-    }
-
-    .boards-page__create-cta:focus {
-      outline: none;
     }
 
     .boards-page__create-board-form {
       display: block;
       margin-bottom: 1rem;
-    }
-
-    .boards-page__create-cta:focus:not(:focus-visible) {
-      outline: none;
-      box-shadow: var(--app-shadow);
-    }
-
-    .boards-page__create-cta:focus-visible {
-      outline: none;
-      border-color: var(--app-primary);
-      box-shadow: var(--app-focus-ring), var(--app-shadow);
-    }
-
-    .boards-page__create-cta:active {
-      transform: translateY(1px) scale(0.99);
-      box-shadow:
-        inset 0 2px 6px rgba(15, 8, 3, 0.18),
-        0 4px 12px rgba(15, 8, 3, 0.16);
-    }
-
-    .boards-page__create-plus {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 72px;
-      height: 72px;
-      border-radius: 50%;
-      background: linear-gradient(180deg, #6a1e10 0%, #58180d 100%);
-      color: #fff8ee;
-      font-size: 3rem;
-      line-height: 1;
-      font-weight: 400;
-      border: 1px solid #3d1008;
-      pointer-events: none;
-      user-select: none;
-      -webkit-user-select: none;
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.12),
-        0 4px 12px rgba(30, 8, 4, 0.28);
-    }
-
-    .boards-page__create-cta-label {
-      position: relative;
-      padding-bottom: 0.7rem;
-      font-family: var(--app-font-heading);
-      font-size: 0.95rem;
-      font-weight: 600;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--app-heading);
-      pointer-events: none;
-      user-select: none;
-      -webkit-user-select: none;
-      text-shadow: 0 1px 2px rgba(88, 24, 13, 0.12);
-    }
-
-    .boards-page__create-cta-label::after {
-      content: '';
-      position: absolute;
-      left: 50%;
-      bottom: 0;
-      transform: translateX(-50%);
-      width: 100%;
-      height: 2px;
-      background: var(--app-divider-decor);
-      opacity: 0.85;
     }
 
     @media (max-width: 860px) {
@@ -948,10 +825,6 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     this.streamUrlsByBoard.delete(board.id);
     this.syncPlayingState();
     this.toast.error('Audio stream failed.');
-  }
-
-  trackByBoardId(_index: number, board: Board): number {
-    return board.id ?? 0;
   }
 
   getBoardStatus(board: Board): PlayerStatus {

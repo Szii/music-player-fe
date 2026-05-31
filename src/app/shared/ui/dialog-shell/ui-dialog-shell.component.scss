@@ -16,9 +16,16 @@
   align-items: center;
   justify-content: center;
   padding: var(--ui-dialog-gap);
-
+}
+.ui-dialog-backdrop::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
   background: var(--app-modal-backdrop);
   backdrop-filter: blur(var(--app-modal-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--app-modal-backdrop-blur));
   animation: ui-dialog-fade-in 0.15s ease;
 }
 
@@ -29,6 +36,7 @@
 
 .ui-dialog {
   position: relative;
+  z-index: 1;
   width: min(100%, 560px);
   max-height: calc(100dvh - var(--app-navbar-height, 68px) - (var(--ui-dialog-gap) * 2));
   display: flex;
@@ -128,8 +136,8 @@
 }
 
 .ui-dialog__body {
+ 
   position: relative;
-  z-index: 1;
   flex: 1;
   min-height: 0;
   overflow: auto;

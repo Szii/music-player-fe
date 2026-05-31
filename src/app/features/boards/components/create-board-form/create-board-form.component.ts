@@ -7,7 +7,6 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Track } from '../../../../api/generated';
 import { UiFormFieldComponent } from '../../../../shared/ui/form-field/ui-form-field.component';
@@ -27,7 +26,6 @@ export interface CreateBoardEvent {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     ReactiveFormsModule,
     UiFormFieldComponent,
     UiTextInputComponent,
@@ -37,22 +35,24 @@ export interface CreateBoardEvent {
     UiDialogShellComponent,
   ],
   template: `
-    <app-icon-button
-      icon="plus"
-      label="Add board"
-      variant="primary"
-      size="lg"
-      (clicked)="open()"
-    />
+    @if (showTrigger()) {
+      <app-icon-button
+        icon="plus"
+        label="Add board"
+        variant="primary"
+        size="lg"
+        (clicked)="open()"
+      />
+    }
 
-    <ui-dialog-shell
-      *ngIf="isOpen()"
-      title="Create board"
-      titleId="create-board-title"
-      [showFooter]="true"
-      (closed)="close()"
-    >
-      <form [formGroup]="form" (ngSubmit)="onSubmit()" class="create-board-form">
+    @if (isOpen()) {
+      <ui-dialog-shell
+        title="Create board"
+        titleId="create-board-title"
+        [showFooter]="true"
+        (closed)="close()"
+      >
+        <form [formGroup]="form" (ngSubmit)="onSubmit()" class="create-board-form">
         <ui-form-field label="Board name">
           <ui-text-input
             formControlName="name"
@@ -84,7 +84,8 @@ export interface CreateBoardEvent {
           Create board
         </normal-button>
       </ng-container>
-    </ui-dialog-shell>
+      </ui-dialog-shell>
+    }
   `,
   styles: [`
     .create-board-form {
@@ -105,6 +106,7 @@ export class CreateBoardFormComponent {
 
   readonly tracks = input<Track[]>([]);
   readonly submitting = input(false);
+  readonly showTrigger = input(true);
 
   readonly create = output<CreateBoardEvent>();
 

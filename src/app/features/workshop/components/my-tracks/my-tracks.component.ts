@@ -113,7 +113,19 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
           }
         </div>
       } @else if (tracks().length === 0) {
-        <p class="empty">No tracks yet. Create some on the Home page.</p>
+        <div class="my-tracks__empty">
+          <p class="my-tracks__empty-title">No tracks yet</p>
+          <p class="my-tracks__empty-msg">
+            Add a track first, then you can publish it here for other users to
+            find and subscribe to.
+          </p>
+
+          <div class="my-tracks__empty-actions">
+            <normal-button type="button" (clicked)="addTrack.emit()">
+              Add a track
+            </normal-button>
+          </div>
+        </div>
       } @else {
         <p class="empty">No tracks match the current search or filter.</p>
       }
@@ -254,6 +266,44 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
       padding: 12px 0;
     }
 
+    .my-tracks__empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 0.75rem;
+      padding: 2rem 1.5rem;
+      border: 1px dashed var(--app-border-color);
+      border-radius: var(--app-radius-md);
+      background:
+        radial-gradient(ellipse at center, rgba(201, 164, 76, 0.06) 0, transparent 60%),
+        var(--app-surface);
+    }
+
+    .my-tracks__empty-title {
+      margin: 0;
+      font-family: var(--app-font-heading);
+      font-weight: 700;
+      font-size: 1rem;
+      letter-spacing: 0.04em;
+      color: var(--app-heading);
+    }
+
+    .my-tracks__empty-msg {
+      margin: 0;
+      max-width: 42ch;
+      font-size: 0.92rem;
+      color: var(--app-text-muted);
+    }
+
+    .my-tracks__empty-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 0.5rem;
+    }
+
     .publish-form {
       display: flex;
       flex-direction: column;
@@ -300,6 +350,7 @@ export class MyTracksComponent {
   readonly publish = output<PublishEvent>();
   readonly unpublish = output<Track>();
   readonly close = output<void>();
+  readonly addTrack = output<void>();
 
   readonly filterOptions = [
     { label: 'All tracks', value: 'all' },
