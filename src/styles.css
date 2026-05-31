@@ -402,6 +402,13 @@ input[type="range"].app-range--seek::-webkit-slider-thumb {
   opacity: 0.8;
 }
 
+/* Hide the native (Edge) password reveal/clear controls; ui-text-input
+   provides its own persistent reveal toggle. */
+.app-input::-ms-reveal,
+.app-input::-ms-clear {
+  display: none !important;
+}
+
 /* Shared layout helpers */
 .app-actions {
   display: flex;

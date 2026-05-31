@@ -1,21 +1,54 @@
-import { CommonModule } from '@angular/common';
-import { Component, Input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 
 @Component({
   selector: 'ui-text-input',
-  standalone: true,
-  imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <input
-      class="app-input"
-      [type]="type"
-      [placeholder]="placeholder"
-      [disabled]="disabled"
-      [value]="value"
-      (input)="handleInput($event)"
-      (blur)="handleBlur()"
-    />
+    <div class="ui-text-input" [class.ui-text-input--password]="isPassword()">
+      <input
+        class="app-input"
+        [type]="currentType()"
+        [placeholder]="placeholder()"
+        [disabled]="disabled()"
+        [value]="value()"
+        (input)="handleInput($event)"
+        (blur)="handleBlur()"
+      />
+
+      @if (isPassword()) {
+        <button
+          type="button"
+          class="ui-text-input__reveal"
+          [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'"
+          [attr.aria-pressed]="showPassword()"
+          [disabled]="disabled()"
+          (mousedown)="$event.preventDefault()"
+          (click)="toggleReveal()"
+        >
+          <svg
+            class="ui-text-input__icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.9"
+            aria-hidden="true"
+          >
+            @if (showPassword()) {
+              <path d="M9.9 5.2A9.6 9.6 0 0 1 12 5c6.5 0 10 7 10 7a17.4 17.4 0 0 1-3.2 3.9" />
+              <path d="M6.1 6.1A17.3 17.3 0 0 0 2 12s3.5 7 10 7a9.6 9.6 0 0 0 4-0.9" />
+              <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+              <path d="M4 4l16 16" />
+            } @else {
+              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+              <circle cx="12" cy="12" r="3" />
+            }
+          </svg>
+        </button>
+      }
+    </div>
   `,
   styleUrls: ['./ui-text-input.component.scss'],
   providers: [
@@ -27,17 +60,23 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
   ],
 })
 export class UiTextInputComponent implements ControlValueAccessor {
-  @Input() type: 'text' | 'email' | 'password' | 'url' = 'text';
-  @Input() placeholder = '';
+  readonly type = input<'text' | 'email' | 'password' | 'url'>('text');
+  readonly placeholder = input('');
 
-  value = '';
-  disabled = false;
+  readonly value = signal('');
+  readonly disabled = signal(false);
+  readonly showPassword = signal(false);
+
+  readonly isPassword = computed(() => this.type() === 'password');
+  readonly currentType = computed(() =>
+    this.isPassword() && this.showPassword() ? 'text' : this.type(),
+  );
 
   private onChange: (value: string) => void = () => {};
   private onTouched: () => void = () => {};
 
   writeValue(value: string | null): void {
-    this.value = value ?? '';
+    this.value.set(value ?? '');
   }
 
   registerOnChange(fn: (value: string) => void): void {
@@ -49,13 +88,16 @@ export class UiTextInputComponent implements ControlValueAccessor {
   }
 
   setDisabledState(isDisabled: boolean): void {
-    this.disabled = isDisabled;
+    this.disabled.set(isDisabled);
+  }
+
+  toggleReveal(): void {
+    this.showPassword.update(visible => !visible);
   }
 
   handleInput(event: Event): void {
-    const target = event.target as HTMLInputElement;
-    const value = target.value;
-    this.value = value;
+    const value = (event.target as HTMLInputElement).value;
+    this.value.set(value);
     this.onChange(value);
   }
 
