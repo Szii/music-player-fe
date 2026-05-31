@@ -1,1 +1,57 @@
-// Styles for .app-input are defined globally in styles.css
+// Base .app-input styles (and the native reveal/clear hide) live in styles.css
+
+:host {
+  display: block;
+}
+
+.ui-text-input {
+  position: relative;
+  display: block;
+}
+
+// Leave room for the reveal button so typed text never sits under it.
+.ui-text-input--password .app-input {
+  padding-right: 2.6rem;
+}
+
+.ui-text-input__reveal {
+  position: absolute;
+  top: 50%;
+  right: 0.4rem;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border: none;
+  border-radius: var(--app-radius-sm);
+  background: transparent;
+  color: var(--app-text-soft);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.ui-text-input__reveal:hover:not(:disabled) {
+  color: var(--app-text);
+  background: rgba(88, 24, 13, 0.07);
+}
+
+.ui-text-input__reveal:focus-visible {
+  outline: none;
+  box-shadow: var(--app-focus-ring);
+}
+
+.ui-text-input__reveal:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.ui-text-input__icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
