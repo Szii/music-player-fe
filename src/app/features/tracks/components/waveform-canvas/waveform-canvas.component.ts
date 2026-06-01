@@ -22,6 +22,16 @@ export interface RegionChangeEvent {
   toS: number;
 }
 
+interface WaveformPalette {
+  surface: string;
+  elevated: string;
+  primary: string;
+  primarySoft: string;
+  border: string;
+  textMuted: string;
+  surfaceMuted: string;
+}
+
 type DragMode = 'left' | 'right' | 'region';
 
 @Component({
@@ -238,15 +248,41 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
   private redrawFrameId: number | null = null;
   private viewReady = false;
 
-  private readonly COLOR_REGION_BG = 'rgba(122,92,46,0.07)';
-  private readonly COLOR_OUTSIDE = 'rgba(0,0,0,0.04)';
-  private readonly COLOR_BORDER = 'rgba(122,92,46,0.45)';
-  private readonly COLOR_LOADED = 'rgba(91,155,213,0.08)';
-  private readonly COLOR_BAR_IN_REGION = '#7a5c2e';
-  private readonly COLOR_BAR_LOADED = '#94a3b8';
-  private readonly COLOR_BAR_UNLOADED = '#d1d5db';
-  private readonly COLOR_MIDLINE = 'rgba(0,0,0,0.06)';
-  private readonly COLOR_FADE = 'rgba(122,92,46,0.12)';
+  private palette: WaveformPalette | null = null;
+
+  /**
+   * Reads the app design tokens off the host element so the canvas matches the
+   * parchment/crimson theme. Cached once the element is available (the theme is
+   * static at runtime).
+   */
+  private resolvePalette(): WaveformPalette {
+    if (this.palette) {
+      return this.palette;
+    }
+
+    const el = this.wrapRef?.nativeElement;
+    const read = (name: string, fallback: string): string => {
+      if (!el) return fallback;
+      const value = getComputedStyle(el).getPropertyValue(name).trim();
+      return value || fallback;
+    };
+
+    const palette: WaveformPalette = {
+      surface: read('--app-surface', '#f2e8d4'),
+      elevated: read('--app-surface-elevated', '#f8f2e4'),
+      primary: read('--app-primary', '#58180d'),
+      primarySoft: read('--app-primary-soft', '#f0d5c4'),
+      border: read('--app-border-color', '#7a4220'),
+      textMuted: read('--app-text-muted', '#7a4c2a'),
+      surfaceMuted: read('--app-surface-muted', '#ccba98'),
+    };
+
+    if (el) {
+      this.palette = palette;
+    }
+
+    return palette;
+  }
 
   ngAfterViewInit(): void {
     this.viewReady = true;
@@ -364,38 +400,51 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
       return;
     }
 
+    const p = this.resolvePalette();
     const fromPx = (this.regionFromS / this.durationS) * width;
     const toPx = (this.regionToS / this.durationS) * width;
+    const regionWidth = Math.max(0, toPx - fromPx);
     const loadedPx = (Math.min(this.seekableMaxS, this.durationS) / this.durationS) * width;
     const midY = height / 2;
 
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, width, height);
 
-    ctx.fillStyle = this.COLOR_LOADED;
+    // Base parchment, with the loaded portion a touch brighter.
+    ctx.fillStyle = p.surface;
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = p.elevated;
     ctx.fillRect(0, 0, loadedPx, height);
 
-    ctx.fillStyle = this.COLOR_REGION_BG;
-    ctx.fillRect(fromPx, 0, Math.max(0, toPx - fromPx), height);
+    // Selected window: bright, gently warm-tinted band.
+    ctx.fillStyle = p.elevated;
+    ctx.fillRect(fromPx, 0, regionWidth, height);
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = p.primarySoft;
+    ctx.fillRect(fromPx, 0, regionWidth, height);
+    ctx.restore();
 
-    ctx.fillStyle = this.COLOR_OUTSIDE;
+    // Dim everything outside the selection so the window stands out.
+    ctx.save();
+    ctx.globalAlpha = 0.22;
+    ctx.fillStyle = p.border;
     ctx.fillRect(0, 0, fromPx, height);
     ctx.fillRect(toPx, 0, Math.max(0, width - toPx), height);
+    ctx.restore();
 
-    ctx.fillStyle = this.COLOR_BORDER;
-    ctx.fillRect(fromPx, 0, 1.5, height);
-    ctx.fillRect(toPx - 1.5, 0, 1.5, height);
-
-    this.drawFadeZones(ctx, fromPx, toPx, height);
+    this.drawFadeZones(ctx, fromPx, toPx, height, p);
 
     if (this.waveformPeaks.length > 0) {
-      this.drawPeaks(ctx, width, height, fromPx, toPx, loadedPx, midY);
+      this.drawPeaks(ctx, width, height, fromPx, toPx, loadedPx, midY, p);
     } else {
-      this.drawMidline(ctx, width, midY, '#cbd5e1');
+      this.drawMidline(ctx, width, midY, p.surfaceMuted);
     }
 
-    this.drawMidline(ctx, width, midY, this.COLOR_MIDLINE);
+    // Strong crimson region edges + a top accent bar for prominence.
+    ctx.fillStyle = p.primary;
+    ctx.fillRect(fromPx - 1.25, 0, 2.5, height);
+    ctx.fillRect(toPx - 1.25, 0, 2.5, height);
+    ctx.fillRect(fromPx, 0, regionWidth, 3);
   }
 
   sizeCanvas(): void {
@@ -550,11 +599,15 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
     fromPx: number,
     toPx: number,
     height: number,
+    palette: WaveformPalette,
   ): void {
     const fadeWidth = Math.min(40, (toPx - fromPx) * 0.25);
 
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = palette.primary;
+
     if (this.fadeIn) {
-      ctx.fillStyle = this.COLOR_FADE;
       ctx.beginPath();
       ctx.moveTo(fromPx, height);
       ctx.lineTo(fromPx + fadeWidth, 0);
@@ -564,7 +617,6 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
     }
 
     if (this.fadeOut) {
-      ctx.fillStyle = this.COLOR_FADE;
       ctx.beginPath();
       ctx.moveTo(toPx, height);
       ctx.lineTo(toPx - fadeWidth, 0);
@@ -572,6 +624,8 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
       ctx.closePath();
       ctx.fill();
     }
+
+    ctx.restore();
   }
 
   private drawPeaks(
@@ -582,6 +636,7 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
     toPx: number,
     loadedPx: number,
     midY: number,
+    palette: WaveformPalette,
   ): void {
     const barCount = this.waveformPeaks.length;
     const barWidth = width / barCount;
@@ -595,10 +650,10 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
       const loaded = x <= loadedPx;
 
       ctx.fillStyle = !loaded
-        ? this.COLOR_BAR_UNLOADED
+        ? palette.surfaceMuted
         : inRegion
-          ? this.COLOR_BAR_IN_REGION
-          : this.COLOR_BAR_LOADED;
+          ? palette.primary
+          : palette.textMuted;
 
       if (barHeight > 0) {
         ctx.fillRect(x + 0.5, midY - barHeight, Math.max(1, barWidth - 1), barHeight * 2);

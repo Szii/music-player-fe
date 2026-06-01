@@ -18,7 +18,7 @@ import { Board, Group, Track } from '../../../../api/generated';
 import { BoardPlayerComponent } from '../board-player/board-player.component';
 import { BoardPlayerYtComponent } from '../board-player-yt/board-player-yt.component';
 import { USE_YT_IFRAME_PLAYER } from '../../../../core/config/feature-flags';
-import { parseYoutubeId } from '../../utils/youtube-id';
+import { parseYoutubeId } from '../../../../shared/utils/youtube-id';
 import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
 import {
   UiSelectComponent,

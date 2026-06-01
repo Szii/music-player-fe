@@ -22,6 +22,9 @@ import {
   WindowEditorComponent,
   WindowEditorResult,
 } from '../window-editor/window-editor.component';
+import { WindowEditorYtComponent } from '../window-editor/window-editor-yt.component';
+import { USE_YT_IFRAME_PLAYER } from '../../../../core/config/feature-flags';
+import { parseYoutubeId } from '../../../../shared/utils/youtube-id';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empty-state.component';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
@@ -49,6 +52,7 @@ export interface WindowDeleteEvent {
     CommonModule,
     FormsModule,
     WindowEditorComponent,
+    WindowEditorYtComponent,
     NormalButtonComponent,
     UiEmptyStateComponent,
     UiChipComponent,
@@ -137,7 +141,7 @@ export interface WindowDeleteEvent {
           </aside>
 
           <section class="panel-main">
-            <div class="panel-editor" *ngIf="resolvedStreamUrl; else editorPending">
+            <div class="panel-editor" *ngIf="editorAvailable; else editorPending">
               <div class="panel-editor__head">
                 <span class="panel-block__title panel-block__title--primary">
                   {{ selectedWindowId != null ? 'Edit window' : 'Create new window' }}
@@ -155,21 +159,36 @@ export interface WindowDeleteEvent {
               </div>
 
               <div class="panel-editor__body">
-                <app-window-editor
-                  [streamUrl]="resolvedStreamUrl"
-                  [durationS]="resolvedDurationS || (track.duration ?? 0)"
-                  [waveformPeaks]="waveformPeaks"
-                  [waveformLoading]="waveformLoading"
-                  [waveformError]="waveformError"
-                  [initialFromS]="editorFromS"
-                  [initialToS]="editorToS"
-                  [initialName]="editorName"
-                  [initialFadeIn]="editorFadeIn"
-                  [initialFadeOut]="editorFadeOut"
-                  [applyLabel]="selectedWindowId != null ? 'Save changes' : 'Create window'"
-                  (apply)="onEditorApply($event)"
-                  (streamCompleted)="onEditorStreamComplete()"
-                />
+                @if (useYtEditor) {
+                  <app-window-editor-yt
+                    [videoId]="ytVideoId"
+                    [durationS]="resolvedDurationS || (track.duration ?? 0)"
+                    [initialFromS]="editorFromS"
+                    [initialToS]="editorToS"
+                    [initialName]="editorName"
+                    [initialFadeIn]="editorFadeIn"
+                    [initialFadeOut]="editorFadeOut"
+                    [applyLabel]="selectedWindowId != null ? 'Save changes' : 'Create window'"
+                    (apply)="onEditorApply($event)"
+                    (ready)="onEditorStreamComplete()"
+                  />
+                } @else {
+                  <app-window-editor
+                    [streamUrl]="resolvedStreamUrl"
+                    [durationS]="resolvedDurationS || (track.duration ?? 0)"
+                    [waveformPeaks]="waveformPeaks"
+                    [waveformLoading]="waveformLoading"
+                    [waveformError]="waveformError"
+                    [initialFromS]="editorFromS"
+                    [initialToS]="editorToS"
+                    [initialName]="editorName"
+                    [initialFadeIn]="editorFadeIn"
+                    [initialFadeOut]="editorFadeOut"
+                    [applyLabel]="selectedWindowId != null ? 'Save changes' : 'Create window'"
+                    (apply)="onEditorApply($event)"
+                    (streamCompleted)="onEditorStreamComplete()"
+                  />
+                }
               </div>
             </div>
 
@@ -607,8 +626,11 @@ export class TrackWindowsPanelComponent implements OnChanges, OnDestroy {
   @Output() saveWindow = new EventEmitter<WindowSaveEvent>();
   @Output() deleteWindow = new EventEmitter<WindowDeleteEvent>();
 
+  readonly useYtEditor = USE_YT_IFRAME_PLAYER;
+
   resolvedStreamUrl: string | null = null;
   resolvedDurationS = 0;
+  ytVideoId: string | null = null;
 
   streamLoading = false;
   streamError: string | null = null;
@@ -632,7 +654,15 @@ export class TrackWindowsPanelComponent implements OnChanges, OnDestroy {
     return this.track?.trackWindows ?? [];
   }
 
+  get editorAvailable(): boolean {
+    return this.useYtEditor ? !!this.ytVideoId : !!this.resolvedStreamUrl;
+  }
+
   get editorReady(): boolean {
+    if (this.useYtEditor) {
+      return !!this.ytVideoId && this.editorStreamComplete;
+    }
+
     return !!this.resolvedStreamUrl &&
       !this.streamLoading &&
       !this.streamError &&
@@ -729,6 +759,21 @@ export class TrackWindowsPanelComponent implements OnChanges, OnDestroy {
   private startEditorSessionForTrack(trackId: number, durationS: number): void {
     this.stopPreviewSession();
 
+    if (this.useYtEditor) {
+      // No backend stream/waveform session: the YT editor resolves audio from
+      // the track link client-side and renders a timeline (no waveform).
+      this.ytVideoId = parseYoutubeId(this.track?.trackLink ?? null);
+      this.resolvedDurationS = durationS;
+      this.streamLoading = false;
+      this.streamError = this.ytVideoId
+        ? null
+        : 'This track is not a YouTube link and cannot be previewed.';
+      this.waveformLoading = false;
+      this.waveformError = null;
+      this.waveformPeaks = [];
+      return;
+    }
+
     this.previewSessionSub = this.previewSession.createSession(trackId, durationS)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((state: TrackPreviewState) => {
@@ -798,6 +843,7 @@ export class TrackWindowsPanelComponent implements OnChanges, OnDestroy {
     this.waveformPeaks = [];
     this.resolvedStreamUrl = null;
     this.resolvedDurationS = 0;
+    this.ytVideoId = null;
     this.currentTrackId = null;
     this.editorStreamComplete = false;
     this.selectedWindowId = null;
