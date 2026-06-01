@@ -16,6 +16,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Board, Group, Track } from '../../../../api/generated';
 import { BoardPlayerComponent } from '../board-player/board-player.component';
+import { BoardPlayerYtComponent } from '../board-player-yt/board-player-yt.component';
+import { USE_YT_IFRAME_PLAYER } from '../../../../core/config/feature-flags';
+import { parseYoutubeId } from '../../utils/youtube-id';
 import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
 import {
   UiSelectComponent,
@@ -37,6 +40,7 @@ export interface PlaylistOptions {
     CommonModule,
     FormsModule,
     BoardPlayerComponent,
+    BoardPlayerYtComponent,
     IconButtonComponent,
     UiSelectComponent,
     UiVolumeSliderComponent,
@@ -376,26 +380,49 @@ export interface PlaylistOptions {
             </div>
 
             <div class="board-card__player">
-              <app-board-player
-                [showPrimaryButton]="false"
-                [title]="board().name || ('Board #' + board().id)"
-                [hasTrack]="!!board().selectedTrack"
-                [trackId]="board().selectedTrack?.id ?? null"
-                [status]="status()"
-                [streamUrl]="streamUrl()"
-                [durationS]="board().selectedTrack?.duration ?? null"
-                [windowStartS]="selectedWindowStart()"
-                [windowEndS]="selectedWindowEnd()"
-                [hasSelectedWindow]="hasSelectedWindow()"
-                [repeat]="effectiveRepeat()"
-                [masterVolume]="masterVolume()"
-                [masterFadeRampMs]="masterFadeRampMs()"
-                (playRequested)="play.emit()"
-                (stopRequested)="stop.emit()"
-                (ended)="ended.emit()"
-                (nearEnd)="nearEnd.emit()"
-                (audioError)="audioError.emit()"
-              />
+              @if (useYtPlayer) {
+                <app-board-player-yt
+                  [showPrimaryButton]="false"
+                  [title]="board().name || ('Board #' + board().id)"
+                  [hasTrack]="!!board().selectedTrack"
+                  [trackId]="board().selectedTrack?.id ?? null"
+                  [videoId]="selectedVideoId()"
+                  [status]="status()"
+                  [durationS]="board().selectedTrack?.duration ?? null"
+                  [windowStartS]="selectedWindowStart()"
+                  [windowEndS]="selectedWindowEnd()"
+                  [hasSelectedWindow]="hasSelectedWindow()"
+                  [repeat]="effectiveRepeat()"
+                  [masterVolume]="masterVolume()"
+                  [masterFadeRampMs]="masterFadeRampMs()"
+                  (playRequested)="play.emit()"
+                  (stopRequested)="stop.emit()"
+                  (ended)="ended.emit()"
+                  (nearEnd)="nearEnd.emit()"
+                  (audioError)="audioError.emit()"
+                />
+              } @else {
+                <app-board-player
+                  [showPrimaryButton]="false"
+                  [title]="board().name || ('Board #' + board().id)"
+                  [hasTrack]="!!board().selectedTrack"
+                  [trackId]="board().selectedTrack?.id ?? null"
+                  [status]="status()"
+                  [streamUrl]="streamUrl()"
+                  [durationS]="board().selectedTrack?.duration ?? null"
+                  [windowStartS]="selectedWindowStart()"
+                  [windowEndS]="selectedWindowEnd()"
+                  [hasSelectedWindow]="hasSelectedWindow()"
+                  [repeat]="effectiveRepeat()"
+                  [masterVolume]="masterVolume()"
+                  [masterFadeRampMs]="masterFadeRampMs()"
+                  (playRequested)="play.emit()"
+                  (stopRequested)="stop.emit()"
+                  (ended)="ended.emit()"
+                  (nearEnd)="nearEnd.emit()"
+                  (audioError)="audioError.emit()"
+                />
+              }
             </div>
           </div>
         </div>
@@ -1014,6 +1041,14 @@ export class BoardCardComponent implements OnInit {
   readonly playlistOptions = input<PlaylistOptions>({ random: false });
 
   readonly isPlaying = computed(() => this.status() === 'PLAYING');
+
+  /** Selects the YouTube IFrame player backend instead of the backend stream. */
+  readonly useYtPlayer = USE_YT_IFRAME_PLAYER;
+
+  /** YouTube video id parsed from the selected track's link (YT backend only). */
+  readonly selectedVideoId = computed(() =>
+    parseYoutubeId(this.board().selectedTrack?.trackLink ?? null),
+  );
 
   readonly delete = output<void>();
   readonly groupChange = output<number | null>();
