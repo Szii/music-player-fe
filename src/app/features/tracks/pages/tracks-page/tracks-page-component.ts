@@ -21,10 +21,14 @@ import {
   WindowSaveEvent,
 } from '../../components/track-window-panel/track-window-panel.component';
 import {
+  CreateTrackRequestV2,
   MusicTracksService,
   Track,
   TrackRequest,
 } from '../../../../api/generated';
+import { USE_YT_IFRAME_PLAYER } from '../../../../core/config/feature-flags';
+import { parseYoutubeId } from '../../../../shared/utils/youtube-id';
+import { YoutubeMetadataService } from '../../../../core/services/youtube-metadata.service';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { UiCreateCtaComponent } from '../../../../shared/ui/create-cta/ui-create-cta.component';
@@ -134,6 +138,7 @@ export class TracksPageComponent implements OnInit {
   @ViewChild(TrackFormComponent) private trackForm?: TrackFormComponent;
 
   private readonly tracksApi = inject(MusicTracksService);
+  private readonly ytMetadata = inject(YoutubeMetadataService);
   private readonly toast = inject(ToastService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly boardPlayback = inject(BoardPlaybackService);
@@ -221,6 +226,13 @@ export class TracksPageComponent implements OnInit {
       return;
     }
 
+    // Client-side YouTube path: the backend can no longer fetch the original
+    // title/duration from YouTube, so read them here and use the v2 endpoint.
+    if (USE_YT_IFRAME_PLAYER) {
+      this.createTrackViaYoutube(event);
+      return;
+    }
+
     this.tracksApi.createTrack({ trackRequest: body })
       .pipe(
         finalize(() => this.createSubmitting.set(false)),
@@ -228,15 +240,59 @@ export class TracksPageComponent implements OnInit {
       )
       .subscribe({
         next: () => {
-          this.trackForm?.close();
-          this.loadTracks();
-          this.toast.success('Track created.');
+          this.onTrackCreated();
         },
         error: (err: unknown) => {
           console.error(err);
           this.toast.error('Creating track failed.');
         },
       });
+  }
+
+  private createTrackViaYoutube(event: TrackFormEvent): void {
+    const videoId = parseYoutubeId(event.trackLink);
+
+    if (!videoId) {
+      this.createSubmitting.set(false);
+      this.toast.error('Enter a valid YouTube link.');
+      return;
+    }
+
+    this.ytMetadata.fetchMetadata(videoId)
+      .then((meta) => {
+        const body: CreateTrackRequestV2 = {
+          trackName: event.trackName || undefined,
+          trackOriginalName: meta.title,
+          trackLink: event.trackLink,
+          duration: Math.max(1, Math.round(meta.durationS)),
+        };
+
+        this.tracksApi.createTrackV2({ createTrackRequestV2: body })
+          .pipe(
+            finalize(() => this.createSubmitting.set(false)),
+            takeUntilDestroyed(this.destroyRef),
+          )
+          .subscribe({
+            next: () => {
+              this.onTrackCreated();
+            },
+            error: (err: unknown) => {
+              console.error(err);
+              this.toast.error('Creating track failed.');
+            },
+          });
+      })
+      .catch((err: unknown) => {
+        console.error(err);
+        this.createSubmitting.set(false);
+        this.toast.error('Could not read the YouTube video — check the link.');
+      });
+  }
+
+  private onTrackCreated(): void {
+    this.trackForm?.close();
+    this.loadTracks();
+    this.toast.success('Track created.');
   }
 
   onEdit(track: Track): void {
