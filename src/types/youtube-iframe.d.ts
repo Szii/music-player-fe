@@ -70,6 +70,7 @@ declare namespace YT {
     getCurrentTime(): number;
     getDuration(): number;
     getPlayerState(): PlayerState;
+    getVideoData(): { video_id: string; title: string; author: string };
     loadVideoById(videoId: string, startSeconds?: number): void;
     cueVideoById(videoId: string, startSeconds?: number): void;
     destroy(): void;
