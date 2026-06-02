@@ -299,6 +299,15 @@ input[type="range"].app-range--seek {
   height: 22px;
 }
 
+/* Seek sliders encode their (window-aware) fill entirely in `--app-range-track`.
+   Firefox additionally paints `::-moz-range-progress` as a solid fill from the
+   track start to the thumb, which ignores the window start and double-paints over
+   the gradient. WebKit/Chromium have no such pseudo-element, so suppress it here
+   to keep both engines consistent. */
+input[type="range"].app-range--seek::-moz-range-progress {
+  background: transparent;
+}
+
 input[type="range"].app-range--seek::-webkit-slider-thumb {
   width: 22px;
   height: 22px;

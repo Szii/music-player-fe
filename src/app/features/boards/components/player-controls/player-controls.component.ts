@@ -1,59 +1,58 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  EventEmitter,
-  Input,
-  Output,
+  computed,
+  input,
+  output,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { UiPlayButtonComponent } from '../../../../shared/ui/play-button/ui-play-button.component';
+
+type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 
 @Component({
   selector: 'app-player-controls',
-  standalone: true,
-  imports: [CommonModule, UiPlayButtonComponent],
+  imports: [UiPlayButtonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="player" [class.player--buttonless]="!showPrimaryButton">
-      <ui-play-button
-        *ngIf="showPrimaryButton"
-        size="lg"
-        [playing]="status === 'PLAYING'"
-        [disabled]="!hasTrack || disabled"
-        (clicked)="status === 'PLAYING' ? stop.emit() : play.emit()"
-      />
+    <div class="player" [class.player--buttonless]="!showPrimaryButton()">
+      @if (showPrimaryButton()) {
+        <ui-play-button
+          size="lg"
+          [playing]="status() === 'PLAYING'"
+          [disabled]="!hasTrack() || disabled()"
+          (clicked)="status() === 'PLAYING' ? stop.emit() : play.emit()"
+        />
+      }
 
       <div class="player__track">
-        <div class="player__topline" *ngIf="(windowStartS != null && windowEndS != null) || status === 'BUFFERING'">
-          <span
-            *ngIf="windowStartS != null && windowEndS != null"
-            class="player__window-label">
-            Window {{ formatTime(windowStartS) }} – {{ formatTime(windowEndS) }}
-          </span>
-
-          <span *ngIf="status === 'BUFFERING'" class="player__buffering">
-            buffering…
-          </span>
-        </div>
-
         <input
           #seek
           type="range"
           class="player__range app-range app-range--seek"
           min="0"
-          [max]="durationS || 1"
+          [max]="durationS() || 1"
           step="0.01"
-          [value]="clampedPosition"
-          [style.--app-range-track]="sliderBackground"
-          [disabled]="!hasTrack || disabled || durationS <= 0 || status === 'STOPPED'"
+          [value]="clampedPosition()"
+          [style.--app-range-track]="sliderBackground()"
+          [disabled]="!hasTrack() || disabled() || durationS() <= 0 || status() === 'STOPPED'"
           (input)="onSeekInput($event)"
           (change)="onSeekChange($event)"
           (mouseup)="seek.blur()"
           (touchend)="seek.blur()" />
 
         <div class="player__times">
-          <span class="player__time player__time--current">{{ formatTime(positionS) }}</span>
-          <span class="player__time player__time--total">{{ formatTime(durationS) }}</span>
+          <span class="player__time player__time--current">{{ formatTime(positionS()) }}</span>
+
+          <div class="player__meta">
+            @if (windowLabel(); as label) {
+              <span class="player__window-label">{{ label }}</span>
+            }
+            @if (status() === 'BUFFERING') {
+              <span class="player__buffering">buffering…</span>
+            }
+          </div>
+
+          <span class="player__time player__time--total">{{ formatTime(durationS()) }}</span>
         </div>
       </div>
     </div>
@@ -78,13 +77,26 @@ import { UiPlayButtonComponent } from '../../../../shared/ui/play-button/ui-play
       gap: 8px;
     }
 
-    .player__topline {
+    .player__times {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    /* Holds the window label + transient buffering pill between the time
+       readouts. Keeps a stable min-height so the pill appearing/disappearing
+       never reflows the slider. */
+    .player__meta {
+      flex: 1;
+      min-width: 0;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 10px;
+      justify-content: center;
+      gap: 8px;
       min-height: 22px;
-      flex-wrap: wrap;
+      overflow: hidden;
     }
 
     .player__window-label {
@@ -98,6 +110,9 @@ import { UiPlayButtonComponent } from '../../../../shared/ui/play-button/ui-play
       font-weight: 600;
       letter-spacing: 0.05em;
       text-transform: uppercase;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
       color: var(--app-primary);
       background: var(--app-primary-soft);
       border: 1px solid rgba(88, 24, 13, 0.2);
@@ -107,6 +122,7 @@ import { UiPlayButtonComponent } from '../../../../shared/ui/play-button/ui-play
     .player__buffering {
       display: inline-flex;
       align-items: center;
+      flex-shrink: 0;
       min-height: 22px;
       padding: 0 8px;
       border-radius: 3px;
@@ -120,17 +136,10 @@ import { UiPlayButtonComponent } from '../../../../shared/ui/play-button/ui-play
       border: 1px solid rgba(158, 110, 16, 0.2);
     }
 
-    .player__times {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-      min-width: 0;
-    }
-
     .player__time {
       display: inline-flex;
       align-items: center;
+      flex-shrink: 0;
       min-height: 22px;
       padding: 0 8px;
       border-radius: 999px;
@@ -153,49 +162,36 @@ import { UiPlayButtonComponent } from '../../../../shared/ui/play-button/ui-play
   `],
 })
 export class PlayerControlsComponent {
-  @Input() title = '';
-  @Input() hasTrack = false;
-  @Input() status: 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR' = 'STOPPED';
-  @Input() positionS = 0;
-  @Input() durationS = 0;
-  @Input() seekableMaxS = 0;
-  @Input() windowStartS: number | null = null;
-  @Input() windowEndS: number | null = null;
-  @Input() disabled = false;
-  @Input() showPrimaryButton = true;
+  readonly title = input('');
+  readonly hasTrack = input(false);
+  readonly status = input<PlayerStatus>('STOPPED');
+  readonly positionS = input(0);
+  readonly durationS = input(0);
+  readonly seekableMaxS = input(0);
+  readonly windowStartS = input<number | null>(null);
+  readonly windowEndS = input<number | null>(null);
+  readonly disabled = input(false);
+  readonly showPrimaryButton = input(true);
 
-  @Output() play = new EventEmitter<void>();
-  @Output() stop = new EventEmitter<void>();
-  @Output() seekPreview = new EventEmitter<number>();
-  @Output() seekCommit = new EventEmitter<number>();
+  readonly play = output<void>();
+  readonly stop = output<void>();
+  readonly seekPreview = output<number>();
+  readonly seekCommit = output<number>();
 
-  get clampedPosition(): number {
-    const max = this.durationS || 1;
-    return Math.max(0, Math.min(this.positionS || 0, max));
-  }
+  readonly clampedPosition = computed(() => {
+    const max = this.durationS() || 1;
+    return Math.max(0, Math.min(this.positionS() || 0, max));
+  });
 
-  private clampToSeekable(value: number): number {
-    const min = this.windowStartS ?? 0;
-    const max = this.seekableMaxS > min
-      ? this.seekableMaxS
-      : (this.windowEndS ?? this.durationS);
-    return Math.max(min, Math.min(value, max));
-  }
+  readonly windowLabel = computed(() => {
+    const start = this.windowStartS();
+    const end = this.windowEndS();
+    if (start == null || end == null) return null;
+    return `Window ${this.formatTime(start)} – ${this.formatTime(end)}`;
+  });
 
-  onSeekInput(event: Event): void {
-    const value = Number((event.target as HTMLInputElement).value);
-    const clamped = this.clampToSeekable(value);
-    (event.target as HTMLInputElement).value = String(clamped);
-    this.seekPreview.emit(clamped);
-  }
-
-  onSeekChange(event: Event): void {
-    const value = Number((event.target as HTMLInputElement).value);
-    this.seekCommit.emit(this.clampToSeekable(value));
-  }
-
-  get sliderBackground(): string {
-    const dur = this.durationS;
+  readonly sliderBackground = computed(() => {
+    const dur = this.durationS();
 
     if (dur <= 0) {
       return `linear-gradient(
@@ -205,10 +201,13 @@ export class PlayerControlsComponent {
       )`;
     }
 
-    const posPct = Math.min(100, (this.positionS / dur) * 100);
-    const loadPct = Math.min(100, (this.seekableMaxS / dur) * 100);
+    const posPct = Math.min(100, (this.positionS() / dur) * 100);
+    const loadPct = Math.min(100, (this.seekableMaxS() / dur) * 100);
 
-    if (this.windowStartS == null || this.windowEndS == null) {
+    const windowStartS = this.windowStartS();
+    const windowEndS = this.windowEndS();
+
+    if (windowStartS == null || windowEndS == null) {
       return `linear-gradient(to right,
         var(--app-primary) 0%,
         var(--app-primary) ${posPct}%,
@@ -218,10 +217,13 @@ export class PlayerControlsComponent {
         color-mix(in srgb, var(--app-border-color) 75%, white) 100%)`;
     }
 
-    const winStart = Math.max(0, (this.windowStartS / dur) * 100);
-    const winEnd = Math.min(100, (this.windowEndS / dur) * 100);
-    const loadClamped = Math.min(loadPct, winEnd);
+    const winStart = Math.max(0, (windowStartS / dur) * 100);
+    const winEnd = Math.min(100, (windowEndS / dur) * 100);
     const posClamped = Math.max(winStart, Math.min(posPct, winEnd));
+    // Keep stops monotonic: when seekableMaxS lags behind the window (e.g. right
+    // after a window switch), loadPct can fall below the current position. Clamp
+    // it up so the gradient stops never go backwards.
+    const loadClamped = Math.max(posClamped, Math.min(loadPct, winEnd));
 
     return `linear-gradient(to right,
       transparent 0%,
@@ -237,6 +239,27 @@ export class PlayerControlsComponent {
       linear-gradient(to right,
       color-mix(in srgb, var(--app-bg-soft) 72%, white) 0%,
       color-mix(in srgb, var(--app-bg-soft) 72%, white) 100%)`;
+  });
+
+  private clampToSeekable(value: number): number {
+    const min = this.windowStartS() ?? 0;
+    const seekableMax = this.seekableMaxS();
+    const max = seekableMax > min
+      ? seekableMax
+      : (this.windowEndS() ?? this.durationS());
+    return Math.max(min, Math.min(value, max));
+  }
+
+  onSeekInput(event: Event): void {
+    const value = Number((event.target as HTMLInputElement).value);
+    const clamped = this.clampToSeekable(value);
+    (event.target as HTMLInputElement).value = String(clamped);
+    this.seekPreview.emit(clamped);
+  }
+
+  onSeekChange(event: Event): void {
+    const value = Number((event.target as HTMLInputElement).value);
+    this.seekCommit.emit(this.clampToSeekable(value));
   }
 
   formatTime(totalSeconds: number): string {
