@@ -4,6 +4,7 @@ import {
   DestroyRef,
   ElementRef,
   NgZone,
+  
   OnDestroy,
   ViewChild,
   effect,
@@ -18,15 +19,9 @@ import { YoutubeIframeApiService } from '../../../../core/services/youtube-ifram
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 type SlotName = 'A' | 'B';
 
-type YtEventsWithAutoplayBlocked = YT.Events & {
-  onAutoplayBlocked?: () => void;
-};
-
-
 interface Slot {
   readonly name: SlotName;
   readonly mount: () => HTMLDivElement | null;
-  elementId: string | null;
   player: YT.Player | null;
   ready: boolean;
   creating: Promise<YT.Player | null> | null;
@@ -46,9 +41,9 @@ interface Slot {
  * loop-seam and track-switch crossfades overlap two streams and ramp their
  * volumes with an equal-power curve. Board-to-board crossfade comes from the
  * parent ramping `masterVolume`. Sample-accurate gain is not available through
- * the IFrame API, so fades are `setVolume` ramps on the JS clock; in browsers
- * that block the second audible iframe from starting, overlapping crossfades
- * degrade to hard cuts.
+ * the IFrame API, so fades are `setVolume` ramps on the JS clock; on iOS, where
+ * only one media element plays at a time, overlapping crossfades degrade to
+ * hard cuts.
  */
 @Component({
   selector: 'app-board-player-yt',
@@ -91,11 +86,13 @@ interface Slot {
   ],
 })
 export class BoardPlayerYtComponent implements OnDestroy {
-  private static nextMountId = 1;
+  /** Disallow manual seeking into the fragile loop-crossfade tail. */
+  private static readonly SEEK_END_GUARD_S = 3;
+  /** Keep the deck loop trigger aligned with the protected seek tail. */
   private static readonly NEAR_END_LEAD_S = 3;
-  private static readonly POLL_INTERVAL_MS = 250;
-  private static readonly LOOP_CROSSFADE_MS = 2000;
-  private static readonly SWITCH_CROSSFADE_MS = 2000;
+  private static readonly POLL_INTERVAL_MS = 50;
+  private static readonly LOOP_CROSSFADE_MS = 2500;
+  private static readonly SWITCH_CROSSFADE_MS = 2500;
   /** Extra head-start so the incoming slot can buffer before the fade starts. */
   private static readonly CROSSFADE_BUFFER_LEAD_S = 1;
   private static readonly PLAYING_WAIT_TIMEOUT_MS = 4000;
@@ -137,7 +134,6 @@ export class BoardPlayerYtComponent implements OnDestroy {
   private readonly slotA: Slot = {
     name: 'A',
     mount: () => this.mountARef?.nativeElement ?? null,
-    elementId: null,
     player: null,
     ready: false,
     creating: null,
@@ -147,7 +143,6 @@ export class BoardPlayerYtComponent implements OnDestroy {
   private readonly slotB: Slot = {
     name: 'B',
     mount: () => this.mountBRef?.nativeElement ?? null,
-    elementId: null,
     player: null,
     ready: false,
     creating: null,
@@ -157,6 +152,11 @@ export class BoardPlayerYtComponent implements OnDestroy {
 
   private activeSlot: SlotName = 'A';
   private currentMaster = 1;
+  /**
+   * Last requested master-volume target. Used so a ramp-duration-only input
+   * change does not snap the current in-progress ramp to the final value.
+   */
+  private lastMasterTarget: number | null = null;
   private masterRampId = 0;
   private gainRampId = 0;
   private masterRampTimer: ReturnType<typeof setInterval> | null = null;
@@ -189,7 +189,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
     });
 
     effect(() => {
-      this.rampMaster(
+      this.updateMasterVolumeTarget(
         Math.max(0, Math.min(this.masterVolume(), 1)),
         this.masterFadeRampMs(),
       );
@@ -223,11 +223,11 @@ export class BoardPlayerYtComponent implements OnDestroy {
 
   onSeekPreview(rawValue: number): void {
     this.isUserSeeking = true;
-    this.displayPositionS.set(this.clampToWindow(Math.floor(rawValue)));
+    this.displayPositionS.set(this.clampToSeekableWindow(Math.floor(rawValue)));
   }
 
   onSeekCommit(rawValue: number): void {
-    const target = this.clampToWindow(Math.floor(rawValue));
+    const target = this.clampToSeekableWindow(Math.floor(rawValue));
     this.displayPositionS.set(target);
     this.isUserSeeking = false;
     this.emittedNearEnd = false;
@@ -236,6 +236,44 @@ export class BoardPlayerYtComponent implements OnDestroy {
     if (active.player && active.ready) {
       active.player.seekTo(target, true);
     }
+  }
+
+  /**
+   * Imperative restart used by the Firefox-safe deck wrapper.
+   *
+   * The wrapper keeps two independent YouTube player components alive. Near a
+   * loop seam it asks the silent component to jump back to the selected window
+   * start while it is already an active media pipeline, then fades into it.
+   */
+  restartFromWindowStart(): void {
+    const target = this.windowStartFloor();
+    this.displayPositionS.set(target);
+    this.seekableMaxS.set(this.seekableWindowEnd());
+    this.isUserSeeking = false;
+    this.emittedNearEnd = false;
+
+    const active = this.active();
+    if (active.player && active.ready) {
+      active.player.seekTo(target, true);
+      active.player.playVideo();
+      this.localStatus.set('PLAYING');
+      this.startPolling();
+    }
+  }
+
+  /**
+   * Restart the active slot at the window start while guaranteeing it is silent.
+   *
+   * The deck calls this after a source has faded out and becomes the hidden
+   * backup source. In backgrounded Firefox, timer throttling can leave the
+   * previous volume ramp slightly above zero when the fade-cleanup timeout runs.
+   * Forcing the master volume to 0 before and after the seek prevents the
+   * recycled source from audibly restarting over the source that just faded in.
+   */
+  restartSilentlyFromWindowStart(): void {
+    this.forceMasterVolume(0);
+    this.restartFromWindowStart();
+    this.forceMasterVolume(0);
   }
 
   private sync(status: PlayerStatus, videoId: string | null): void {
@@ -308,7 +346,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
     player.playVideo();
 
     this.displayPositionS.set(startS);
-    this.seekableMaxS.set(startS);
+    this.seekableMaxS.set(this.seekableWindowEnd());
     this.localStatus.set('PLAYING');
     this.startPolling();
   }
@@ -334,7 +372,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
       // Snap the scrubber to the incoming window immediately so it doesn't show
       // the outgoing slot's playhead "already played" into the new window.
       this.displayPositionS.set(startS);
-      this.seekableMaxS.set(this.windowEndCeil());
+      this.seekableMaxS.set(this.seekableWindowEnd());
     }
     const seq = ++this.switchSeq;
     const from = this.active();
@@ -348,16 +386,14 @@ export class BoardPlayerYtComponent implements OnDestroy {
 
       to.loadedVideoId = videoId;
       to.gain = 0;
-
-      // Firefox can keep an autoplay-started YouTube iframe effectively silent
-      // after mute() + later unMute(), so the outgoing slot fades out but the
-      // incoming slot does not audibly fade in. Keep the player unmuted and use
-      // setVolume(0) via gain instead; then crossfade only by setVolume ramps.
-      toPlayer.unMute();
       this.applyVolumes();
+      // Mute the incoming player so its programmatic autoplay is always allowed
+      // (Firefox blocks non-muted autoplay without a direct gesture, even at
+      // volume 0). It's unmuted once it's actually playing — gain is still 0, so
+      // there's no audible blip until the crossfade ramps it up.
+      toPlayer.mute();
       toPlayer.loadVideoById(videoId, startS);
       toPlayer.playVideo();
-      this.applyVolumes();
 
       const playing = await this.waitForPlaying(
         to,
@@ -381,6 +417,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
         return;
       }
 
+      to.player?.unMute();
       this.applyVolumes();
       await this.crossfadeGains(from, to, crossfadeMs);
       if (seq !== this.switchSeq) {
@@ -399,7 +436,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
       this.emittedNearEnd = false;
       this.localStatus.set('PLAYING');
       this.displayPositionS.set(startS);
-      this.seekableMaxS.set(this.windowEndCeil());
+      this.seekableMaxS.set(this.seekableWindowEnd());
       this.startPolling();
     } finally {
       if (seq === this.switchSeq) {
@@ -423,51 +460,12 @@ export class BoardPlayerYtComponent implements OnDestroy {
       return Promise.resolve(null);
     }
 
-    if (!slot.elementId) {
-      slot.elementId =
-        mount.id ||
-        `yt-player-${slot.name.toLowerCase()}-${BoardPlayerYtComponent.nextMountId++}`;
-    }
-    const elementId = slot.elementId;
-    mount.id = elementId;
-
     slot.creating = this.api
       .load()
       .then(
         (yt) =>
           new Promise<YT.Player | null>((resolve) => {
-            let player!: YT.Player;
-
-            const events: YtEventsWithAutoplayBlocked = {
-              onReady: () => {
-                this.zone.run(() => {
-                  slot.ready = true;
-                  slot.creating = null;
-                  this.ensureAutoplayAllowed(slot);
-                  this.setSlotVolume(slot);
-                  resolve(player);
-                });
-              },
-              onStateChange: (event) => this.onStateChange(slot, event),
-              onAutoplayBlocked: () => {
-                this.zone.run(() => {
-                  if (slot.name === this.activeSlot) {
-                    this.localStatus.set('ERROR');
-                  }
-                  this.audioError.emit();
-                });
-              },
-              onError: () => {
-                this.zone.run(() => {
-                  if (slot.name === this.activeSlot) {
-                    this.localStatus.set('ERROR');
-                    this.audioError.emit();
-                  }
-                });
-              },
-            };
-
-            player = new yt.Player(elementId, {
+            const player = new yt.Player(mount, {
               width: 320,
               height: 180,
               playerVars: {
@@ -479,7 +477,25 @@ export class BoardPlayerYtComponent implements OnDestroy {
                 playsinline: 1,
                 rel: 0,
               },
-              events,
+              events: {
+                onReady: () => {
+                  this.zone.run(() => {
+                    slot.ready = true;
+                    slot.creating = null;
+                    this.setSlotVolume(slot);
+                    resolve(player);
+                  });
+                },
+                onStateChange: (event) => this.onStateChange(slot, event),
+                onError: () => {
+                  this.zone.run(() => {
+                    if (slot.name === this.activeSlot) {
+                      this.localStatus.set('ERROR');
+                      this.audioError.emit();
+                    }
+                  });
+                },
+              },
             });
 
             slot.player = player;
@@ -497,44 +513,6 @@ export class BoardPlayerYtComponent implements OnDestroy {
       });
 
     return slot.creating;
-  }
-
-  private ensureAutoplayAllowed(slot: Slot): void {
-    try {
-      const iframe = this.findSlotIframe(slot);
-      if (!iframe) {
-        return;
-      }
-
-      const currentAllow: string = iframe.getAttribute('allow') ?? '';
-      const allowParts = new Set<string>(
-        currentAllow
-          .split(';')
-          .map((part: string) => part.trim())
-          .filter((part: string) => part.length > 0),
-      );
-
-      allowParts.add('autoplay');
-      allowParts.add('encrypted-media');
-      allowParts.add('picture-in-picture');
-      iframe.setAttribute('allow', Array.from(allowParts).join('; '));
-    } catch {
-      // Some browser / iframe races can make the iframe unavailable briefly.
-      // Crossfade still works as well as the YouTube API allows without this.
-    }
-  }
-
-  private findSlotIframe(slot: Slot): HTMLIFrameElement | null {
-    if (!slot.elementId) {
-      return null;
-    }
-
-    const element = document.getElementById(slot.elementId);
-    if (element instanceof HTMLIFrameElement) {
-      return element;
-    }
-
-    return element?.querySelector('iframe') ?? null;
   }
 
   private onStateChange(slot: Slot, event: YT.OnStateChangeEvent): void {
@@ -602,7 +580,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
       this.displayPositionS.set(
         Math.max(startS, Math.min(Math.floor(positionS), endS)),
       );
-      this.seekableMaxS.set(endS);
+      this.seekableMaxS.set(this.seekableWindowEnd());
 
       if (this.crossfadeInProgress) {
         return;
@@ -701,6 +679,31 @@ export class BoardPlayerYtComponent implements OnDestroy {
     this.localStatus.set('STOPPED');
     this.displayPositionS.set(this.windowStartFloor());
     this.seekableMaxS.set(this.windowStartFloor());
+  }
+
+  private forceMasterVolume(target: number): void {
+    this.clearMasterRampTimer();
+    this.masterRampId++;
+    this.currentMaster = Math.max(0, Math.min(target, 1));
+    this.lastMasterTarget = this.currentMaster;
+    this.applyVolumes();
+  }
+
+  private updateMasterVolumeTarget(target: number, durationMs: number): void {
+    // Angular effects re-run when either masterVolume OR masterFadeRampMs changes.
+    // During the deck loop cleanup, loopFadeActive flips from true to false, which
+    // changes masterFadeRampMs back to 0 while the target volume is still the same.
+    // If we call rampMaster(target, 0) in that case, Firefox background tabs can
+    // jump the incoming source from a partially-ramped volume straight to 100%.
+    if (
+      this.lastMasterTarget !== null &&
+      Math.abs(target - this.lastMasterTarget) < 0.001
+    ) {
+      return;
+    }
+
+    this.lastMasterTarget = target;
+    this.rampMaster(target, durationMs);
   }
 
   private rampMaster(target: number, durationMs: number): void {
@@ -873,7 +876,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
 
     active.player.seekTo(startS, true);
     this.displayPositionS.set(startS);
-    this.seekableMaxS.set(this.windowEndCeil());
+    this.seekableMaxS.set(this.seekableWindowEnd());
   }
 
   private loopTriggerLeadS(): number {
@@ -906,9 +909,30 @@ export class BoardPlayerYtComponent implements OnDestroy {
     return Math.max(this.windowStartFloor(), Math.ceil(this.windowEndS() ?? duration));
   }
 
-  private clampToWindow(posS: number): number {
-    return Math.max(this.windowStartFloor(), Math.min(posS, this.windowEndCeil()));
+  /**
+   * Last position the user is allowed to seek to.
+   *
+   * The last few seconds are owned by the deck loop transition. Seeking into
+   * that region can make the active source and the silent backup source swap
+   * roles at the wrong time, so the UI seek range stops before it. Playback can
+   * still naturally continue through the real window/video end.
+   */
+  private seekableWindowEnd(): number {
+    const startS = this.windowStartFloor();
+    const endS = this.windowEndCeil();
+    return Math.max(
+      startS,
+      endS - BoardPlayerYtComponent.SEEK_END_GUARD_S,
+    );
   }
+
+  private clampToSeekableWindow(posS: number): number {
+    return Math.max(
+      this.windowStartFloor(),
+      Math.min(posS, this.seekableWindowEnd()),
+    );
+  }
+
 
   private teardown(): void {
     this.stopPolling();

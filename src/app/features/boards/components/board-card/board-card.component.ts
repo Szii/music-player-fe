@@ -17,7 +17,7 @@ import { FormsModule } from '@angular/forms';
 import { ConnectedPosition, OverlayModule } from '@angular/cdk/overlay';
 import { Board, Group, Track } from '../../../../api/generated';
 import { BoardPlayerComponent } from '../board-player/board-player.component';
-import { BoardPlayerYtComponent } from '../board-player-yt/board-player-yt.component';
+import { BoardPlayerYtDeckComponent } from '../board-player-yt-deck/board-player-yt-deck.component';
 import { USE_YT_IFRAME_PLAYER } from '../../../../core/config/feature-flags';
 import { parseYoutubeId } from '../../../../shared/utils/youtube-id';
 import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
@@ -42,7 +42,7 @@ export interface PlaylistOptions {
     FormsModule,
     OverlayModule,
     BoardPlayerComponent,
-    BoardPlayerYtComponent,
+    BoardPlayerYtDeckComponent,
     IconButtonComponent,
     UiSelectComponent,
     UiVolumeSliderComponent,
@@ -394,7 +394,7 @@ export interface PlaylistOptions {
 
             <div class="board-card__player">
               @if (useYtPlayer) {
-                <app-board-player-yt
+                <app-board-player-yt-deck
                   [showPrimaryButton]="false"
                   [title]="board().name || ('Board #' + board().id)"
                   [hasTrack]="!!board().selectedTrack"

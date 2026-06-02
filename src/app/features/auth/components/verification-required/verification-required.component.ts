@@ -39,7 +39,7 @@ type ChangeStatus = 'idle' | 'submitting' | 'already-registered' | 'wrong-creden
 
     @if (!showEmailInputs) {
       <p class="verify-required__status verify-required__status--error">
-        Email actions are currently unavailable.
+        Email actions are currently unavailable. Procceed to login.
       </p>
     }
 

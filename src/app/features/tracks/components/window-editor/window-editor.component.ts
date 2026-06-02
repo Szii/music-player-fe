@@ -62,8 +62,6 @@ export interface WindowEditorResult {
         [seekableMaxS]="tracker.seekableMaxS"
         [playheadPx]="playheadPx()"
         [waveformPeaks]="waveformPeaks()"
-        [fadeIn]="fadeIn()"
-        [fadeOut]="fadeOut()"
         [audioReady]="audioReady()"
         [loadingStream]="loadingStream()"
         [downloadProgress]="downloadProgress()"
