@@ -211,6 +211,7 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
   private readonly cdr = inject(ChangeDetectorRef);
 
   private static readonly MIN_REGION_S = 0.1;
+  private static readonly HANDLE_FADE_VISUAL_S = 3;
 
   @Input() durationS = 0;
   @Input() regionFromS = 0;
@@ -218,8 +219,6 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
   @Input() seekableMaxS = 0;
   @Input() playheadPx = 0;
   @Input() waveformPeaks: number[] = [];
-  @Input() fadeIn = false;
-  @Input() fadeOut = false;
   @Input() audioReady = false;
   @Input() loadingStream = false;
   @Input() downloadProgress = 0;
@@ -300,9 +299,7 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
       'regionFromS' in changes ||
       'regionToS' in changes ||
       'seekableMaxS' in changes ||
-      'waveformPeaks' in changes ||
-      'fadeIn' in changes ||
-      'fadeOut' in changes;
+      'waveformPeaks' in changes;
 
     if (needsRedraw) {
       this.scheduleRedraw();
@@ -601,28 +598,102 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
     height: number,
     palette: WaveformPalette,
   ): void {
-    const fadeWidth = Math.min(40, (toPx - fromPx) * 0.25);
-
-    ctx.save();
-    ctx.globalAlpha = 0.18;
-    ctx.fillStyle = palette.primary;
-
-    if (this.fadeIn) {
-      ctx.beginPath();
-      ctx.moveTo(fromPx, height);
-      ctx.lineTo(fromPx + fadeWidth, 0);
-      ctx.lineTo(fromPx, 0);
-      ctx.closePath();
-      ctx.fill();
+    const regionWidth = Math.max(0, toPx - fromPx);
+    if (regionWidth <= 0 || this.durationS <= 0 || this.canvasWidth <= 0) {
+      return;
     }
 
-    if (this.fadeOut) {
+    const fadeWidth = Math.min(
+      (WaveformCanvasComponent.HANDLE_FADE_VISUAL_S / this.durationS) * this.canvasWidth,
+      regionWidth / 2,
+    );
+
+    if (fadeWidth <= 0) {
+      return;
+    }
+
+    this.drawFadeInZone(ctx, fromPx, fadeWidth, height, palette);
+    this.drawFadeOutZone(ctx, toPx, fadeWidth, height, palette);
+  }
+
+  private drawFadeInZone(
+    ctx: CanvasRenderingContext2D,
+    fromPx: number,
+    fadeWidth: number,
+    height: number,
+    palette: WaveformPalette,
+  ): void {
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(fromPx, height);
+    ctx.lineTo(fromPx + fadeWidth, 0);
+    ctx.lineTo(fromPx, 0);
+    ctx.closePath();
+    ctx.clip();
+
+    const gradient = ctx.createLinearGradient(fromPx, 0, fromPx + fadeWidth, 0);
+    gradient.addColorStop(0, palette.primary);
+    gradient.addColorStop(1, palette.primarySoft);
+
+    ctx.globalAlpha = 0.22;
+    ctx.fillStyle = gradient;
+    ctx.fillRect(fromPx, 0, fadeWidth, height);
+
+    this.drawDiagonalStripes(ctx, fromPx, fromPx + fadeWidth, height, palette.primary, 'rising');
+    ctx.restore();
+  }
+
+  private drawFadeOutZone(
+    ctx: CanvasRenderingContext2D,
+    toPx: number,
+    fadeWidth: number,
+    height: number,
+    palette: WaveformPalette,
+  ): void {
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(toPx, height);
+    ctx.lineTo(toPx - fadeWidth, 0);
+    ctx.lineTo(toPx, 0);
+    ctx.closePath();
+    ctx.clip();
+
+    const gradient = ctx.createLinearGradient(toPx - fadeWidth, 0, toPx, 0);
+    gradient.addColorStop(0, palette.primarySoft);
+    gradient.addColorStop(1, palette.primary);
+
+    ctx.globalAlpha = 0.22;
+    ctx.fillStyle = gradient;
+    ctx.fillRect(toPx - fadeWidth, 0, fadeWidth, height);
+
+    this.drawDiagonalStripes(ctx, toPx - fadeWidth, toPx, height, palette.primary, 'falling');
+    ctx.restore();
+  }
+
+  private drawDiagonalStripes(
+    ctx: CanvasRenderingContext2D,
+    fromPx: number,
+    toPx: number,
+    height: number,
+    color: string,
+    direction: 'rising' | 'falling',
+  ): void {
+    ctx.save();
+    ctx.globalAlpha = 0.38;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+
+    const spacing = 7;
+    for (let x = fromPx - height; x <= toPx + height; x += spacing) {
       ctx.beginPath();
-      ctx.moveTo(toPx, height);
-      ctx.lineTo(toPx - fadeWidth, 0);
-      ctx.lineTo(toPx, 0);
-      ctx.closePath();
-      ctx.fill();
+      if (direction === 'rising') {
+        ctx.moveTo(x, height);
+        ctx.lineTo(x + height, 0);
+      } else {
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x + height, height);
+      }
+      ctx.stroke();
     }
 
     ctx.restore();

@@ -62,8 +62,6 @@ type PlayMode = 'full' | 'selection';
         [seekableMaxS]="durationS()"
         [playheadPx]="playheadPx()"
         [waveformPeaks]="[]"
-        [fadeIn]="fadeIn()"
-        [fadeOut]="fadeOut()"
         [audioReady]="audioReady()"
         [waveformReady]="true"
         [handlesDisabled]="!audioReady()"
@@ -564,6 +562,7 @@ export class WindowEditorYtComponent {
   private playbackEndS = 0;
   private isScrubbing = false;
   private regionInitialized = false;
+  private lastInitialStateKey: string | null = null;
   private loadToken = 0;
 
   constructor() {
@@ -573,13 +572,39 @@ export class WindowEditorYtComponent {
       this.onVideoIdChange(id);
     });
 
-    // Initialise the region once a duration is known.
+    // Keep the editor region in sync with the selected/edited window inputs.
+    // The previous version initialized only once, so selecting another window
+    // while this component stayed mounted left the canvas showing the old range.
     effect(() => {
       const duration = this.durationS();
-      if (duration > 0 && !this.regionInitialized) {
-        this.initializeRegionDefaults(duration);
-        this.regionInitialized = true;
+      const videoId = this.videoId();
+      const from = this.initialFromS();
+      const to = this.initialToS();
+      const name = this.initialName();
+      const fadeIn = this.initialFadeIn();
+      const fadeOut = this.initialFadeOut();
+
+      if (duration <= 0) {
+        return;
       }
+
+      const key = this.initialStateKey(
+        duration,
+        videoId,
+        from,
+        to,
+        name,
+        fadeIn,
+        fadeOut,
+      );
+
+      if (key === this.lastInitialStateKey) {
+        return;
+      }
+
+      this.lastInitialStateKey = key;
+      this.initializeRegionDefaults(duration);
+      this.regionInitialized = true;
     });
 
     this.destroyRef.onDestroy(() => this.teardown());
@@ -787,6 +812,8 @@ export class WindowEditorYtComponent {
   private onVideoIdChange(videoId: string | null): void {
     this.stopPlayback();
     this.audioReady.set(false);
+    this.regionInitialized = false;
+    this.lastInitialStateKey = null;
     const token = ++this.loadToken;
 
     if (!videoId) {
@@ -862,9 +889,22 @@ export class WindowEditorYtComponent {
 
   private onPlayerReady(player: YT.Player): void {
     const reportedDuration = player.getDuration();
-    if ((this.durationS() <= 0) && reportedDuration > 0 && !this.regionInitialized) {
-      this.initializeRegionDefaults(reportedDuration);
-      this.regionInitialized = true;
+    if ((this.durationS() <= 0) && reportedDuration > 0) {
+      const key = this.initialStateKey(
+        reportedDuration,
+        this.videoId(),
+        this.initialFromS(),
+        this.initialToS(),
+        this.initialName(),
+        this.initialFadeIn(),
+        this.initialFadeOut(),
+      );
+
+      if (key !== this.lastInitialStateKey) {
+        this.lastInitialStateKey = key;
+        this.initializeRegionDefaults(reportedDuration);
+        this.regionInitialized = true;
+      }
     }
 
     this.audioReady.set(true);
@@ -908,18 +948,64 @@ export class WindowEditorYtComponent {
     }
   }
 
+  private initialStateKey(
+    duration: number,
+    videoId: string | null,
+    from: number | null,
+    to: number | null,
+    name: string,
+    fadeIn: boolean,
+    fadeOut: boolean,
+  ): string {
+    return JSON.stringify([
+      videoId ?? '',
+      this.roundToTenth(duration),
+      from,
+      to,
+      name,
+      fadeIn,
+      fadeOut,
+    ]);
+  }
+
   private initializeRegionDefaults(duration: number): void {
-    if (this.initialFromS() == null && this.initialToS() == null) {
+    const safeDuration = Math.max(0, this.roundToTenth(duration));
+
+    if (safeDuration <= 0) {
       this.regionFromS.set(0);
-      this.regionToS.set(this.roundToTenth(duration));
+      this.regionToS.set(0);
+      this.currentTimeS.set(0);
+      this.playheadPx.set(0);
     } else {
-      if (this.initialFromS() != null) this.regionFromS.set(this.initialFromS()!);
-      if (this.initialToS() != null) this.regionToS.set(this.initialToS()!);
+      const minLength = 0.1;
+      const inputFrom = this.initialFromS();
+      const inputTo = this.initialToS();
+
+      let from = inputFrom ?? 0;
+      let to = inputTo ?? safeDuration;
+
+      from = this.roundToTenth(
+        this.clamp(from, 0, Math.max(0, safeDuration - minLength)),
+      );
+      to = this.roundToTenth(
+        this.clamp(to, from + minLength, safeDuration),
+      );
+
+      if (to <= from) {
+        from = 0;
+        to = safeDuration;
+      }
+
+      this.regionFromS.set(from);
+      this.regionToS.set(to);
+      this.currentTimeS.set(from);
+      this.updatePlayhead(from);
     }
 
     this.windowName.set(this.initialName());
     this.fadeIn.set(this.initialFadeIn());
     this.fadeOut.set(this.initialFadeOut());
+    this.syncSelectionBounds();
   }
 
   private hasUnsavedChanges(): boolean {

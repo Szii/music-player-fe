@@ -25,20 +25,35 @@ type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
       }
 
       <div class="player__track">
-        <input
-          #seek
-          type="range"
-          class="player__range app-range app-range--seek"
-          min="0"
-          [max]="durationS() || 1"
-          step="0.01"
-          [value]="clampedPosition()"
-          [style.--app-range-track]="sliderBackground()"
-          [disabled]="!hasTrack() || disabled() || durationS() <= 0 || status() === 'STOPPED'"
-          (input)="onSeekInput($event)"
-          (change)="onSeekChange($event)"
-          (mouseup)="seek.blur()"
-          (touchend)="seek.blur()" />
+        <div
+          class="player__range-wrap"
+          [class.player__range-wrap--has-seek-guard]="hasSeekGuard()"
+          [style.--seek-guard-left]="seekGuardLeftCss()"
+          [style.--seek-guard-width]="seekGuardWidthCss()"
+        >
+          <input
+            #seek
+            type="range"
+            class="player__range app-range app-range--seek"
+            min="0"
+            [max]="durationS() || 1"
+            step="0.01"
+            [value]="clampedPosition()"
+            [style.--app-range-track]="sliderBackground()"
+            [disabled]="!hasTrack() || disabled() || durationS() <= 0 || status() === 'STOPPED'"
+            (input)="onSeekInput($event)"
+            (change)="onSeekChange($event)"
+            (mouseup)="seek.blur()"
+            (touchend)="seek.blur()" />
+
+          @if (hasSeekGuard()) {
+            <span
+              class="player__seek-guard"
+              aria-hidden="true"
+              title="This ending section is protected from seeking to keep loop crossfade stable"
+            ></span>
+          }
+        </div>
 
         <div class="player__times">
           <span class="player__time player__time--current">{{ formatTime(positionS()) }}</span>
@@ -75,6 +90,42 @@ type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
       display: flex;
       flex-direction: column;
       gap: 8px;
+    }
+
+    .player__range-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      height: 22px;
+      min-width: 0;
+    }
+
+    .player__range {
+      position: relative;
+      z-index: 1;
+    }
+
+    .player__seek-guard {
+      position: absolute;
+      z-index: 2;
+      left: var(--seek-guard-left, 100%);
+      width: var(--seek-guard-width, 0%);
+      top: 50%;
+      height: 6px;
+      transform: translateY(-50%);
+      border-radius: 999px;
+      pointer-events: none;
+      background:
+        repeating-linear-gradient(
+          135deg,
+          rgba(88, 24, 13, 0.44) 0px,
+          rgba(88, 24, 13, 0.44) 3px,
+          rgba(201, 164, 76, 0.28) 3px,
+          rgba(201, 164, 76, 0.28) 7px
+        );
+      box-shadow:
+        inset 0 0 0 1px rgba(88, 24, 13, 0.35),
+        0 0 0 1px rgba(248, 242, 228, 0.45);
     }
 
     .player__times {
@@ -190,6 +241,26 @@ export class PlayerControlsComponent {
     return `Window ${this.formatTime(start)} – ${this.formatTime(end)}`;
   });
 
+  readonly hasSeekGuard = computed(() => {
+    const dur = this.durationS();
+    const seekableMax = this.seekableMaxS();
+    const guardEnd = this.guardEndS();
+
+    return (
+      dur > 0 &&
+      guardEnd > 0 &&
+      seekableMax > 0 &&
+      seekableMax < guardEnd - 0.01
+    );
+  });
+
+  readonly seekGuardLeftCss = computed(() => `${this.seekGuardStartPct()}%`);
+
+  readonly seekGuardWidthCss = computed(() => {
+    const width = Math.max(0, this.seekGuardEndPct() - this.seekGuardStartPct());
+    return `${width}%`;
+  });
+
   readonly sliderBackground = computed(() => {
     const dur = this.durationS();
 
@@ -213,8 +284,8 @@ export class PlayerControlsComponent {
         var(--app-primary) ${posPct}%,
         color-mix(in srgb, var(--app-primary) 22%, white) ${posPct}%,
         color-mix(in srgb, var(--app-primary) 22%, white) ${loadPct}%,
-        color-mix(in srgb, var(--app-border-color) 75%, white) ${loadPct}%,
-        color-mix(in srgb, var(--app-border-color) 75%, white) 100%)`;
+        color-mix(in srgb, var(--app-warning) 22%, white) ${loadPct}%,
+        color-mix(in srgb, var(--app-warning) 22%, white) 100%)`;
     }
 
     const winStart = Math.max(0, (windowStartS / dur) * 100);
@@ -232,8 +303,8 @@ export class PlayerControlsComponent {
       var(--app-primary) ${posClamped}%,
       color-mix(in srgb, var(--app-primary) 22%, white) ${posClamped}%,
       color-mix(in srgb, var(--app-primary) 22%, white) ${loadClamped}%,
-      color-mix(in srgb, var(--app-border-color) 75%, white) ${loadClamped}%,
-      color-mix(in srgb, var(--app-border-color) 75%, white) ${winEnd}%,
+      color-mix(in srgb, var(--app-warning) 22%, white) ${loadClamped}%,
+      color-mix(in srgb, var(--app-warning) 22%, white) ${winEnd}%,
       transparent ${winEnd}%,
       transparent 100%),
       linear-gradient(to right,
@@ -273,5 +344,26 @@ export class PlayerControlsComponent {
     }
 
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+
+  private guardEndS(): number {
+    const dur = this.durationS();
+    const windowEnd = this.windowEndS();
+    return Math.max(0, Math.min(windowEnd ?? dur, dur));
+  }
+
+  private seekGuardStartPct(): number {
+    const dur = this.durationS();
+    if (dur <= 0) return 100;
+
+    const seekableMax = Math.max(0, Math.min(this.seekableMaxS(), this.guardEndS()));
+    return Math.max(0, Math.min(100, (seekableMax / dur) * 100));
+  }
+
+  private seekGuardEndPct(): number {
+    const dur = this.durationS();
+    if (dur <= 0) return 100;
+
+    return Math.max(0, Math.min(100, (this.guardEndS() / dur) * 100));
   }
 }
