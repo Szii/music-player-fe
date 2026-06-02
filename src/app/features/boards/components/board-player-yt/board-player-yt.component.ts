@@ -18,9 +18,15 @@ import { YoutubeIframeApiService } from '../../../../core/services/youtube-ifram
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 type SlotName = 'A' | 'B';
 
+type YtEventsWithAutoplayBlocked = YT.Events & {
+  onAutoplayBlocked?: () => void;
+};
+
+
 interface Slot {
   readonly name: SlotName;
   readonly mount: () => HTMLDivElement | null;
+  elementId: string | null;
   player: YT.Player | null;
   ready: boolean;
   creating: Promise<YT.Player | null> | null;
@@ -40,9 +46,9 @@ interface Slot {
  * loop-seam and track-switch crossfades overlap two streams and ramp their
  * volumes with an equal-power curve. Board-to-board crossfade comes from the
  * parent ramping `masterVolume`. Sample-accurate gain is not available through
- * the IFrame API, so fades are `setVolume` ramps on the JS clock; on iOS, where
- * only one media element plays at a time, overlapping crossfades degrade to
- * hard cuts.
+ * the IFrame API, so fades are `setVolume` ramps on the JS clock; in browsers
+ * that block the second audible iframe from starting, overlapping crossfades
+ * degrade to hard cuts.
  */
 @Component({
   selector: 'app-board-player-yt',
@@ -85,6 +91,7 @@ interface Slot {
   ],
 })
 export class BoardPlayerYtComponent implements OnDestroy {
+  private static nextMountId = 1;
   private static readonly NEAR_END_LEAD_S = 3;
   private static readonly POLL_INTERVAL_MS = 250;
   private static readonly LOOP_CROSSFADE_MS = 2000;
@@ -130,6 +137,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
   private readonly slotA: Slot = {
     name: 'A',
     mount: () => this.mountARef?.nativeElement ?? null,
+    elementId: null,
     player: null,
     ready: false,
     creating: null,
@@ -139,6 +147,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
   private readonly slotB: Slot = {
     name: 'B',
     mount: () => this.mountBRef?.nativeElement ?? null,
+    elementId: null,
     player: null,
     ready: false,
     creating: null,
@@ -154,6 +163,10 @@ export class BoardPlayerYtComponent implements OnDestroy {
   private gainRampTimer: ReturnType<typeof setInterval> | null = null;
   private switchSeq = 0;
   private crossfadeInProgress = false;
+  /** While a window/track-switch crossfade runs, keep the UI pinned to the new
+      window start instead of mirroring the outgoing slot's playhead. Loop-seam
+      crossfades leave this false so the slider keeps progressing to the seam. */
+  private pinDisplayDuringCrossfade = false;
 
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private emittedNearEnd = false;
@@ -248,6 +261,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
           videoId,
           this.windowStartFloor(),
           BoardPlayerYtComponent.SWITCH_CROSSFADE_MS,
+          true,
         );
         return;
       }
@@ -308,12 +322,20 @@ export class BoardPlayerYtComponent implements OnDestroy {
     videoId: string,
     startS: number,
     crossfadeMs: number,
+    pinDisplayToStart = false,
   ): Promise<void> {
     if (this.crossfadeInProgress) {
       return;
     }
 
     this.crossfadeInProgress = true;
+    this.pinDisplayDuringCrossfade = pinDisplayToStart;
+    if (pinDisplayToStart) {
+      // Snap the scrubber to the incoming window immediately so it doesn't show
+      // the outgoing slot's playhead "already played" into the new window.
+      this.displayPositionS.set(startS);
+      this.seekableMaxS.set(this.windowEndCeil());
+    }
     const seq = ++this.switchSeq;
     const from = this.active();
     const to = this.idle();
@@ -326,11 +348,16 @@ export class BoardPlayerYtComponent implements OnDestroy {
 
       to.loadedVideoId = videoId;
       to.gain = 0;
+
+      // Firefox can keep an autoplay-started YouTube iframe effectively silent
+      // after mute() + later unMute(), so the outgoing slot fades out but the
+      // incoming slot does not audibly fade in. Keep the player unmuted and use
+      // setVolume(0) via gain instead; then crossfade only by setVolume ramps.
+      toPlayer.unMute();
       this.applyVolumes();
-      // loadVideoById auto-plays, but nudge it explicitly — helps the incoming
-      // player start in a backgrounded (but audible) tab.
       toPlayer.loadVideoById(videoId, startS);
       toPlayer.playVideo();
+      this.applyVolumes();
 
       const playing = await this.waitForPlaying(
         to,
@@ -354,6 +381,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
         return;
       }
 
+      this.applyVolumes();
       await this.crossfadeGains(from, to, crossfadeMs);
       if (seq !== this.switchSeq) {
         return;
@@ -376,6 +404,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
     } finally {
       if (seq === this.switchSeq) {
         this.crossfadeInProgress = false;
+        this.pinDisplayDuringCrossfade = false;
       }
     }
   }
@@ -394,12 +423,51 @@ export class BoardPlayerYtComponent implements OnDestroy {
       return Promise.resolve(null);
     }
 
+    if (!slot.elementId) {
+      slot.elementId =
+        mount.id ||
+        `yt-player-${slot.name.toLowerCase()}-${BoardPlayerYtComponent.nextMountId++}`;
+    }
+    const elementId = slot.elementId;
+    mount.id = elementId;
+
     slot.creating = this.api
       .load()
       .then(
         (yt) =>
           new Promise<YT.Player | null>((resolve) => {
-            const player = new yt.Player(mount, {
+            let player!: YT.Player;
+
+            const events: YtEventsWithAutoplayBlocked = {
+              onReady: () => {
+                this.zone.run(() => {
+                  slot.ready = true;
+                  slot.creating = null;
+                  this.ensureAutoplayAllowed(slot);
+                  this.setSlotVolume(slot);
+                  resolve(player);
+                });
+              },
+              onStateChange: (event) => this.onStateChange(slot, event),
+              onAutoplayBlocked: () => {
+                this.zone.run(() => {
+                  if (slot.name === this.activeSlot) {
+                    this.localStatus.set('ERROR');
+                  }
+                  this.audioError.emit();
+                });
+              },
+              onError: () => {
+                this.zone.run(() => {
+                  if (slot.name === this.activeSlot) {
+                    this.localStatus.set('ERROR');
+                    this.audioError.emit();
+                  }
+                });
+              },
+            };
+
+            player = new yt.Player(elementId, {
               width: 320,
               height: 180,
               playerVars: {
@@ -411,25 +479,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
                 playsinline: 1,
                 rel: 0,
               },
-              events: {
-                onReady: () => {
-                  this.zone.run(() => {
-                    slot.ready = true;
-                    slot.creating = null;
-                    this.setSlotVolume(slot);
-                    resolve(player);
-                  });
-                },
-                onStateChange: (event) => this.onStateChange(slot, event),
-                onError: () => {
-                  this.zone.run(() => {
-                    if (slot.name === this.activeSlot) {
-                      this.localStatus.set('ERROR');
-                      this.audioError.emit();
-                    }
-                  });
-                },
-              },
+              events,
             });
 
             slot.player = player;
@@ -447,6 +497,44 @@ export class BoardPlayerYtComponent implements OnDestroy {
       });
 
     return slot.creating;
+  }
+
+  private ensureAutoplayAllowed(slot: Slot): void {
+    try {
+      const iframe = this.findSlotIframe(slot);
+      if (!iframe) {
+        return;
+      }
+
+      const currentAllow: string = iframe.getAttribute('allow') ?? '';
+      const allowParts = new Set<string>(
+        currentAllow
+          .split(';')
+          .map((part: string) => part.trim())
+          .filter((part: string) => part.length > 0),
+      );
+
+      allowParts.add('autoplay');
+      allowParts.add('encrypted-media');
+      allowParts.add('picture-in-picture');
+      iframe.setAttribute('allow', Array.from(allowParts).join('; '));
+    } catch {
+      // Some browser / iframe races can make the iframe unavailable briefly.
+      // Crossfade still works as well as the YouTube API allows without this.
+    }
+  }
+
+  private findSlotIframe(slot: Slot): HTMLIFrameElement | null {
+    if (!slot.elementId) {
+      return null;
+    }
+
+    const element = document.getElementById(slot.elementId);
+    if (element instanceof HTMLIFrameElement) {
+      return element;
+    }
+
+    return element?.querySelector('iframe') ?? null;
   }
 
   private onStateChange(slot: Slot, event: YT.OnStateChangeEvent): void {
@@ -504,6 +592,13 @@ export class BoardPlayerYtComponent implements OnDestroy {
     const positionS = active.player.getCurrentTime();
 
     this.zone.run(() => {
+      // During a window/track-switch crossfade the active slot is still the
+      // outgoing one — its playhead doesn't belong to the incoming window, so
+      // leave the display pinned to the target start set by crossfadeInto.
+      if (this.crossfadeInProgress && this.pinDisplayDuringCrossfade) {
+        return;
+      }
+
       this.displayPositionS.set(
         Math.max(startS, Math.min(Math.floor(positionS), endS)),
       );
@@ -771,6 +866,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
         active.loadedVideoId,
         startS,
         BoardPlayerYtComponent.SWITCH_CROSSFADE_MS,
+        true,
       );
       return;
     }

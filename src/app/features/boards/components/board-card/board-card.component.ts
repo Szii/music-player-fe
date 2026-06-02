@@ -14,6 +14,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ConnectedPosition, OverlayModule } from '@angular/cdk/overlay';
 import { Board, Group, Track } from '../../../../api/generated';
 import { BoardPlayerComponent } from '../board-player/board-player.component';
 import { BoardPlayerYtComponent } from '../board-player-yt/board-player-yt.component';
@@ -39,6 +40,7 @@ export interface PlaylistOptions {
   imports: [
     CommonModule,
     FormsModule,
+    OverlayModule,
     BoardPlayerComponent,
     BoardPlayerYtComponent,
     IconButtonComponent,
@@ -208,6 +210,8 @@ export interface PlaylistOptions {
               <div class="board-card__header-actions">
                 <div class="board-card__menu-wrap">
                   <button
+                    cdkOverlayOrigin
+                    #settingsOrigin="cdkOverlayOrigin"
                     type="button"
                     class="board-icon-btn"
                     [class.board-icon-btn--active]="settingsOpen()"
@@ -218,90 +222,99 @@ export interface PlaylistOptions {
                     ⚙
                   </button>
 
-                  <div
-                    *ngIf="settingsOpen()"
-                    #settingsMenu
-                    class="board-settings-menu"
-                    (click)="$event.stopPropagation()">
-                    <div class="board-settings-menu__title">Playback settings</div>
-
+                  <ng-template
+                    cdkConnectedOverlay
+                    [cdkConnectedOverlayOrigin]="settingsOrigin"
+                    [cdkConnectedOverlayOpen]="settingsOpen()"
+                    [cdkConnectedOverlayPositions]="settingsPositions"
+                    [cdkConnectedOverlayHasBackdrop]="true"
+                    [cdkConnectedOverlayBackdropClass]="'cdk-overlay-transparent-backdrop'"
+                    [cdkConnectedOverlayPush]="true"
+                    [cdkConnectedOverlayFlexibleDimensions]="true"
+                    [cdkConnectedOverlayViewportMargin]="12"
+                    (backdropClick)="closeSettingsMenu()"
+                    (detach)="closeSettingsMenu()">
                     <div
-                      class="board-settings-menu__items"
-                      [style.--settings-items-max-h.px]="settingsItemsMaxHeight()">
-                    <label class="board-settings-item">
-                      <div class="board-settings-item__copy">
-                        <span class="board-settings-item__label">{{ secondaryOptionLabel() }}</span>
-                        <span class="board-settings-item__hint">
-                          {{
-                            playlistMode()
-                              ? 'Playlist mode always picks tracks at random from the selected group'
-                              : 'Play track or its window in a seamless loop'
-                          }}
-                        </span>
-                      </div>
-                      <input
-                        type="checkbox"
-                        [checked]="secondaryOptionChecked()"
-                        [disabled]="playlistMode()"
-                        (change)="onSecondaryOptionToggle()" />
-                    </label>
+                      class="board-settings-menu"
+                      (click)="$event.stopPropagation()">
+                      <div class="board-settings-menu__title">Playback settings</div>
 
-                    <label class="board-settings-item">
-                      <div class="board-settings-item__copy">
-                        <span class="board-settings-item__label">Overplay</span>
-                        <span class="board-settings-item__hint">Allow overlap with other boards</span>
-                      </div>
-                      <input
-                        type="checkbox"
-                        [checked]="board().overplay ?? false"
-                        (change)="toggleOverplay.emit()" />
-                    </label>
+                      <div class="board-settings-menu__items">
+                        <label class="board-settings-item">
+                          <div class="board-settings-item__copy">
+                            <span class="board-settings-item__label">{{ secondaryOptionLabel() }}</span>
+                            <span class="board-settings-item__hint">
+                              {{
+                                playlistMode()
+                                  ? 'Playlist mode always picks tracks at random from the selected group'
+                                  : 'Play track or its window in a seamless loop'
+                              }}
+                            </span>
+                          </div>
+                          <input
+                            type="checkbox"
+                            [checked]="secondaryOptionChecked()"
+                            [disabled]="playlistMode()"
+                            (change)="onSecondaryOptionToggle()" />
+                        </label>
 
-                    <div class="board-settings-item board-settings-item--shortcut">
-                      <div class="board-settings-item__copy">
-                        <span class="board-settings-item__label">Keyboard shortcut</span>
-                        <span class="board-settings-item__hint">
-                          {{ capturingShortcut()
-                            ? 'Press a key combination (Esc to cancel)'
-                            : 'Toggle play/stop from the keyboard' }}
-                        </span>
-                      </div>
-                      <div class="board-shortcut">
-                        <span
-                          *ngIf="capturingShortcut()"
-                          class="board-shortcut__chip board-shortcut__chip--listening">
-                          Listening…
-                        </span>
-                        <span
-                          *ngIf="!capturingShortcut() && shortcut()"
-                          class="board-shortcut__chip">
-                          {{ shortcut() }}
-                        </span>
-                        <span
-                          *ngIf="!capturingShortcut() && !shortcut()"
-                          class="board-shortcut__chip board-shortcut__chip--empty">
-                          None
-                        </span>
+                        <label class="board-settings-item">
+                          <div class="board-settings-item__copy">
+                            <span class="board-settings-item__label">Overplay</span>
+                            <span class="board-settings-item__hint">Allow overlap with other boards</span>
+                          </div>
+                          <input
+                            type="checkbox"
+                            [checked]="board().overplay ?? false"
+                            (change)="toggleOverplay.emit()" />
+                        </label>
 
-                        <button
-                          type="button"
-                          class="board-shortcut__btn"
-                          (mousedown)="$event.preventDefault()"
-                          (click)="toggleCaptureShortcut()">
-                          {{ capturingShortcut() ? 'Cancel' : (shortcut() ? 'Change' : 'Set') }}
-                        </button>
-                        <button
-                          type="button"
-                          class="board-shortcut__btn board-shortcut__btn--danger"
-                          *ngIf="shortcut() && !capturingShortcut()"
-                          (mousedown)="$event.preventDefault()"
-                          (click)="clearShortcut()">
-                          Clear
-                        </button>
+                        <div class="board-settings-item board-settings-item--shortcut">
+                          <div class="board-settings-item__copy">
+                            <span class="board-settings-item__label">Keyboard shortcut</span>
+                            <span class="board-settings-item__hint">
+                              {{ capturingShortcut()
+                                ? 'Press a key combination (Esc to cancel)'
+                                : 'Toggle play/stop from the keyboard' }}
+                            </span>
+                          </div>
+                          <div class="board-shortcut">
+                            <span
+                              *ngIf="capturingShortcut()"
+                              class="board-shortcut__chip board-shortcut__chip--listening">
+                              Listening…
+                            </span>
+                            <span
+                              *ngIf="!capturingShortcut() && shortcut()"
+                              class="board-shortcut__chip">
+                              {{ shortcut() }}
+                            </span>
+                            <span
+                              *ngIf="!capturingShortcut() && !shortcut()"
+                              class="board-shortcut__chip board-shortcut__chip--empty">
+                              None
+                            </span>
+
+                            <button
+                              type="button"
+                              class="board-shortcut__btn"
+                              (mousedown)="$event.preventDefault()"
+                              (click)="toggleCaptureShortcut()">
+                              {{ capturingShortcut() ? 'Cancel' : (shortcut() ? 'Change' : 'Set') }}
+                            </button>
+                            <button
+                              type="button"
+                              class="board-shortcut__btn board-shortcut__btn--danger"
+                              *ngIf="shortcut() && !capturingShortcut()"
+                              (mousedown)="$event.preventDefault()"
+                              (click)="clearShortcut()">
+                              Clear
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    </div>
-                  </div>
+                  </ng-template>
                 </div>
               </div>
             </div>
@@ -725,11 +738,7 @@ export interface PlaylistOptions {
     }
 
     .board-settings-menu {
-      position: absolute;
-      top: calc(100% + 8px);
-      right: 0;
-      z-index: 20;
-      min-width: 240px;
+      min-width: 280px;
       width: max-content;
       max-width: calc(100vw - 24px);
       padding: 10px;
@@ -746,17 +755,17 @@ export interface PlaylistOptions {
     .board-settings-menu__items {
       display: flex;
       flex-direction: column;
-      flex-wrap: wrap;
-      align-content: flex-start;
       gap: 8px;
-      max-height: var(--settings-items-max-h, none);
-      width: max-content;
+      max-height: min(420px, calc(100vh - 120px));
+      overflow-y: auto;
+      overflow-x: hidden;
       max-width: 100%;
+      padding-right: 2px;
     }
 
     .board-settings-menu__items > .board-settings-item {
       flex: 0 0 auto;
-      width: 240px;
+      width: 100%;
       max-width: 100%;
       box-sizing: border-box;
     }
@@ -1015,10 +1024,6 @@ export interface PlaylistOptions {
         gap: 8px;
       }
 
-      .board-settings-menu {
-        left: 0;
-        right: auto;
-      }
     }
 
     @media (max-width: 480px) {
@@ -1077,9 +1082,37 @@ export class BoardCardComponent implements OnInit {
   readonly renameValue = signal('');
   readonly displayedVolumePercent = signal(100);
   readonly capturingShortcut = signal(false);
-  readonly settingsItemsMaxHeight = signal<number | null>(null);
 
-  @ViewChild('settingsMenu') settingsMenuRef?: ElementRef<HTMLElement>;
+  readonly settingsPositions: ConnectedPosition[] = [
+    {
+      originX: 'end',
+      originY: 'bottom',
+      overlayX: 'end',
+      overlayY: 'top',
+      offsetY: 8,
+    },
+    {
+      originX: 'end',
+      originY: 'top',
+      overlayX: 'end',
+      overlayY: 'bottom',
+      offsetY: -8,
+    },
+    {
+      originX: 'start',
+      originY: 'bottom',
+      overlayX: 'start',
+      overlayY: 'top',
+      offsetY: 8,
+    },
+    {
+      originX: 'start',
+      originY: 'top',
+      overlayX: 'start',
+      overlayY: 'bottom',
+      offsetY: -8,
+    },
+  ];
   @ViewChild('renameInput') renameInputRef?: ElementRef<HTMLInputElement>;
   @ViewChild('groupSelectRef') groupSelectRef?: UiSelectComponent;
   @ViewChild('trackSelectRef') trackSelectRef?: UiSelectComponent;
@@ -1279,8 +1312,6 @@ export class BoardCardComponent implements OnInit {
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly elementRef = inject(ElementRef<HTMLElement>);
-  private resizeObserver?: ResizeObserver;
-
   constructor() {
     effect(() => {
       const pct = this.volumePercent();
@@ -1316,50 +1347,12 @@ export class BoardCardComponent implements OnInit {
       this.previousSelectedGroupId = selectedGroupId;
     });
 
-    effect(() => {
-      if (!this.settingsOpen()) {
-        this.settingsItemsMaxHeight.set(null);
-        return;
-      }
-      queueMicrotask(() => this.measureSettingsFit());
-    });
   }
 
   ngOnInit(): void {
-    this.resizeObserver = new ResizeObserver(() => {
-      if (this.settingsOpen()) this.measureSettingsFit();
-    });
-    this.resizeObserver.observe(this.elementRef.nativeElement);
-
     this.destroyRef.onDestroy(() => {
-      this.resizeObserver?.disconnect();
       this.endShortcutCapture();
     });
-  }
-
-  private measureSettingsFit(): void {
-    const menu = this.settingsMenuRef?.nativeElement;
-    const card = this.elementRef.nativeElement;
-    if (!menu || !card) return;
-
-    const itemsEl = menu.querySelector('.board-settings-menu__items') as HTMLElement | null;
-    if (!itemsEl) return;
-
-    const menuRect = menu.getBoundingClientRect();
-    const cardRect = card.getBoundingClientRect();
-    const available = Math.floor(cardRect.bottom - menuRect.top - 16);
-
-    const prevMaxHeight = itemsEl.style.maxHeight;
-    itemsEl.style.maxHeight = 'none';
-    const naturalHeight = itemsEl.scrollHeight;
-    itemsEl.style.maxHeight = prevMaxHeight;
-
-    if (available <= 0 || naturalHeight <= available) {
-      this.settingsItemsMaxHeight.set(null);
-      return;
-    }
-
-    this.settingsItemsMaxHeight.set(Math.max(120, available));
   }
 
   toggleCaptureShortcut(): void {
@@ -1419,8 +1412,7 @@ export class BoardCardComponent implements OnInit {
   onDocumentClick(event: MouseEvent): void {
     if (!(event.target instanceof Node)) return;
     if (!this.elementRef.nativeElement.contains(event.target)) {
-      this.settingsOpen.set(false);
-      this.endShortcutCapture();
+      this.closeSettingsMenu();
     }
   }
 
@@ -1430,7 +1422,7 @@ export class BoardCardComponent implements OnInit {
 
   private setExpanded(expanded: boolean): void {
     this.expanded.set(expanded);
-    if (!expanded) this.settingsOpen.set(false);
+    if (!expanded) this.closeSettingsMenu();
   }
 
   startRename(): void {
@@ -1460,6 +1452,11 @@ export class BoardCardComponent implements OnInit {
   toggleSettingsMenu(event: MouseEvent): void {
     event.stopPropagation();
     this.settingsOpen.update(v => !v);
+  }
+
+  closeSettingsMenu(): void {
+    this.settingsOpen.set(false);
+    this.endShortcutCapture();
   }
 
   setPlaybackMode(isPlaylist: boolean): void {

@@ -131,6 +131,7 @@ interface VolumeCommit {
                   (toggleOverplay)="toggleOverplay(board)"
                   (play)="playBoardTrack(board)"
                   (stop)="stopBoardTrack(board)"
+                  (nearEnd)="onBoardNearEnd(board)"
                   (ended)="onAudioEnded(board)"
                   (audioError)="onAudioError(board)"
                   (playlistModeChange)="onPlaylistModeChange(board, $event)"
@@ -240,6 +241,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   private readonly persistedVolumesByBoard = new Map<number, number>();
   private readonly pendingTrackUpdateBoardIds = new Set<number>();
   private readonly playPendingAfterUpdateBoardIds = new Set<number>();
+  private readonly playlistAdvanceInFlightBoardIds = new Set<number>();
 
   private static readonly CROSSFADE_MS = 2000;
 
@@ -868,11 +870,21 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       });
   }
 
+  onBoardNearEnd(board: Board): void {
+    if (board.id == null || !board.playlistMode) return;
+
+    // Advance ahead of the track end so the next track crossfades in while the
+    // current one is still playing, instead of gapping after it has stopped.
+    this.advancePlaylist(board, true, true);
+  }
+
   onAudioEnded(board: Board): void {
     if (board.id == null) return;
 
     if (board.playlistMode) {
-      this.advancePlaylist(board);
+      // If nearEnd already kicked off the advance/crossfade, advancePlaylist
+      // dedupes via its in-flight guard; otherwise this advances at the seam.
+      this.advancePlaylist(board, true, true);
     } else {
       this.clearBoard(board.id);
     }
@@ -1020,10 +1032,19 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       });
   }
 
-  private advancePlaylist(board: Board, autoPlay = true): void {
+  private advancePlaylist(
+    board: Board,
+    autoPlay = true,
+    requireActiveToContinue = false,
+  ): void {
     if (board.id == null) return;
 
     const boardId = board.id;
+
+    // nearEnd (preload) and ended (seam) can both ask to advance the same board;
+    // run only one advance at a time so a track isn't skipped.
+    if (this.playlistAdvanceInFlightBoardIds.has(boardId)) return;
+
     const availableTracks = board.availableTracks ?? [];
 
     if (!availableTracks.length) {
@@ -1042,6 +1063,8 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     const nextTrackIndex = order[nextStep];
     const nextTrack = availableTracks[nextTrackIndex] ?? availableTracks[0];
 
+    this.playlistAdvanceInFlightBoardIds.add(boardId);
+
     this.boardsApi.updateUserBoard({
       boardId,
       boardUpdateRequest: this.baseUpdate(board, {
@@ -1051,8 +1074,14 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: updated => {
+          this.playlistAdvanceInFlightBoardIds.delete(boardId);
           this.streamUrlsByBoard.delete(boardId);
           this.upsertBoard(updated);
+          // A continuation advance (nearEnd/ended) must not resurrect a board
+          // the user stopped while the update was in flight.
+          if (requireActiveToContinue && !this.isBoardActive(boardId)) {
+            return;
+          }
           if (autoPlay) {
             const freshBoard = this.boards().find(item => item.id === boardId);
             if (freshBoard) {
@@ -1061,6 +1090,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
           }
         },
         error: err => {
+          this.playlistAdvanceInFlightBoardIds.delete(boardId);
           console.error('Playlist advance failed', err);
           this.clearBoard(boardId);
         },
