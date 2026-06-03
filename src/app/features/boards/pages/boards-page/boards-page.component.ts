@@ -27,6 +27,7 @@ import {
   PlayRequest,
   SessionResponse,
   Track,
+  TrackWindow,
 } from '../../../../api/generated';
 
 import {
@@ -36,6 +37,8 @@ import {
 import {
   BoardCardComponent,
   PlaylistOptions,
+  PlaybackMode,
+  LoopMode,
 } from '../../components/board-card/board-card.component';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
@@ -53,6 +56,7 @@ interface VolumeCommit {
   boardId: number;
   volumePercent: number;
 }
+
 
 @Component({
   selector: 'app-boards-page',
@@ -121,21 +125,23 @@ interface VolumeCommit {
                   [masterFadeRampMs]="getMasterFadeRampMs(board)"
                   [volumePercent]="getBoardVolumePercent(board)"
                   [playlistMode]="board.playlistMode ?? false"
+                  [sequentialWindows]="getSequentialWindows(board)"
                   [playlistOptions]="getPlaylistOptions(board)"
                   (delete)="deleteBoard(board)"
                   (groupChange)="onGroupSelectionChange(board, $event)"
                   (trackChange)="onTrackSelectionChange(board, $event)"
                   (windowChange)="onWindowSelectionChange(board, $event)"
                   (trackWithWindowChange)="onTrackWithWindowChange(board, $event)"
-                  (toggleRepeat)="toggleRepeat(board)"
+                  (loopModeChange)="onLoopModeChange(board, $event)"
                   (toggleOverplay)="toggleOverplay(board)"
                   (play)="playBoardTrack(board)"
                   (stop)="stopBoardTrack(board)"
                   (nearEnd)="onBoardNearEnd(board)"
                   (ended)="onAudioEnded(board)"
                   (audioError)="onAudioError(board)"
-                  (playlistModeChange)="onPlaylistModeChange(board, $event)"
+                  (modeChange)="onModeChange(board, $event)"
                   (playlistOptionsChange)="onPlaylistOptionsChange(board, $event)"
+                  (skipNext)="onPlaylistSkip(board)"
                   (volumePreviewChange)="onBoardVolumePreview(board, $event)"
                   (volumeCommit)="onBoardVolumeCommit(board, $event)"
                   (rename)="onBoardRename(board, $event)"
@@ -234,6 +240,17 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   private readonly streamUrlsByBoard = new Map<number, string>();
   private readonly boardStatuses = new Map<number, PlayerStatus>();
   private readonly selectedWindowByBoard = new Map<number, number | null>();
+  /**
+   * Local mirror of the backend-persisted sequence mode per board. It also keeps
+   * optimistic UI state while an update request is in flight.
+   */
+  private readonly sequentialWindowsByBoard = new Map<number, boolean>();
+  /**
+   * Remembers the single-mode track/window selected when a board entered playlist
+   * mode, so it can be restored when the board switches back to single instead of
+   * being lost.
+   */
+  private readonly preSingleSelectionByBoard = new Map<number, { trackId: number | null; windowId: number | null }>();
   private readonly masterVolumesByBoard = new Map<number, number>();
   private readonly masterFadeRampMsByBoard = new Map<number, number>();
   private readonly playlistIndexByBoard = new Map<number, number>();
@@ -455,11 +472,68 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     }
   }
 
-  toggleRepeat(board: Board): void {
+  /**
+   * Single-track loop behaviour, chosen from the Playback-settings dropdown:
+   *  - `off`   → play once (no repeat)
+   *  - `whole` → loop the whole track / selected window
+   *  - `sequence` → step through every window in order, looping the sequence
+   *
+   * Changing loop mode never stops the board: off ↔ whole is a plain repeat
+   * change, and entering/leaving sequence reuses the player's window-change
+   * crossfade so playback continues uninterrupted.
+   */
+  onLoopModeChange(board: Board, mode: LoopMode): void {
+    if (board.id == null) return;
+    const boardId = board.id;
+
+    const wasSequence = this.getSequentialWindows(board);
+    const toSequence = mode === 'sequence';
+    const repeat = mode !== 'off';
+
+    if (toSequence) {
+      this.sequentialWindowsByBoard.set(boardId, true);
+
+      // Sequence is selectable regardless of window count; if the track has any
+      // windows, start the sequence at the first one.
+      const windows = this.boardWindows(board);
+      const firstWindowId = windows.length >= 1 ? (windows[0].id ?? null) : null;
+      if (firstWindowId != null) {
+        this.selectedWindowByBoard.set(boardId, firstWindowId);
+      }
+
+      this.updateBoard(
+        board,
+        {
+          playlistMode: false,
+          sequenceMode: true,
+          repeat,
+          selectedWindowId: firstWindowId ?? undefined,
+        },
+        'Updating loop mode failed.',
+      );
+      return;
+    }
+
+    this.sequentialWindowsByBoard.delete(boardId);
+
+    if (wasSequence) {
+      // Leaving sequence: drop the per-window selection and keep playing the
+      // whole track from the current position (the player's window-change
+      // crossfade handles dropping the window bounds). The track is never reset.
+      this.selectedWindowByBoard.set(boardId, null);
+      this.updateBoard(
+        board,
+        { sequenceMode: false, repeat, selectedWindowId: undefined },
+        'Updating loop mode failed.',
+      );
+      return;
+    }
+
+    // Plain off ↔ whole repeat change — preserve any user-selected window.
     this.updateBoard(
       board,
-      { repeat: !(board.repeat ?? false) },
-      'Updating repeat failed.',
+      { sequenceMode: false, repeat },
+      'Updating loop mode failed.',
     );
   }
 
@@ -471,22 +545,124 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     );
   }
 
-  onPlaylistModeChange(board: Board, enabled: boolean): void {
+  onModeChange(board: Board, mode: PlaybackMode): void {
     if (board.id == null) return;
-
     const boardId = board.id;
 
-    this.clearBoard(boardId);
-    this.selectedWindowByBoard.delete(boardId);
+    const fromMode: PlaybackMode = (board.playlistMode ?? false)
+      ? 'playlist'
+      : this.getSequentialWindows(board) ? 'sequence' : 'single';
+    if (fromMode === mode) return;
 
-    if (enabled) {
+    // Changing the playback mode always stops the board.
+    this.clearBoard(boardId);
+
+    if (mode === 'playlist') {
+      // Remember the single-track selection so it can be restored when leaving
+      // playlist (entering playlist clears the selected track on the backend).
+      this.preSingleSelectionByBoard.set(boardId, {
+        trackId: board.selectedTrack?.id ?? null,
+        windowId: this.selectedWindowByBoard.get(boardId) ?? null,
+      });
+      this.sequentialWindowsByBoard.delete(boardId);
+      this.selectedWindowByBoard.delete(boardId);
       this.regeneratePlaylistOrder(boardId, board.availableTracks ?? [], board.shuffle ?? false);
-      this.updateBoard(board, { playlistMode: enabled, selectedTrackId: undefined }, 'Updating playlist mode failed.');
-    } else {
+      this.updateBoard(
+        board,
+        {
+          playlistMode: true,
+          sequenceMode: false,
+          selectedTrackId: undefined,
+          selectedWindowId: undefined,
+        },
+        'Updating playlist mode failed.',
+      );
+      return;
+    }
+
+    if (mode === 'sequence') {
+      this.sequentialWindowsByBoard.set(boardId, true);
+
+      const windows = this.boardWindows(board);
+      const firstWindowId = windows.length >= 2 ? (windows[0].id ?? null) : null;
+      if (firstWindowId != null) {
+        this.selectedWindowByBoard.set(boardId, firstWindowId);
+      }
+
+      this.updateBoard(
+        board,
+        {
+          playlistMode: false,
+          sequenceMode: true,
+          selectedWindowId: firstWindowId ?? undefined,
+        },
+        'Updating sequence mode failed.',
+      );
+      return;
+    }
+
+    // mode === 'single'
+    this.sequentialWindowsByBoard.delete(boardId);
+
+    if (fromMode === 'playlist') {
+      // Playlist cleared the track; restore the remembered single-mode selection.
       this.playlistIndexByBoard.delete(boardId);
       this.playlistOrderByBoard.delete(boardId);
-      this.updateBoard(board, { playlistMode: enabled }, 'Updating playlist mode failed.');
+      this.updateBoard(
+        board,
+        { playlistMode: false, sequenceMode: false },
+        'Updating playlist mode failed.',
+        () => this.restoreSingleSelection(boardId),
+      );
+      return;
     }
+
+    this.updateBoard(
+      board,
+      { sequenceMode: false },
+      'Updating sequence mode failed.',
+    );
+  }
+
+  /**
+   * Restore the track/window the board had before it entered playlist mode. Only
+   * applies a track that is still available on the board; otherwise leaves the
+   * board with no selection. The board is already stopped at this point.
+   */
+  private restoreSingleSelection(boardId: number): void {
+    const remembered = this.preSingleSelectionByBoard.get(boardId);
+    this.preSingleSelectionByBoard.delete(boardId);
+
+    if (remembered?.trackId == null) return;
+
+    const fresh = this.boards().find(b => b.id === boardId);
+    if (!fresh) return;
+
+    if (!(fresh.availableTracks ?? []).some(t => t.id === remembered.trackId)) return;
+
+    this.selectedWindowByBoard.set(boardId, remembered.windowId);
+
+    // Already on the remembered track: the window map update above is enough.
+    if (fresh.selectedTrack?.id === remembered.trackId) return;
+
+    this.boardsApi.updateUserBoard({
+      boardId,
+      boardUpdateRequest: this.baseUpdate(fresh, {
+        selectedTrackId: remembered.trackId,
+        selectedWindowId: remembered.windowId ?? undefined,
+      }),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: updated => {
+          this.upsertBoard(updated);
+          this.selectedWindowByBoard.set(boardId, remembered.windowId);
+        },
+        error: (err: unknown) => {
+          console.error(err);
+          this.toast.error('Restoring track failed.');
+        },
+      });
   }
 
   onBoardRename(board: Board, name: string): void {
@@ -495,6 +671,30 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
   onPlaylistOptionsChange(board: Board, options: PlaylistOptions): void {
     this.updateBoard(board, { shuffle: options.random }, 'Updating shuffle failed.');
+
+    const boardId = board.id;
+    if (boardId == null || !board.playlistMode) return;
+
+    // Rebuild the play order for the new mode immediately so the next track (and
+    // the skip button) honours it. Anchor the cursor at the currently-playing
+    // track so toggling shuffle does not jump or repeat.
+    const tracks = board.availableTracks ?? [];
+    this.regeneratePlaylistOrder(boardId, tracks, options.random);
+
+    const currentTrackId = board.selectedTrack?.id ?? null;
+    const order = this.playlistOrderByBoard.get(boardId);
+    if (order && currentTrackId != null) {
+      const step = order.findIndex(i => tracks[i]?.id === currentTrackId);
+      if (step >= 0) this.playlistIndexByBoard.set(boardId, step);
+    }
+  }
+
+  onPlaylistSkip(board: Board): void {
+    if (board.id == null || !board.playlistMode) return;
+    // Advance to the next track — random picks the next unplayed track in the
+    // current shuffle, otherwise the next track in group order. Also starts
+    // playback if the board is currently stopped.
+    this.advancePlaylist(board);
   }
 
   onGroupSelectionChange(board: Board, selectedId: number | null): void {
@@ -504,21 +704,39 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     const wasActive = this.isBoardActive(boardId);
     const playingTrack = board.selectedTrack;
 
+    this.sequentialWindowsByBoard.delete(boardId);
+
     this.boardsApi.updateUserBoard({
       boardId,
       boardUpdateRequest: this.baseUpdate(board, {
         selectedGroupId: selectedId ?? undefined,
         selectedTrackId:  undefined,
         selectedWindowId: undefined,
+        sequenceMode: false,
       }),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: updated => {
+          if (updated.playlistMode && updated.id != null) {
+            this.regeneratePlaylistOrder(updated.id, updated.availableTracks ?? [], updated.shuffle ?? false);
+          }
+
+          // Playlist, playing: immediately switch playback into the new group
+          // (advancePlaylist applies the crossfade).
+          if (wasActive && updated.playlistMode) {
+            this.selectedWindowByBoard.delete(boardId);
+            this.upsertBoard(updated);
+            const fresh = this.boards().find(b => b.id === boardId);
+            if (fresh) this.advancePlaylist(fresh);
+            return;
+          }
+
+          // Single/sequence, playing: keep the current track playing. The backend
+          // reset selectedTrack to the new group's default, but we restore it so the
+          // player doesn't tear down — the user picks a track from the new group to
+          // switch (the group shows a desync hint until then).
           if (wasActive && playingTrack) {
-            // Keep audio playing on the previous track; backend reset selectedTrack
-            // to the new group's default, but we restore it so the player doesn't
-            // tear down. The user picks a track from the new group to crossfade.
             let normalized: Board = updated;
             this.boards.update(current => {
               const existing = current.find(b => b.id === boardId);
@@ -526,15 +744,13 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
               return this.replaceBoard(current, normalized);
             });
             this.syncPersistedVolume(normalized);
-          } else {
-            this.selectedWindowByBoard.delete(boardId);
-            this.upsertBoard(updated);
-            this.clearBoard(boardId);
+            return;
           }
 
-          if (updated.playlistMode && updated.id != null) {
-            this.regeneratePlaylistOrder(updated.id, updated.availableTracks ?? [], updated.shuffle ?? false);
-          }
+          // Stopped: just adopt the new group's default selection.
+          this.selectedWindowByBoard.delete(boardId);
+          this.upsertBoard(updated);
+          this.clearBoard(boardId);
         },
         error: (err: unknown) => {
           console.error(err);
@@ -554,6 +770,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     const { trackId, windowId } = payload;
 
     this.selectedWindowByBoard.set(boardId, windowId);
+    this.sequentialWindowsByBoard.delete(boardId);
     this.pendingTrackUpdateBoardIds.add(boardId);
 
     this.boardsApi.updateUserBoard({
@@ -561,6 +778,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       boardUpdateRequest: this.baseUpdate(board, {
         selectedTrackId: trackId ?? undefined,
         selectedWindowId: windowId ?? undefined,
+        sequenceMode: false,
       }),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -601,14 +819,22 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
     const boardId = board.id;
     const wasActive = this.isBoardActive(boardId);
+    // In sequence mode, picking a track keeps the mode and sequences the new
+    // track; otherwise selecting a track exits sequence (single behaviour).
+    const sequencing = this.getSequentialWindows(board);
+    const keepSequence = sequencing && selectedId != null;
     this.selectedWindowByBoard.delete(boardId);
+    if (!keepSequence) {
+      this.sequentialWindowsByBoard.delete(boardId);
+    }
     this.pendingTrackUpdateBoardIds.add(boardId);
 
     this.boardsApi.updateUserBoard({
       boardId,
       boardUpdateRequest: this.baseUpdate(board, {
         selectedTrackId: selectedId ?? undefined,
-        selectedWindowId: undefined
+        selectedWindowId: undefined,
+        sequenceMode: keepSequence,
       }),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -617,6 +843,17 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
           this.upsertBoard(updated);
           this.pendingTrackUpdateBoardIds.delete(boardId);
           const wantsPlay = this.playPendingAfterUpdateBoardIds.delete(boardId);
+
+          if (keepSequence) {
+            // Sequence the new track from its first window (or fall back to single
+            // if it can't be sequenced).
+            const windows = updated.selectedTrack?.trackWindows ?? [];
+            if (windows.length >= 2) {
+              this.setSequenceWindow(boardId, windows[0]);
+            } else {
+              this.sequentialWindowsByBoard.delete(boardId);
+            }
+          }
 
           if (selectedId != null && (wasActive || wantsPlay)) {
             // YT backend: an active board crossfades to the new track client-side.
@@ -646,11 +883,14 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
     const boardId = board.id;
     this.selectedWindowByBoard.set(boardId, windowId);
+    // A manual window pick exits sequence mode.
+    this.sequentialWindowsByBoard.delete(boardId);
 
     this.boardsApi.updateUserBoard({
       boardId,
       boardUpdateRequest: this.baseUpdate(board, {
         selectedWindowId: windowId ?? undefined,
+        sequenceMode: false,
       }),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -729,6 +969,14 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
     if (!wasActive) {
       this.masterVolumesByBoard.set(targetId, 0);
+
+      // Sequence mode always (re)starts from the first window.
+      if (this.sequentialWindowsByBoard.get(targetId)) {
+        const windows = this.boardWindows(board);
+        if (windows.length >= 2) {
+          this.setSequenceWindow(targetId, windows[0]);
+        }
+      }
     }
 
     const windowId = this.selectedWindowByBoard.get(targetId) ?? undefined;
@@ -871,11 +1119,20 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   }
 
   onBoardNearEnd(board: Board): void {
-    if (board.id == null || !board.playlistMode) return;
+    if (board.id == null) return;
 
-    // Advance ahead of the track end so the next track crossfades in while the
-    // current one is still playing, instead of gapping after it has stopped.
-    this.advancePlaylist(board, true, true);
+    if (board.playlistMode) {
+      // Advance ahead of the track end so the next track crossfades in while the
+      // current one is still playing, instead of gapping after it has stopped.
+      this.advancePlaylist(board, true, true);
+      return;
+    }
+
+    if (this.getSequentialWindows(board)) {
+      // Advance to the next window ahead of the current window's end so the
+      // window-change crossfade overlaps the seam.
+      this.advanceSequenceWindow(board);
+    }
   }
 
   onAudioEnded(board: Board): void {
@@ -940,6 +1197,63 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     return {
       random: board.shuffle ?? false,
     };
+  }
+
+  getSequentialWindows(board: Board): boolean {
+    if (board.id == null) {
+      return this.sequenceModeFromBoard(board);
+    }
+
+    return this.sequentialWindowsByBoard.get(board.id)
+      ?? this.sequenceModeFromBoard(board);
+  }
+
+  private boardWindows(board: Board): TrackWindow[] {
+    return board.selectedTrack?.trackWindows ?? [];
+  }
+
+  private setSequenceWindow(boardId: number, window: TrackWindow): void {
+    this.selectedWindowByBoard.set(boardId, window.id ?? null);
+  }
+
+  /**
+   * Advance to the next window in sequence mode. Reuses the player's window-change
+   * crossfade by mutating the locally selected window. At the last window it loops
+   * back to the first when repeat is on, otherwise it lets the window play out so
+   * the player emits `ended` and the board stops.
+   */
+  private advanceSequenceWindow(board: Board): void {
+    if (board.id == null) return;
+    const boardId = board.id;
+
+    const windows = this.boardWindows(board);
+    if (windows.length < 2) {
+      this.clearBoard(boardId);
+      return;
+    }
+
+    const currentId = this.selectedWindowByBoard.get(boardId) ?? null;
+    const currentIdx = windows.findIndex(w => w.id === currentId);
+    let nextIdx = currentIdx + 1;
+
+    if (nextIdx >= windows.length) {
+      if (!(board.repeat ?? false)) {
+        // No loop: the last window plays to its end and the board stops.
+        return;
+      }
+      nextIdx = 0;
+    }
+
+    this.setSequenceWindow(boardId, windows[nextIdx]);
+
+    // The YouTube deck crossfades client-side from the window-input change. The
+    // backend-stream player needs an explicit restart at the new window.
+    if (!USE_YT_IFRAME_PLAYER && this.isBoardActive(boardId)) {
+      const fresh = this.boards().find(b => b.id === boardId);
+      if (fresh) {
+        this.playBoardTrack(fresh);
+      }
+    }
   }
 
   getGroupsForBoard(board: Board): Group[] {
@@ -1056,8 +1370,25 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       this.regeneratePlaylistOrder(boardId, availableTracks, board.shuffle ?? false);
     }
 
-    const order = this.playlistOrderByBoard.get(boardId)!;
-    const nextStep = ((this.playlistIndexByBoard.get(boardId) ?? -1) + 1) % order.length;
+    let order = this.playlistOrderByBoard.get(boardId)!;
+    const prevStep = this.playlistIndexByBoard.get(boardId) ?? -1;
+    const lastPlayedIndex = prevStep >= 0 && prevStep < order.length ? order[prevStep] : -1;
+    let nextStep = prevStep + 1;
+
+    if (nextStep >= order.length) {
+      // Completed a full pass over the group. Reshuffle for the next cycle when
+      // random so every track plays once before any repeats, but the order
+      // differs each cycle. Avoid replaying the just-finished track back-to-back.
+      if (board.shuffle ?? false) {
+        this.regeneratePlaylistOrder(boardId, availableTracks, true);
+        order = this.playlistOrderByBoard.get(boardId)!;
+        if (order.length > 1 && order[0] === lastPlayedIndex) {
+          [order[0], order[1]] = [order[1], order[0]];
+        }
+      }
+      nextStep = 0;
+    }
+
     this.playlistIndexByBoard.set(boardId, nextStep);
 
     const nextTrackIndex = order[nextStep];
@@ -1101,6 +1432,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     board: Board,
     overrides: Partial<BoardUpdateRequest>,
     errorMessage: string,
+    onSuccess?: () => void,
   ): void {
     if (board.id == null) return;
 
@@ -1120,7 +1452,10 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: session => this.replaceBoardsFromSession(session),
+        next: session => {
+          this.replaceBoardsFromSession(session);
+          onSuccess?.();
+        },
         error: (err: unknown) => {
           console.error(err);
           this.toast.error(errorMessage);
@@ -1155,6 +1490,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       overplay: board.overplay ?? undefined,
       shuffle: board.shuffle ?? undefined,
       playlistMode: board.playlistMode ?? undefined,
+      sequenceMode: this.sequenceModeForRequest(board),
       ...overrides,
     };
   }
@@ -1196,6 +1532,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
     this.syncPersistedVolume(normalizedBoard);
     this.syncSelectedWindow(normalizedBoard);
+    this.syncSequenceMode(normalizedBoard);
   }
 
   private replaceBoard(boards: Board[], board: Board): Board[] {
@@ -1227,6 +1564,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       this.ensureBoardStatus(board);
       this.syncPersistedVolume(board);
       this.syncSelectedWindow(board);
+      this.syncSequenceMode(board);
     }
   }
 
@@ -1252,6 +1590,8 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     this.boardStatuses.delete(boardId);
     this.streamUrlsByBoard.delete(boardId);
     this.selectedWindowByBoard.delete(boardId);
+    this.sequentialWindowsByBoard.delete(boardId);
+    this.preSingleSelectionByBoard.delete(boardId);
     this.masterVolumesByBoard.delete(boardId);
     this.masterFadeRampMsByBoard.delete(boardId);
     this.playlistIndexByBoard.delete(boardId);
@@ -1279,6 +1619,39 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     if (board.id != null) {
       this.selectedWindowByBoard.set(board.id, board.selectedWindow?.id ?? null);
     }
+  }
+
+  private syncSequenceMode(board: Board): void {
+    if (board.id == null) return;
+
+    if (!this.sequenceModeFromBoard(board)) {
+      this.sequentialWindowsByBoard.delete(board.id);
+      return;
+    }
+
+    this.sequentialWindowsByBoard.set(board.id, true);
+
+    const hasSelectedWindow = this.selectedWindowByBoard.get(board.id) != null;
+    if (hasSelectedWindow) return;
+
+    const firstWindow = board.selectedTrack?.trackWindows?.[0];
+    if (firstWindow?.id != null) {
+      this.selectedWindowByBoard.set(board.id, firstWindow.id);
+    }
+  }
+
+  private sequenceModeFromBoard(board: Board): boolean {
+    return !(board.playlistMode ?? false)
+      && ((board.sequenceMode ?? false) === true);
+  }
+
+  private sequenceModeForRequest(board: Board): boolean | undefined {
+    if (board.id != null) {
+      const localValue = this.sequentialWindowsByBoard.get(board.id);
+      if (localValue != null) return localValue;
+    }
+
+    return board.sequenceMode ?? undefined;
   }
 
   private resolveStreamUrl(streamUrl?: string | null): string | null {

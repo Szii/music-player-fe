@@ -26,8 +26,15 @@ interface Slot {
   ready: boolean;
   creating: Promise<YT.Player | null> | null;
   loadedVideoId: string | null;
+  loadedTrackId: number | null;
   /** Crossfade gain 0..1, multiplied by the master volume. */
   gain: number;
+}
+
+interface PendingTrack {
+  readonly videoId: string;
+  readonly trackId: number | null;
+  readonly crossfadeMs: number;
 }
 
 /**
@@ -93,6 +100,8 @@ export class BoardPlayerYtComponent implements OnDestroy {
   private static readonly POLL_INTERVAL_MS = 50;
   private static readonly LOOP_CROSSFADE_MS = 2500;
   private static readonly SWITCH_CROSSFADE_MS = 2500;
+  /** Used for the final target when the user skips several tracks mid-fade. */
+  private static readonly RAPID_SWITCH_CROSSFADE_MS = 250;
   /** Extra head-start so the incoming slot can buffer before the fade starts. */
   private static readonly CROSSFADE_BUFFER_LEAD_S = 1;
   private static readonly PLAYING_WAIT_TIMEOUT_MS = 4000;
@@ -138,6 +147,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
     ready: false,
     creating: null,
     loadedVideoId: null,
+    loadedTrackId: null,
     gain: 1,
   };
   private readonly slotB: Slot = {
@@ -147,6 +157,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
     ready: false,
     creating: null,
     loadedVideoId: null,
+    loadedTrackId: null,
     gain: 0,
   };
 
@@ -167,6 +178,12 @@ export class BoardPlayerYtComponent implements OnDestroy {
       window start instead of mirroring the outgoing slot's playhead. Loop-seam
       crossfades leave this false so the slider keeps progressing to the seam. */
   private pinDisplayDuringCrossfade = false;
+  /** Latest track requested while a crossfade was still running (e.g. rapid
+      playlist skips). Applied once the in-progress crossfade settles. */
+  private pendingTrack: PendingTrack | null = null;
+  /** If a newer track arrives mid-fade, finish or abort the current fade quickly
+      so the queued final target is heard immediately. */
+  private finishCurrentCrossfadeRequested = false;
 
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private emittedNearEnd = false;
@@ -178,6 +195,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
     effect(() => {
       const status = this.status();
       const videoId = this.videoId();
+      const trackId = this.trackId();
       const hasTrack = this.hasTrack();
       // Touch window/repeat so changes re-evaluate boundaries while playing.
       this.windowStartS();
@@ -185,7 +203,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
       this.hasSelectedWindow();
       this.repeat();
 
-      this.sync(status, hasTrack ? videoId : null);
+      this.sync(status, hasTrack ? videoId : null, hasTrack ? trackId : null);
     });
 
     effect(() => {
@@ -276,7 +294,11 @@ export class BoardPlayerYtComponent implements OnDestroy {
     this.forceMasterVolume(0);
   }
 
-  private sync(status: PlayerStatus, videoId: string | null): void {
+  private sync(
+    status: PlayerStatus,
+    videoId: string | null,
+    trackId: number | null,
+  ): void {
     if (!videoId) {
       this.stopAndReset();
       return;
@@ -284,19 +306,35 @@ export class BoardPlayerYtComponent implements OnDestroy {
 
     if (status === 'PLAYING') {
       if (this.crossfadeInProgress) {
+        // A new track was requested mid-crossfade (e.g. rapid playlist skips).
+        // Keep only the latest target. If it differs from the already incoming
+        // slot, finish/abort the current fade quickly and then fade into this
+        // final target.
+        if (this.slotMatches(this.idle(), videoId, trackId)) {
+          this.pendingTrack = null;
+          return;
+        }
+
+        this.pendingTrack = {
+          videoId,
+          trackId,
+          crossfadeMs: BoardPlayerYtComponent.RAPID_SWITCH_CROSSFADE_MS,
+        };
+        this.requestCurrentCrossfadeFinish();
         return;
       }
 
       const active = this.active();
 
       if (active.loadedVideoId == null) {
-        void this.startInitial(videoId);
+        void this.startInitial(videoId, trackId);
         return;
       }
 
-      if (active.loadedVideoId !== videoId) {
+      if (!this.slotMatches(active, videoId, trackId)) {
         void this.crossfadeInto(
           videoId,
+          trackId,
           this.windowStartFloor(),
           BoardPlayerYtComponent.SWITCH_CROSSFADE_MS,
           true,
@@ -327,7 +365,10 @@ export class BoardPlayerYtComponent implements OnDestroy {
     this.stopAndReset();
   }
 
-  private async startInitial(videoId: string): Promise<void> {
+  private async startInitial(
+    videoId: string,
+    trackId: number | null,
+  ): Promise<void> {
     const active = this.active();
     const player = await this.ensureSlotPlayer(active);
     if (!player) {
@@ -336,6 +377,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
 
     const startS = this.windowStartFloor();
     active.loadedVideoId = videoId;
+    active.loadedTrackId = trackId;
     active.gain = 1;
     this.idle().gain = 0;
     this.emittedNearEnd = false;
@@ -358,6 +400,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
    */
   private async crossfadeInto(
     videoId: string,
+    trackId: number | null,
     startS: number,
     crossfadeMs: number,
     pinDisplayToStart = false,
@@ -367,6 +410,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
     }
 
     this.crossfadeInProgress = true;
+    this.finishCurrentCrossfadeRequested = false;
     this.pinDisplayDuringCrossfade = pinDisplayToStart;
     if (pinDisplayToStart) {
       // Snap the scrubber to the incoming window immediately so it doesn't show
@@ -385,6 +429,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
       }
 
       to.loadedVideoId = videoId;
+      to.loadedTrackId = trackId;
       to.gain = 0;
       this.applyVolumes();
       // Mute the incoming player so its programmatic autoplay is always allowed
@@ -403,14 +448,15 @@ export class BoardPlayerYtComponent implements OnDestroy {
         return;
       }
 
-      // Incoming slot never started (e.g. autoplay blocked) — abort without
-      // swapping so we never crossfade into silence. The active slot keeps
-      // playing and will hard-loop at the seam.
+      // Incoming slot never started (e.g. autoplay blocked), or a newer pending
+      // track arrived while it was buffering. Abort without swapping so the
+      // active slot keeps playing and pending playback can be flushed safely.
       if (!playing) {
         if (to.player && to.ready) {
           to.player.stopVideo();
         }
         to.loadedVideoId = null;
+        to.loadedTrackId = null;
         to.gain = 0;
         from.gain = 1;
         this.applyVolumes();
@@ -428,6 +474,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
         from.player.stopVideo();
       }
       from.loadedVideoId = null;
+      from.loadedTrackId = null;
       from.gain = 0;
       to.gain = 1;
       this.activeSlot = to.name;
@@ -441,9 +488,45 @@ export class BoardPlayerYtComponent implements OnDestroy {
     } finally {
       if (seq === this.switchSeq) {
         this.crossfadeInProgress = false;
+        this.finishCurrentCrossfadeRequested = false;
         this.pinDisplayDuringCrossfade = false;
+        this.flushPendingTrack();
       }
     }
+  }
+
+  /**
+   * Apply a track change that was requested while a crossfade was still running
+   * (e.g. rapid playlist skips). Crossfades into the latest requested track so
+   * the final selection is the one that actually plays.
+   */
+  private flushPendingTrack(): void {
+    const pending = this.pendingTrack;
+    this.pendingTrack = null;
+
+    if (pending == null) return;
+    if (this.status() !== 'PLAYING' || !this.hasTrack()) return;
+    if (this.slotMatches(this.active(), pending.videoId, pending.trackId)) return;
+
+    void this.crossfadeInto(
+      pending.videoId,
+      pending.trackId,
+      this.windowStartFloor(),
+      pending.crossfadeMs,
+      true,
+    );
+  }
+
+  private requestCurrentCrossfadeFinish(): void {
+    this.finishCurrentCrossfadeRequested = true;
+  }
+
+  private slotMatches(
+    slot: Slot,
+    videoId: string | null,
+    trackId: number | null,
+  ): boolean {
+    return slot.loadedVideoId === videoId && slot.loadedTrackId === trackId;
   }
 
   private ensureSlotPlayer(slot: Slot): Promise<YT.Player | null> {
@@ -599,6 +682,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
         ) {
           void this.crossfadeInto(
             active.loadedVideoId,
+            active.loadedTrackId,
             startS,
             BoardPlayerYtComponent.LOOP_CROSSFADE_MS,
           );
@@ -662,10 +746,13 @@ export class BoardPlayerYtComponent implements OnDestroy {
     this.stopPolling();
     this.switchSeq++;
     this.crossfadeInProgress = false;
+    this.pendingTrack = null;
+    this.finishCurrentCrossfadeRequested = false;
     this.emittedNearEnd = false;
 
     for (const slot of [this.slotA, this.slotB]) {
       slot.loadedVideoId = null;
+      slot.loadedTrackId = null;
       if (slot.player && slot.ready) {
         slot.player.stopVideo();
       }
@@ -777,7 +864,9 @@ export class BoardPlayerYtComponent implements OnDestroy {
             resolve();
             return;
           }
-          const t = Math.min(1, (performance.now() - startTime) / durationMs);
+          const t = this.finishCurrentCrossfadeRequested
+            ? 1
+            : Math.min(1, (performance.now() - startTime) / durationMs);
           const angle = (t * Math.PI) / 2;
           from.gain = Math.cos(angle);
           to.gain = Math.sin(angle);
@@ -818,6 +907,10 @@ export class BoardPlayerYtComponent implements OnDestroy {
       const startTime = performance.now();
       const check = () => {
         if (!slot.player || !slot.ready) {
+          resolve(false);
+          return;
+        }
+        if (this.finishCurrentCrossfadeRequested) {
           resolve(false);
           return;
         }
@@ -867,6 +960,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
     if (active.player.getPlayerState() === YT.PlayerState.PLAYING) {
       void this.crossfadeInto(
         active.loadedVideoId,
+        active.loadedTrackId,
         startS,
         BoardPlayerYtComponent.SWITCH_CROSSFADE_MS,
         true,
@@ -942,11 +1036,14 @@ export class BoardPlayerYtComponent implements OnDestroy {
     this.gainRampId++;
     this.switchSeq++;
     this.crossfadeInProgress = false;
+    this.pendingTrack = null;
+    this.finishCurrentCrossfadeRequested = false;
 
     for (const slot of [this.slotA, this.slotB]) {
       slot.ready = false;
       slot.creating = null;
       slot.loadedVideoId = null;
+      slot.loadedTrackId = null;
       const player = slot.player;
       slot.player = null;
       if (player) {

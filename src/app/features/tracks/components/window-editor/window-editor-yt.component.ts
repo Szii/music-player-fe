@@ -139,6 +139,7 @@ type PlayMode = 'full' | 'selection';
             <ui-play-button
               size="sm"
               label="Play selection"
+              stopLabel="Stop selection"
               [playing]="isPlaying() && playMode() === 'selection'"
               (clicked)="togglePlaySelection()"
             />

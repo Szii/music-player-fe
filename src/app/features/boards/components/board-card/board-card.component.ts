@@ -27,11 +27,21 @@ import {
 import { UiVolumeSliderComponent } from '../../../../shared/ui/volume-slider/ui-volume-slider.component';
 import { UiPlayButtonComponent } from '../../../../shared/ui/play-button/ui-play-button.component';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
+import { UiInlineSelectComponent } from '../../../../shared/ui/inline-select/ui-inline-select.component';
 import { BoardShortcutsService } from '../../../../core/services/board-shortcuts.service';
 
 export interface PlaylistOptions {
   random: boolean;
 }
+
+export type PlaybackMode = 'single' | 'playlist' | 'sequence';
+
+/**
+ * Loop behaviour for single-track (non-playlist) playback, chosen from the
+ * Playback-settings dropdown. `sequence` steps through the track's windows in
+ * order; the others loop (or don't loop) the whole track / selected window.
+ */
+export type LoopMode = 'off' | 'whole' | 'sequence';
 
 @Component({
   selector: 'app-board-card',
@@ -48,6 +58,7 @@ export interface PlaylistOptions {
     UiVolumeSliderComponent,
     UiPlayButtonComponent,
     UiChipComponent,
+    UiInlineSelectComponent,
   ],
   host: {
     '(document:click)': 'onDocumentClick($event)',
@@ -104,25 +115,34 @@ export interface PlaylistOptions {
 
               <div class="board-card__feature-chips">
                 <ui-chip variant="crimson" size="sm" shape="hex" [dot]="true">
-                  {{ playlistMode() ? '♫ Playlist' : '♫ Single' }}
+                  {{ modeChipLabel() }}
                 </ui-chip>
-                <ui-chip
-                  *ngFor="let feature of compactFeatureLabels()"
-                  variant="gold"
-                  size="sm"
-                  shape="hex"
-                  [dot]="true"
-                >
-                  {{ feature }}
+
+                <ui-chip variant="gold" size="sm" shape="hex" [dot]="true">
+                  {{ loopRibbonLabel() }}
                 </ui-chip>
-                <ui-chip
-                  *ngIf="shortcut()"
-                  variant="neutral"
-                  size="sm"
-                  [attr.title]="'Keyboard shortcut: ' + shortcut()"
-                >
-                  ⌨ {{ shortcut() }}
-                </ui-chip>
+
+                @if (playlistMode()) {
+                  <ui-chip variant="gold" size="sm" shape="hex" [dot]="true">
+                    {{ randomRibbonLabel() }}
+                  </ui-chip>
+                }
+
+                @if (board().overplay) {
+                  <ui-chip variant="gold" size="sm" shape="hex" [dot]="true">
+                    Overplay
+                  </ui-chip>
+                }
+
+                @if (shortcut()) {
+                  <ui-chip
+                    variant="neutral"
+                    size="sm"
+                    [attr.title]="'Keyboard shortcut: ' + shortcut()"
+                  >
+                    ⌨ {{ shortcut() }}
+                  </ui-chip>
+                }
               </div>
             </div>
 
@@ -188,21 +208,24 @@ export interface PlaylistOptions {
         <div class="board-card__details-inner">
           <div class="board-card__main">
             <div class="board-card__header">
-              <div class="board-mode-switch" aria-label="Playback mode">
+              <div class="board-mode-switch" role="group" aria-label="Playback mode">
                 <button
                   type="button"
                   class="board-mode-switch__btn"
                   [class.board-mode-switch__btn--active]="!playlistMode()"
+                  title="Play one track — choose its loop mode in playback settings"
                   (mousedown)="$event.preventDefault()"
-                  (click)="setPlaybackMode(false)">
+                  (click)="setPlaylistTab(false)">
                   ♫ Single
                 </button>
                 <button
                   type="button"
                   class="board-mode-switch__btn"
                   [class.board-mode-switch__btn--active]="playlistMode()"
+                  [disabled]="!canUsePlaylist() && !playlistMode()"
+                  [attr.title]="playlistButtonTitle()"
                   (mousedown)="$event.preventDefault()"
-                  (click)="setPlaybackMode(true)">
+                  (click)="setPlaylistTab(true)">
                   ♫ Playlist
                 </button>
               </div>
@@ -240,23 +263,33 @@ export interface PlaylistOptions {
                       <div class="board-settings-menu__title">Playback settings</div>
 
                       <div class="board-settings-menu__items">
-                        <label class="board-settings-item">
-                          <div class="board-settings-item__copy">
-                            <span class="board-settings-item__label">{{ secondaryOptionLabel() }}</span>
-                            <span class="board-settings-item__hint">
-                              {{
-                                playlistMode()
-                                  ? 'Playlist mode always picks tracks at random from the selected group'
-                                  : 'Play track or its window in a seamless loop'
-                              }}
-                            </span>
+                        @if (playlistMode()) {
+                          <label class="board-settings-item">
+                            <div class="board-settings-item__copy">
+                              <span class="board-settings-item__label">Random</span>
+                              <span class="board-settings-item__hint">
+                                Shuffle the group instead of playing it in order
+                              </span>
+                            </div>
+                            <input
+                              type="checkbox"
+                              [checked]="playlistOptions().random"
+                              (change)="onPlaylistRandomToggle()" />
+                          </label>
+                        } @else {
+                          <div class="board-settings-item board-settings-item--loop-mode">
+                            <div class="board-settings-item__copy">
+                              <span class="board-settings-item__label">Loop mode</span>
+                              <span class="board-settings-item__hint">{{ loopModeHint() }}</span>
+                            </div>
+                            <ui-inline-select
+                              class="board-loop-select"
+                              ariaLabel="Loop mode"
+                              [options]="loopModeChoices"
+                              [value]="loopMode()"
+                              (valueChange)="onLoopModeSelected($event)" />
                           </div>
-                          <input
-                            type="checkbox"
-                            [checked]="secondaryOptionChecked()"
-                            [disabled]="playlistMode()"
-                            (change)="onSecondaryOptionToggle()" />
-                        </label>
+                        }
 
                         <label class="board-settings-item">
                           <div class="board-settings-item__copy">
@@ -369,18 +402,31 @@ export interface PlaylistOptions {
                   />
                 </ng-container>
                 <ng-template #nowPlayingTpl>
-                  <div class="board-control board-field__readonly">{{ currentTrackLabel() }}</div>
+                  <div class="board-now-playing">
+                    <div class="board-control board-field__readonly">{{ currentTrackLabel() }}</div>
+                    <button
+                      type="button"
+                      class="board-skip-btn"
+                      [disabled]="!isPlaying()"
+                      (click)="skipNext.emit()"
+                      aria-label="Skip to next track"
+                      title="Skip to next track">⏭</button>
+                  </div>
                 </ng-template>
               </div>
 
-              <div class="board-field" *ngIf="showWindowSelector()">
+              <div
+                class="board-field"
+                *ngIf="showWindowSelector()"
+                [attr.title]="sequentialWindows() ? 'Sequence mode steps through every window automatically' : null">
                 <span class="board-field__label">Window</span>
                 <ui-select
                   #windowSelectRef
                   class="board-control"
                   [navigateUpWhenClosed]="true"
                   [options]="windowOptions()"
-                  nullOption="Whole track"
+                  nullOption="Whole playback"
+                  [disabled]="sequentialWindows()"
                   [ngModel]="selectedWindowId()"
                   [ngModelOptions]="{ standalone: true }"
                   (ngModelChange)="windowChange.emit($event)"
@@ -733,6 +779,11 @@ export interface PlaylistOptions {
       box-shadow: 0 1px 3px rgba(88, 24, 13, 0.1);
     }
 
+    .board-mode-switch__btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
     .board-card__menu-wrap {
       position: relative;
     }
@@ -817,11 +868,16 @@ export interface PlaylistOptions {
       color: var(--app-text-muted);
     }
 
-    .board-settings-item input {
+    .board-settings-item input[type="checkbox"] {
       width: 16px;
       height: 16px;
       accent-color: var(--app-primary);
       cursor: pointer;
+    }
+
+    .board-loop-select {
+      flex-shrink: 0;
+      width: 168px;
     }
 
     .board-settings-item--shortcut {
@@ -972,6 +1028,51 @@ export interface PlaylistOptions {
       text-overflow: ellipsis;
     }
 
+    .board-now-playing {
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .board-now-playing .board-field__readonly {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .board-skip-btn {
+      flex-shrink: 0;
+      width: 40px;
+      padding: 0;
+      border-radius: var(--app-radius-sm);
+      border: 1px solid var(--app-border-color-soft);
+      background: #faf4e4;
+      color: var(--app-primary);
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+    }
+
+    .board-skip-btn:hover:not(:disabled) {
+      border-color: var(--app-border-color);
+      background: #f5edd8;
+    }
+
+    .board-skip-btn:focus-visible {
+      outline: none;
+      border-color: var(--app-primary);
+      box-shadow: var(--app-focus-ring);
+    }
+
+    .board-skip-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
     .board-card__player {
       padding-top: 12px;
       border-top: 1px solid var(--app-border-color-soft);
@@ -1044,6 +1145,12 @@ export class BoardCardComponent implements OnInit {
   readonly volumePercent = input<number>(100);
   readonly playlistMode = input(false);
   readonly playlistOptions = input<PlaylistOptions>({ random: false });
+  /**
+   * Sequence mode plays the selected track's windows one after another. The page
+   * receives it from the backend-backed board state and keeps it mutually
+   * exclusive with playlist mode.
+   */
+  readonly sequentialWindows = input(false);
 
   readonly isPlaying = computed(() => this.status() === 'PLAYING');
 
@@ -1060,15 +1167,16 @@ export class BoardCardComponent implements OnInit {
   readonly trackChange = output<number | null>();
   readonly windowChange = output<number | null>();
   readonly trackWithWindowChange = output<{ trackId: number | null; windowId: number | null }>();
-  readonly toggleRepeat = output<void>();
+  readonly loopModeChange = output<LoopMode>();
   readonly toggleOverplay = output<void>();
   readonly play = output<void>();
   readonly stop = output<void>();
   readonly ended = output<void>();
   readonly nearEnd = output<void>();
   readonly audioError = output<void>();
-  readonly playlistModeChange = output<boolean>();
+  readonly modeChange = output<PlaybackMode>();
   readonly playlistOptionsChange = output<PlaylistOptions>();
+  readonly skipNext = output<void>();
   readonly volumePreviewChange = output<number>();
   readonly volumeCommit = output<number>();
   readonly rename = output<string>();
@@ -1171,8 +1279,6 @@ export class BoardCardComponent implements OnInit {
     return this.shortcutsService.shortcuts()[id] ?? null;
   });
 
-  private previousPlaylistMode: boolean | undefined;
-  private previousSelectedGroupId: number | null | undefined;
 
   readonly displayedTrack = computed(() => {
     const selected = this.board().selectedTrack;
@@ -1216,12 +1322,49 @@ export class BoardCardComponent implements OnInit {
     !this.playlistMode() && this.selectedWindow() != null,
   );
 
+  // In sequence mode the page advances windows and loops the whole sequence, so
+  // the player itself must not loop the current window.
   readonly effectiveRepeat = computed(() =>
-    !this.playlistMode() && (this.board().repeat ?? false),
+    !this.playlistMode() && !this.sequentialWindows() && (this.board().repeat ?? false),
   );
 
   readonly showWindowSelector = computed(() =>
     !this.playlistMode() && this.windows().length > 0,
+  );
+
+  /** Playlist mode needs at least one playable track in the selected group. */
+  readonly canUsePlaylist = computed(() =>
+    this.getPlaylistCandidates(this.board().selectedGroup?.id ?? null).length >= 1,
+  );
+
+  readonly playlistButtonTitle = computed(() =>
+    this.canUsePlaylist()
+      ? 'Play through the selected group'
+      : 'This group has no tracks to play',
+  );
+
+  // The board state is only Single or Playlist; sequence is surfaced through the
+  // loop ribbon, not as a board state.
+  readonly modeChipLabel = computed(() =>
+    this.playlistMode() ? '♫ Playlist' : '♫ Single',
+  );
+
+  // Always-present loop ribbon. In playlist mode each track plays to its end, so
+  // looping is fixed to "whole track".
+  readonly loopRibbonLabel = computed(() => {
+    if (this.playlistMode()) return 'Loop: Whole playback';
+    switch (this.loopMode()) {
+      case 'whole':
+        return 'Loop: Whole playback';
+      case 'sequence':
+        return 'Loop: Window sequence';
+      default:
+        return 'Loop: Off';
+    }
+  });
+
+  readonly randomRibbonLabel = computed(() =>
+    this.playlistOptions().random ? 'Random: On' : 'Random: Off',
   );
 
   readonly canStartPlayback = computed(() => {
@@ -1244,32 +1387,55 @@ export class BoardCardComponent implements OnInit {
   readonly currentWindowLabel = computed(() => {
     if (this.playlistMode()) return 'Auto';
     const w = this.selectedWindow() as any;
-    if (!w) return 'Whole track';
+    if (!w) return 'Whole playback';
     return `${w.name || 'Window'} (${this.formatTime(w.positionFrom ?? 0)}–${this.formatTime(w.positionTo ?? 0)})`;
   });
 
-  readonly secondaryOptionLabel = computed(() =>
-    this.playlistMode() ? 'Random' : 'Loop',
-  );
+  readonly loopModeChoices: { value: LoopMode; label: string }[] = [
+    { value: 'off', label: 'Off' },
+    { value: 'whole', label: 'Whole playback' },
+    { value: 'sequence', label: 'Window sequence' },
+  ];
 
-  readonly secondaryOptionChecked = computed(() =>
-    this.playlistMode() ? true : !!this.board().repeat,
-  );
+  /** Current single-track loop behaviour, derived from the board flags. */
+  readonly loopMode = computed<LoopMode>(() => {
+    if (this.sequentialWindows()) return 'sequence';
+    return this.board().repeat ? 'whole' : 'off';
+  });
+
+  readonly loopModeHint = computed(() => {
+    switch (this.loopMode()) {
+      case 'whole':
+        return 'Loops the track or selected window';
+      case 'sequence':
+        return 'Steps through every window, looping the sequence';
+      default:
+        return 'Plays once, then stops';
+    }
+  });
 
   readonly groupOptions = computed(() =>
+    // A group with no tracks has nothing to select or play, so disable it.
     this.availableGroups().map(g => ({
       label: g.listName || ('Group #' + g.id),
       value: g.id,
+      disabled: (g.tracks?.length ?? 0) === 0,
     })),
   );
 
-  readonly trackOptions = computed(() =>
-    (this.board().availableTracks ?? []).map(t => {
+  readonly trackOptions = computed(() => {
+    // In sequence mode only tracks with at least two windows can be sequenced;
+    // the rest are shown but disabled so the active sequence isn't dropped.
+    const sequencing = this.sequentialWindows();
+
+    return (this.board().availableTracks ?? []).map(t => {
       const trackWindows = t.trackWindows ?? [];
-      const subOptions = trackWindows.length > 0
+      // Sequence mode plays the windows automatically, so picking an individual
+      // window from the track dropdown makes no sense — hide the sub-options there.
+      const subOptions = !sequencing && trackWindows.length > 0
         ? [
             {
-              label: 'Whole track',
+              label: 'Whole playback',
               value: { trackId: t.id ?? null, windowId: null },
             },
             ...trackWindows.map(w => ({
@@ -1283,9 +1449,10 @@ export class BoardCardComponent implements OnInit {
         label: t.trackName || t.trackOriginalName || ('Track #' + t.id),
         value: t.id,
         subOptions,
+        disabled: sequencing && trackWindows.length < 2,
       };
-    }),
-  );
+    });
+  });
 
   readonly windowOptions = computed(() =>
     this.windows().map(w => ({
@@ -1294,57 +1461,12 @@ export class BoardCardComponent implements OnInit {
     })),
   );
 
-  readonly compactFeatureLabels = computed(() => {
-    const labels: string[] = [];
-
-    if (this.playlistMode()) {
-      labels.push('Random');
-    } else if (this.board().repeat ?? false) {
-      labels.push('Loop');
-    }
-
-    if (this.board().overplay ?? false) {
-      labels.push('Overplay');
-    }
-
-    return labels;
-  });
-
   private readonly destroyRef = inject(DestroyRef);
   private readonly elementRef = inject(ElementRef<HTMLElement>);
   constructor() {
     effect(() => {
       const pct = this.volumePercent();
       this.displayedVolumePercent.set(clampPct(pct));
-    });
-
-    effect(() => {
-      const isPlaylist = this.playlistMode();
-      const selectedGroupId = this.board().selectedGroup?.id ?? null;
-
-      if (this.previousPlaylistMode === undefined) {
-        this.previousPlaylistMode = isPlaylist;
-        this.previousSelectedGroupId = selectedGroupId;
-        return;
-      }
-
-      const playlistModeChanged = this.previousPlaylistMode !== isPlaylist;
-      const selectedGroupChanged = this.previousSelectedGroupId !== selectedGroupId;
-
-      if (playlistModeChanged) {
-        if (isPlaylist) {
-          this.windowChange.emit(null);
-        } else {
-          this.windowChange.emit(null);
-          this.stop.emit();
-          this.trackChange.emit(null);
-        }
-      } else if (isPlaylist && selectedGroupChanged) {
-        this.windowChange.emit(null);
-      }
-
-      this.previousPlaylistMode = isPlaylist;
-      this.previousSelectedGroupId = selectedGroupId;
     });
 
   }
@@ -1459,29 +1581,27 @@ export class BoardCardComponent implements OnInit {
     this.endShortcutCapture();
   }
 
-  setPlaybackMode(isPlaylist: boolean): void {
-    if (this.playlistMode() === isPlaylist) return;
-
-    if (isPlaylist && !this.playlistOptions().random) {
-      this.playlistOptionsChange.emit({
-        ...this.playlistOptions(),
-        random: true,
-      });
-    }
-
-    this.playlistModeChange.emit(isPlaylist);
+  /**
+   * The mode switch now only toggles playlist vs single-track playback; the
+   * sequence option moved into the Loop-mode dropdown. Switching to single from
+   * sequence is done via that dropdown, so an already-non-playlist board ignores
+   * a "Single" click and keeps its current loop mode.
+   */
+  setPlaylistTab(playlist: boolean): void {
+    if (playlist === this.playlistMode()) return;
+    this.modeChange.emit(playlist ? 'playlist' : 'single');
   }
 
-  onSecondaryOptionToggle(): void {
-    if (this.playlistMode()) {
-      this.playlistOptionsChange.emit({
-        ...this.playlistOptions(),
-        random: true,
-      });
-      return;
-    }
+  onLoopModeSelected(mode: string): void {
+    if (mode === this.loopMode()) return;
+    this.loopModeChange.emit(mode as LoopMode);
+  }
 
-    this.toggleRepeat.emit();
+  onPlaylistRandomToggle(): void {
+    this.playlistOptionsChange.emit({
+      ...this.playlistOptions(),
+      random: !this.playlistOptions().random,
+    });
   }
 
   onVolumePreview(value: number): void {

@@ -246,10 +246,13 @@ export class PlayerControlsComponent {
     const seekableMax = this.seekableMaxS();
     const guardEnd = this.guardEndS();
 
+    // The hatch marks the not-yet-seekable region. When stopped on the whole
+    // track seekableMax is 0, which must still hatch the whole bar (matching the
+    // windowed case), so don't require seekableMax > 0 here.
     return (
       dur > 0 &&
       guardEnd > 0 &&
-      seekableMax > 0 &&
+      seekableMax >= 0 &&
       seekableMax < guardEnd - 0.01
     );
   });
