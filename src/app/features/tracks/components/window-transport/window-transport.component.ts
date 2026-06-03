@@ -2,16 +2,12 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  EventEmitter,
-  Input,
-  Output,
+  input,
+  output,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
 
 @Component({
   selector: 'app-window-transport',
-  standalone: true,
-  imports: [CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="we-transport">
@@ -21,25 +17,16 @@ import { CommonModule } from '@angular/common';
           class="we-btn"
           (mousedown)="$event.preventDefault()"
           (click)="playAll.emit()"
-          [class.active]="isPlaying && playMode === 'full'"
+          [class.active]="isPlaying() && playMode() === 'full'"
         >
           <svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true">
-            <polygon
-              *ngIf="!(isPlaying && playMode === 'full')"
-              points="4,2 18,10 4,18"
-              fill="currentColor"
-            />
-            <rect
-              *ngIf="isPlaying && playMode === 'full'"
-              x="3"
-              y="3"
-              width="14"
-              height="14"
-              rx="2"
-              fill="currentColor"
-            />
+            @if (!(isPlaying() && playMode() === 'full')) {
+              <polygon points="4,2 18,10 4,18" fill="currentColor" />
+            } @else {
+              <rect x="3" y="3" width="14" height="14" rx="2" fill="currentColor" />
+            }
           </svg>
-          {{ isPlaying && playMode === 'full' ? 'Stop' : 'Play all' }}
+          {{ isPlaying() && playMode() === 'full' ? 'Stop' : 'Play all' }}
         </button>
 
         <button
@@ -47,26 +34,17 @@ import { CommonModule } from '@angular/common';
           class="we-btn we-btn--accent"
           (mousedown)="$event.preventDefault()"
           (click)="playSelection.emit()"
-          [class.active]="isPlaying && playMode === 'selection'"
-          [disabled]="playSelectionDisabled && !(isPlaying && playMode === 'selection')"
+          [class.active]="isPlaying() && playMode() === 'selection'"
+          [disabled]="playSelectionDisabled() && !(isPlaying() && playMode() === 'selection')"
         >
           <svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true">
-            <polygon
-              *ngIf="!(isPlaying && playMode === 'selection')"
-              points="4,2 18,10 4,18"
-              fill="currentColor"
-            />
-            <rect
-              *ngIf="isPlaying && playMode === 'selection'"
-              x="3"
-              y="3"
-              width="14"
-              height="14"
-              rx="2"
-              fill="currentColor"
-            />
+            @if (!(isPlaying() && playMode() === 'selection')) {
+              <polygon points="4,2 18,10 4,18" fill="currentColor" />
+            } @else {
+              <rect x="3" y="3" width="14" height="14" rx="2" fill="currentColor" />
+            }
           </svg>
-          {{ isPlaying && playMode === 'selection' ? 'Stop' : 'Play selection' }}
+          {{ isPlaying() && playMode() === 'selection' ? 'Stop selection' : 'Play selection' }}
         </button>
       </div>
     </div>
@@ -122,6 +100,13 @@ import { CommonModule } from '@angular/common';
         box-shadow 0.12s;
       white-space: nowrap;
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+
+    /* Nudge the glyph down so it sits on the text baseline rather than riding
+       above the cap height. */
+    .we-btn svg {
+      display: block;
+      transform: translateY(1.5px);
     }
 
     .we-btn:hover:not(:disabled) {
@@ -201,14 +186,14 @@ import { CommonModule } from '@angular/common';
   `],
 })
 export class WindowTransportComponent {
-  @Input() isPlaying = false;
-  @Input() playMode: 'full' | 'selection' = 'full';
-  @Input() fadeIn = false;
-  @Input() fadeOut = false;
-  @Input() playSelectionDisabled = false;
+  readonly isPlaying = input(false);
+  readonly playMode = input<'full' | 'selection'>('full');
+  readonly fadeIn = input(false);
+  readonly fadeOut = input(false);
+  readonly playSelectionDisabled = input(false);
 
-  @Output() playAll = new EventEmitter<void>();
-  @Output() playSelection = new EventEmitter<void>();
-  @Output() fadeInChange = new EventEmitter<boolean>();
-  @Output() fadeOutChange = new EventEmitter<boolean>();
+  readonly playAll = output<void>();
+  readonly playSelection = output<void>();
+  readonly fadeInChange = output<boolean>();
+  readonly fadeOutChange = output<boolean>();
 }

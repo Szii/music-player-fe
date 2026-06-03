@@ -16,6 +16,8 @@ export interface UiSelectOption {
   label: string;
   value: any;
   subOptions?: UiSelectOption[];
+  /** When true the option is shown greyed out and cannot be selected. */
+  disabled?: boolean;
 }
 
 export interface UiSelectSubOptionEvent {
@@ -105,7 +107,7 @@ interface PanelRect {
                 class="sel__option-wrap"
                 [attr.data-option-index]="i"
                 (mouseenter)="onOptionHover(opt, i, $event)"
-                (mousemove)="highlightedIndex.set(i); highlightedSubIndex.set(-1)"
+                (mousemove)="onOptionMouseMove(opt, i)"
                 (mouseleave)="onOptionUnhover()"
               >
                 <button
@@ -114,6 +116,9 @@ interface PanelRect {
                   [class.app-popover-item--selected]="currentValue() === opt.value"
                   [class.app-popover-item--highlighted]="highlightedIndex() === i"
                   [class.sel__option--has-sub]="(opt.subOptions?.length ?? 0) > 0"
+                  [class.sel__option--disabled]="opt.disabled"
+                  [disabled]="opt.disabled"
+                  [attr.aria-disabled]="opt.disabled || null"
                   role="option"
                   [attr.aria-selected]="currentValue() === opt.value"
                   (click)="selectOption(opt)"
@@ -310,6 +315,11 @@ interface PanelRect {
     .sel__option:last-child,
     .sel__flyout-option:last-child {
       border-bottom: none;
+    }
+
+    .sel__option--disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
     }
 
     .sel__option-label {
@@ -529,7 +539,8 @@ export class UiSelectComponent implements ControlValueAccessor {
   }
 
   private resetHighlightFromCurrent(): void {
-    this.highlightedIndex.set(this.filteredOptions().length > 0 ? 0 : -1);
+    const opts = this.filteredOptions();
+    this.highlightedIndex.set(opts.findIndex(o => !o.disabled));
   }
 
   private moveHighlight(delta: number): void {
@@ -547,7 +558,14 @@ export class UiSelectComponent implements ControlValueAccessor {
 
     const current = this.highlightedIndex();
     const start = current < 0 ? (delta > 0 ? -1 : 0) : current;
-    const next = (start + delta + opts.length) % opts.length;
+
+    // Step over disabled options so arrow keys can't land on one.
+    let next = start;
+    for (let n = 0; n < opts.length; n++) {
+      next = (next + delta + opts.length) % opts.length;
+      if (!opts[next].disabled) break;
+    }
+    if (opts[next].disabled) return;
 
     this.highlightedIndex.set(next);
     this.highlightedSubIndex.set(-1);
@@ -602,7 +620,7 @@ export class UiSelectComponent implements ControlValueAccessor {
     const opts = this.filteredOptions();
     const parent = opts[index];
 
-    if (!parent || (parent.subOptions?.length ?? 0) === 0) {
+    if (!parent || parent.disabled || (parent.subOptions?.length ?? 0) === 0) {
       this.closeFlyout();
       return false;
     }
@@ -661,7 +679,7 @@ export class UiSelectComponent implements ControlValueAccessor {
 
     const opts = this.filteredOptions();
     const idx = this.highlightedIndex();
-    if (idx < 0 || idx >= opts.length) return false;
+    if (idx < 0 || idx >= opts.length || opts[idx].disabled) return false;
     this.selectOption(opts[idx]);
     this.enterCommitted.emit();
     return true;
@@ -677,10 +695,17 @@ export class UiSelectComponent implements ControlValueAccessor {
   }
 
   selectOption(opt: UiSelectOption): void {
+    if (opt.disabled) return;
     this.currentValue.set(opt.value);
     this.onChange(opt.value);
     this.onTouched();
     this.closeAndFocusTrigger();
+  }
+
+  onOptionMouseMove(opt: UiSelectOption, index: number): void {
+    if (opt.disabled) return;
+    this.highlightedIndex.set(index);
+    this.highlightedSubIndex.set(-1);
   }
 
   selectSubOption(parent: UiSelectOption, sub: UiSelectOption): void {
@@ -700,6 +725,13 @@ export class UiSelectComponent implements ControlValueAccessor {
   }
 
   onOptionHover(opt: UiSelectOption, index: number, event: MouseEvent): void {
+    if (opt.disabled) {
+      this.clearFlyoutTimer();
+      this.hoveredOptionValue.set(null);
+      this.flyoutRect.set(null);
+      return;
+    }
+
     this.highlightedIndex.set(index);
     this.highlightedSubIndex.set(-1);
     this.clearFlyoutTimer();

@@ -167,6 +167,7 @@ export interface WindowEditorResult {
           <ui-play-button
             size="sm"
             label="Play selection"
+            stopLabel="Stop selection"
             [playing]="isPlaying() && playMode() === 'selection'"
             [disabled]="!streamComplete() && !(isPlaying() && playMode() === 'selection')"
             (clicked)="togglePlaySelection()"
