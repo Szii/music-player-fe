@@ -25,12 +25,7 @@ type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
       }
 
       <div class="player__track">
-        <div
-          class="player__range-wrap"
-          [class.player__range-wrap--has-seek-guard]="hasSeekGuard()"
-          [style.--seek-guard-left]="seekGuardLeftCss()"
-          [style.--seek-guard-width]="seekGuardWidthCss()"
-        >
+        <div class="player__range-wrap">
           <input
             #seek
             type="range"
@@ -46,11 +41,13 @@ type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
             (mouseup)="seek.blur()"
             (touchend)="seek.blur()" />
 
-          @if (hasSeekGuard()) {
+          @if (showFadeOut()) {
             <span
-              class="player__seek-guard"
+              class="player__fade player__fade--out"
               aria-hidden="true"
-              title="This ending section is protected from seeking to keep loop crossfade stable"
+              [style.--fade-left]="fadeOutLeftCss()"
+              [style.--fade-width]="fadeOutWidthCss()"
+              title="Crossfade region — not seekable"
             ></span>
           }
         </div>
@@ -105,27 +102,22 @@ type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
       z-index: 1;
     }
 
-    .player__seek-guard {
+    /* Crossfade marker: a bowtie (two crossing ramps) over the end region,
+       reading as the out/in crossfade rather than a one-way fade. */
+    .player__fade {
       position: absolute;
       z-index: 2;
-      left: var(--seek-guard-left, 100%);
-      width: var(--seek-guard-width, 0%);
+      left: var(--fade-left, 0%);
+      width: var(--fade-width, 0%);
       top: 50%;
-      height: 6px;
+      height: 12px;
       transform: translateY(-50%);
-      border-radius: 999px;
       pointer-events: none;
-      background:
-        repeating-linear-gradient(
-          135deg,
-          rgba(88, 24, 13, 0.44) 0px,
-          rgba(88, 24, 13, 0.44) 3px,
-          rgba(201, 164, 76, 0.28) 3px,
-          rgba(201, 164, 76, 0.28) 7px
-        );
-      box-shadow:
-        inset 0 0 0 1px rgba(88, 24, 13, 0.35),
-        0 0 0 1px rgba(248, 242, 228, 0.45);
+      background: color-mix(in srgb, var(--app-primary) 60%, transparent);
+    }
+
+    .player__fade--out {
+      clip-path: polygon(0% 0%, 50% 50%, 0% 100%, 100% 100%, 50% 50%, 100% 0%);
     }
 
     .player__times {
@@ -221,6 +213,8 @@ export class PlayerControlsComponent {
   readonly seekableMaxS = input(0);
   readonly windowStartS = input<number | null>(null);
   readonly windowEndS = input<number | null>(null);
+  /** Crossfade (fade-out) length in seconds — marks the non-seekable end. */
+  readonly fadeOutS = input(0);
   readonly disabled = input(false);
   readonly showPrimaryButton = input(true);
 
@@ -241,28 +235,36 @@ export class PlayerControlsComponent {
     return `Window ${this.formatTime(start)} – ${this.formatTime(end)}`;
   });
 
-  readonly hasSeekGuard = computed(() => {
+  // Crossfade overlay: a band at the window/track end (not seekable) marking
+  // the crossfade region. There is no ramp at the start, so no start band.
+  // Positions are percentages of the full duration.
+  private fadeRegionStartS(): number {
+    return this.windowStartS() ?? 0;
+  }
+
+  private fadeRegionEndS(): number {
+    return this.windowEndS() ?? this.durationS();
+  }
+
+  readonly showFadeOut = computed(() => this.durationS() > 0 && this.fadeOutS() > 0);
+
+  readonly fadeOutWidthCss = computed(() => {
+    const region = Math.max(0, this.fadeRegionEndS() - this.fadeRegionStartS());
+    const len = Math.min(this.fadeOutS(), region);
+    return `${this.toPct(len)}%`;
+  });
+
+  readonly fadeOutLeftCss = computed(() => {
+    const region = Math.max(0, this.fadeRegionEndS() - this.fadeRegionStartS());
+    const len = Math.min(this.fadeOutS(), region);
+    return `${this.toPct(this.fadeRegionEndS() - len)}%`;
+  });
+
+  private toPct(seconds: number): number {
     const dur = this.durationS();
-    const seekableMax = this.seekableMaxS();
-    const guardEnd = this.guardEndS();
-
-    // The hatch marks the not-yet-seekable region. When stopped on the whole
-    // track seekableMax is 0, which must still hatch the whole bar (matching the
-    // windowed case), so don't require seekableMax > 0 here.
-    return (
-      dur > 0 &&
-      guardEnd > 0 &&
-      seekableMax >= 0 &&
-      seekableMax < guardEnd - 0.01
-    );
-  });
-
-  readonly seekGuardLeftCss = computed(() => `${this.seekGuardStartPct()}%`);
-
-  readonly seekGuardWidthCss = computed(() => {
-    const width = Math.max(0, this.seekGuardEndPct() - this.seekGuardStartPct());
-    return `${width}%`;
-  });
+    if (dur <= 0) return 0;
+    return Math.max(0, Math.min(100, (seconds / dur) * 100));
+  }
 
   readonly sliderBackground = computed(() => {
     const dur = this.durationS();
@@ -276,7 +278,7 @@ export class PlayerControlsComponent {
     }
 
     const posPct = Math.min(100, (this.positionS() / dur) * 100);
-    const loadPct = Math.min(100, (this.seekableMaxS() / dur) * 100);
+    const rest = `color-mix(in srgb, var(--app-primary) 20%, white)`;
 
     const windowStartS = this.windowStartS();
     const windowEndS = this.windowEndS();
@@ -285,29 +287,21 @@ export class PlayerControlsComponent {
       return `linear-gradient(to right,
         var(--app-primary) 0%,
         var(--app-primary) ${posPct}%,
-        color-mix(in srgb, var(--app-primary) 22%, white) ${posPct}%,
-        color-mix(in srgb, var(--app-primary) 22%, white) ${loadPct}%,
-        color-mix(in srgb, var(--app-warning) 22%, white) ${loadPct}%,
-        color-mix(in srgb, var(--app-warning) 22%, white) 100%)`;
+        ${rest} ${posPct}%,
+        ${rest} 100%)`;
     }
 
     const winStart = Math.max(0, (windowStartS / dur) * 100);
     const winEnd = Math.min(100, (windowEndS / dur) * 100);
     const posClamped = Math.max(winStart, Math.min(posPct, winEnd));
-    // Keep stops monotonic: when seekableMaxS lags behind the window (e.g. right
-    // after a window switch), loadPct can fall below the current position. Clamp
-    // it up so the gradient stops never go backwards.
-    const loadClamped = Math.max(posClamped, Math.min(loadPct, winEnd));
 
     return `linear-gradient(to right,
       transparent 0%,
       transparent ${winStart}%,
       var(--app-primary) ${winStart}%,
       var(--app-primary) ${posClamped}%,
-      color-mix(in srgb, var(--app-primary) 22%, white) ${posClamped}%,
-      color-mix(in srgb, var(--app-primary) 22%, white) ${loadClamped}%,
-      color-mix(in srgb, var(--app-warning) 22%, white) ${loadClamped}%,
-      color-mix(in srgb, var(--app-warning) 22%, white) ${winEnd}%,
+      ${rest} ${posClamped}%,
+      ${rest} ${winEnd}%,
       transparent ${winEnd}%,
       transparent 100%),
       linear-gradient(to right,
@@ -347,26 +341,5 @@ export class PlayerControlsComponent {
     }
 
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  }
-
-  private guardEndS(): number {
-    const dur = this.durationS();
-    const windowEnd = this.windowEndS();
-    return Math.max(0, Math.min(windowEnd ?? dur, dur));
-  }
-
-  private seekGuardStartPct(): number {
-    const dur = this.durationS();
-    if (dur <= 0) return 100;
-
-    const seekableMax = Math.max(0, Math.min(this.seekableMaxS(), this.guardEndS()));
-    return Math.max(0, Math.min(100, (seekableMax / dur) * 100));
-  }
-
-  private seekGuardEndPct(): number {
-    const dur = this.durationS();
-    if (dur <= 0) return 100;
-
-    return Math.max(0, Math.min(100, (this.guardEndS() / dur) * 100));
   }
 }

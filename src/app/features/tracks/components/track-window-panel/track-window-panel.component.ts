@@ -1,21 +1,20 @@
 import {
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
-  EventEmitter,
-  Input,
-  OnChanges,
   OnDestroy,
-  Output,
-  SimpleChanges,
+  effect,
   inject,
+  input,
+  output,
+  untracked,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 
 import {
   Track,
+  TrackWindow,
   TrackWindowRequest,
 } from '../../../../api/generated';
 import {
@@ -25,6 +24,7 @@ import {
 import { WindowEditorYtComponent } from '../window-editor/window-editor-yt.component';
 import { USE_YT_IFRAME_PLAYER } from '../../../../core/config/feature-flags';
 import { parseYoutubeId } from '../../../../shared/utils/youtube-id';
+import { formatFadeMs } from '../../utils/fade';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empty-state.component';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
@@ -45,12 +45,29 @@ export interface WindowDeleteEvent {
   windowId: number;
 }
 
+/** Saving the fades of the synthetic "Whole track" window updates the track. */
+export interface TrackFadesSaveEvent {
+  trackId: number;
+  fadeInMs: number;
+  fadeOutMs: number;
+}
+
+/**
+ * Which entry the editor is bound to:
+ * - `create`: a brand-new window.
+ * - `whole-track`: the synthetic, always-present window mapped to the track's
+ *   own fades (bounds + name locked).
+ * - `window`: an existing persisted window.
+ */
+type PanelSelection =
+  | { kind: 'create' }
+  | { kind: 'whole-track' }
+  | { kind: 'window'; id: number };
+
 @Component({
   selector: 'app-track-windows-panel',
-  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
-    FormsModule,
     WindowEditorComponent,
     WindowEditorYtComponent,
     NormalButtonComponent,
@@ -59,140 +76,169 @@ export interface WindowDeleteEvent {
     UiDialogShellComponent,
   ],
   template: `
-    <ui-dialog-shell
-      *ngIf="track"
-      title="Windows"
-      [subtitle]="track.trackName || track.trackOriginalName || ('Track #' + track.id)"
-      titleId="track-windows-title"
-      size="extra-wide"
-      (closed)="onClose()"
-    >
-      <div *ngIf="streamError || waveformError" class="panel-error">
-        <span>{{ streamError || waveformError }}</span>
-        <normal-button size="sm" variant="danger" (clicked)="retryStream()">
-          Retry
-        </normal-button>
-      </div>
+    @if (track(); as currentTrack) {
+      <ui-dialog-shell
+        title="Windows"
+        [subtitle]="currentTrack.trackName || currentTrack.trackOriginalName || ('Track #' + currentTrack.id)"
+        titleId="track-windows-title"
+        size="extra-wide"
+        (closed)="onClose()"
+      >
+        @if (streamError || waveformError) {
+          <div class="panel-error">
+            <span>{{ streamError || waveformError }}</span>
+            <normal-button size="sm" variant="danger" (clicked)="retryStream()">
+              Retry
+            </normal-button>
+          </div>
+        }
 
-      <div class="panel-body panel-body--split">
+        <div class="panel-body panel-body--split">
           <aside class="panel-side">
-            <div *ngIf="!editorStreamComplete" class="panel-side__loading">
-              <span class="panel-side__loading-spinner"></span>
-              <span>Wait for track to be loaded to manage windows…</span>
-            </div>
-
-            <div *ngIf="editorStreamComplete" class="panel-side__inner">
-              <div class="panel-block__head">
-                <span class="panel-block__title">Existing windows</span>
-                <span class="panel-block__meta">{{ windows.length }}</span>
+            @if (!editorStreamComplete) {
+              <div class="panel-side__loading">
+                <span class="panel-side__loading-spinner"></span>
+                <span>Wait for track to be loaded to manage windows…</span>
               </div>
+            } @else {
+              <div class="panel-side__inner">
+                <div class="panel-block__head">
+                  <span class="panel-block__title">Windows</span>
+                  <span class="panel-block__meta">{{ windows.length }}</span>
+                </div>
 
-              <div class="panel-side__content">
-                <ui-empty-state
-                  *ngIf="windows.length === 0"
-                  title="No windows yet"
-                  message="Create your first one in the editor."
-                />
+                <div class="panel-side__content">
+                  <div class="panel-side__table-wrap">
+                    <div class="panel-window-list">
+                      <button
+                        type="button"
+                        class="panel-window-item"
+                        [class.panel-window-item--selected]="selection.kind === 'whole-track'"
+                        (click)="selectWholeTrack()"
+                      >
+                        <div class="panel-window-item__top">
+                          <span class="panel-window-item__name" title="Whole track">
+                            Whole track
+                          </span>
+                          <ui-chip variant="primary" size="sm">Default</ui-chip>
+                        </div>
 
-                <div *ngIf="windows.length > 0" class="panel-side__table-wrap">
-                  <div class="panel-window-list">
-                    <button
-                      *ngFor="let win of windows"
-                      type="button"
-                      class="panel-window-item"
-                      [class.panel-window-item--selected]="selectedWindowId === win.id"
-                      (click)="selectWindow(win)"
-                    >
-                      <div class="panel-window-item__top">
-                        <span
-                          class="panel-window-item__name"
-                          [title]="win.name || 'Untitled window'"
+                        <div class="panel-window-item__bottom">
+                          <div class="panel-window-item__meta">
+                            <ui-chip variant="neutral" size="sm" keyLabel="Fade in">
+                              {{ formatFade(currentTrack.fadeInDurationMs ?? 0) }}
+                            </ui-chip>
+                            <ui-chip variant="neutral" size="sm" keyLabel="Fade out">
+                              {{ formatFade(currentTrack.fadeOutDurationMs ?? 0) }}
+                            </ui-chip>
+                          </div>
+                        </div>
+                      </button>
+
+                      @for (win of windows; track win.id) {
+                        <button
+                          type="button"
+                          class="panel-window-item"
+                          [class.panel-window-item--selected]="selection.kind === 'window' && selection.id === win.id"
+                          (click)="selectWindow(win)"
                         >
-                          {{ win.name || 'Untitled window' }}
-                        </span>
+                          <div class="panel-window-item__top">
+                            <span
+                              class="panel-window-item__name"
+                              [title]="win.name || 'Untitled window'"
+                            >
+                              {{ win.name || 'Untitled window' }}
+                            </span>
 
-                        <div class="panel-window-item__actions" (click)="$event.stopPropagation()">
-                          <normal-button
-                            size="sm"
-                            variant="danger"
-                            (clicked)="onDeleteWindow(win)"
-                          >
-                            Delete
-                          </normal-button>
-                        </div>
-                      </div>
+                            <div class="panel-window-item__actions" (click)="$event.stopPropagation()">
+                              <normal-button
+                                size="sm"
+                                variant="danger"
+                                (clicked)="onDeleteWindow(win)"
+                              >
+                                Delete
+                              </normal-button>
+                            </div>
+                          </div>
 
-                      <div class="panel-window-item__bottom">
-                        <div class="panel-window-item__meta">
-                          <ui-chip variant="neutral" size="sm" keyLabel="From">
-                            {{ formatTime(win.positionFrom ?? 0) }}
-                          </ui-chip>
+                          <div class="panel-window-item__bottom">
+                            <div class="panel-window-item__meta">
+                              <ui-chip variant="neutral" size="sm" keyLabel="From">
+                                {{ formatTime(win.positionFrom ?? 0) }}
+                              </ui-chip>
 
-                          <ui-chip variant="neutral" size="sm" keyLabel="To">
-                            {{ formatTime(win.positionTo ?? 0) }}
-                          </ui-chip>
-                        </div>
-                      </div>
-                    </button>
+                              <ui-chip variant="neutral" size="sm" keyLabel="To">
+                                {{ formatTime(win.positionTo ?? 0) }}
+                              </ui-chip>
+                            </div>
+                          </div>
+                        </button>
+                      }
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            }
           </aside>
 
           <section class="panel-main">
-            <div class="panel-editor" *ngIf="editorAvailable; else editorPending">
-              <div class="panel-editor__head">
-                <span class="panel-block__title panel-block__title--primary">
-                  {{ selectedWindowId != null ? 'Edit window' : 'Create new window' }}
-                </span>
+            @if (editorAvailable) {
+              <div class="panel-editor">
+                <div class="panel-editor__head">
+                  <span class="panel-block__title panel-block__title--primary">
+                    {{ editorHeading }}
+                  </span>
 
-                <normal-button
-                  *ngIf="selectedWindowId != null"
-                  size="sm"
-                  variant="secondary"
-                  [disabled]="!editorReady"
-                  (clicked)="startCreateWindow()"
-                >
-                  Clear selection
-                </normal-button>
+                  @if (selection.kind !== 'create') {
+                    <normal-button
+                      size="sm"
+                      variant="secondary"
+                      [disabled]="!editorReady"
+                      (clicked)="startCreateWindow()"
+                    >
+                      New window
+                    </normal-button>
+                  }
+                </div>
+
+                <div class="panel-editor__body">
+                  @if (useYtEditor) {
+                    <app-window-editor-yt
+                      [videoId]="ytVideoId"
+                      [durationS]="resolvedDurationS || (currentTrack.duration ?? 0)"
+                      [initialFromS]="editorFromS"
+                      [initialToS]="editorToS"
+                      [initialName]="editorName"
+                      [initialFadeInMs]="editorFadeInMs"
+                      [initialFadeOutMs]="editorFadeOutMs"
+                      [lockRegion]="editorLockRegion"
+                      [lockName]="editorLockName"
+                      [applyLabel]="editorApplyLabel"
+                      (apply)="onEditorApply($event)"
+                      (ready)="onEditorStreamComplete()"
+                    />
+                  } @else {
+                    <app-window-editor
+                      [streamUrl]="resolvedStreamUrl"
+                      [durationS]="resolvedDurationS || (currentTrack.duration ?? 0)"
+                      [waveformPeaks]="waveformPeaks"
+                      [waveformLoading]="waveformLoading"
+                      [waveformError]="waveformError"
+                      [initialFromS]="editorFromS"
+                      [initialToS]="editorToS"
+                      [initialName]="editorName"
+                      [initialFadeInMs]="editorFadeInMs"
+                      [initialFadeOutMs]="editorFadeOutMs"
+                      [lockRegion]="editorLockRegion"
+                      [lockName]="editorLockName"
+                      [applyLabel]="editorApplyLabel"
+                      (apply)="onEditorApply($event)"
+                      (streamCompleted)="onEditorStreamComplete()"
+                    />
+                  }
+                </div>
               </div>
-
-              <div class="panel-editor__body">
-                @if (useYtEditor) {
-                  <app-window-editor-yt
-                    [videoId]="ytVideoId"
-                    [durationS]="resolvedDurationS || (track.duration ?? 0)"
-                    [initialFromS]="editorFromS"
-                    [initialToS]="editorToS"
-                    [initialName]="editorName"
-                    [initialFadeIn]="editorFadeIn"
-                    [initialFadeOut]="editorFadeOut"
-                    [applyLabel]="selectedWindowId != null ? 'Save changes' : 'Create window'"
-                    (apply)="onEditorApply($event)"
-                    (ready)="onEditorStreamComplete()"
-                  />
-                } @else {
-                  <app-window-editor
-                    [streamUrl]="resolvedStreamUrl"
-                    [durationS]="resolvedDurationS || (track.duration ?? 0)"
-                    [waveformPeaks]="waveformPeaks"
-                    [waveformLoading]="waveformLoading"
-                    [waveformError]="waveformError"
-                    [initialFromS]="editorFromS"
-                    [initialToS]="editorToS"
-                    [initialName]="editorName"
-                    [initialFadeIn]="editorFadeIn"
-                    [initialFadeOut]="editorFadeOut"
-                    [applyLabel]="selectedWindowId != null ? 'Save changes' : 'Create window'"
-                    (apply)="onEditorApply($event)"
-                    (streamCompleted)="onEditorStreamComplete()"
-                  />
-                }
-              </div>
-            </div>
-
-            <ng-template #editorPending>
+            } @else {
               <div class="panel-editor panel-editor--placeholder">
                 <div class="panel-editor__head">
                   <span class="panel-block__title panel-block__title--primary">
@@ -207,10 +253,11 @@ export interface WindowDeleteEvent {
                   />
                 </div>
               </div>
-            </ng-template>
+            }
           </section>
         </div>
       </ui-dialog-shell>
+    }
   `,
   styles: [`
     @keyframes fade-in {
@@ -616,15 +663,16 @@ export interface WindowDeleteEvent {
     }
   `],
 })
-export class TrackWindowsPanelComponent implements OnChanges, OnDestroy {
+export class TrackWindowsPanelComponent implements OnDestroy {
   private readonly previewSession: TrackPreviewSessionService = inject(TrackPreviewSessionService);
   private readonly destroyRef = inject(DestroyRef);
 
-  @Input() track: Track | null = null;
+  readonly track = input<Track | null>(null);
 
-  @Output() close = new EventEmitter<void>();
-  @Output() saveWindow = new EventEmitter<WindowSaveEvent>();
-  @Output() deleteWindow = new EventEmitter<WindowDeleteEvent>();
+  readonly close = output<void>();
+  readonly saveWindow = output<WindowSaveEvent>();
+  readonly deleteWindow = output<WindowDeleteEvent>();
+  readonly saveTrackFades = output<TrackFadesSaveEvent>();
 
   readonly useYtEditor = USE_YT_IFRAME_PLAYER;
 
@@ -640,18 +688,50 @@ export class TrackWindowsPanelComponent implements OnChanges, OnDestroy {
 
   editorStreamComplete = false;
 
-  selectedWindowId: number | null = null;
+  selection: PanelSelection = { kind: 'create' };
   editorFromS: number | null = null;
   editorToS: number | null = null;
   editorName = '';
-  editorFadeIn = false;
-  editorFadeOut = false;
+  editorFadeInMs = 0;
+  editorFadeOutMs = 0;
+  editorLockRegion = false;
+  editorLockName = false;
 
   private currentTrackId: number | null = null;
   private previewSessionSub: Subscription | null = null;
+  /** Whether the default (whole-track) entry has been auto-selected for the
+      current track once the editor became ready. */
+  private hasAutoSelected = false;
+  /** Window ids present just before a create-save, used to auto-select the
+      newly created window once the refreshed track arrives. */
+  private windowIdsBeforeCreate: Set<number> | null = null;
 
-  get windows(): any[] {
-    return this.track?.trackWindows ?? [];
+  constructor() {
+    // React to the track input the way the old ngOnChanges did: a different
+    // track id restarts the preview session; the same id (e.g. a refreshed
+    // track after a save) just re-syncs the current selection.
+    effect(() => {
+      const track = this.track();
+      const newTrackId = track?.id ?? null;
+
+      untracked(() => {
+        if (newTrackId !== this.currentTrackId) {
+          this.resetState();
+          this.currentTrackId = newTrackId;
+
+          if (track?.id != null) {
+            this.startEditorSessionForTrack(track.id, track.duration ?? 0);
+            this.syncSelectionWithTrack();
+          }
+        } else {
+          this.syncSelectionWithTrack();
+        }
+      });
+    });
+  }
+
+  get windows(): TrackWindow[] {
+    return this.track()?.trackWindows ?? [];
   }
 
   get editorAvailable(): boolean {
@@ -669,21 +749,25 @@ export class TrackWindowsPanelComponent implements OnChanges, OnDestroy {
       this.editorStreamComplete;
   }
 
-  ngOnChanges(changes: SimpleChanges): void {
-    if ('track' in changes) {
-      const newTrackId = this.track?.id ?? null;
+  get editorHeading(): string {
+    switch (this.selection.kind) {
+      case 'whole-track':
+        return 'Whole track fades';
+      case 'window':
+        return 'Edit window';
+      default:
+        return 'Create new window';
+    }
+  }
 
-      if (newTrackId !== this.currentTrackId) {
-        this.resetState();
-        this.currentTrackId = newTrackId;
-
-        if (this.track?.id != null) {
-          this.startEditorSessionForTrack(this.track.id, this.track.duration ?? 0);
-          this.syncSelectionWithWindows();
-        }
-      } else {
-        this.syncSelectionWithWindows();
-      }
+  get editorApplyLabel(): string {
+    switch (this.selection.kind) {
+      case 'whole-track':
+        return 'Save track fades';
+      case 'window':
+        return 'Save changes';
+      default:
+        return 'Create window';
     }
   }
 
@@ -697,55 +781,87 @@ export class TrackWindowsPanelComponent implements OnChanges, OnDestroy {
   }
 
   retryStream(): void {
-    if (this.track?.id != null) {
-      this.startEditorSessionForTrack(this.track.id, this.track.duration ?? 0);
+    const track = this.track();
+    if (track?.id != null) {
+      this.startEditorSessionForTrack(track.id, track.duration ?? 0);
     }
   }
 
-  selectWindow(win: any): void {
+  selectWholeTrack(): void {
     if (!this.editorReady) return;
 
-    this.selectedWindowId = win?.id ?? null;
+    const track = this.track();
+    this.selection = { kind: 'whole-track' };
+    this.editorFromS = 0;
+    this.editorToS = this.wholeTrackDurationS();
+    this.editorName = 'Whole track';
+    this.editorFadeInMs = track?.fadeInDurationMs ?? 0;
+    this.editorFadeOutMs = track?.fadeOutDurationMs ?? 0;
+    this.editorLockRegion = true;
+    this.editorLockName = true;
+  }
+
+  selectWindow(win: TrackWindow): void {
+    if (!this.editorReady || win.id == null) return;
+
+    this.selection = { kind: 'window', id: win.id };
     this.loadEditorFromWindow(win);
   }
 
   startCreateWindow(): void {
     if (!this.editorReady) return;
 
-    this.selectedWindowId = null;
+    this.selection = { kind: 'create' };
     this.editorFromS = null;
     this.editorToS = null;
     this.editorName = '';
-    this.editorFadeIn = false;
-    this.editorFadeOut = false;
+    this.editorFadeInMs = 0;
+    this.editorFadeOutMs = 0;
+    this.editorLockRegion = false;
+    this.editorLockName = false;
   }
 
   onEditorApply(result: WindowEditorResult): void {
-    if (this.track?.id == null || !this.editorReady) return;
+    const trackId = this.track()?.id;
+    if (trackId == null || !this.editorReady) return;
+
+    // The synthetic whole-track window persists to the track's own fades.
+    if (this.selection.kind === 'whole-track') {
+      this.saveTrackFades.emit({
+        trackId,
+        fadeInMs: result.fadeInMs,
+        fadeOutMs: result.fadeOutMs,
+      });
+      return;
+    }
 
     const body: TrackWindowRequest = {
       name: result.name || undefined,
       positionFrom: result.positionFrom,
       positionTo: result.positionTo,
-      fadeIn: result.fadeIn,
-      fadeOut: result.fadeOut,
+      fadeInDurationMs: result.fadeInMs,
+      fadeOutDurationMs: result.fadeOutMs,
     };
 
-    this.saveWindow.emit({
-      trackId: this.track.id,
-      windowId: this.selectedWindowId ?? undefined,
-      body,
-    });
+    const windowId = this.selection.kind === 'window' ? this.selection.id : undefined;
+
+    // Creating a window: remember the current ids so the refreshed track can
+    // auto-select the newly created one.
+    if (windowId == null) {
+      this.windowIdsBeforeCreate = new Set(
+        this.windows.map(w => w.id).filter((id): id is number => id != null),
+      );
+    }
+
+    this.saveWindow.emit({ trackId, windowId, body });
   }
 
-  onDeleteWindow(win: any): void {
-    if (this.track?.id == null || win.id == null) return;
+  onDeleteWindow(win: TrackWindow): void {
+    const trackId = this.track()?.id;
+    if (trackId == null || win.id == null) return;
 
-    const wasSelected = this.selectedWindowId === win.id;
-    this.deleteWindow.emit({
-      trackId: this.track.id,
-      windowId: win.id,
-    });
+    const wasSelected = this.selection.kind === 'window' && this.selection.id === win.id;
+    this.deleteWindow.emit({ trackId, windowId: win.id });
 
     if (wasSelected) {
       this.startCreateWindow();
@@ -754,6 +870,28 @@ export class TrackWindowsPanelComponent implements OnChanges, OnDestroy {
 
   onEditorStreamComplete(): void {
     this.editorStreamComplete = true;
+
+    // Default to the always-present whole-track entry as soon as the editor is
+    // ready, unless the user already picked something.
+    if (!this.hasAutoSelected && this.selection.kind === 'create') {
+      this.hasAutoSelected = true;
+      this.selectWholeTrack();
+    }
+  }
+
+  formatTime(totalSeconds: number): string {
+    const safe = Math.max(0, Math.floor(totalSeconds));
+    const m = Math.floor(safe / 60);
+    const s = safe % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
+  formatFade(ms: number): string {
+    return formatFadeMs(ms);
+  }
+
+  private wholeTrackDurationS(): number {
+    return this.resolvedDurationS || (this.track()?.duration ?? 0);
   }
 
   private startEditorSessionForTrack(trackId: number, durationS: number): void {
@@ -762,7 +900,7 @@ export class TrackWindowsPanelComponent implements OnChanges, OnDestroy {
     if (this.useYtEditor) {
       // No backend stream/waveform session: the YT editor resolves audio from
       // the track link client-side and renders a timeline (no waveform).
-      this.ytVideoId = parseYoutubeId(this.track?.trackLink ?? null);
+      this.ytVideoId = parseYoutubeId(this.track()?.trackLink ?? null);
       this.resolvedDurationS = durationS;
       this.streamLoading = false;
       this.streamError = this.ytVideoId
@@ -792,42 +930,47 @@ export class TrackWindowsPanelComponent implements OnChanges, OnDestroy {
     this.previewSessionSub = null;
   }
 
-  private loadEditorFromWindow(win: any): void {
-    this.editorFromS = win?.positionFrom ?? 0;
-    this.editorToS = win?.positionTo ?? 0;
-    this.editorName = win?.name ?? '';
-    this.editorFadeIn = win?.fadeIn ?? false;
-    this.editorFadeOut = win?.fadeOut ?? false;
+  private loadEditorFromWindow(win: TrackWindow): void {
+    this.editorFromS = win.positionFrom ?? 0;
+    this.editorToS = win.positionTo ?? 0;
+    this.editorName = win.name ?? '';
+    this.editorFadeInMs = win.fadeInDurationMs ?? 0;
+    this.editorFadeOutMs = win.fadeOutDurationMs ?? 0;
+    this.editorLockRegion = false;
+    this.editorLockName = false;
   }
 
-  private syncSelectionWithWindows(): void {
-    const windows = this.windows;
-
-    if (windows.length === 0) {
-      if (this.selectedWindowId != null) {
-        this.selectedWindowId = null;
-        this.editorFromS = null;
-        this.editorToS = null;
-        this.editorName = '';
-        this.editorFadeIn = false;
-        this.editorFadeOut = false;
+  /**
+   * Keep the editor bound to the freshest version of the selected entry after
+   * the track is reloaded (e.g. following a save). The whole-track entry always
+   * exists; a window selection that no longer resolves falls back to create.
+   */
+  private syncSelectionWithTrack(): void {
+    // A create just resolved: select the window that wasn't there before.
+    if (this.windowIdsBeforeCreate) {
+      const known = this.windowIdsBeforeCreate;
+      this.windowIdsBeforeCreate = null;
+      const created = this.windows.find(w => w.id != null && !known.has(w.id));
+      if (created) {
+        this.selectWindow(created);
+        return;
       }
+    }
+
+    if (this.selection.kind === 'whole-track') {
+      this.selectWholeTrack();
       return;
     }
 
-    if (this.selectedWindowId == null) {
+    if (this.selection.kind !== 'window') {
       return;
     }
 
-    const selected = windows.find(w => w.id === this.selectedWindowId);
+    const selectedId = this.selection.id;
+    const selected = this.windows.find(w => w.id === selectedId);
 
     if (!selected) {
-      this.selectedWindowId = null;
-      this.editorFromS = null;
-      this.editorToS = null;
-      this.editorName = '';
-      this.editorFadeIn = false;
-      this.editorFadeOut = false;
+      this.startCreateWindow();
       return;
     }
 
@@ -846,18 +989,15 @@ export class TrackWindowsPanelComponent implements OnChanges, OnDestroy {
     this.ytVideoId = null;
     this.currentTrackId = null;
     this.editorStreamComplete = false;
-    this.selectedWindowId = null;
+    this.hasAutoSelected = false;
+    this.windowIdsBeforeCreate = null;
+    this.selection = { kind: 'create' };
     this.editorFromS = null;
     this.editorToS = null;
     this.editorName = '';
-    this.editorFadeIn = false;
-    this.editorFadeOut = false;
-  }
-
-  formatTime(totalSeconds: number): string {
-    const safe = Math.max(0, Math.floor(totalSeconds));
-    const m = Math.floor(safe / 60);
-    const s = safe % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
+    this.editorFadeInMs = 0;
+    this.editorFadeOutMs = 0;
+    this.editorLockRegion = false;
+    this.editorLockName = false;
   }
 }

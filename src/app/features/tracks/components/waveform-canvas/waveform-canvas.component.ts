@@ -13,7 +13,9 @@ import {
   Output,
   SimpleChanges,
   ViewChild,
+  effect,
   inject,
+  input,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
@@ -211,7 +213,6 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
   private readonly cdr = inject(ChangeDetectorRef);
 
   private static readonly MIN_REGION_S = 0.1;
-  private static readonly HANDLE_FADE_VISUAL_S = 3;
 
   @Input() durationS = 0;
   @Input() regionFromS = 0;
@@ -227,6 +228,11 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
   @Input() waveformReady = false;
   @Input() waveformError: string | null = null;
   @Input() handlesDisabled = false;
+
+  /** Fade-in / fade-out length of the selected region, in seconds. Drives the
+      width of the shaded fade ramps drawn at the region edges. */
+  readonly fadeInS = input(0);
+  readonly fadeOutS = input(0);
 
   @Output() regionChange = new EventEmitter<RegionChangeEvent>();
   @Output() seekRequested = new EventEmitter<number>();
@@ -248,6 +254,18 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
   private viewReady = false;
 
   private palette: WaveformPalette | null = null;
+
+  constructor() {
+    // Redraw when the fade-length inputs change (signal inputs don't surface in
+    // ngOnChanges). Guarded so it only acts once the canvas view exists.
+    effect(() => {
+      this.fadeInS();
+      this.fadeOutS();
+      if (this.viewReady) {
+        this.scheduleRedraw();
+      }
+    });
+  }
 
   /**
    * Reads the app design tokens off the host element so the canvas matches the
@@ -429,13 +447,14 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
     ctx.fillRect(toPx, 0, Math.max(0, width - toPx), height);
     ctx.restore();
 
-    this.drawFadeZones(ctx, fromPx, toPx, height, p);
-
     if (this.waveformPeaks.length > 0) {
       this.drawPeaks(ctx, width, height, fromPx, toPx, loadedPx, midY, p);
     } else {
       this.drawMidline(ctx, width, midY, p.surfaceMuted);
     }
+
+    // Drawn after the waveform so the fade ramps stay visible over the bars.
+    this.drawFadeZones(ctx, fromPx, toPx, height, p);
 
     // Strong crimson region edges + a top accent bar for prominence.
     ctx.fillStyle = p.primary;
@@ -603,44 +622,13 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
       return;
     }
 
-    const fadeWidth = Math.min(
-      (WaveformCanvasComponent.HANDLE_FADE_VISUAL_S / this.durationS) * this.canvasWidth,
-      regionWidth / 2,
-    );
+    // Only the end crossfade region is drawn — there is no ramp at the start.
+    const pxPerSecond = this.canvasWidth / this.durationS;
+    const fadeOutWidth = Math.min(this.fadeOutS() * pxPerSecond, regionWidth);
 
-    if (fadeWidth <= 0) {
-      return;
+    if (fadeOutWidth > 0) {
+      this.drawFadeOutZone(ctx, toPx, fadeOutWidth, height, palette);
     }
-
-    this.drawFadeInZone(ctx, fromPx, fadeWidth, height, palette);
-    this.drawFadeOutZone(ctx, toPx, fadeWidth, height, palette);
-  }
-
-  private drawFadeInZone(
-    ctx: CanvasRenderingContext2D,
-    fromPx: number,
-    fadeWidth: number,
-    height: number,
-    palette: WaveformPalette,
-  ): void {
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(fromPx, height);
-    ctx.lineTo(fromPx + fadeWidth, 0);
-    ctx.lineTo(fromPx, 0);
-    ctx.closePath();
-    ctx.clip();
-
-    const gradient = ctx.createLinearGradient(fromPx, 0, fromPx + fadeWidth, 0);
-    gradient.addColorStop(0, palette.primary);
-    gradient.addColorStop(1, palette.primarySoft);
-
-    ctx.globalAlpha = 0.22;
-    ctx.fillStyle = gradient;
-    ctx.fillRect(fromPx, 0, fadeWidth, height);
-
-    this.drawDiagonalStripes(ctx, fromPx, fromPx + fadeWidth, height, palette.primary, 'rising');
-    ctx.restore();
   }
 
   private drawFadeOutZone(
@@ -662,11 +650,34 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
     gradient.addColorStop(0, palette.primarySoft);
     gradient.addColorStop(1, palette.primary);
 
-    ctx.globalAlpha = 0.22;
+    ctx.globalAlpha = 0.3;
     ctx.fillStyle = gradient;
     ctx.fillRect(toPx - fadeWidth, 0, fadeWidth, height);
 
     this.drawDiagonalStripes(ctx, toPx - fadeWidth, toPx, height, palette.primary, 'falling');
+    ctx.restore();
+
+    // Bold envelope ramp: volume falling 1 -> 0 across the fade-out.
+    this.drawFadeRamp(ctx, toPx - fadeWidth, 0, toPx, height, palette.primary);
+  }
+
+  /** Draw a bold straight line for a fade envelope edge. */
+  private drawFadeRamp(
+    ctx: CanvasRenderingContext2D,
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    color: string,
+  ): void {
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
     ctx.restore();
   }
 

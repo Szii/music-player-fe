@@ -11,6 +11,7 @@ import {
   signal,
 } from '@angular/core';
 import { BoardPlayerYtComponent } from '../board-player-yt/board-player-yt.component';
+import { deriveCrossfadeMs } from '../../utils/crossfade';
 
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 type SourceName = 'A' | 'B';
@@ -46,6 +47,8 @@ type SourceName = 'A' | 'B';
           [windowStartS]="windowStartS()"
           [windowEndS]="windowEndS()"
           [hasSelectedWindow]="hasSelectedWindow()"
+          [windowFadeInMs]="windowFadeInMs()"
+          [windowFadeOutMs]="windowFadeOutMs()"
           [repeat]="false"
           [masterVolume]="sourceAMasterVolume()"
           [masterFadeRampMs]="sourceAFadeRampMs()"
@@ -72,6 +75,8 @@ type SourceName = 'A' | 'B';
           [windowStartS]="windowStartS()"
           [windowEndS]="windowEndS()"
           [hasSelectedWindow]="hasSelectedWindow()"
+          [windowFadeInMs]="windowFadeInMs()"
+          [windowFadeOutMs]="windowFadeOutMs()"
           [repeat]="false"
           [masterVolume]="sourceBMasterVolume()"
           [masterFadeRampMs]="sourceBFadeRampMs()"
@@ -107,7 +112,8 @@ type SourceName = 'A' | 'B';
   ],
 })
 export class BoardPlayerYtDeckComponent {
-  private static readonly LOOP_CROSSFADE_MS = 3000;
+  /** Fallback loop crossfade when the looping window has no fades configured. */
+  private static readonly DEFAULT_LOOP_CROSSFADE_MS = 3000;
 
   private readonly destroyRef = inject(DestroyRef);
 
@@ -120,6 +126,8 @@ export class BoardPlayerYtDeckComponent {
   readonly windowStartS = input<number | null>(null);
   readonly windowEndS = input<number | null>(null);
   readonly hasSelectedWindow = input(false);
+  readonly windowFadeInMs = input(0);
+  readonly windowFadeOutMs = input(0);
   readonly repeat = input(false);
   readonly masterVolume = input(1);
   readonly masterFadeRampMs = input(0);
@@ -152,40 +160,68 @@ export class BoardPlayerYtDeckComponent {
     this.clamp01(this.masterVolume()) * this.sourceBGain(),
   );
 
+  /**
+   * Symmetric loop crossfade length, derived from the looping window's fades
+   * (the larger edge), falling back to the default when neither is set. Both
+   * sources ramp over this same duration — the proven preset-style crossfade.
+   */
+  readonly loopCrossfadeMs = computed(() =>
+    deriveCrossfadeMs(
+      this.windowFadeOutMs(),
+      this.windowFadeInMs(),
+      BoardPlayerYtDeckComponent.DEFAULT_LOOP_CROSSFADE_MS,
+    ),
+  );
+
   readonly sourceAFadeRampMs = computed(() =>
-    this.loopFadeActive()
-      ? BoardPlayerYtDeckComponent.LOOP_CROSSFADE_MS
-      : this.masterFadeRampMs(),
+    this.loopFadeActive() ? this.loopCrossfadeMs() : this.masterFadeRampMs(),
   );
 
   readonly sourceBFadeRampMs = computed(() =>
-    this.loopFadeActive()
-      ? BoardPlayerYtDeckComponent.LOOP_CROSSFADE_MS
-      : this.masterFadeRampMs(),
+    this.loopFadeActive() ? this.loopCrossfadeMs() : this.masterFadeRampMs(),
   );
 
   private crossfadeTimer: ReturnType<typeof setTimeout> | null = null;
   private crossfadeInProgress = false;
   private syncSeq = 0;
+  private lastVideoId: string | null = null;
+  private lastTrackId: number | null = null;
 
   constructor() {
     effect(() => {
       const status = this.status();
-      const canPlay = this.hasTrack() && this.videoId() != null;
+      const videoId = this.videoId();
+      const trackId = this.trackId();
+      const canPlay = this.hasTrack() && videoId != null;
       const repeat = this.repeat();
 
       // Touch these so source lifecycle is re-evaluated when the selected media
       // changes. The child components receive the actual values directly.
-      this.trackId();
       this.windowStartS();
       this.windowEndS();
       this.hasSelectedWindow();
       this.durationS();
 
+      // A track/video switch mid loop-crossfade: abort the A/B loop fade so the
+      // active source can cleanly crossfade into the new track instead of two
+      // crossfades fighting.
+      const mediaChanged = videoId !== this.lastVideoId || trackId !== this.lastTrackId;
+      this.lastVideoId = videoId;
+      this.lastTrackId = trackId;
+      if (mediaChanged && this.crossfadeInProgress) {
+        this.abortLoopCrossfade();
+      }
+
       this.syncSources(status, canPlay, repeat);
     });
 
     this.destroyRef.onDestroy(() => this.clearCrossfadeTimer());
+  }
+
+  /** Current playback position (seconds) of the audible source. */
+  getCurrentPositionS(): number {
+    const active = this.activeSource() === 'A' ? this.sourceA : this.sourceB;
+    return active?.displayPositionS() ?? 0;
   }
 
   onSourceNearEnd(source: SourceName): void {
@@ -299,7 +335,22 @@ export class BoardPlayerYtDeckComponent {
 
     this.crossfadeTimer = setTimeout(() => {
       this.finishLoopCrossfade(seq);
-    }, BoardPlayerYtDeckComponent.LOOP_CROSSFADE_MS + 80);
+    }, this.loopCrossfadeMs() + 80);
+  }
+
+  /**
+   * Cancel an in-progress loop crossfade without swapping sources, restoring the
+   * active source to full and silencing the shadow. Used when a track switch
+   * arrives mid-crossfade so the active source can crossfade to the new track.
+   */
+  private abortLoopCrossfade(): void {
+    this.clearCrossfadeTimer();
+    this.syncSeq++;
+    this.crossfadeInProgress = false;
+    this.loopFadeActive.set(false);
+    const active = this.activeSource();
+    this.setSourceGain(active, 1);
+    this.setSourceGain(this.otherSource(active), 0);
   }
 
   private finishLoopCrossfade(expectedSeq?: number): void {

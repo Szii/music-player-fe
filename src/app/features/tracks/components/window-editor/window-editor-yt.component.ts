@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
-  ElementRef,
   NgZone,
   ViewChild,
   computed,
@@ -20,23 +19,34 @@ import {
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-input.component';
 import { UiVolumeSliderComponent } from '../../../../shared/ui/volume-slider/ui-volume-slider.component';
-import { UiPlayButtonComponent } from '../../../../shared/ui/play-button/ui-play-button.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
-import { YoutubeIframeApiService } from '../../../../core/services/youtube-iframe-api.service';
+import { BoardPlayerYtDeckComponent } from '../../../boards/components/board-player-yt-deck/board-player-yt-deck.component';
 import { WindowEditorResult } from './window-editor.component';
+import {
+  FADE_STEP_MS,
+  clampFadeMs,
+  formatFadeMs,
+  maxFadeForWindow,
+} from '../../utils/fade';
 
-type PlayMode = 'full' | 'selection';
+type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
+type PreviewMode = 'selection' | 'full';
+
+/** Crossfade is split evenly into a fade-in and a fade-out half. */
+const CROSSFADE_STEP_MS = FADE_STEP_MS * 2;
 
 /**
- * YouTube IFrame-backed window editor (experimental, behind
- * {@link USE_YT_IFRAME_PLAYER}).
+ * YouTube IFrame-backed window editor (behind {@link USE_YT_IFRAME_PLAYER}).
  *
- * A real amplitude waveform isn't obtainable for YouTube tracks (the backend is
- * IP-locked and the iframe never exposes PCM), so this is a timeline editor: a
- * whole-track ruler with draggable region handles and a playhead, with audio
- * preview (play full / play selection / seek) driven by a YouTube player. The
- * waveform canvas is reused with empty peaks to render the timeline.
+ * The timeline (ruler + draggable region handles) is rendered with the waveform
+ * canvas (empty peaks). Playback is delegated to the real board player deck
+ * ({@link BoardPlayerYtDeckComponent}) so the preview loops and crossfades
+ * exactly like a board: the selection is fed as a repeating window and the
+ * crossfade length comes from the same fade values.
+ *
+ * A single "Crossfade" slider sets the window's fades symmetrically — a 6 s
+ * crossfade means a 3 s fade-in and a 3 s fade-out.
  *
  * Mirrors {@link WindowEditorResult} on apply so the panel handles it
  * identically to the stream-based editor.
@@ -50,7 +60,7 @@ type PlayMode = 'full' | 'selection';
     UiTextInputComponent,
     NormalButtonComponent,
     UiVolumeSliderComponent,
-    UiPlayButtonComponent,
+    BoardPlayerYtDeckComponent,
   ],
   template: `
     <div class="we-root">
@@ -62,11 +72,13 @@ type PlayMode = 'full' | 'selection';
         [seekableMaxS]="durationS()"
         [playheadPx]="playheadPx()"
         [waveformPeaks]="[]"
-        [audioReady]="audioReady()"
+        [audioReady]="durationS() > 0"
         [waveformReady]="true"
-        [handlesDisabled]="!audioReady()"
+        [fadeInS]="fadeInMs() / 1000"
+        [fadeOutS]="fadeOutMs() / 1000"
+        [handlesDisabled]="durationS() <= 0 || lockRegion()"
         (regionChange)="onRegionChange($event)"
-        (seekRequested)="seekLocal($event)"
+        (seekRequested)="onTimelineSeek($event)"
       />
 
       @if (durationS() > 0) {
@@ -87,12 +99,13 @@ type PlayMode = 'full' | 'selection';
                   type="text"
                   class="we-card__time-input"
                   [value]="formatTime(regionFromS())"
+                  [disabled]="lockRegion()"
                   (change)="onFromTextChange($any($event.target).value)"
                   aria-label="Selection start time"
                 />
                 <div class="we-card__nudge-group">
-                  <button type="button" class="we-nudge" (click)="nudgeFrom(-1)" aria-label="Decrease start by 1 second">−</button>
-                  <button type="button" class="we-nudge" (click)="nudgeFrom(1)" aria-label="Increase start by 1 second">+</button>
+                  <button type="button" class="we-nudge" [disabled]="lockRegion()" (click)="nudgeFrom(-1)" aria-label="Decrease start by 1 second">−</button>
+                  <button type="button" class="we-nudge" [disabled]="lockRegion()" (click)="nudgeFrom(1)" aria-label="Increase start by 1 second">+</button>
                 </div>
               </div>
             </div>
@@ -104,12 +117,13 @@ type PlayMode = 'full' | 'selection';
                   type="text"
                   class="we-card__time-input"
                   [value]="formatTime(regionToS())"
+                  [disabled]="lockRegion()"
                   (change)="onToTextChange($any($event.target).value)"
                   aria-label="Selection end time"
                 />
                 <div class="we-card__nudge-group">
-                  <button type="button" class="we-nudge" (click)="nudgeTo(-1)" aria-label="Decrease end by 1 second">−</button>
-                  <button type="button" class="we-nudge" (click)="nudgeTo(1)" aria-label="Increase end by 1 second">+</button>
+                  <button type="button" class="we-nudge" [disabled]="lockRegion()" (click)="nudgeTo(-1)" aria-label="Decrease end by 1 second">−</button>
+                  <button type="button" class="we-nudge" [disabled]="lockRegion()" (click)="nudgeTo(1)" aria-label="Increase end by 1 second">+</button>
                 </div>
               </div>
             </div>
@@ -121,49 +135,88 @@ type PlayMode = 'full' | 'selection';
               </div>
             </div>
 
-            @if (audioReady()) {
-              <ui-volume-slider
-                class="we-volume"
-                [value]="volumePercent()"
-                (preview)="onVolumeChange($event)"
-                (commit)="onVolumeChange($event)"
-              />
-            }
+            <ui-volume-slider
+              class="we-volume"
+              [value]="volumePercent()"
+              (preview)="onVolumeChange($event)"
+              (commit)="onVolumeChange($event)"
+            />
           </div>
         </div>
       }
 
-      @if (audioReady() && durationS() > 0) {
-        <div class="we-section we-transport">
-          <div class="we-transport__actions">
-            <ui-play-button
-              size="sm"
-              label="Play selection"
-              stopLabel="Stop selection"
-              [playing]="isPlaying() && playMode() === 'selection'"
-              (clicked)="togglePlaySelection()"
-            />
+      @if (durationS() > 0) {
+        <div class="we-section we-fades">
+          <div class="we-fade">
+            <div class="we-fade__head">
+              <span class="we-card__label">Crossfade strength (s)</span>
+              <span class="we-fade__value">{{ formatFade(crossfadeMs()) }}</span>
+            </div>
+            <div class="we-fade__controls">
+              <button type="button" class="we-nudge" [disabled]="crossfadeMs() <= 0" (click)="nudgeCrossfade(-1)" aria-label="Decrease crossfade">−</button>
+              <input
+                class="we-fade__range app-range"
+                type="range"
+                min="0"
+                [max]="maxCrossfadeMs()"
+                [step]="crossfadeStepMs"
+                [value]="crossfadeMs()"
+                (input)="onCrossfadeInput($any($event.target).value)"
+                aria-label="Crossfade length"
+              />
+              <button type="button" class="we-nudge" [disabled]="crossfadeMs() >= maxCrossfadeMs()" (click)="nudgeCrossfade(1)" aria-label="Increase crossfade">+</button>
+            </div>
+            <span class="we-fade__hint">
+              Split evenly: {{ formatFade(fadeInMs()) }} fade-in + {{ formatFade(fadeOutMs()) }} fade-out
+            </span>
+          </div>
+        </div>
+      }
+
+      @if (durationS() > 0) {
+        <div class="we-section we-preview">
+          <div class="we-preview__modes" role="group" aria-label="Preview mode">
+            <button
+              type="button"
+              class="we-pill"
+              [class.we-pill--active]="previewMode() === 'selection'"
+              (click)="setPreviewMode('selection')"
+            >
+              Selection
+            </button>
+            <button
+              type="button"
+              class="we-pill"
+              [class.we-pill--active]="previewMode() === 'full'"
+              (click)="setPreviewMode('full')"
+            >
+              Full track
+            </button>
           </div>
 
-          <div class="we-playback">
-            <span class="we-playback__label">Playback</span>
-            <span class="we-playback__time">{{ formatTime(currentTimeS()) }}</span>
-            <input
-              #seekRange
-              class="we-seek__range app-range app-range--seek"
-              type="range"
-              min="0"
-              [max]="durationS()"
-              step="0.1"
-              [value]="currentTimeS()"
-              [style.--app-range-track]="seekBackground()"
-              (input)="onSeekInput($any($event.target).value)"
-              (change)="onSeekCommit($any($event.target).value)"
-              (mouseup)="seekRange.blur()"
-              (touchend)="seekRange.blur()"
-            />
-            <span class="we-playback__time">{{ formatTime(durationS()) }}</span>
-          </div>
+          <app-board-player-yt-deck
+            #deck
+            class="we-preview__deck"
+            [title]="windowName() || 'Preview'"
+            [hasTrack]="!!videoId()"
+            [trackId]="0"
+            [videoId]="videoId()"
+            [status]="status()"
+            [durationS]="durationS()"
+            [windowStartS]="previewMode() === 'selection' ? regionFromS() : null"
+            [windowEndS]="previewMode() === 'selection' ? regionToS() : null"
+            [hasSelectedWindow]="previewMode() === 'selection'"
+            [windowFadeInMs]="fadeInMs()"
+            [windowFadeOutMs]="fadeOutMs()"
+            [repeat]="true"
+            [masterVolume]="masterVolume()"
+            [masterFadeRampMs]="fadeInMs()"
+            [showPrimaryButton]="true"
+            (playRequested)="onPlayRequested()"
+            (stopRequested)="onStopRequested()"
+            (ended)="onStopRequested()"
+            (audioError)="onPreviewError()"
+          />
         </div>
       }
 
@@ -172,13 +225,19 @@ type PlayMode = 'full' | 'selection';
           <div class="we-bottom__name-block">
             <label class="we-bottom__name-label" for="we-yt-window-name">Window name</label>
             <div class="we-bottom__name-row">
-              <ui-text-input
-                id="we-yt-window-name"
-                class="we-bottom__name-input"
-                [ngModel]="windowName()"
-                (ngModelChange)="windowName.set($event)"
-                placeholder="e.g. Intro"
-              />
+              @if (lockName()) {
+                <div class="we-bottom__name-input we-bottom__name-locked">
+                  {{ windowName() }}
+                </div>
+              } @else {
+                <ui-text-input
+                  id="we-yt-window-name"
+                  class="we-bottom__name-input"
+                  [ngModel]="windowName()"
+                  (ngModelChange)="windowName.set($event)"
+                  placeholder="e.g. Intro"
+                />
+              }
               <normal-button
                 class="we-bottom__apply"
                 type="button"
@@ -190,30 +249,8 @@ type PlayMode = 'full' | 'selection';
               </normal-button>
             </div>
           </div>
-
-          @if (audioReady()) {
-            <div class="we-bottom__tip-row">
-              <span class="we-tip">
-                <span class="we-tip__icon" aria-hidden="true">ⓘ</span>
-                <span><strong>Tip:</strong> Play the full track to find the perfect part.</span>
-              </span>
-
-              <button
-                type="button"
-                class="we-pill we-pill--outline"
-                (click)="togglePlayAll()"
-                [class.we-pill--active]="isPlaying() && playMode() === 'full'"
-              >
-                {{ isPlaying() && playMode() === 'full' ? 'Stop full track' : 'Play full track' }}
-              </button>
-            </div>
-          }
         </div>
       }
-
-      <div class="we-yt-host" aria-hidden="true">
-        <div #mount></div>
-      </div>
     </div>
   `,
   styles: [`
@@ -340,43 +377,49 @@ type PlayMode = 'full' | 'selection';
       transition: background 0.12s, border-color 0.12s, color 0.12s;
     }
 
-    .we-nudge:hover {
+    .we-nudge:hover:not(:disabled) {
       background: var(--app-primary-soft);
       border-color: var(--app-primary);
       color: var(--app-primary);
     }
 
     .we-nudge:focus-visible { outline: none; box-shadow: var(--app-focus-ring); }
+    .we-nudge:disabled { opacity: 0.45; cursor: not-allowed; }
 
-    .we-transport {
+    .we-fades { display: flex; flex-direction: column; gap: 6px; padding: 8px 14px; }
+    .we-fade { display: flex; flex-direction: column; gap: 6px; }
+
+    .we-fade__head {
       display: flex;
-      align-items: center;
-      gap: 14px;
-      flex-wrap: wrap;
-      padding: 8px 14px;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
     }
 
-    .we-transport__actions { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-
-    .we-playback { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 260px; }
-
-    .we-playback__label {
-      font-size: 10px;
+    .we-fade__value {
+      font-size: 13px;
       font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--app-text-muted);
-    }
-
-    .we-playback__time {
-      font-size: 12px;
-      color: var(--app-text-muted);
+      color: var(--app-text);
       font-variant-numeric: tabular-nums;
-      min-width: 36px;
-      text-align: center;
     }
 
-    .we-seek__range { flex: 1; min-width: 0; }
+    .we-fade__controls { display: flex; align-items: center; gap: 8px; }
+    .we-fade__range { flex: 1; min-width: 0; }
+
+    .we-fade__hint {
+      font-size: 11px;
+      font-style: italic;
+      color: var(--app-text-muted);
+    }
+
+    .we-preview {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .we-preview__modes { display: inline-flex; gap: 8px; }
+    .we-preview__deck { display: block; }
 
     .we-pill {
       display: inline-flex;
@@ -395,15 +438,11 @@ type PlayMode = 'full' | 'selection';
       border-radius: var(--app-radius-md);
       cursor: pointer;
       white-space: nowrap;
-      transition: background 0.12s, border-color 0.12s, color 0.12s, transform 0.12s;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      transition: background 0.12s, border-color 0.12s, color 0.12s;
     }
 
-    .we-pill:hover { transform: translateY(-1px); }
-    .we-pill:focus-visible { outline: none; box-shadow: var(--app-focus-ring); }
-
-    .we-pill--outline:hover,
-    .we-pill--outline.we-pill--active {
+    .we-pill--active,
+    .we-pill:hover {
       background: var(--app-primary-soft);
       border-color: var(--app-primary);
       color: var(--app-primary);
@@ -431,98 +470,77 @@ type PlayMode = 'full' | 'selection';
 
     .we-bottom__name-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
     .we-bottom__name-input { flex: 1 1 auto; min-width: 0; }
-    .we-bottom__apply { flex: 0 0 auto; }
-
-    .we-bottom__tip-row {
+    .we-bottom__name-locked {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      flex-wrap: wrap;
-      padding-top: 8px;
-      border-top: 1px dashed var(--app-border-color-soft);
-    }
-
-    .we-tip {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12px;
-      font-style: italic;
-      color: var(--app-text-muted);
-    }
-
-    .we-tip strong { font-style: normal; font-weight: 700; color: var(--app-text-muted); }
-
-    .we-tip__icon {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: var(--app-bg-muted);
-      color: var(--app-primary);
-      font-size: 12px;
+      padding: 8px 12px;
       font-weight: 700;
-      font-style: normal;
+      color: var(--app-text-muted);
+      background: var(--app-bg-muted);
+      border: 1px solid var(--app-border-color-soft);
+      border-radius: var(--app-radius-sm);
     }
-
-    .we-yt-host {
-      position: fixed;
-      left: -10000px;
-      top: 0;
-      width: 320px;
-      height: 180px;
-      pointer-events: none;
-    }
+    .we-bottom__apply { flex: 0 0 auto; }
   `],
 })
 export class WindowEditorYtComponent {
-  private static readonly POLL_INTERVAL_MS = 50;
-  private static readonly PREVIEW_FADE_S = 1.0;
-
-  private readonly zone = inject(NgZone);
-  private readonly destroyRef = inject(DestroyRef);
   private readonly toast = inject(ToastService);
   private readonly confirmDialog = inject(ConfirmDialogService);
-  private readonly api = inject(YoutubeIframeApiService);
+  private readonly zone = inject(NgZone);
+  private readonly destroyRef = inject(DestroyRef);
+
+  @ViewChild('deck') private deck?: BoardPlayerYtDeckComponent;
+  @ViewChild('waveformCanvas') private waveformCanvasRef?: WaveformCanvasComponent;
 
   readonly videoId = input<string | null>(null);
   readonly durationS = input(0);
   readonly initialFromS = input<number | null>(null);
   readonly initialToS = input<number | null>(null);
   readonly initialName = input('');
-  readonly initialFadeIn = input(false);
-  readonly initialFadeOut = input(false);
+  readonly initialFadeInMs = input(0);
+  readonly initialFadeOutMs = input(0);
+  /** Lock the region bounds (whole-track window: only the crossfade is editable). */
+  readonly lockRegion = input(false);
+  /** Lock the window name (whole-track window uses a fixed name). */
+  readonly lockName = input(false);
   readonly applyLabel = input('Apply window');
 
   readonly apply = output<WindowEditorResult>();
   readonly ready = output<void>();
 
-  @ViewChild('waveformCanvas') waveformCanvasRef?: WaveformCanvasComponent;
-  @ViewChild('mount', { static: true }) mountRef?: ElementRef<HTMLDivElement>;
-
   readonly regionFromS = signal(0);
   readonly regionToS = signal(0);
-  readonly currentTimeS = signal(0);
-  readonly playheadPx = signal(0);
-  readonly isPlaying = signal(false);
-  readonly playMode = signal<PlayMode>('full');
-  readonly fadeIn = signal(false);
-  readonly fadeOut = signal(false);
-  readonly audioReady = signal(false);
-  readonly masterVolume = signal(0.5);
+  readonly fadeInMs = signal(0);
+  readonly fadeOutMs = signal(0);
   readonly windowName = signal('');
+  readonly masterVolume = signal(0.5);
+  readonly status = signal<PlayerStatus>('STOPPED');
+  readonly previewMode = signal<PreviewMode>('selection');
+  /** Playhead position on the timeline canvas, in pixels. */
+  readonly playheadPx = signal(0);
 
+  readonly crossfadeStepMs = CROSSFADE_STEP_MS;
   readonly volumePercent = computed(() => Math.round(this.masterVolume() * 100));
 
-  readonly canApply = computed(
-    () =>
-      this.regionFromS() < this.regionToS() &&
-      this.audioReady() &&
-      this.windowName().trim().length > 0,
+  /** Total crossfade = fade-in + fade-out (the two halves are kept equal). */
+  readonly crossfadeMs = computed(() => this.fadeInMs() + this.fadeOutMs());
+
+  readonly maxCrossfadeMs = computed(
+    () => maxFadeForWindow(this.regionToS() - this.regionFromS()) * 2,
   );
+
+  readonly canApply = computed(() => {
+    if (this.durationS() <= 0) {
+      return false;
+    }
+    if (this.lockRegion()) {
+      return true;
+    }
+    return (
+      this.regionFromS() < this.regionToS() &&
+      this.windowName().trim().length > 0
+    );
+  });
 
   readonly rulerMarks = computed(() => {
     const duration = this.durationS();
@@ -542,79 +560,64 @@ export class WindowEditorYtComponent {
     return marks;
   });
 
-  readonly seekBackground = computed(() => {
-    const duration = this.durationS();
-    if (duration <= 0) return 'var(--app-border-color)';
-
-    const startPct = Math.max(0, (this.regionFromS() / duration) * 100);
-    const endPct = Math.min(100, (this.regionToS() / duration) * 100);
-
-    return `linear-gradient(to right,
-      var(--app-border-color) 0%, var(--app-border-color) ${startPct}%,
-      var(--app-primary-soft) ${startPct}%, var(--app-primary-soft) ${endPct}%,
-      var(--app-border-color) ${endPct}%, var(--app-border-color) 100%),
-      linear-gradient(to right, var(--app-primary) 0%, var(--app-primary) 100%)`;
-  });
-
-  private player: YT.Player | null = null;
-  private playerReady = false;
-  private creating = false;
-  private pollTimer: ReturnType<typeof setInterval> | null = null;
-  private playbackEndS = 0;
-  private isScrubbing = false;
   private regionInitialized = false;
   private lastInitialStateKey: string | null = null;
-  private loadToken = 0;
+  private readyEmitted = false;
 
   constructor() {
-    // (Re)create the player when the video id changes.
-    effect(() => {
-      const id = this.videoId();
-      this.onVideoIdChange(id);
-    });
-
-    // Keep the editor region in sync with the selected/edited window inputs.
-    // The previous version initialized only once, so selecting another window
-    // while this component stayed mounted left the canvas showing the old range.
+    // Initialise the region/fades from the selected window, re-running when the
+    // editor is pointed at a different window while staying mounted.
     effect(() => {
       const duration = this.durationS();
       const videoId = this.videoId();
       const from = this.initialFromS();
       const to = this.initialToS();
       const name = this.initialName();
-      const fadeIn = this.initialFadeIn();
-      const fadeOut = this.initialFadeOut();
+      const fadeInMs = this.initialFadeInMs();
+      const fadeOutMs = this.initialFadeOutMs();
 
       if (duration <= 0) {
         return;
       }
 
-      const key = this.initialStateKey(
-        duration,
-        videoId,
+      const key = JSON.stringify([
+        videoId ?? '',
+        this.roundToTenth(duration),
         from,
         to,
         name,
-        fadeIn,
-        fadeOut,
-      );
+        fadeInMs,
+        fadeOutMs,
+      ]);
 
       if (key === this.lastInitialStateKey) {
         return;
       }
 
       this.lastInitialStateKey = key;
-      this.initializeRegionDefaults(duration);
+      this.initializeDefaults(duration);
       this.regionInitialized = true;
     });
 
-    this.destroyRef.onDestroy(() => this.teardown());
+    // The timeline is usable as soon as we have a video + duration; signal the
+    // panel so it can reveal the window list.
+    effect(() => {
+      if (!this.readyEmitted && this.videoId() && this.durationS() > 0) {
+        this.readyEmitted = true;
+        this.ready.emit();
+      }
+    });
   }
 
   onRegionChange(event: RegionChangeEvent): void {
     this.regionFromS.set(event.fromS);
     this.regionToS.set(event.toS);
-    this.syncSelectionBounds();
+    this.clampFades();
+  }
+
+  onTimelineSeek(_targetS: number): void {
+    // Seeking is handled by the embedded deck's controls; the timeline click is
+    // only used for region editing, so ignore bare seeks here.
   }
 
   onFromTextChange(text: string): void {
@@ -635,61 +638,34 @@ export class WindowEditorYtComponent {
     this.setRegionTo(this.regionToS() + deltaSeconds);
   }
 
+  onCrossfadeInput(value: string): void {
+    this.setCrossfadeMs(Number(value));
+  }
+
+  nudgeCrossfade(direction: number): void {
+    this.setCrossfadeMs(this.crossfadeMs() + direction * CROSSFADE_STEP_MS);
+  }
+
   onVolumeChange(value: string | number): void {
     const numeric = Math.max(0, Math.min(100, Number(value)));
     this.masterVolume.set(numeric / 100);
-    this.applyFadeVolume(this.currentTimeS());
   }
 
-  onSeekInput(value: string): void {
-    this.isScrubbing = true;
-    const clamped = this.clamp(Number(value), 0, this.durationS());
-    this.currentTimeS.set(clamped);
-    this.updatePlayhead(clamped);
+  setPreviewMode(mode: PreviewMode): void {
+    this.previewMode.set(mode);
   }
 
-  onSeekCommit(value: string): void {
-    this.isScrubbing = false;
-    this.seekLocal(Number(value));
+  onPlayRequested(): void {
+    this.status.set('PLAYING');
   }
 
-  seekLocal(targetS: number): void {
-    // Seeking is free across the whole track. If the user seeks outside the
-    // selection while it's looping, leave selection mode so playback isn't
-    // pulled back to the region start.
-    const clamped = this.clamp(targetS, 0, this.durationS());
-
-    if (
-      this.isPlaying() &&
-      this.playMode() === 'selection' &&
-      (clamped < this.regionFromS() || clamped > this.regionToS())
-    ) {
-      this.playMode.set('full');
-      this.playbackEndS = this.durationS();
-    }
-
-    this.currentTimeS.set(clamped);
-    this.updatePlayhead(clamped);
-
-    if (this.player && this.playerReady) {
-      this.player.seekTo(clamped, true);
-    }
+  onStopRequested(): void {
+    this.status.set('STOPPED');
   }
 
-  togglePlayAll(): void {
-    if (this.isPlaying() && this.playMode() === 'full') {
-      this.stopPlayback();
-      return;
-    }
-    this.startPlayback(0, this.durationS(), 'full');
-  }
-
-  togglePlaySelection(): void {
-    if (this.isPlaying() && this.playMode() === 'selection') {
-      this.stopPlayback();
-      return;
-    }
-    this.startPlayback(this.regionFromS(), this.regionToS(), 'selection');
+  onPreviewError(): void {
+    this.status.set('STOPPED');
+    this.toast.error('YouTube preview failed to load.');
   }
 
   onApply(): void {
@@ -702,8 +678,8 @@ export class WindowEditorYtComponent {
       name: this.windowName().trim(),
       positionFrom: this.regionFromS(),
       positionTo: this.regionToS(),
-      fadeIn: this.fadeIn(),
-      fadeOut: this.fadeOut(),
+      fadeInMs: this.fadeInMs(),
+      fadeOutMs: this.fadeOutMs(),
     });
   }
 
@@ -728,285 +704,60 @@ export class WindowEditorYtComponent {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   }
 
-  private startPlayback(fromS: number, toS: number, mode: PlayMode): void {
-    if (!this.player || !this.playerReady) return;
-
-    this.stopPlaybackTimerOnly();
-    this.playMode.set(mode);
-
-    const startFrom = this.clamp(fromS, 0, this.durationS());
-    this.playbackEndS = Math.max(startFrom, Math.min(toS, this.durationS()));
-
-    this.isPlaying.set(true);
-    this.currentTimeS.set(startFrom);
-    this.updatePlayhead(startFrom);
-
-    this.player.seekTo(startFrom, true);
-    this.applyFadeVolume(startFrom);
-    this.player.playVideo();
-
-    this.startPolling();
-  }
-
-  stopPlayback(): void {
-    this.stopPlaybackTimerOnly();
-    if (this.player && this.playerReady) {
-      this.player.pauseVideo();
-    }
-    this.isPlaying.set(false);
-  }
-
-  private stopPlaybackTimerOnly(): void {
-    if (this.pollTimer !== null) {
-      clearInterval(this.pollTimer);
-      this.pollTimer = null;
-    }
-  }
-
-  private startPolling(): void {
-    this.stopPlaybackTimerOnly();
-    this.zone.runOutsideAngular(() => {
-      this.pollTimer = setInterval(
-        () => this.tick(),
-        WindowEditorYtComponent.POLL_INTERVAL_MS,
-      );
-    });
-  }
-
-  private tick(): void {
-    const player = this.player;
-    if (!player || !this.playerReady) return;
-
-    const current = player.getCurrentTime();
-
-    // Loop the selection; stop at the end of a full-track preview.
-    if (current >= this.playbackEndS - 0.03) {
-      if (this.playMode() === 'selection') {
-        player.seekTo(this.regionFromS(), true);
-        this.zone.run(() => {
-          this.currentTimeS.set(this.regionFromS());
-          this.updatePlayhead(this.regionFromS());
-        });
-        return;
-      }
-
-      player.pauseVideo();
-      this.zone.run(() => {
-        this.isPlaying.set(false);
-        this.currentTimeS.set(0);
-        this.updatePlayhead(0);
-      });
-      this.stopPlaybackTimerOnly();
-      return;
-    }
-
-    this.applyFadeVolume(current);
-
-    if (!this.isScrubbing) {
-      this.zone.run(() => {
-        this.currentTimeS.set(current);
-        this.updatePlayhead(current);
-      });
-    }
-  }
-
-  private onVideoIdChange(videoId: string | null): void {
-    this.stopPlayback();
-    this.audioReady.set(false);
-    this.regionInitialized = false;
-    this.lastInitialStateKey = null;
-    const token = ++this.loadToken;
-
-    if (!videoId) {
-      return;
-    }
-
-    void this.ensurePlayer().then((player) => {
-      if (!player || token !== this.loadToken) return;
-      player.loadVideoById(videoId, 0);
-      // Pause immediately; preview only plays on explicit user action.
-      player.pauseVideo();
-    });
-  }
-
-  private ensurePlayer(): Promise<YT.Player | null> {
-    if (this.player && this.playerReady) {
-      return Promise.resolve(this.player);
-    }
-    if (this.creating) {
-      return this.api.load().then(() => this.player);
-    }
-
-    const mount = this.mountRef?.nativeElement;
-    if (!mount) {
-      return Promise.resolve(null);
-    }
-
-    this.creating = true;
-
-    return this.api
-      .load()
-      .then(
-        (yt) =>
-          new Promise<YT.Player | null>((resolve) => {
-            const player = new yt.Player(mount, {
-              width: 320,
-              height: 180,
-              playerVars: {
-                autoplay: 0,
-                controls: 0,
-                disablekb: 1,
-                fs: 0,
-                modestbranding: 1,
-                playsinline: 1,
-                rel: 0,
-              },
-              events: {
-                onReady: () => {
-                  this.zone.run(() => {
-                    this.playerReady = true;
-                    this.creating = false;
-                    player.setVolume(Math.round(this.masterVolume() * 100));
-                    this.onPlayerReady(player);
-                    resolve(player);
-                  });
-                },
-                onError: () => {
-                  this.zone.run(() => {
-                    this.toast.error('YouTube preview failed to load.');
-                  });
-                },
-              },
-            });
-            this.player = player;
-          }),
-      )
-      .catch(() => {
-        this.creating = false;
-        this.zone.run(() => this.toast.error('YouTube preview failed to load.'));
-        return null;
-      });
-  }
-
-  private onPlayerReady(player: YT.Player): void {
-    const reportedDuration = player.getDuration();
-    if ((this.durationS() <= 0) && reportedDuration > 0) {
-      const key = this.initialStateKey(
-        reportedDuration,
-        this.videoId(),
-        this.initialFromS(),
-        this.initialToS(),
-        this.initialName(),
-        this.initialFadeIn(),
-        this.initialFadeOut(),
-      );
-
-      if (key !== this.lastInitialStateKey) {
-        this.lastInitialStateKey = key;
-        this.initializeRegionDefaults(reportedDuration);
-        this.regionInitialized = true;
-      }
-    }
-
-    this.audioReady.set(true);
-    this.ready.emit();
+  formatFade(ms: number): string {
+    return formatFadeMs(ms);
   }
 
   private setRegionFrom(seconds: number): void {
     const maxFrom = Math.max(0, this.regionToS() - 0.1);
     this.regionFromS.set(this.roundToTenth(this.clamp(seconds, 0, maxFrom)));
-    this.syncSelectionBounds();
+    this.clampFades();
   }
 
   private setRegionTo(seconds: number): void {
     const minTo = this.regionFromS() + 0.1;
     this.regionToS.set(this.roundToTenth(this.clamp(seconds, minTo, this.durationS())));
-    this.syncSelectionBounds();
+    this.clampFades();
   }
 
-  /**
-   * Keeps selection-loop playback inside the (possibly just-moved) region:
-   * refreshes the loop end and re-seeks to the region start if the playhead is
-   * now outside the bounds.
-   */
-  private syncSelectionBounds(): void {
-    if (!this.isPlaying() || this.playMode() !== 'selection') {
-      return;
-    }
-
-    this.playbackEndS = this.regionToS();
-
-    const player = this.player;
-    if (!player || !this.playerReady) {
-      return;
-    }
-
-    const current = player.getCurrentTime();
-    if (current < this.regionFromS() || current >= this.regionToS()) {
-      player.seekTo(this.regionFromS(), true);
-      this.currentTimeS.set(this.regionFromS());
-      this.updatePlayhead(this.regionFromS());
-    }
+  /** Set the total crossfade and split it evenly into fade-in / fade-out. */
+  private setCrossfadeMs(totalMs: number): void {
+    const maxMs = this.maxCrossfadeMs();
+    const clampedTotal = Math.max(0, Math.min(this.snapCrossfade(totalMs), maxMs));
+    const half = clampFadeMs(clampedTotal / 2, maxFadeForWindow(this.regionToS() - this.regionFromS()));
+    this.fadeInMs.set(half);
+    this.fadeOutMs.set(half);
   }
 
-  private initialStateKey(
-    duration: number,
-    videoId: string | null,
-    from: number | null,
-    to: number | null,
-    name: string,
-    fadeIn: boolean,
-    fadeOut: boolean,
-  ): string {
-    return JSON.stringify([
-      videoId ?? '',
-      this.roundToTenth(duration),
-      from,
-      to,
-      name,
-      fadeIn,
-      fadeOut,
-    ]);
+  private clampFades(): void {
+    // Re-apply the current crossfade against the (possibly resized) region.
+    this.setCrossfadeMs(this.crossfadeMs());
   }
 
-  private initializeRegionDefaults(duration: number): void {
+  private initializeDefaults(duration: number): void {
     const safeDuration = Math.max(0, this.roundToTenth(duration));
+    const minLength = 0.1;
 
-    if (safeDuration <= 0) {
-      this.regionFromS.set(0);
-      this.regionToS.set(0);
-      this.currentTimeS.set(0);
-      this.playheadPx.set(0);
-    } else {
-      const minLength = 0.1;
-      const inputFrom = this.initialFromS();
-      const inputTo = this.initialToS();
+    let from = this.initialFromS() ?? 0;
+    let to = this.initialToS() ?? safeDuration;
 
-      let from = inputFrom ?? 0;
-      let to = inputTo ?? safeDuration;
+    from = this.roundToTenth(this.clamp(from, 0, Math.max(0, safeDuration - minLength)));
+    to = this.roundToTenth(this.clamp(to, from + minLength, safeDuration));
 
-      from = this.roundToTenth(
-        this.clamp(from, 0, Math.max(0, safeDuration - minLength)),
-      );
-      to = this.roundToTenth(
-        this.clamp(to, from + minLength, safeDuration),
-      );
-
-      if (to <= from) {
-        from = 0;
-        to = safeDuration;
-      }
-
-      this.regionFromS.set(from);
-      this.regionToS.set(to);
-      this.currentTimeS.set(from);
-      this.updatePlayhead(from);
+    if (to <= from) {
+      from = 0;
+      to = safeDuration;
     }
 
+    this.regionFromS.set(from);
+    this.regionToS.set(to);
     this.windowName.set(this.initialName());
-    this.fadeIn.set(this.initialFadeIn());
-    this.fadeOut.set(this.initialFadeOut());
-    this.syncSelectionBounds();
+
+    const maxHalf = maxFadeForWindow(to - from);
+    this.fadeInMs.set(clampFadeMs(this.initialFadeInMs(), maxHalf));
+    this.fadeOutMs.set(clampFadeMs(this.initialFadeOutMs(), maxHalf));
+
+    this.status.set('STOPPED');
   }
 
   private hasUnsavedChanges(): boolean {
@@ -1017,41 +768,9 @@ export class WindowEditorYtComponent {
       initialFrom !== this.roundToTenth(this.regionFromS()) ||
       initialTo !== this.roundToTenth(this.regionToS()) ||
       this.initialName().trim() !== this.windowName().trim() ||
-      this.initialFadeIn() !== this.fadeIn() ||
-      this.initialFadeOut() !== this.fadeOut()
+      this.initialFadeInMs() !== this.fadeInMs() ||
+      this.initialFadeOutMs() !== this.fadeOutMs()
     );
-  }
-
-  private applyFadeVolume(currentS: number): void {
-    if (!this.player || !this.playerReady) return;
-
-    let volume = 1;
-    const [start, end] =
-      this.playMode() === 'selection'
-        ? [this.regionFromS(), this.regionToS()]
-        : [0, this.durationS()];
-
-    const fadeDuration = Math.min(
-      WindowEditorYtComponent.PREVIEW_FADE_S,
-      Math.max(0, (end - start) / 2),
-    );
-
-    if (fadeDuration > 0) {
-      if (this.fadeIn()) {
-        volume = Math.min(volume, this.clamp((currentS - start) / fadeDuration, 0, 1));
-      }
-      if (this.fadeOut()) {
-        volume = Math.min(volume, this.clamp((end - currentS) / fadeDuration, 0, 1));
-      }
-    }
-
-    this.player.setVolume(Math.round(volume * this.masterVolume() * 100));
-  }
-
-  private updatePlayhead(positionS: number): void {
-    const canvasWidth = this.waveformCanvasRef?.canvasWidth ?? 0;
-    const duration = this.durationS();
-    this.playheadPx.set(duration > 0 ? (positionS / duration) * canvasWidth : 0);
   }
 
   private parseTimeText(text: string): number | null {
@@ -1071,26 +790,16 @@ export class WindowEditorYtComponent {
     return /^\d+(?:\.\d+)?$/.test(trimmed) ? Number(trimmed) : null;
   }
 
+  private snapCrossfade(ms: number): number {
+    if (!Number.isFinite(ms) || ms <= 0) return 0;
+    return Math.round(ms / CROSSFADE_STEP_MS) * CROSSFADE_STEP_MS;
+  }
+
   private clamp(value: number, min: number, max: number): number {
     return Math.max(min, Math.min(value, max));
   }
 
   private roundToTenth(value: number): number {
     return Math.round(value * 10) / 10;
-  }
-
-  private teardown(): void {
-    this.loadToken++;
-    this.stopPlaybackTimerOnly();
-    this.playerReady = false;
-    const player = this.player;
-    this.player = null;
-    if (player) {
-      try {
-        player.destroy();
-      } catch {
-        // ignore teardown races
-      }
-    }
   }
 }

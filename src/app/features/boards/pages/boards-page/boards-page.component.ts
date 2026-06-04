@@ -13,6 +13,7 @@ import {
 
 import { environment } from '../../../../../environments/environment';
 import { USE_YT_IFRAME_PLAYER } from '../../../../core/config/feature-flags';
+import { deriveCrossfadeMs } from '../../utils/crossfade';
 
 import {
   MusicBoardsService,
@@ -260,9 +261,14 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   private readonly playPendingAfterUpdateBoardIds = new Set<number>();
   private readonly playlistAdvanceInFlightBoardIds = new Set<number>();
 
-  private static readonly CROSSFADE_MS = 2000;
+  /** Fallback board-to-board crossfade when neither side has fades configured. */
+  private static readonly DEFAULT_CROSSFADE_MS = 2000;
 
   private readonly fadeStateVersion = signal(0);
+  /** Bumped whenever the locally-selected window changes without a `boards()`
+      update (e.g. a sequence-mode advance), so template getters re-read the
+      non-reactive selection map and the player crossfades to the new window. */
+  private readonly windowSelectionVersion = signal(0);
   private crossfadeCleanupTimer: ReturnType<typeof setTimeout> | null = null;
 
   private readonly volumeCommit$ = new Subject<VolumeCommit>();
@@ -1023,11 +1029,24 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const rampMs = BoardsPageComponent.CROSSFADE_MS;
+    // Symmetric crossfade (preset-style): a single duration derived from the
+    // incoming board's fade-in and the longest displaced fade-out, used for the
+    // ramp-up and all ramp-downs.
+    const incomingBoard = this.findBoard(targetId);
+    const incomingFadeInMs = incomingBoard ? this.boardFadeInMs(incomingBoard) : 0;
+    const maxOutgoingFadeOutMs = boardsToStop.reduce(
+      (max, item) => Math.max(max, this.boardFadeOutMs(item)),
+      0,
+    );
+    const rampMs = deriveCrossfadeMs(
+      maxOutgoingFadeOutMs,
+      incomingFadeInMs,
+      BoardsPageComponent.DEFAULT_CROSSFADE_MS,
+    );
 
     // Schedule audio-clock-driven master gain ramps in each affected
-    // board-player. Setting rampMs before the target ensures the child reads the
-    // correct duration when its masterVolume subscription fires.
+    // board-player. Setting the ramp before the target ensures the child reads
+    // the correct duration when its masterVolume subscription fires.
     if (!wasActive) {
       this.masterFadeRampMsByBoard.set(targetId, rampMs);
       this.masterVolumesByBoard.set(targetId, 1);
@@ -1212,8 +1231,38 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     return board.selectedTrack?.trackWindows ?? [];
   }
 
+  /**
+   * Fade lengths (ms) currently in effect for a board: the selected window's
+   * fades, or the track's own ("whole track") fades when no window is selected.
+   */
+  private boardFadeInMs(board: Board): number {
+    return this.selectedWindowFor(board)?.fadeInDurationMs
+      ?? board.selectedTrack?.fadeInDurationMs
+      ?? 0;
+  }
+
+  private boardFadeOutMs(board: Board): number {
+    return this.selectedWindowFor(board)?.fadeOutDurationMs
+      ?? board.selectedTrack?.fadeOutDurationMs
+      ?? 0;
+  }
+
+  private selectedWindowFor(board: Board): TrackWindow | null {
+    if (board.id == null) return null;
+    const windowId = this.selectedWindowByBoard.get(board.id) ?? null;
+    if (windowId == null) return null;
+    return this.boardWindows(board).find(w => w.id === windowId) ?? null;
+  }
+
+  private findBoard(id: number): Board | null {
+    return this.boards().find(b => b.id === id) ?? null;
+  }
+
   private setSequenceWindow(boardId: number, window: TrackWindow): void {
     this.selectedWindowByBoard.set(boardId, window.id ?? null);
+    // Force template getters bound to the selection to re-evaluate so the
+    // player receives the new window and crossfades into it.
+    this.windowSelectionVersion.update(n => n + 1);
   }
 
   /**
@@ -1295,6 +1344,9 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   }
 
   getSelectedWindowId(board: Board): number | null {
+    // Read the version so this template getter re-evaluates when the selection
+    // map mutates without a boards() update (sequence-mode advance).
+    this.windowSelectionVersion();
     return board.id != null
       ? (this.selectedWindowByBoard.get(board.id) ?? null)
       : null;

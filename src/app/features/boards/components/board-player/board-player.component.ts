@@ -17,6 +17,7 @@ import { combineLatest, distinctUntilChanged, skip } from 'rxjs';
 import { BoardPlayerAudioSourceManager } from '../../../../shared/features/audio-stream-manager/board-audio-stream-manager';
 import { PlayerControlsComponent } from '../player-controls/player-controls.component';
 import { LoopBlendKind, LoopBlendService } from './loop-blend.service';
+import { deriveCrossfadeMs } from '../../utils/crossfade';
 
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 type AudioSlot = 'A' | 'B';
@@ -26,8 +27,8 @@ interface SlotPlaybackContext {
   endS: number;
   durationS: number;
   hasSelectedWindow: boolean;
-  fadeIn: boolean;
-  fadeOut: boolean;
+  fadeInMs: number;
+  fadeOutMs: number;
 }
 
 interface SlotFadePolicy {
@@ -49,6 +50,7 @@ interface SlotFadePolicy {
       [seekableMaxS]="seekableMaxS()"
       [windowStartS]="hasSelectedWindow() ? windowStartS() : null"
       [windowEndS]="hasSelectedWindow() ? windowEndS() : null"
+      [fadeOutS]="windowFadeOutMs() / 1000"
       [showPrimaryButton]="showPrimaryButton()"
       [disabled]="localStatus() === 'BUFFERING'"
       (play)="onPlay()"
@@ -85,9 +87,9 @@ interface SlotFadePolicy {
   `,
 })
 export class BoardPlayerComponent implements OnInit, OnDestroy {
-  private static readonly WINDOW_FADE_DURATION_S = 3;
-  private static readonly SWITCH_CROSSFADE_MS = 2000;
-  private static readonly LOOP_CROSSFADE_MS = 3000;
+  /** Fallback crossfades when the relevant window/track has no fades set. */
+  private static readonly DEFAULT_SWITCH_CROSSFADE_MS = 2000;
+  private static readonly DEFAULT_LOOP_CROSSFADE_MS = 3000;
   private static readonly LOOP_PREPARE_LEAD_MS = 3000;
   private static readonly PLAYLIST_PRELOAD_LEAD_MS = 3000;
   /** Fade applied to a plain start (stopped → playing) and a plain stop
@@ -107,8 +109,8 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
   readonly durationS = input<number | null>(null);
   readonly windowStartS = input<number | null>(null);
   readonly windowEndS = input<number | null>(null);
-  readonly windowFadeIn = input(false);
-  readonly windowFadeOut = input(false);
+  readonly windowFadeInMs = input(0);
+  readonly windowFadeOutMs = input(0);
   readonly hasSelectedWindow = input(false);
   readonly repeat = input(false);
   readonly masterVolume = input(1);
@@ -284,8 +286,8 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
 
     combineLatest([
       toObservable(this.masterVolume),
-      toObservable(this.windowFadeIn),
-      toObservable(this.windowFadeOut),
+      toObservable(this.windowFadeInMs),
+      toObservable(this.windowFadeOutMs),
       toObservable(this.windowStartS),
       toObservable(this.windowEndS),
       toObservable(this.hasSelectedWindow),
@@ -669,7 +671,7 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
       await this.crossfadeSlots(
         fromSlot,
         toSlot,
-        BoardPlayerComponent.SWITCH_CROSSFADE_MS,
+        this.switchCrossfadeMs(),
         'switch',
       );
 
@@ -1349,21 +1351,20 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
 
     const policy = this.getFadePolicy(slot);
     const pos = Math.max(0, Math.min(audio.currentTime, ctx.durationS));
-    const fadeLen = Math.min(
-      BoardPlayerComponent.WINDOW_FADE_DURATION_S,
-      ctx.durationS / 2,
-    );
+    const maxFadeLen = ctx.durationS / 2;
+    const fadeInLen = Math.min(ctx.fadeInMs / 1000, maxFadeLen);
+    const fadeOutLen = Math.min(ctx.fadeOutMs / 1000, maxFadeLen);
 
     let volume = 1;
 
-    if (ctx.fadeIn && !policy.suppressFadeIn && fadeLen > 0) {
-      volume = Math.min(volume, Math.max(0, Math.min(pos / fadeLen, 1)));
+    if (fadeInLen > 0 && !policy.suppressFadeIn) {
+      volume = Math.min(volume, Math.max(0, Math.min(pos / fadeInLen, 1)));
     }
 
-    if (ctx.fadeOut && !policy.suppressFadeOut && fadeLen > 0) {
+    if (fadeOutLen > 0 && !policy.suppressFadeOut) {
       volume = Math.min(
         volume,
-        Math.max(0, Math.min((ctx.durationS - pos) / fadeLen, 1)),
+        Math.max(0, Math.min((ctx.durationS - pos) / fadeOutLen, 1)),
       );
     }
 
@@ -1487,7 +1488,7 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
     const windowDurationMs = Math.max(0, ctx.durationS * 1000);
 
     return Math.min(
-      BoardPlayerComponent.LOOP_CROSSFADE_MS,
+      this.loopCrossfadeMs(),
       Math.max(140, Math.floor(windowDurationMs * 0.45)),
     );
   }
@@ -1675,6 +1676,24 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
     return Math.max(ctx.startS, Math.min(posS, ctx.endS));
   }
 
+  /** Loop crossfade derived from the looping window's fades (default fallback). */
+  private loopCrossfadeMs(): number {
+    return deriveCrossfadeMs(
+      this.windowFadeOutMs(),
+      this.windowFadeInMs(),
+      BoardPlayerComponent.DEFAULT_LOOP_CROSSFADE_MS,
+    );
+  }
+
+  /** Track/window switch crossfade derived from the window fades (default fallback). */
+  private switchCrossfadeMs(): number {
+    return deriveCrossfadeMs(
+      this.windowFadeOutMs(),
+      this.windowFadeInMs(),
+      BoardPlayerComponent.DEFAULT_SWITCH_CROSSFADE_MS,
+    );
+  }
+
   private buildCurrentInputContext(): SlotPlaybackContext {
     const startS = this.hasSelectedWindow() ? (this.windowStartS() ?? 0) : 0;
     const endS = this.hasSelectedWindow()
@@ -1686,8 +1705,8 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
       endS,
       durationS: Math.max(0, endS - startS),
       hasSelectedWindow: this.hasSelectedWindow(),
-      fadeIn: this.windowFadeIn(),
-      fadeOut: this.windowFadeOut(),
+      fadeInMs: this.windowFadeInMs(),
+      fadeOutMs: this.windowFadeOutMs(),
     };
   }
 
@@ -1727,8 +1746,8 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
       endS: 0,
       durationS: 0,
       hasSelectedWindow: false,
-      fadeIn: false,
-      fadeOut: false,
+      fadeInMs: 0,
+      fadeOutMs: 0,
     };
   }
 
