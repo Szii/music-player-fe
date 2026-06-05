@@ -1,5 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, forkJoin, tap } from 'rxjs';
+import { Observable, forkJoin, map, tap } from 'rxjs';
 
 import {
   MusicTracksService,
@@ -14,16 +14,18 @@ import {
 } from '../../../api/generated';
 import { SessionService } from '../../../core/auth/session.service';
 
+interface LoadedProfileState {
+  status: 'loaded';
+  user: User;
+  trackNames: ReadonlyMap<number, string>;
+  sessionNames: ReadonlyMap<number, string>;
+  boardLimitsBySessionId: ReadonlyMap<number, UserBoardsLimits>;
+}
+
 type ProfileState =
   | { status: 'idle' }
   | { status: 'loading' }
-  | {
-      status: 'loaded';
-      user: User;
-      trackNames: ReadonlyMap<number, string>;
-      sessionNames: ReadonlyMap<number, string>;
-      boardLimitsBySessionId: ReadonlyMap<number, UserBoardsLimits>;
-    }
+  | LoadedProfileState
   | { status: 'error'; message: string };
 
 @Injectable({ providedIn: 'root' })
@@ -72,18 +74,8 @@ export class ProfileStore {
 
     this.state.set({ status: 'loading' });
 
-    forkJoin({
-      user: this.usersApi.getCurrentUser(),
-      tracks: this.tracksApi.getUserTracks(),
-      sessionsResponse: this.sessionsApi.getSessions(),
-    }).subscribe({
-      next: ({ user, tracks, sessionsResponse }) => this.state.set({
-        status: 'loaded',
-        user,
-        trackNames: buildTrackNames(tracks),
-        sessionNames: buildSessionNames(sessionsResponse),
-        boardLimitsBySessionId: buildBoardLimitsBySessionId(user),
-      }),
+    this.fetchProfile().subscribe({
+      next: loaded => this.state.set(loaded),
       error: () => this.state.set({
         status: 'error',
         message: 'Could not load your profile.',
@@ -91,9 +83,45 @@ export class ProfileStore {
     });
   }
 
+  /**
+   * Re-fetch the current user (`/me`) and related data so the profile reflects
+   * the latest server state. Called whenever the profile is opened. When data is
+   * already loaded it refreshes in place (no loading flash), keeping the last
+   * good data if the refresh fails.
+   */
+  refresh(): void {
+    if (this.state().status !== 'loaded') {
+      this.load();
+      return;
+    }
+
+    this.fetchProfile().subscribe({
+      next: loaded => this.state.set(loaded),
+      error: () => {
+        // Keep showing the last good profile rather than dropping to an error.
+      },
+    });
+  }
+
   reload(): void {
     this.state.set({ status: 'idle' });
     this.load();
+  }
+
+  private fetchProfile(): Observable<LoadedProfileState> {
+    return forkJoin({
+      user: this.usersApi.getCurrentUser(),
+      tracks: this.tracksApi.getUserTracks(),
+      sessionsResponse: this.sessionsApi.getSessions(),
+    }).pipe(
+      map(({ user, tracks, sessionsResponse }) => ({
+        status: 'loaded' as const,
+        user,
+        trackNames: buildTrackNames(tracks),
+        sessionNames: buildSessionNames(sessionsResponse),
+        boardLimitsBySessionId: buildBoardLimitsBySessionId(user),
+      })),
+    );
   }
 
   boardLimitForSession(sessionId: number | null | undefined): UserBoardsLimits | null {

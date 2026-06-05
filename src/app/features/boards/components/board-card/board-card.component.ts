@@ -451,6 +451,8 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
                   [windowStartS]="selectedWindowStart()"
                   [windowEndS]="selectedWindowEnd()"
                   [hasSelectedWindow]="hasSelectedWindow()"
+                  [windowFadeInMs]="selectedWindowFadeInMs()"
+                  [windowFadeOutMs]="selectedWindowFadeOutMs()"
                   [repeat]="effectiveRepeat()"
                   [masterVolume]="masterVolume()"
                   [masterFadeRampMs]="masterFadeRampMs()"
@@ -472,6 +474,8 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
                   [windowStartS]="selectedWindowStart()"
                   [windowEndS]="selectedWindowEnd()"
                   [hasSelectedWindow]="hasSelectedWindow()"
+                  [windowFadeInMs]="selectedWindowFadeInMs()"
+                  [windowFadeOutMs]="selectedWindowFadeOutMs()"
                   [repeat]="effectiveRepeat()"
                   [masterVolume]="masterVolume()"
                   [masterFadeRampMs]="masterFadeRampMs()"
@@ -1321,6 +1325,20 @@ export class BoardCardComponent implements OnInit {
   readonly hasSelectedWindow = computed(() =>
     !this.playlistMode() && this.selectedWindow() != null,
   );
+
+  /**
+   * Fade lengths (ms) that drive the player's crossfade: the selected window's
+   * fades when one is active, otherwise the track's own ("whole track") fades.
+   */
+  readonly selectedWindowFadeInMs = computed(() => {
+    const window = this.hasSelectedWindow() ? this.selectedWindow() : null;
+    return window?.fadeInDurationMs ?? this.board().selectedTrack?.fadeInDurationMs ?? 0;
+  });
+
+  readonly selectedWindowFadeOutMs = computed(() => {
+    const window = this.hasSelectedWindow() ? this.selectedWindow() : null;
+    return window?.fadeOutDurationMs ?? this.board().selectedTrack?.fadeOutDurationMs ?? 0;
+  });
 
   // In sequence mode the page advances windows and loops the whole sequence, so
   // the player itself must not loop the current window.

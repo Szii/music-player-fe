@@ -64,6 +64,11 @@ export interface TrackFormEvent {
               type="url"
               placeholder="https://youtube.com/..."
             />
+            @if (linkLocked()) {
+              <span class="track-form__hint">
+                The link can't be changed once a track has windows or is published.
+              </span>
+            }
           </ui-form-field>
         </form>
 
@@ -94,6 +99,13 @@ export interface TrackFormEvent {
       flex-direction: column;
       gap: 16px;
     }
+
+    .track-form__hint {
+      display: block;
+      margin-top: 4px;
+      font-size: 0.8rem;
+      color: var(--app-text-muted);
+    }
   `],
 })
 export class TrackFormComponent {
@@ -102,6 +114,8 @@ export class TrackFormComponent {
   readonly editingTrackId = input<number | null>(null);
   readonly editTrackName = input('');
   readonly editTrackLink = input('');
+  /** Disallow changing the link (track has windows or is published). */
+  readonly lockTrackLink = input(false);
   readonly submitting = input(false);
   readonly showTrigger = input(true);
 
@@ -111,6 +125,7 @@ export class TrackFormComponent {
   readonly isOpen = signal(false);
 
   readonly isEditing = computed(() => this.editingTrackId() != null);
+  readonly linkLocked = computed(() => this.isEditing() && this.lockTrackLink());
 
   readonly form = this.fb.group({
     trackName: this.fb.nonNullable.control(''),
@@ -147,6 +162,18 @@ export class TrackFormComponent {
       }
 
       previousEditingId = currentEditingId;
+    });
+
+    // Lock/unlock the link control. A disabled control is excluded from
+    // validation but still returned by getRawValue(), so the unchanged link is
+    // submitted on save.
+    effect(() => {
+      const control = this.form.controls.trackLink;
+      if (this.linkLocked()) {
+        if (control.enabled) control.disable({ emitEvent: false });
+      } else if (control.disabled) {
+        control.enable({ emitEvent: false });
+      }
     });
   }
 

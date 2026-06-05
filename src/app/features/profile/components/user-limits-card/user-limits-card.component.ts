@@ -232,7 +232,7 @@ export class UserLimitsCardComponent {
 
     if (l.subscribes) {
       out.push({
-        label: 'Shared tracks',
+        label: 'Subscribed tracks',
         used: l.subscribes.actualSubscribes ?? 0,
         max: l.subscribes.maxSubscribes ?? 0,
         reached: l.subscribes.subscribeLimitReached ?? false,

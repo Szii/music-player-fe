@@ -14,9 +14,14 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { WindowEditorAudioSourceManager } from '../../../../shared/features/audio-stream-manager/window-audio-stream-manager';
+import {
+  FADE_STEP_MS,
+  clampFadeMs,
+  formatFadeMs,
+  maxFadeForWindow,
+} from '../../utils/fade';
 import { PlaybackPositionTracker } from '../../../../shared/features/audio-stream-manager/playback-position-tracker';
 import {
   WaveformCanvasComponent,
@@ -33,16 +38,14 @@ export interface WindowEditorResult {
   name: string;
   positionFrom: number;
   positionTo: number;
-  fadeIn: boolean;
-  fadeOut: boolean;
+  fadeInMs: number;
+  fadeOutMs: number;
 }
 
 @Component({
   selector: 'app-window-editor',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     FormsModule,
     WaveformCanvasComponent,
     UiTextInputComponent,
@@ -69,194 +72,245 @@ export interface WindowEditorResult {
         [waveformLoading]="waveformLoading()"
         [waveformReady]="waveformReady()"
         [waveformError]="waveformError()"
-        [handlesDisabled]="!streamComplete()"
+        [fadeInS]="fadeInMs() / 1000"
+        [fadeOutS]="fadeOutMs() / 1000"
+        [handlesDisabled]="!streamComplete() || lockRegion()"
         (regionChange)="onRegionChange($event)"
         (seekRequested)="seekLocal($event)"
       />
 
-      <div class="we-ruler" *ngIf="durationS() > 0">
-        <span
-          class="we-ruler-mark"
-          *ngFor="let mark of rulerMarks()"
-          [style.left.%]="mark.pct"
-        >
-          {{ mark.label }}
-        </span>
-      </div>
+      @if (durationS() > 0) {
+        <div class="we-ruler">
+          @for (mark of rulerMarks(); track mark.pct) {
+            <span class="we-ruler-mark" [style.left.%]="mark.pct">
+              {{ mark.label }}
+            </span>
+          }
+        </div>
+      }
 
-      <div class="we-section we-info" *ngIf="durationS() > 0">
-        <div class="we-info__grid">
-          <div class="we-card">
-            <span class="we-card__label">From</span>
-            <div class="we-card__row">
-              <input
-                type="text"
-                class="we-card__time-input"
-                [value]="formatTime(regionFromS())"
-                (change)="onFromTextChange($any($event.target).value)"
-                aria-label="Selection start time"
-              />
-              <div class="we-card__nudge-group">
-                <button
-                  type="button"
-                  class="we-nudge"
-                  (click)="nudgeFrom(-1)"
-                  aria-label="Decrease start by 1 second"
-                >−</button>
-                <button
-                  type="button"
-                  class="we-nudge"
-                  (click)="nudgeFrom(1)"
-                  aria-label="Increase start by 1 second"
-                >+</button>
+      @if (durationS() > 0) {
+        <div class="we-section we-info">
+          <div class="we-info__grid">
+            <div class="we-card">
+              <span class="we-card__label">From</span>
+              <div class="we-card__row">
+                <input
+                  type="text"
+                  class="we-card__time-input"
+                  [value]="formatTime(regionFromS())"
+                  [disabled]="lockRegion()"
+                  (change)="onFromTextChange($any($event.target).value)"
+                  aria-label="Selection start time"
+                />
+                <div class="we-card__nudge-group">
+                  <button
+                    type="button"
+                    class="we-nudge"
+                    [disabled]="lockRegion()"
+                    (click)="nudgeFrom(-1)"
+                    aria-label="Decrease start by 1 second"
+                  >−</button>
+                  <button
+                    type="button"
+                    class="we-nudge"
+                    [disabled]="lockRegion()"
+                    (click)="nudgeFrom(1)"
+                    aria-label="Increase start by 1 second"
+                  >+</button>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div class="we-card">
-            <span class="we-card__label">To</span>
-            <div class="we-card__row">
-              <input
-                type="text"
-                class="we-card__time-input"
-                [value]="formatTime(regionToS())"
-                (change)="onToTextChange($any($event.target).value)"
-                aria-label="Selection end time"
-              />
-              <div class="we-card__nudge-group">
-                <button
-                  type="button"
-                  class="we-nudge"
-                  (click)="nudgeTo(-1)"
-                  aria-label="Decrease end by 1 second"
-                >−</button>
-                <button
-                  type="button"
-                  class="we-nudge"
-                  (click)="nudgeTo(1)"
-                  aria-label="Increase end by 1 second"
-                >+</button>
+            <div class="we-card">
+              <span class="we-card__label">To</span>
+              <div class="we-card__row">
+                <input
+                  type="text"
+                  class="we-card__time-input"
+                  [value]="formatTime(regionToS())"
+                  [disabled]="lockRegion()"
+                  (change)="onToTextChange($any($event.target).value)"
+                  aria-label="Selection end time"
+                />
+                <div class="we-card__nudge-group">
+                  <button
+                    type="button"
+                    class="we-nudge"
+                    [disabled]="lockRegion()"
+                    (click)="nudgeTo(-1)"
+                    aria-label="Decrease end by 1 second"
+                  >−</button>
+                  <button
+                    type="button"
+                    class="we-nudge"
+                    [disabled]="lockRegion()"
+                    (click)="nudgeTo(1)"
+                    aria-label="Increase end by 1 second"
+                  >+</button>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div class="we-card">
-            <span class="we-card__label">Length</span>
-            <div class="we-card__row">
-              <span class="we-card__time-display">
-                {{ formatTime(regionToS() - regionFromS()) }}
-              </span>
+            <div class="we-card">
+              <span class="we-card__label">Length</span>
+              <div class="we-card__row">
+                <span class="we-card__time-display">
+                  {{ formatTime(regionToS() - regionFromS()) }}
+                </span>
+              </div>
             </div>
+
+            @if (audioReady()) {
+              <ui-volume-slider
+                class="we-volume"
+                [value]="volumePercent()"
+                (preview)="onVolumeChange($event)"
+                (commit)="onVolumeChange($event)"
+              />
+            }
           </div>
-
-          <ui-volume-slider
-            class="we-volume"
-            *ngIf="audioReady()"
-            [value]="volumePercent()"
-            (preview)="onVolumeChange($event)"
-            (commit)="onVolumeChange($event)"
-          />
         </div>
-      </div>
+      }
 
-      <div
-        class="we-section we-transport"
-        *ngIf="audioReady() && durationS() > 0"
-      >
-        <div class="we-transport__actions">
-          <ui-play-button
-            size="sm"
-            label="Play selection"
-            stopLabel="Stop selection"
-            [playing]="isPlaying() && playMode() === 'selection'"
-            [disabled]="!streamComplete() && !(isPlaying() && playMode() === 'selection')"
-            (clicked)="togglePlaySelection()"
-          />
+      @if (durationS() > 0) {
+        <div class="we-section we-fades">
+          <div class="we-fade">
+            <div class="we-fade__head">
+              <span class="we-card__label">Crossfade strength (s)</span>
+              <span class="we-fade__value">{{ formatFade(crossfadeMs()) }}</span>
+            </div>
+            <div class="we-fade__controls">
+              <button
+                type="button"
+                class="we-nudge"
+                [disabled]="crossfadeMs() <= 0"
+                (click)="nudgeCrossfade(-1)"
+                aria-label="Decrease crossfade"
+              >−</button>
+              <input
+                class="we-fade__range app-range"
+                type="range"
+                min="0"
+                [max]="maxCrossfadeMs()"
+                [step]="crossfadeStepMs"
+                [value]="crossfadeMs()"
+                (input)="onCrossfadeInput($any($event.target).value)"
+                aria-label="Crossfade length"
+              />
+              <button
+                type="button"
+                class="we-nudge"
+                [disabled]="crossfadeMs() >= maxCrossfadeMs()"
+                (click)="nudgeCrossfade(1)"
+                aria-label="Increase crossfade"
+              >+</button>
+            </div>
+            <span class="we-fade__hint">
+              Split evenly: {{ formatFade(fadeInMs()) }} fade-in + {{ formatFade(fadeOutMs()) }} fade-out
+            </span>
+          </div>
         </div>
+      }
 
-        <div class="we-playback">
-          <span class="we-playback__label">Playback</span>
-          <span class="we-playback__time">{{ formatTime(currentTimeS()) }}</span>
-          <input
-            #seekRange
-            class="we-seek__range app-range app-range--seek"
-            type="range"
-            min="0"
-            [max]="durationS()"
-            step="0.1"
-            [value]="tracker.displayPositionS"
-            [style.--app-range-track]="seekBackground()"
-            (input)="onSeekInput($any($event.target).value)"
-            (change)="onSeekCommit($any($event.target).value)"
-            (mouseup)="seekRange.blur()"
-            (touchend)="seekRange.blur()"
-          />
-          <span class="we-playback__time">{{ formatTime(durationS()) }}</span>
-        </div>
-      </div>
-
-      <div class="we-section we-bottom" *ngIf="durationS() > 0">
-        <div class="we-bottom__name-block">
-          <label class="we-bottom__name-label" for="we-window-name">Window name</label>
-          <div class="we-bottom__name-row">
-            <ui-text-input
-              id="we-window-name"
-              class="we-bottom__name-input"
-              [ngModel]="windowName()"
-              (ngModelChange)="windowName.set($event)"
-              placeholder="e.g. Intro"
+      @if (audioReady() && durationS() > 0) {
+        <div class="we-section we-transport">
+          <div class="we-transport__actions">
+            <ui-play-button
+              size="sm"
+              label="Play selection"
+              stopLabel="Stop selection"
+              [playing]="isPlaying() && playMode() === 'selection'"
+              [disabled]="!streamComplete() && !(isPlaying() && playMode() === 'selection')"
+              (clicked)="togglePlaySelection()"
             />
-            <normal-button
-              class="we-bottom__apply"
-              type="button"
-              variant="success"
-              [disabled]="!canApply()"
-              (clicked)="onApply()"
-            >
-              {{ applyLabel() }}
-            </normal-button>
+          </div>
+
+          <div class="we-playback">
+            <span class="we-playback__label">Playback</span>
+            <span class="we-playback__time">{{ formatTime(currentTimeS()) }}</span>
+            <input
+              #seekRange
+              class="we-seek__range app-range app-range--seek"
+              type="range"
+              min="0"
+              [max]="durationS()"
+              step="0.1"
+              [value]="tracker.displayPositionS"
+              [style.--app-range-track]="seekBackground()"
+              (input)="onSeekInput($any($event.target).value)"
+              (change)="onSeekCommit($any($event.target).value)"
+              (mouseup)="seekRange.blur()"
+              (touchend)="seekRange.blur()"
+            />
+            <span class="we-playback__time">{{ formatTime(durationS()) }}</span>
           </div>
         </div>
+      }
 
-        <div class="we-bottom__tip-row" *ngIf="audioReady()">
-          <span class="we-tip">
-            <span class="we-tip__icon" aria-hidden="true">ⓘ</span>
-            <span><strong>Tip:</strong> You can also play the full track to find the perfect part.</span>
-          </span>
+      @if (durationS() > 0) {
+        <div class="we-section we-bottom">
+          <div class="we-bottom__name-block">
+            <label class="we-bottom__name-label" for="we-window-name">Window name</label>
+            <div class="we-bottom__name-row">
+              @if (lockName()) {
+                <div class="we-bottom__name-input we-bottom__name-locked">
+                  {{ windowName() }}
+                </div>
+              } @else {
+                <ui-text-input
+                  id="we-window-name"
+                  class="we-bottom__name-input"
+                  [ngModel]="windowName()"
+                  (ngModelChange)="windowName.set($event)"
+                  placeholder="e.g. Intro"
+                />
+              }
+              <normal-button
+                class="we-bottom__apply"
+                type="button"
+                variant="success"
+                [disabled]="!canApply()"
+                (clicked)="onApply()"
+              >
+                {{ applyLabel() }}
+              </normal-button>
+            </div>
+          </div>
 
-          <button
-            type="button"
-            class="we-pill we-pill--outline"
-            (click)="togglePlayAll()"
-            [class.we-pill--active]="isPlaying() && playMode() === 'full'"
-            [disabled]="
-              !canPlayAll() && !(isPlaying() && playMode() === 'full')
-            "
-          >
-            <svg viewBox="0 0 20 20" width="11" height="11" aria-hidden="true">
-              <polygon
-                *ngIf="!(isPlaying() && playMode() === 'full')"
-                points="4,2 18,10 4,18"
-                fill="currentColor"
-              />
-              <rect
-                *ngIf="isPlaying() && playMode() === 'full'"
-                x="4"
-                y="4"
-                width="12"
-                height="12"
-                rx="1"
-                fill="currentColor"
-              />
-            </svg>
-            {{
-              isPlaying() && playMode() === 'full'
-                ? 'Stop full track'
-                : 'Play full track'
-            }}
-          </button>
+          @if (audioReady()) {
+            <div class="we-bottom__tip-row">
+              <span class="we-tip">
+                <span class="we-tip__icon" aria-hidden="true">ⓘ</span>
+                <span><strong>Tip:</strong> You can also play the full track to find the perfect part.</span>
+              </span>
+
+              <button
+                type="button"
+                class="we-pill we-pill--outline"
+                (click)="togglePlayAll()"
+                [class.we-pill--active]="isPlaying() && playMode() === 'full'"
+                [disabled]="
+                  !canPlayAll() && !(isPlaying() && playMode() === 'full')
+                "
+              >
+                <svg viewBox="0 0 20 20" width="11" height="11" aria-hidden="true">
+                  @if (!(isPlaying() && playMode() === 'full')) {
+                    <polygon points="4,2 18,10 4,18" fill="currentColor" />
+                  } @else {
+                    <rect x="4" y="4" width="12" height="12" rx="1" fill="currentColor" />
+                  }
+                </svg>
+                {{
+                  isPlaying() && playMode() === 'full'
+                    ? 'Stop full track'
+                    : 'Play full track'
+                }}
+              </button>
+            </div>
+          }
         </div>
-      </div>
+      }
     </div>
   `,
   styles: [`
@@ -415,6 +469,56 @@ export interface WindowEditorResult {
     .we-nudge:disabled {
       opacity: 0.45;
       cursor: not-allowed;
+    }
+
+    .we-fades {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      padding: 8px 14px;
+    }
+
+    @media (max-width: 600px) {
+      .we-fades {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .we-fade {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .we-fade__head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .we-fade__value {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--app-text);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .we-fade__hint {
+      font-size: 11px;
+      font-style: italic;
+      color: var(--app-text-muted);
+    }
+
+    .we-fade__controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .we-fade__range {
+      flex: 1;
+      min-width: 0;
     }
 
     .we-transport {
@@ -577,6 +681,17 @@ export interface WindowEditorResult {
       min-width: 0;
     }
 
+    .we-bottom__name-locked {
+      display: flex;
+      align-items: center;
+      padding: 8px 12px;
+      font-weight: 700;
+      color: var(--app-text-muted);
+      background: var(--app-bg-muted);
+      border: 1px solid var(--app-border-color-soft);
+      border-radius: var(--app-radius-sm);
+    }
+
     .we-bottom__apply {
       flex: 0 0 auto;
     }
@@ -635,8 +750,12 @@ export class WindowEditorComponent implements OnChanges, OnDestroy {
   readonly initialFromS = input<number | null>(null);
   readonly initialToS = input<number | null>(null);
   readonly initialName = input('');
-  readonly initialFadeIn = input(false);
-  readonly initialFadeOut = input(false);
+  readonly initialFadeInMs = input(0);
+  readonly initialFadeOutMs = input(0);
+  /** Lock the region bounds (whole-track window: only fades are editable). */
+  readonly lockRegion = input(false);
+  /** Lock the window name (whole-track window uses a fixed name). */
+  readonly lockName = input(false);
   readonly applyLabel = input('Apply window');
 
   readonly apply = output<WindowEditorResult>();
@@ -655,22 +774,42 @@ export class WindowEditorComponent implements OnChanges, OnDestroy {
   readonly playheadPx = signal(0);
   readonly isPlaying = signal(false);
   readonly playMode = signal<'full' | 'selection'>('full');
-  readonly fadeIn = signal(false);
-  readonly fadeOut = signal(false);
+  readonly fadeInMs = signal(0);
+  readonly fadeOutMs = signal(0);
   readonly streamComplete = signal(false);
   readonly masterVolume = signal(0.5);
   readonly volumePercent = computed(() => Math.round(this.masterVolume() * 100));
+
+  /** Crossfade is split evenly into a fade-in and a fade-out half. */
+  readonly crossfadeStepMs = FADE_STEP_MS * 2;
+  readonly crossfadeMs = computed(() => this.fadeInMs() + this.fadeOutMs());
+  readonly maxCrossfadeMs = computed(
+    () => maxFadeForWindow(this.regionToS() - this.regionFromS()) * 2,
+  );
+
+  formatFade(ms: number): string {
+    return formatFadeMs(ms);
+  }
 
   readonly waveformReady = computed(
     () => this.waveformPeaks().length > 0 && this.durationS() > 0,
   );
 
-  readonly canApply = computed(
-    () =>
+  readonly canApply = computed(() => {
+    if (!this.streamComplete()) {
+      return false;
+    }
+
+    // Whole-track window: bounds + name are locked, only fades are editable.
+    if (this.lockRegion()) {
+      return true;
+    }
+
+    return (
       this.regionFromS() < this.regionToS() &&
-      this.streamComplete() &&
-      this.windowName().trim().length > 0,
-  );
+      this.windowName().trim().length > 0
+    );
+  });
 
   readonly rulerMarks = computed(() => {
     const duration = this.durationS();
@@ -728,7 +867,6 @@ export class WindowEditorComponent implements OnChanges, OnDestroy {
   private suppressBoundaryUntil = 0;
   private suppressTimeSyncUntil = 0;
   private suppressSegmentEndUntil = 0;
-  private readonly previewFadeDurationS = 1.0;
 
   private audioListeners: Array<{ type: string; fn: EventListener }> = [];
 
@@ -787,14 +925,22 @@ export class WindowEditorComponent implements OnChanges, OnDestroy {
     this.cdr.markForCheck();
   }
 
-  onFadeInChange(value: boolean): void {
-    this.fadeIn.set(value);
-    this.waveformCanvasRef?.drawWaveform();
-    this.cdr.markForCheck();
+  onCrossfadeInput(value: string): void {
+    this.setCrossfadeMs(Number(value));
   }
 
-  onFadeOutChange(value: boolean): void {
-    this.fadeOut.set(value);
+  nudgeCrossfade(direction: number): void {
+    this.setCrossfadeMs(this.crossfadeMs() + direction * this.crossfadeStepMs);
+  }
+
+  /** Set the total crossfade and split it evenly into fade-in / fade-out. */
+  private setCrossfadeMs(totalMs: number): void {
+    const half = clampFadeMs(
+      Math.max(0, totalMs) / 2,
+      maxFadeForWindow(this.regionToS() - this.regionFromS()),
+    );
+    this.fadeInMs.set(half);
+    this.fadeOutMs.set(half);
     this.waveformCanvasRef?.drawWaveform();
     this.cdr.markForCheck();
   }
@@ -999,8 +1145,8 @@ togglePlayAll(): void {
       name: this.windowName().trim(),
       positionFrom: this.regionFromS(),
       positionTo: this.regionToS(),
-      fadeIn: this.fadeIn(),
-      fadeOut: this.fadeOut(),
+      fadeInMs: this.fadeInMs(),
+      fadeOutMs: this.fadeOutMs(),
     });
   }
 
@@ -1035,8 +1181,8 @@ togglePlayAll(): void {
       initialFrom !== currentFrom ||
       initialTo !== currentTo ||
       this.initialName().trim() !== this.windowName().trim() ||
-      this.initialFadeIn() !== this.fadeIn() ||
-      this.initialFadeOut() !== this.fadeOut()
+      this.initialFadeInMs() !== this.fadeInMs() ||
+      this.initialFadeOutMs() !== this.fadeOutMs()
     );
   }
 
@@ -1566,8 +1712,9 @@ this.stream.onProgress = (_bytes, complete, seekableMaxS) => {
     }
 
     this.windowName.set(this.initialName());
-    this.fadeIn.set(this.initialFadeIn());
-    this.fadeOut.set(this.initialFadeOut());
+    const maxHalf = maxFadeForWindow(this.regionToS() - this.regionFromS());
+    this.fadeInMs.set(clampFadeMs(this.initialFadeInMs(), maxHalf));
+    this.fadeOutMs.set(clampFadeMs(this.initialFadeOutMs(), maxHalf));
   }
 
   private buildEditorKey(): string {
@@ -1576,8 +1723,8 @@ this.stream.onProgress = (_bytes, complete, seekableMaxS) => {
       this.initialFromS() ?? '',
       this.initialToS() ?? '',
       this.initialName() ?? '',
-      this.initialFadeIn() ? '1' : '0',
-      this.initialFadeOut() ? '1' : '0',
+      this.initialFadeInMs(),
+      this.initialFadeOutMs(),
     ].join('|');
   }
 
@@ -1588,26 +1735,27 @@ this.stream.onProgress = (_bytes, complete, seekableMaxS) => {
     let volume = 1;
 
     const applyFade = (start: number, end: number) => {
-      const fadeDuration = Math.min(
-        this.previewFadeDurationS,
-        Math.max(0, (end - start) / 2),
-      );
-
-      if (fadeDuration <= 0) {
+      const segment = Math.max(0, end - start);
+      if (segment <= 0) {
         return;
       }
 
-      if (this.fadeIn()) {
+      // Fade durations come straight from the user-set lengths, each capped so
+      // it never exceeds the segment.
+      const fadeInS = Math.min(this.fadeInMs() / 1000, segment);
+      const fadeOutS = Math.min(this.fadeOutMs() / 1000, segment);
+
+      if (fadeInS > 0) {
         volume = Math.min(
           volume,
-          Math.max(0, Math.min(1, (currentS - start) / fadeDuration)),
+          Math.max(0, Math.min(1, (currentS - start) / fadeInS)),
         );
       }
 
-      if (this.fadeOut()) {
+      if (fadeOutS > 0) {
         volume = Math.min(
           volume,
-          Math.max(0, Math.min(1, (end - currentS) / fadeDuration)),
+          Math.max(0, Math.min(1, (end - currentS) / fadeOutS)),
         );
       }
     };

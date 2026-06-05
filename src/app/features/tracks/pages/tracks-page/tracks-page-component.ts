@@ -16,6 +16,7 @@ import {
   TrackFormEvent,
 } from '../../components/track-form/track-form.component';
 import {
+  TrackFadesSaveEvent,
   TrackWindowsPanelComponent,
   WindowDeleteEvent,
   WindowSaveEvent,
@@ -56,6 +57,7 @@ import { BoardPlaybackService } from '../../../../core/services/board-playback.s
         [editingTrackId]="editingTrackId()"
         [editTrackName]="editTrackName()"
         [editTrackLink]="editTrackLink()"
+        [lockTrackLink]="editLockTrackLink()"
         [submitting]="createSubmitting()"
         [showTrigger]="tracks().length > 0"
         (save)="saveTrack($event)"
@@ -94,6 +96,7 @@ import { BoardPlaybackService } from '../../../../core/services/board-playback.s
         (close)="closeWindows()"
         (saveWindow)="onSaveWindow($event)"
         (deleteWindow)="onDeleteWindow($event)"
+        (saveTrackFades)="onSaveTrackFades($event)"
       />
     </div>
   `,
@@ -152,6 +155,8 @@ export class TracksPageComponent implements OnInit {
   readonly editingTrackId = signal<number | null>(null);
   readonly editTrackName = signal('');
   readonly editTrackLink = signal('');
+  /** The link can't be changed once a track has windows or is published. */
+  readonly editLockTrackLink = signal(false);
 
   readonly windowTrack = signal<Track | null>(null);
 
@@ -301,12 +306,16 @@ export class TracksPageComponent implements OnInit {
     this.editingTrackId.set(track.id);
     this.editTrackName.set(track.trackName ?? '');
     this.editTrackLink.set(track.trackLink ?? '');
+    this.editLockTrackLink.set(
+      (track.trackWindows?.length ?? 0) > 0 || track.trackShare != null,
+    );
   }
 
   cancelEdit(): void {
     this.editingTrackId.set(null);
     this.editTrackName.set('');
     this.editTrackLink.set('');
+    this.editLockTrackLink.set(false);
   }
 
   async onRemove(track: Track): Promise<void> {
@@ -387,6 +396,43 @@ export class TracksPageComponent implements OnInit {
           this.toast.error(
             event.windowId != null ? 'Updating window failed.' : 'Creating window failed.',
           );
+        },
+      });
+  }
+
+  onSaveTrackFades(event: TrackFadesSaveEvent): void {
+    const track = this.tracks().find(t => t.id === event.trackId);
+    const trackLink = track?.trackLink;
+
+    // updateTrack requires a trackLink; without it we can't persist the fades.
+    if (!trackLink) {
+      this.toast.error('Saving track fades failed.');
+      return;
+    }
+
+    const body: TrackRequest = {
+      trackName: track?.trackName || undefined,
+      trackLink,
+      fadeInDurationMs: event.fadeInMs,
+      fadeOutDurationMs: event.fadeOutMs,
+    };
+
+    this.tracksApi.updateTrack({ trackId: event.trackId, trackRequest: body })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updatedTrack) => {
+          // A fade-only update must not drop the track's windows. updateTrack's
+          // response doesn't carry them, so keep the ones we already have.
+          const merged: Track = {
+            ...updatedTrack,
+            trackWindows: updatedTrack.trackWindows ?? track?.trackWindows,
+          };
+          this.applyTrackUpdate(event.trackId, merged);
+          this.toast.success('Track fades updated.');
+        },
+        error: (err: unknown) => {
+          console.error(err);
+          this.toast.error('Saving track fades failed.');
         },
       });
   }
