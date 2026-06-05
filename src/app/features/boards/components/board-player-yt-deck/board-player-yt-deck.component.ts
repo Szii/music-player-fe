@@ -56,6 +56,7 @@ type SourceName = 'A' | 'B';
           (stopRequested)="stopRequested.emit()"
           (ended)="onSourceEnded('A')"
           (nearEnd)="onSourceNearEnd('A')"
+          (seeked)="onSourceSeeked('A')"
           (audioError)="audioError.emit()"
         />
       </div>
@@ -84,6 +85,7 @@ type SourceName = 'A' | 'B';
           (stopRequested)="stopRequested.emit()"
           (ended)="onSourceEnded('B')"
           (nearEnd)="onSourceNearEnd('B')"
+          (seeked)="onSourceSeeked('B')"
           (audioError)="audioError.emit()"
         />
       </div>
@@ -222,6 +224,14 @@ export class BoardPlayerYtDeckComponent {
   getCurrentPositionS(): number {
     const active = this.activeSource() === 'A' ? this.sourceA : this.sourceB;
     return active?.displayPositionS() ?? 0;
+  }
+
+  onSourceSeeked(source: SourceName): void {
+    // A manual seek on the audible source cancels the loop crossfade so it
+    // doesn't swap to the silent source (snapping back to the loop start).
+    if (this.crossfadeInProgress && source === this.activeSource()) {
+      this.abortLoopCrossfade();
+    }
   }
 
   onSourceNearEnd(source: SourceName): void {

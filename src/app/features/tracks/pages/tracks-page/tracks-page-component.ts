@@ -57,6 +57,7 @@ import { BoardPlaybackService } from '../../../../core/services/board-playback.s
         [editingTrackId]="editingTrackId()"
         [editTrackName]="editTrackName()"
         [editTrackLink]="editTrackLink()"
+        [lockTrackLink]="editLockTrackLink()"
         [submitting]="createSubmitting()"
         [showTrigger]="tracks().length > 0"
         (save)="saveTrack($event)"
@@ -154,6 +155,8 @@ export class TracksPageComponent implements OnInit {
   readonly editingTrackId = signal<number | null>(null);
   readonly editTrackName = signal('');
   readonly editTrackLink = signal('');
+  /** The link can't be changed once a track has windows or is published. */
+  readonly editLockTrackLink = signal(false);
 
   readonly windowTrack = signal<Track | null>(null);
 
@@ -303,12 +306,16 @@ export class TracksPageComponent implements OnInit {
     this.editingTrackId.set(track.id);
     this.editTrackName.set(track.trackName ?? '');
     this.editTrackLink.set(track.trackLink ?? '');
+    this.editLockTrackLink.set(
+      (track.trackWindows?.length ?? 0) > 0 || track.trackShare != null,
+    );
   }
 
   cancelEdit(): void {
     this.editingTrackId.set(null);
     this.editTrackName.set('');
     this.editTrackLink.set('');
+    this.editLockTrackLink.set(false);
   }
 
   async onRemove(track: Track): Promise<void> {

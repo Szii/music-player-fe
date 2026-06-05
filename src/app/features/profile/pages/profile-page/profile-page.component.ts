@@ -131,6 +131,7 @@ export class ProfilePageComponent implements OnInit {
   readonly errorMessage = this.store.errorMessage;
 
   ngOnInit(): void {
-    this.store.load();
+    // Always re-fetch /me so the profile shows current data on each visit.
+    this.store.refresh();
   }
 }

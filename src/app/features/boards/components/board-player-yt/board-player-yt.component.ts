@@ -133,6 +133,9 @@ export class BoardPlayerYtComponent implements OnDestroy {
   readonly ended = output<void>();
   readonly nearEnd = output<void>();
   readonly audioError = output<void>();
+  /** Emitted when the user commits a manual seek (so the deck can cancel an
+      in-progress loop crossfade and honour the new position). */
+  readonly seeked = output<number>();
 
   @ViewChild('mountA', { static: true })
   mountARef?: ElementRef<HTMLDivElement>;
@@ -254,6 +257,13 @@ export class BoardPlayerYtComponent implements OnDestroy {
 
   onSeekCommit(rawValue: number): void {
     const target = this.clampToSeekableWindow(Math.floor(rawValue));
+
+    // A manual seek wins over any in-progress crossfade: abort it so its
+    // completion doesn't snap playback back to the seam/window start.
+    if (this.crossfadeInProgress) {
+      this.abortCrossfade();
+    }
+
     this.displayPositionS.set(target);
     this.isUserSeeking = false;
     this.emittedNearEnd = false;
@@ -262,6 +272,8 @@ export class BoardPlayerYtComponent implements OnDestroy {
     if (active.player && active.ready) {
       active.player.seekTo(target, true);
     }
+
+    this.seeked.emit(target);
   }
 
   /**
@@ -529,6 +541,36 @@ export class BoardPlayerYtComponent implements OnDestroy {
 
   private requestCurrentCrossfadeFinish(): void {
     this.finishCurrentCrossfadeRequested = true;
+  }
+
+  /**
+   * Cancel an in-progress crossfade, keeping the current active slot playing and
+   * discarding the incoming one. The bumped {@link switchSeq} makes any awaiting
+   * crossfade bail at its next checkpoint.
+   */
+  private abortCrossfade(): void {
+    this.switchSeq++;
+    this.gainRampId++;
+    this.clearGainRampTimer();
+    this.crossfadeInProgress = false;
+    this.finishCurrentCrossfadeRequested = false;
+    this.pinDisplayDuringCrossfade = false;
+    this.pendingTrack = null;
+
+    const active = this.active();
+    const idle = this.idle();
+    active.gain = 1;
+    idle.gain = 0;
+    if (idle.player && idle.ready && idle.loadedVideoId) {
+      try {
+        idle.player.stopVideo();
+      } catch {
+        // ignore
+      }
+    }
+    idle.loadedVideoId = null;
+    idle.loadedTrackId = null;
+    this.applyVolumes();
   }
 
   private slotMatches(

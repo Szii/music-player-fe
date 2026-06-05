@@ -6,6 +6,7 @@ import { finalize } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { SessionService } from '../../../../core/auth/session.service';
+import { TokenRenewalService } from '../../../../core/auth/token-renewal.service';
 import { AuthCredentialsStore } from '../../../../core/auth/auth-credentials.store';
 import { UsersService, UserLoginRequest, AuthResponse } from '../../../../api/generated';
 import { UiCardComponent } from '../../../../shared/ui/card/ui-card.component';
@@ -92,6 +93,7 @@ export class LoginPageComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly usersApi = inject(UsersService);
   private readonly session = inject(SessionService);
+  private readonly tokenRenewal = inject(TokenRenewalService);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
   private readonly credentialsStore = inject(AuthCredentialsStore);
@@ -152,6 +154,8 @@ export class LoginPageComponent implements OnDestroy {
         next: (res: AuthResponse) => {
           if (res.token) {
             this.session.setToken(res.token);
+            // Login set the refresh cookie; renew the access token off it.
+            this.tokenRenewal.start();
           }
           void this.router.navigateByUrl('/');
         },
