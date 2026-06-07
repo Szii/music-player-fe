@@ -27,10 +27,35 @@ function detectChromium(): boolean {
   return /\b(Chrome|Chromium|CriOS|Edg|EdgA|OPR)\b/i.test(ua);
 }
 
+/** Persists the banner's dismissed state so a reload/new session doesn't re-spam. */
+const BANNER_DISMISSED_KEY = 'browser_warning_dismissed';
+
+function readDismissed(): boolean {
+  try {
+    return localStorage.getItem(BANNER_DISMISSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeDismissed(dismissed: boolean): void {
+  try {
+    if (dismissed) {
+      localStorage.setItem(BANNER_DISMISSED_KEY, '1');
+    } else {
+      localStorage.removeItem(BANNER_DISMISSED_KEY);
+    }
+  } catch {
+    // Ignore storage failures (e.g. private mode / disabled storage).
+  }
+}
+
 /**
  * App-wide browser-support state: whether the current browser is the supported
  * (Chromium) target, plus the open/closed state of the warning banner shown to
- * users on unsupported browsers.
+ * users on unsupported browsers. The dismissed state is persisted to
+ * `localStorage`, so closing the banner keeps it closed across reloads and new
+ * sessions (the navbar icon can still reopen it on demand).
  */
 @Injectable({ providedIn: 'root' })
 export class BrowserSupportService {
@@ -40,18 +65,23 @@ export class BrowserSupportService {
   /** True when an unsupported (non-Chromium) browser should be warned about. */
   readonly showWarning = !this.isChromium;
 
-  /** Whether the warning banner is currently visible. Shown by default. */
-  readonly bannerOpen = signal(true);
+  /** Whether the warning banner is currently visible. Open unless dismissed before. */
+  readonly bannerOpen = signal(!readDismissed());
 
   openBanner(): void {
-    this.bannerOpen.set(true);
+    this.setOpen(true);
   }
 
   closeBanner(): void {
-    this.bannerOpen.set(false);
+    this.setOpen(false);
   }
 
   toggleBanner(): void {
-    this.bannerOpen.update(open => !open);
+    this.setOpen(!this.bannerOpen());
+  }
+
+  private setOpen(open: boolean): void {
+    this.bannerOpen.set(open);
+    writeDismissed(!open);
   }
 }

@@ -15,8 +15,11 @@ import { filter, skip } from 'rxjs';
     <div class="app-shell">
       <app-navbar></app-navbar>
 
-      @if (browserSupport.showWarning && browserSupport.bannerOpen()) {
-        <app-browser-warning-banner (close)="browserSupport.closeBanner()" />
+      @if (browserSupport.showWarning) {
+        <app-browser-warning-banner
+          [open]="browserSupport.bannerOpen()"
+          (close)="browserSupport.closeBanner()"
+        />
       }
 
       <main class="app-shell__main">

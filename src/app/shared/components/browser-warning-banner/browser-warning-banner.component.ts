@@ -8,6 +8,9 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 @Component({
   selector: 'app-browser-warning-banner',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '[class.browser-warning-host--open]': 'open()',
+  },
   template: `
     <div class="browser-warning" role="status">
       <div class="browser-warning__inner">
@@ -26,11 +29,22 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
     </div>
   `,
   styles: [`
+    /* Quick slide: collapse the row height to content (0fr -> 1fr) and fade. */
     :host {
-      display: block;
+      display: grid;
+      grid-template-rows: 0fr;
+      opacity: 0;
+      transition: grid-template-rows 0.2s ease, opacity 0.18s ease;
+    }
+
+    :host(.browser-warning-host--open) {
+      grid-template-rows: 1fr;
+      opacity: 1;
     }
 
     .browser-warning {
+      overflow: hidden;
+      min-height: 0;
       background: var(--app-warning-soft, #fbf0d4);
       border-bottom: 1px solid rgba(158, 110, 16, 0.3);
       color: var(--app-warning, #9e6e10);
@@ -99,6 +113,9 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
   `],
 })
 export class BrowserWarningBannerComponent {
+  /** Drives the open/closed slide animation; the element stays mounted while closed. */
+  readonly open = input(true);
+
   readonly message = input(
     'Currently, only Chromium browsers are supported. For the optimal audio experience, please use a Chromium-based browser.',
   );
