@@ -209,6 +209,40 @@
   }
 }
 
+.app-navbar__warning-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 50%;
+  border: 1px solid rgba(201, 164, 76, 0.85);
+  background: rgba(201, 164, 76, 0.14);
+  color: #ffe8a8;
+  font-family: var(--app-font-heading);
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.app-navbar__warning-btn:hover {
+  background: rgba(201, 164, 76, 0.24);
+  border-color: rgba(201, 164, 76, 1);
+  color: #fff3cf;
+}
+
+.app-navbar__warning-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(201, 164, 76, 0.28);
+}
+
 .app-navbar__playing-dot {
   display: inline-block;
   width: 6px;

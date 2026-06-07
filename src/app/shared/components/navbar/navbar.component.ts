@@ -3,6 +3,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 
 import { SessionService } from '../../../core/auth/session.service';
 import { BoardPlaybackService } from '../../../core/services/board-playback.service';
+import { BrowserSupportService } from '../../../core/services/browser-support.service';
 import { UserMenuComponent } from '../user-menu/user-menu.component';
 
 @Component({
@@ -82,6 +83,19 @@ import { UserMenuComponent } from '../user-menu/user-menu.component';
 
           <div class="app-navbar__actions">
             <app-user-menu (logout)="logout()" />
+
+            @if (browserSupport.showWarning) {
+              <button
+                type="button"
+                class="app-navbar__warning-btn"
+                (click)="browserSupport.toggleBanner()"
+                [attr.aria-expanded]="browserSupport.bannerOpen()"
+                aria-label="Browser support notice"
+                title="Browser support notice"
+              >
+                !
+              </button>
+            }
           </div>
         </div>
       </div>
@@ -94,6 +108,7 @@ export class NavbarComponent {
 
   private readonly session = inject(SessionService);
   readonly boardPlayback = inject(BoardPlaybackService);
+  readonly browserSupport = inject(BrowserSupportService);
 
   readonly menuId = `app-navbar-menu-${NavbarComponent.nextMenuId++}`;
 
