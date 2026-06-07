@@ -17,7 +17,7 @@ import { combineLatest, distinctUntilChanged, skip } from 'rxjs';
 import { BoardPlayerAudioSourceManager } from '../../../../shared/features/audio-stream-manager/board-audio-stream-manager';
 import { PlayerControlsComponent } from '../player-controls/player-controls.component';
 import { LoopBlendKind, LoopBlendService } from './loop-blend.service';
-import { deriveCrossfadeMs } from '../../utils/crossfade';
+import { outgoingCrossfadeMs } from '../../utils/crossfade';
 
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 type AudioSlot = 'A' | 'B';
@@ -1676,20 +1676,18 @@ export class BoardPlayerComponent implements OnInit, OnDestroy {
     return Math.max(ctx.startS, Math.min(posS, ctx.endS));
   }
 
-  /** Loop crossfade derived from the looping window's fades (default fallback). */
+  /** Loop crossfade sized by the looping window's own fade-out (default fallback). */
   private loopCrossfadeMs(): number {
-    return deriveCrossfadeMs(
+    return outgoingCrossfadeMs(
       this.windowFadeOutMs(),
-      this.windowFadeInMs(),
       BoardPlayerComponent.DEFAULT_LOOP_CROSSFADE_MS,
     );
   }
 
-  /** Track/window switch crossfade derived from the window fades (default fallback). */
+  /** Track/window switch crossfade sized by the outgoing window's fade-out (default fallback). */
   private switchCrossfadeMs(): number {
-    return deriveCrossfadeMs(
+    return outgoingCrossfadeMs(
       this.windowFadeOutMs(),
-      this.windowFadeInMs(),
       BoardPlayerComponent.DEFAULT_SWITCH_CROSSFADE_MS,
     );
   }

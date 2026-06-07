@@ -13,6 +13,7 @@ import {
 export interface UiInlineSelectOption {
   value: string;
   label: string;
+  disabled?: boolean;
 }
 
 /**
@@ -65,9 +66,12 @@ export interface UiInlineSelectOption {
               role="option"
               class="app-popover-item ui-inline-select__option"
               [class.app-popover-item--selected]="value() === opt.value"
+              [class.ui-inline-select__option--disabled]="opt.disabled"
+              [disabled]="opt.disabled"
               [attr.aria-selected]="value() === opt.value"
+              [attr.aria-disabled]="opt.disabled || null"
               (mousedown)="$event.preventDefault()"
-              (click)="$event.stopPropagation(); select(opt.value)"
+              (click)="$event.stopPropagation(); select(opt)"
             >
               <span class="ui-inline-select__option-label">{{ opt.label }}</span>
               @if (value() === opt.value) {
@@ -158,6 +162,11 @@ export interface UiInlineSelectOption {
       border-bottom: none;
     }
 
+    .ui-inline-select__option--disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
     .ui-inline-select__option-label {
       min-width: 0;
       overflow: hidden;
@@ -207,10 +216,11 @@ export class UiInlineSelectComponent {
     this.open.update(open => !open);
   }
 
-  select(value: string): void {
+  select(option: UiInlineSelectOption): void {
+    if (option.disabled) return;
     this.open.set(false);
-    if (value !== this.value()) {
-      this.valueChange.emit(value);
+    if (option.value !== this.value()) {
+      this.valueChange.emit(option.value);
     }
   }
 

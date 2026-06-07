@@ -11,7 +11,7 @@ import {
   signal,
 } from '@angular/core';
 import { BoardPlayerYtComponent } from '../board-player-yt/board-player-yt.component';
-import { deriveCrossfadeMs } from '../../utils/crossfade';
+import { outgoingCrossfadeMs } from '../../utils/crossfade';
 
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 type SourceName = 'A' | 'B';
@@ -163,14 +163,13 @@ export class BoardPlayerYtDeckComponent {
   );
 
   /**
-   * Symmetric loop crossfade length, derived from the looping window's fades
-   * (the larger edge), falling back to the default when neither is set. Both
-   * sources ramp over this same duration — the proven preset-style crossfade.
+   * Symmetric loop crossfade length, sized by the looping window's own fade-out
+   * (the outgoing edge), falling back to the default when unset. Both sources ramp
+   * over this same duration — the proven preset-style crossfade.
    */
   readonly loopCrossfadeMs = computed(() =>
-    deriveCrossfadeMs(
+    outgoingCrossfadeMs(
       this.windowFadeOutMs(),
-      this.windowFadeInMs(),
       BoardPlayerYtDeckComponent.DEFAULT_LOOP_CROSSFADE_MS,
     ),
   );

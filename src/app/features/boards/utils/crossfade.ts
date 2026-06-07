@@ -1,21 +1,18 @@
 /**
- * Crossfade-length helpers.
+ * Crossfade-length helper.
  *
- * The board crossfade length is derived from the fade values the user set on
- * the relevant windows/tracks: the overlap covers both the outgoing window's
- * fade-out and the incoming window's fade-in, so a single symmetric crossfade
- * spans `max(outFadeMs, inFadeMs)`.
+ * Every board crossfade is governed by the *outgoing* side's fade: when one
+ * window/track/board hands off to the next, the overlap spans the fade-out the
+ * user configured on the outgoing source (window A → window B uses window A's
+ * fade-out). The incoming side's fade-in never extends the overlap.
  *
- * When neither edge has a fade configured, fall back to the player's default
- * constant so un-faded windows keep their previous behaviour.
+ * When the outgoing side has no fade configured, fall back to the player's
+ * default constant so un-faded sources keep a sensible overlap.
  */
-export function deriveCrossfadeMs(
+export function outgoingCrossfadeMs(
   outFadeMs: number | null | undefined,
-  inFadeMs: number | null | undefined,
   fallbackMs: number,
 ): number {
   const out = outFadeMs ?? 0;
-  const incoming = inFadeMs ?? 0;
-  const derived = Math.max(out, incoming);
-  return derived > 0 ? derived : fallbackMs;
+  return out > 0 ? out : fallbackMs;
 }
