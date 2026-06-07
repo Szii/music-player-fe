@@ -1,17 +1,26 @@
 import { Component, HostListener, inject, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { NavbarComponent } from '../navbar/navbar.component';
+import { BrowserWarningBannerComponent } from '../browser-warning-banner/browser-warning-banner.component';
 import { BoardPlaybackService } from '../../../core/services/board-playback.service';
+import { BrowserSupportService } from '../../../core/services/browser-support.service';
 import { BoardsPageComponent } from '../../../features/boards/pages/boards-page/boards-page.component';
 import { filter, skip } from 'rxjs';
 
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [RouterOutlet, NavbarComponent, BoardsPageComponent],
+  imports: [RouterOutlet, NavbarComponent, BoardsPageComponent, BrowserWarningBannerComponent],
   template: `
     <div class="app-shell">
       <app-navbar></app-navbar>
+
+      @if (browserSupport.showWarning) {
+        <app-browser-warning-banner
+          [open]="browserSupport.bannerOpen()"
+          (close)="browserSupport.closeBanner()"
+        />
+      }
 
       <main class="app-shell__main">
         <!-- Always kept alive so audio continues across navigation -->
@@ -28,6 +37,7 @@ import { filter, skip } from 'rxjs';
 })
 export class ShellComponent {
   private readonly boardPlayback = inject(BoardPlaybackService);
+  readonly browserSupport = inject(BrowserSupportService);
   readonly isBoardsRoute = signal(false);
 
   constructor() {

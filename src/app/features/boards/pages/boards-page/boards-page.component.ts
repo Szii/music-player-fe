@@ -13,7 +13,7 @@ import {
 
 import { environment } from '../../../../../environments/environment';
 import { USE_YT_IFRAME_PLAYER } from '../../../../core/config/feature-flags';
-import { deriveCrossfadeMs } from '../../utils/crossfade';
+import { outgoingCrossfadeMs } from '../../utils/crossfade';
 
 import {
   MusicBoardsService,
@@ -708,17 +708,18 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
     const boardId = board.id;
     const wasActive = this.isBoardActive(boardId);
+    const wasSequence = this.getSequentialWindows(board);
     const playingTrack = board.selectedTrack;
 
-    this.sequentialWindowsByBoard.delete(boardId);
-
+    // Preserve sequence mode across the group change (baseUpdate keeps the current
+    // flag). The response handler downgrades to whole playback only when the new
+    // group's default track can't be sequenced.
     this.boardsApi.updateUserBoard({
       boardId,
       boardUpdateRequest: this.baseUpdate(board, {
         selectedGroupId: selectedId ?? undefined,
         selectedTrackId:  undefined,
         selectedWindowId: undefined,
-        sequenceMode: false,
       }),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -741,7 +742,8 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
           // Single/sequence, playing: keep the current track playing. The backend
           // reset selectedTrack to the new group's default, but we restore it so the
           // player doesn't tear down — the user picks a track from the new group to
-          // switch (the group shows a desync hint until then).
+          // switch (the group shows a desync hint until then). Sequence mode and its
+          // window selection are left untouched since the track itself didn't change.
           if (wasActive && playingTrack) {
             let normalized: Board = updated;
             this.boards.update(current => {
@@ -753,8 +755,19 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
             return;
           }
 
-          // Stopped: just adopt the new group's default selection.
+          // Stopped: adopt the new group's default selection. Keep sequence mode
+          // unless the new track can't be sequenced (fewer than two windows), in
+          // which case fall back to whole playback and persist that downgrade.
           this.selectedWindowByBoard.delete(boardId);
+
+          if (wasSequence && !this.canSequenceTrack(updated.selectedTrack)) {
+            this.sequentialWindowsByBoard.delete(boardId);
+            this.upsertBoard({ ...updated, sequenceMode: false });
+            this.clearBoard(boardId);
+            this.persistSequenceModeOff(boardId);
+            return;
+          }
+
           this.upsertBoard(updated);
           this.clearBoard(boardId);
         },
@@ -1029,18 +1042,23 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Symmetric crossfade (preset-style): a single duration derived from the
-    // incoming board's fade-in and the longest displaced fade-out, used for the
-    // ramp-up and all ramp-downs.
-    const incomingBoard = this.findBoard(targetId);
-    const incomingFadeInMs = incomingBoard ? this.boardFadeInMs(incomingBoard) : 0;
-    const maxOutgoingFadeOutMs = boardsToStop.reduce(
-      (max, item) => Math.max(max, this.boardFadeOutMs(item)),
-      0,
-    );
-    const rampMs = deriveCrossfadeMs(
-      maxOutgoingFadeOutMs,
-      incomingFadeInMs,
+    // A board-to-board switch is governed by the outgoing board's fade-out (the
+    // same "outgoing source" rule used for window/track crossfades): one duration
+    // drives the ramp-up and all ramp-downs. When starting from silence there is
+    // no outgoing board, so the incoming board's fade-in sizes the fade-up.
+    let outgoingFadeMs: number;
+    if (boardsToStop.length > 0) {
+      outgoingFadeMs = boardsToStop.reduce(
+        (max, item) => Math.max(max, this.boardFadeOutMs(item)),
+        0,
+      );
+    } else {
+      // Fading in from silence: no outgoing board, so use the incoming fade-in.
+      const incomingBoard = this.findBoard(targetId);
+      outgoingFadeMs = incomingBoard ? this.boardFadeInMs(incomingBoard) : 0;
+    }
+    const rampMs = outgoingCrossfadeMs(
+      outgoingFadeMs,
       BoardsPageComponent.DEFAULT_CROSSFADE_MS,
     );
 
@@ -1161,9 +1179,19 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       // If nearEnd already kicked off the advance/crossfade, advancePlaylist
       // dedupes via its in-flight guard; otherwise this advances at the seam.
       this.advancePlaylist(board, true, true);
-    } else {
-      this.clearBoard(board.id);
+      return;
     }
+
+    // Sequence mode: hitting a window's hard end must loop the sequence, not stop
+    // the board. This happens when the seamless seam crossfade can't run — e.g. the
+    // user seeked into the last window's crossfade tail, aborting the in-flight loop
+    // crossfade, or that window ends at the track's natural end.
+    if (this.getSequentialWindows(board) && (board.repeat ?? false)) {
+      this.restartSequenceLoop(board);
+      return;
+    }
+
+    this.clearBoard(board.id);
   }
 
   onAudioError(board: Board): void {
@@ -1229,6 +1257,32 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
   private boardWindows(board: Board): TrackWindow[] {
     return board.selectedTrack?.trackWindows ?? [];
+  }
+
+  /** A track can be sequenced only when it has at least two windows to step between. */
+  private canSequenceTrack(track: Track | null | undefined): boolean {
+    return (track?.trackWindows?.length ?? 0) >= 2;
+  }
+
+  /**
+   * Persist a downgrade out of sequence mode for a board that optimistically kept
+   * it across a group change but landed on a track that can't be sequenced.
+   */
+  private persistSequenceModeOff(boardId: number): void {
+    const fresh = this.boards().find(b => b.id === boardId);
+    if (!fresh) return;
+
+    this.boardsApi.updateUserBoard({
+      boardId,
+      boardUpdateRequest: this.baseUpdate(fresh, { sequenceMode: false }),
+    })
+      .pipe(
+        catchError(() => of(null)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(updated => {
+        if (updated) this.upsertBoard(updated);
+      });
   }
 
   /**
@@ -1303,6 +1357,31 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         this.playBoardTrack(fresh);
       }
     }
+  }
+
+  /**
+   * Loop a window sequence back to its first window after the player reached a
+   * window's hard end instead of crossfading at the seam (e.g. a manual seek into
+   * the last window's crossfade tail aborted the in-flight loop crossfade). A clean
+   * stop→play cycle restarts playback: the looping track/video is unchanged, so the
+   * player only resumes on a STOPPED→PLAYING status edge. Normal seam loops keep
+   * their seamless crossfade — this is just the recovery path for that edge case.
+   */
+  private restartSequenceLoop(board: Board): void {
+    const boardId = board.id;
+    if (boardId == null) return;
+
+    this.clearBoard(boardId);
+
+    // Defer so the STOPPED status reaches the player before PLAYING is set again;
+    // a same-tick stop+play would net no status change and the player wouldn't
+    // restart.
+    setTimeout(() => {
+      const fresh = this.boards().find(b => b.id === boardId);
+      if (fresh && this.sequenceModeFromBoard(fresh)) {
+        this.playBoardTrack(fresh);
+      }
+    });
   }
 
   getGroupsForBoard(board: Board): Group[] {

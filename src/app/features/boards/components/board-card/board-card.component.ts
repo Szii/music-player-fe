@@ -28,6 +28,7 @@ import { UiVolumeSliderComponent } from '../../../../shared/ui/volume-slider/ui-
 import { UiPlayButtonComponent } from '../../../../shared/ui/play-button/ui-play-button.component';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 import { UiInlineSelectComponent } from '../../../../shared/ui/inline-select/ui-inline-select.component';
+import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { BoardShortcutsService } from '../../../../core/services/board-shortcuts.service';
 
 export interface PlaylistOptions {
@@ -59,6 +60,7 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
     UiPlayButtonComponent,
     UiChipComponent,
     UiInlineSelectComponent,
+    UiAlertComponent,
   ],
   host: {
     '(document:click)': 'onDocumentClick($event)',
@@ -202,6 +204,12 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
         </div>
       </div>
 
+      @if (warningMessage(); as warning) {
+        <ui-alert variant="warning" class="board-card__warning">
+          {{ warning }}
+        </ui-alert>
+      }
+
       <div
         class="board-card__details"
         [class.board-card__details--open]="expanded()">
@@ -285,7 +293,7 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
                             <ui-inline-select
                               class="board-loop-select"
                               ariaLabel="Loop mode"
-                              [options]="loopModeChoices"
+                              [options]="loopModeChoices()"
                               [value]="loopMode()"
                               (valueChange)="onLoopModeSelected($event)" />
                           </div>
@@ -716,6 +724,11 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
       color: var(--app-primary);
       border-color: rgba(88, 24, 13, 0.3);
       background: var(--app-primary-soft);
+    }
+
+    .board-card__warning {
+      display: block;
+      margin-top: 10px;
     }
 
     .board-card__details {
@@ -1310,20 +1323,16 @@ export class BoardCardComponent implements OnInit {
     return this.playingTrackWindows().find(w => (w as any).id === id) ?? null;
   });
 
+  readonly hasSelectedWindow = computed(() =>
+    !this.playlistMode() && !this.sequenceUnavailable() && this.selectedWindow() != null,
+  );
+
   readonly selectedWindowStart = computed(() =>
-    (!this.playlistMode() && this.selectedWindow())
-      ? (this.selectedWindow() as any).positionFrom
-      : null,
+    this.hasSelectedWindow() ? (this.selectedWindow() as any).positionFrom : null,
   );
 
   readonly selectedWindowEnd = computed(() =>
-    (!this.playlistMode() && this.selectedWindow())
-      ? (this.selectedWindow() as any).positionTo
-      : null,
-  );
-
-  readonly hasSelectedWindow = computed(() =>
-    !this.playlistMode() && this.selectedWindow() != null,
+    this.hasSelectedWindow() ? (this.selectedWindow() as any).positionTo : null,
   );
 
   /**
@@ -1341,10 +1350,14 @@ export class BoardCardComponent implements OnInit {
   });
 
   // In sequence mode the page advances windows and loops the whole sequence, so
-  // the player itself must not loop the current window.
-  readonly effectiveRepeat = computed(() =>
-    !this.playlistMode() && !this.sequentialWindows() && (this.board().repeat ?? false),
-  );
+  // the player itself must not loop the current window. When the track can't be
+  // sequenced (fewer than two windows) the sequence falls back to looping the
+  // whole track, so the player loops instead of stopping at the end.
+  readonly effectiveRepeat = computed(() => {
+    if (this.playlistMode()) return false;
+    if (this.sequentialWindows()) return !this.canSequenceWindows();
+    return this.board().repeat ?? false;
+  });
 
   readonly showWindowSelector = computed(() =>
     !this.playlistMode() && this.windows().length > 0,
@@ -1360,6 +1373,25 @@ export class BoardCardComponent implements OnInit {
       ? 'Play through the selected group'
       : 'This group has no tracks to play',
   );
+
+  /**
+   * Inline warning shown on the board when its current configuration can't play
+   * as set up: a window sequence on a track without enough windows (it falls back
+   * to looping the whole track), or a playlist on a group with no tracks.
+   */
+  readonly warningMessage = computed<string | null>(() => {
+    if (this.playlistMode()) {
+      return this.canUsePlaylist()
+        ? null
+        : 'This group has no tracks to play. Pick a group that has tracks.';
+    }
+
+    if (this.board().selectedTrack && this.sequenceUnavailable()) {
+      return 'Window sequence needs at least two windows on this track — playing the whole track on loop instead.';
+    }
+
+    return null;
+  });
 
   // The board state is only Single or Playlist; sequence is surfaced through the
   // loop ribbon, not as a board state.
@@ -1409,11 +1441,28 @@ export class BoardCardComponent implements OnInit {
     return `${w.name || 'Window'} (${this.formatTime(w.positionFrom ?? 0)}–${this.formatTime(w.positionTo ?? 0)})`;
   });
 
-  readonly loopModeChoices: { value: LoopMode; label: string }[] = [
+  /** Windows belonging to the selected track; sequencing needs at least two. */
+  private readonly selectedTrackWindowCount = computed(
+    () => this.board().selectedTrack?.trackWindows?.length ?? 0,
+  );
+
+  /** Window sequence only makes sense with two or more windows to step between. */
+  readonly canSequenceWindows = computed(() => this.selectedTrackWindowCount() >= 2);
+
+  /**
+   * Sequence mode is selected but the track can't be sequenced (fewer than two
+   * windows). Playback falls back to looping the whole track.
+   */
+  readonly sequenceUnavailable = computed(
+    () => !this.playlistMode() && this.sequentialWindows() && !this.canSequenceWindows(),
+  );
+
+  readonly loopModeChoices = computed<{ value: LoopMode; label: string; disabled?: boolean }[]>(() => [
     { value: 'off', label: 'Off' },
     { value: 'whole', label: 'Whole playback' },
-    { value: 'sequence', label: 'Window sequence' },
-  ];
+    // Disable sequencing when the track lacks the windows to step through.
+    { value: 'sequence', label: 'Window sequence', disabled: !this.canSequenceWindows() },
+  ]);
 
   /** Current single-track loop behaviour, derived from the board flags. */
   readonly loopMode = computed<LoopMode>(() => {

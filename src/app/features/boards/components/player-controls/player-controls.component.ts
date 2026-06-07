@@ -41,12 +41,13 @@ type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
             (mouseup)="seek.blur()"
             (touchend)="seek.blur()" />
 
-          @if (showFadeOut()) {
+          @if (showCrossfade()) {
             <span
-              class="player__fade player__fade--out"
+              class="player__crossfade"
               aria-hidden="true"
-              [style.--fade-left]="fadeOutLeftCss()"
-              [style.--fade-width]="fadeOutWidthCss()"
+              [style.--stripe-left]="stripeLeftCss()"
+              [style.--stripe-width]="stripeWidthCss()"
+              [style.--stripe-gap]="stripeGapCss()"
               title="Crossfade region — not seekable"
             ></span>
           }
@@ -102,22 +103,36 @@ type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
       z-index: 1;
     }
 
-    /* Crossfade marker: a bowtie (two crossing ramps) over the end region,
-       reading as the out/in crossfade rather than a one-way fade. */
-    .player__fade {
+    /* Crossfade marker: app-tinted diagonal stripes over the non-seekable tail.
+       The element spans the full bar height and captures pointer events so the
+       crossfade region can't be clicked; the visible band is drawn by ::before.
+       It starts a thumb-radius (--pin-gap) past the playhead so it never sits
+       under the seek pin. */
+    .player__crossfade {
       position: absolute;
       z-index: 2;
-      left: var(--fade-left, 0%);
-      width: var(--fade-width, 0%);
-      top: 50%;
-      height: 12px;
-      transform: translateY(-50%);
-      pointer-events: none;
-      background: color-mix(in srgb, var(--app-primary) 60%, transparent);
+      top: 0;
+      bottom: 0;
+      left: calc(var(--stripe-left, 100%) + var(--stripe-gap, 0px));
+      width: max(0px, calc(var(--stripe-width, 0%) - var(--stripe-gap, 0px)));
+      pointer-events: auto;
+      cursor: not-allowed;
     }
 
-    .player__fade--out {
-      clip-path: polygon(0% 0%, 50% 50%, 0% 100%, 100% 100%, 50% 50%, 100% 0%);
+    .player__crossfade::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      height: 8px;
+      transform: translateY(-50%);
+      border-radius: 2px;
+      background: repeating-linear-gradient(
+        45deg,
+        color-mix(in srgb, var(--app-primary) 65%, transparent) 0 3px,
+        transparent 3px 7px
+      );
     }
 
     .player__times {
@@ -246,19 +261,34 @@ export class PlayerControlsComponent {
     return this.windowEndS() ?? this.durationS();
   }
 
-  readonly showFadeOut = computed(() => this.durationS() > 0 && this.fadeOutS() > 0);
+  readonly showCrossfade = computed(() => this.durationS() > 0 && this.fadeOutS() > 0);
 
-  readonly fadeOutWidthCss = computed(() => {
+  /** Start of the non-seekable crossfade tail (window end minus the fade-out). */
+  private readonly crossfadeStartS = computed(() => {
     const region = Math.max(0, this.fadeRegionEndS() - this.fadeRegionStartS());
     const len = Math.min(this.fadeOutS(), region);
-    return `${this.toPct(len)}%`;
+    return this.fadeRegionEndS() - len;
   });
 
-  readonly fadeOutLeftCss = computed(() => {
-    const region = Math.max(0, this.fadeRegionEndS() - this.fadeRegionStartS());
-    const len = Math.min(this.fadeOutS(), region);
-    return `${this.toPct(this.fadeRegionEndS() - len)}%`;
-  });
+  // The stripes begin at the later of the crossfade-tail start and the current
+  // playhead, so the band never sits under the seek pin (the CSS adds a further
+  // pin-radius offset).
+  private readonly stripeStartS = computed(() =>
+    Math.max(this.crossfadeStartS(), this.clampedPosition()),
+  );
+
+  readonly stripeLeftCss = computed(() => `${this.toPct(this.stripeStartS())}%`);
+
+  readonly stripeWidthCss = computed(() =>
+    `${this.toPct(this.fadeRegionEndS() - this.stripeStartS())}%`,
+  );
+
+  // Offset the band by the pin radius only once the playhead reaches the crossfade
+  // tail, so it clears the pin there without zeroing out short crossfade regions
+  // when the pin is parked elsewhere.
+  readonly stripeGapCss = computed(() =>
+    this.clampedPosition() >= this.crossfadeStartS() ? '11px' : '0px',
+  );
 
   private toPct(seconds: number): number {
     const dur = this.durationS();

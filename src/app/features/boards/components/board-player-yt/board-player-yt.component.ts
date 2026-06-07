@@ -15,7 +15,7 @@ import {
 } from '@angular/core';
 import { PlayerControlsComponent } from '../player-controls/player-controls.component';
 import { YoutubeIframeApiService } from '../../../../core/services/youtube-iframe-api.service';
-import { deriveCrossfadeMs } from '../../utils/crossfade';
+import { outgoingCrossfadeMs } from '../../utils/crossfade';
 
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 type SlotName = 'A' | 'B';
@@ -268,7 +268,19 @@ export class BoardPlayerYtComponent implements OnDestroy {
     this.isUserSeeking = false;
     this.emittedNearEnd = false;
 
+    const videoId = this.hasTrack() ? this.videoId() : null;
+    const trackId = this.hasTrack() ? this.trackId() : null;
     const active = this.active();
+
+    // Aborting a crossfade reverts to its outgoing slot. If that slot isn't the
+    // currently selected track, the seek interrupted a track switch — load the
+    // selected track at the seek position instead of seeking the stale track.
+    if (videoId && !this.slotMatches(active, videoId, trackId)) {
+      void this.crossfadeInto(videoId, trackId, target, this.switchCrossfadeMs(), true);
+      this.seeked.emit(target);
+      return;
+    }
+
     if (active.player && active.ready) {
       active.player.seekTo(target, true);
     }
@@ -1026,26 +1038,24 @@ export class BoardPlayerYtComponent implements OnDestroy {
   }
 
   /**
-   * Loop crossfade length: the window fades out and back into itself, so the
-   * overlap spans the larger of its two fade edges (default when unset).
+   * Loop crossfade length: a window loops into itself, so the overlap is sized by
+   * that window's own fade-out (the outgoing edge), defaulting when unset.
    */
   private loopCrossfadeMs(): number {
-    return deriveCrossfadeMs(
+    return outgoingCrossfadeMs(
       this.windowFadeOutMs(),
-      this.windowFadeInMs(),
       BoardPlayerYtComponent.DEFAULT_LOOP_CROSSFADE_MS,
     );
   }
 
   /**
-   * Window/track switch crossfade length: spans the outgoing window's fade-out
-   * (captured on the active slot) and the incoming window's fade-in (the current
-   * input, already updated to the new selection).
+   * Window/track switch crossfade length: governed solely by the outgoing
+   * window/track's fade-out (captured on the active slot). The incoming side's
+   * fade-in does not extend the overlap.
    */
   private switchCrossfadeMs(): number {
-    return deriveCrossfadeMs(
+    return outgoingCrossfadeMs(
       this.activeFadeOutMs,
-      this.windowFadeInMs(),
       BoardPlayerYtComponent.DEFAULT_SWITCH_CROSSFADE_MS,
     );
   }
