@@ -25,9 +25,8 @@ import {
   CreateTrackRequestV2,
   MusicTracksService,
   Track,
-  TrackRequest,
+  UpdateTrackRequestV2,
 } from '../../../../api/generated';
-import { USE_YT_IFRAME_PLAYER } from '../../../../core/config/feature-flags';
 import { parseYoutubeId } from '../../../../shared/utils/youtube-id';
 import { YoutubeMetadataService } from '../../../../core/services/youtube-metadata.service';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
@@ -213,59 +212,30 @@ export class TracksPageComponent implements OnInit {
   saveTrack(event: TrackFormEvent): void {
     this.createSubmitting.set(true);
 
-    const body: TrackRequest = {
-      trackName: event.trackName || undefined,
-      trackLink: event.trackLink,
-    };
-
-    const editingId = this.editingTrackId();
-
-    if (editingId != null) {
-      this.tracksApi.updateTrack({ trackId: editingId, trackRequest: body })
-        .pipe(
-          finalize(() => this.createSubmitting.set(false)),
-          takeUntilDestroyed(this.destroyRef),
-        )
-        .subscribe({
-          next: () => {
-            this.cancelEdit();
-            this.loadTracks();
-            this.toast.success('Track updated.');
-          },
-          error: (err: unknown) => {
-            console.error(err);
-            this.toast.error('Updating track failed.');
-          },
-        });
-      return;
-    }
-
-    // Client-side YouTube path: the backend can no longer fetch the original
-    // title/duration from YouTube, so read them here and use the v2 endpoint.
-    if (USE_YT_IFRAME_PLAYER) {
-      this.createTrackViaYoutube(event);
-      return;
-    }
-
-    this.tracksApi.createTrack({ trackRequest: body })
-      .pipe(
-        finalize(() => this.createSubmitting.set(false)),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe({
-        next: () => {
-          this.onTrackCreated();
-        },
-        error: (err: unknown) => {
-          console.error(err);
-          this.toast.error('Creating track failed.');
-        },
-      });
+    // Create needs a complete CreateTrackRequestV2 body.
+    // Update is PATCH, so send only the fields that should change.
+    // When the link changes, YouTube metadata is still fetched client-side
+    // because the backend cannot read YouTube directly.
+    this.saveTrackViaYoutube(event, this.editingTrackId());
   }
 
-  private createTrackViaYoutube(event: TrackFormEvent): void {
-    const videoId = parseYoutubeId(event.trackLink);
+  private saveTrackViaYoutube(event: TrackFormEvent, editingId: number | null): void {
+    // Updating without changing the link: this is just a rename, so do not
+    // re-read YouTube metadata and do not send unchanged metadata fields.
+    if (editingId != null) {
+      const existing = this.findTrack(editingId);
 
+      if (existing?.trackLink === event.trackLink) {
+        const body: UpdateTrackRequestV2 = {
+          trackName: event.trackName,
+        };
+
+        this.runUpdate(editingId, body);
+        return;
+      }
+    }
+
+    const videoId = parseYoutubeId(event.trackLink);
     if (!videoId) {
       this.createSubmitting.set(false);
       this.toast.error('Enter a valid YouTube link.');
@@ -274,33 +244,72 @@ export class TracksPageComponent implements OnInit {
 
     this.ytMetadata.fetchMetadata(videoId)
       .then((meta) => {
+        const duration = Math.max(1, Math.round(meta.durationS));
+
+        if (editingId != null) {
+          const body: UpdateTrackRequestV2 = {
+            trackName: event.trackName,
+            trackOriginalName: meta.title,
+            trackLink: event.trackLink,
+            duration,
+          };
+
+          this.runUpdate(editingId, body);
+          return;
+        }
+
         const body: CreateTrackRequestV2 = {
-          trackName: event.trackName || undefined,
+          trackName: event.trackName,
           trackOriginalName: meta.title,
           trackLink: event.trackLink,
-          duration: Math.max(1, Math.round(meta.durationS)),
+          duration,
         };
 
-        this.tracksApi.createTrackV2({ createTrackRequestV2: body })
-          .pipe(
-            finalize(() => this.createSubmitting.set(false)),
-            takeUntilDestroyed(this.destroyRef),
-          )
-          .subscribe({
-            next: () => {
-              this.onTrackCreated();
-            },
-            error: (err: unknown) => {
-              console.error(err);
-              this.toast.error('Creating track failed.');
-            },
-          });
+        this.runCreateV2(body);
       })
       .catch((err: unknown) => {
         console.error(err);
         this.createSubmitting.set(false);
         this.toast.error('Could not read the YouTube video — check the link.');
       });
+  }
+
+  private runCreateV2(body: CreateTrackRequestV2): void {
+    this.tracksApi.createTrackV2({ createTrackRequestV2: body })
+      .pipe(
+        finalize(() => this.createSubmitting.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: () => this.onTrackCreated(),
+        error: (err: unknown) => {
+          console.error(err);
+          this.toast.error('Creating track failed.');
+        },
+      });
+  }
+
+  private runUpdate(trackId: number, body: UpdateTrackRequestV2): void {
+    this.tracksApi.updateTrack({ trackId, updateTrackRequestV2: body })
+      .pipe(
+        finalize(() => this.createSubmitting.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: () => {
+          this.cancelEdit();
+          this.loadTracks();
+          this.toast.success('Track updated.');
+        },
+        error: (err: unknown) => {
+          console.error(err);
+          this.toast.error('Updating track failed.');
+        },
+      });
+  }
+
+  private findTrack(id: number): Track | undefined {
+    return this.tracks().find((t) => t.id === id);
   }
 
   private onTrackCreated(): void {
@@ -410,32 +419,27 @@ export class TracksPageComponent implements OnInit {
   }
 
   onSaveTrackFades(event: TrackFadesSaveEvent): void {
-    const track = this.tracks().find(t => t.id === event.trackId);
-    const trackLink = track?.trackLink;
+    const track = this.findTrack(event.trackId);
 
-    // updateTrack requires a trackLink; without it we can't persist the fades.
-    if (!trackLink) {
-      this.toast.error('Saving track fades failed.');
-      return;
-    }
-
-    const body: TrackRequest = {
-      trackName: track?.trackName || undefined,
-      trackLink,
+    const body: UpdateTrackRequestV2 = {
       fadeInDurationMs: event.fadeInMs,
       fadeOutDurationMs: event.fadeOutMs,
     };
 
-    this.tracksApi.updateTrack({ trackId: event.trackId, trackRequest: body })
+    this.tracksApi.updateTrack({ trackId: event.trackId, updateTrackRequestV2: body })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (updatedTrack) => {
           // A fade-only update must not drop the track's windows. updateTrack's
-          // response doesn't carry them, so keep the ones we already have.
+          // response may not carry them, so keep the ones we already have.
           const merged: Track = {
+            ...(track ?? updatedTrack),
             ...updatedTrack,
+            fadeInDurationMs: updatedTrack.fadeInDurationMs ?? body.fadeInDurationMs,
+            fadeOutDurationMs: updatedTrack.fadeOutDurationMs ?? body.fadeOutDurationMs,
             trackWindows: updatedTrack.trackWindows ?? track?.trackWindows,
           };
+
           this.applyTrackUpdate(event.trackId, merged);
           this.toast.success('Track fades updated.');
         },

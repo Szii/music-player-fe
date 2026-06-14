@@ -16,9 +16,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ConnectedPosition, OverlayModule } from '@angular/cdk/overlay';
 import { Board, Group, Track } from '../../../../api/generated';
-import { BoardPlayerComponent } from '../board-player/board-player.component';
 import { BoardPlayerYtDeckComponent } from '../board-player-yt-deck/board-player-yt-deck.component';
-import { USE_YT_IFRAME_PLAYER } from '../../../../core/config/feature-flags';
 import { parseYoutubeId } from '../../../../shared/utils/youtube-id';
 import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
 import {
@@ -55,7 +53,6 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
     CommonModule,
     FormsModule,
     OverlayModule,
-    BoardPlayerComponent,
     BoardPlayerYtDeckComponent,
     IconButtonComponent,
     UiSelectComponent,
@@ -501,53 +498,28 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
             </div>
 
             <div class="board-card__player">
-              @if (useYtPlayer) {
-                <app-board-player-yt-deck
-                  [showPrimaryButton]="false"
-                  [title]="board().name || ('Board #' + board().id)"
-                  [hasTrack]="!!board().selectedTrack"
-                  [trackId]="board().selectedTrack?.id ?? null"
-                  [videoId]="selectedVideoId()"
-                  [status]="status()"
-                  [durationS]="board().selectedTrack?.duration ?? null"
-                  [windowStartS]="selectedWindowStart()"
-                  [windowEndS]="selectedWindowEnd()"
-                  [hasSelectedWindow]="hasSelectedWindow()"
-                  [windowFadeInMs]="selectedWindowFadeInMs()"
-                  [windowFadeOutMs]="selectedWindowFadeOutMs()"
-                  [repeat]="effectiveRepeat()"
-                  [masterVolume]="masterVolume()"
-                  [masterFadeRampMs]="masterFadeRampMs()"
-                  (playRequested)="play.emit()"
-                  (stopRequested)="stop.emit()"
-                  (ended)="ended.emit()"
-                  (nearEnd)="nearEnd.emit()"
-                  (audioError)="audioError.emit()"
-                />
-              } @else {
-                <app-board-player
-                  [showPrimaryButton]="false"
-                  [title]="board().name || ('Board #' + board().id)"
-                  [hasTrack]="!!board().selectedTrack"
-                  [trackId]="board().selectedTrack?.id ?? null"
-                  [status]="status()"
-                  [streamUrl]="streamUrl()"
-                  [durationS]="board().selectedTrack?.duration ?? null"
-                  [windowStartS]="selectedWindowStart()"
-                  [windowEndS]="selectedWindowEnd()"
-                  [hasSelectedWindow]="hasSelectedWindow()"
-                  [windowFadeInMs]="selectedWindowFadeInMs()"
-                  [windowFadeOutMs]="selectedWindowFadeOutMs()"
-                  [repeat]="effectiveRepeat()"
-                  [masterVolume]="masterVolume()"
-                  [masterFadeRampMs]="masterFadeRampMs()"
-                  (playRequested)="play.emit()"
-                  (stopRequested)="stop.emit()"
-                  (ended)="ended.emit()"
-                  (nearEnd)="nearEnd.emit()"
-                  (audioError)="audioError.emit()"
-                />
-              }
+              <app-board-player-yt-deck
+                [showPrimaryButton]="false"
+                [title]="board().name || ('Board #' + board().id)"
+                [hasTrack]="!!board().selectedTrack"
+                [trackId]="board().selectedTrack?.id ?? null"
+                [videoId]="selectedVideoId()"
+                [status]="status()"
+                [durationS]="board().selectedTrack?.duration ?? null"
+                [windowStartS]="selectedWindowStart()"
+                [windowEndS]="selectedWindowEnd()"
+                [hasSelectedWindow]="hasSelectedWindow()"
+                [windowFadeInMs]="selectedWindowFadeInMs()"
+                [windowFadeOutMs]="selectedWindowFadeOutMs()"
+                [repeat]="effectiveRepeat()"
+                [masterVolume]="masterVolume()"
+                [masterFadeRampMs]="masterFadeRampMs()"
+                (playRequested)="play.emit()"
+                (stopRequested)="stop.emit()"
+                (ended)="ended.emit()"
+                (nearEnd)="nearEnd.emit()"
+                (audioError)="audioError.emit()"
+              />
             </div>
           </div>
         </div>
@@ -1110,6 +1082,8 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
       display: flex;
       flex-direction: column;
       gap: 6px;
+      /* Let a long label ellipsise instead of widening the card. */
+      min-width: 0;
     }
 
     .board-field__label {
@@ -1230,7 +1204,7 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
       }
 
       .board-card__summary-bottom {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
       }
     }
 
@@ -1262,11 +1236,17 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
 
       .board-card__meta-line ::ng-deep ui-chip {
         display: block;
+        min-width: 0;
+        max-width: 100%;
       }
 
+      /* Block-level flex (not inline-flex) so the row is bounded to the card and
+         the value truncates instead of sizing to its (long) text. */
       .board-card__meta-line ::ng-deep .ui-chip {
+        display: flex;
         width: 100%;
-        max-width: none;
+        max-width: 100%;
+        min-width: 0;
         justify-content: space-between;
         gap: 12px;
         padding: 7px 2px;
@@ -1291,7 +1271,7 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
       }
 
       .board-card__controls {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
       }
 
       /* Swap the horizontal bottom-row volume for the vertical fader. */
@@ -1324,7 +1304,6 @@ export class BoardCardComponent implements OnInit {
   readonly board = input.required<Board>();
   readonly availableGroups = input<Group[]>([]);
   readonly status = input<'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR'>('STOPPED');
-  readonly streamUrl = input<string | null>(null);
   readonly selectedWindowId = input<number | null>(null);
   readonly masterVolume = input(1);
   readonly masterFadeRampMs = input(0);
@@ -1340,10 +1319,7 @@ export class BoardCardComponent implements OnInit {
 
   readonly isPlaying = computed(() => this.status() === 'PLAYING');
 
-  /** Selects the YouTube IFrame player backend instead of the backend stream. */
-  readonly useYtPlayer = USE_YT_IFRAME_PLAYER;
-
-  /** YouTube video id parsed from the selected track's link (YT backend only). */
+  /** YouTube video id parsed from the selected track's link. */
   readonly selectedVideoId = computed(() =>
     parseYoutubeId(this.board().selectedTrack?.trackLink ?? null),
   );

@@ -38,6 +38,7 @@ type SourceName = 'A' | 'B';
         <app-board-player-yt
           #sourceA
           [showPrimaryButton]="showPrimaryButton() && activeSource() === 'A'"
+          [preservePositionOnWindowChange]="preservePositionOnWindowChange()"
           [title]="title()"
           [hasTrack]="hasTrack()"
           [trackId]="trackId()"
@@ -57,6 +58,7 @@ type SourceName = 'A' | 'B';
           (ended)="onSourceEnded('A')"
           (nearEnd)="onSourceNearEnd('A')"
           (seeked)="onSourceSeeked('A')"
+          (positionChange)="onSourcePosition('A', $event)"
           (audioError)="audioError.emit()"
         />
       </div>
@@ -67,6 +69,7 @@ type SourceName = 'A' | 'B';
         <app-board-player-yt
           #sourceB
           [showPrimaryButton]="showPrimaryButton() && activeSource() === 'B'"
+          [preservePositionOnWindowChange]="preservePositionOnWindowChange()"
           [title]="title()"
           [hasTrack]="hasTrack()"
           [trackId]="trackId()"
@@ -86,6 +89,7 @@ type SourceName = 'A' | 'B';
           (ended)="onSourceEnded('B')"
           (nearEnd)="onSourceNearEnd('B')"
           (seeked)="onSourceSeeked('B')"
+          (positionChange)="onSourcePosition('B', $event)"
           (audioError)="audioError.emit()"
         />
       </div>
@@ -134,12 +138,17 @@ export class BoardPlayerYtDeckComponent {
   readonly masterVolume = input(1);
   readonly masterFadeRampMs = input(0);
   readonly showPrimaryButton = input(true);
+  /** Keep the playhead in place on window changes while it stays inside the new
+      window (window editor boundary dragging). */
+  readonly preservePositionOnWindowChange = input(false);
 
   readonly playRequested = output<void>();
   readonly stopRequested = output<void>();
   readonly ended = output<void>();
   readonly nearEnd = output<void>();
   readonly audioError = output<void>();
+  /** Playhead position (seconds) of the audible source, for host timelines. */
+  readonly positionChange = output<number>();
 
   @ViewChild('sourceA')
   private sourceA?: BoardPlayerYtComponent;
@@ -223,6 +232,13 @@ export class BoardPlayerYtDeckComponent {
   getCurrentPositionS(): number {
     const active = this.activeSource() === 'A' ? this.sourceA : this.sourceB;
     return active?.displayPositionS() ?? 0;
+  }
+
+  /** Forward only the currently audible source's playhead to the host. */
+  onSourcePosition(source: SourceName, positionS: number): void {
+    if (source === this.activeSource()) {
+      this.positionChange.emit(positionS);
+    }
   }
 
   onSourceSeeked(source: SourceName): void {

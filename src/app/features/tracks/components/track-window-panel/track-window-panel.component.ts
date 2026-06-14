@@ -1,7 +1,6 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  DestroyRef,
   ElementRef,
   NgZone,
   OnDestroy,
@@ -13,8 +12,6 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subscription } from 'rxjs';
 
 import {
   Track,
@@ -22,21 +19,15 @@ import {
   TrackWindowRequest,
 } from '../../../../api/generated';
 import {
-  WindowEditorComponent,
+  WindowEditorYtComponent,
   WindowEditorResult,
-} from '../window-editor/window-editor.component';
-import { WindowEditorYtComponent } from '../window-editor/window-editor-yt.component';
-import { USE_YT_IFRAME_PLAYER } from '../../../../core/config/feature-flags';
+} from '../window-editor/window-editor-yt.component';
 import { parseYoutubeId } from '../../../../shared/utils/youtube-id';
 import { formatFadeMs } from '../../utils/fade';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empty-state.component';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
-import {
-  TrackPreviewSessionService,
-  TrackPreviewState,
-} from './track-preview-session.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 
 export interface WindowSaveEvent {
@@ -73,7 +64,6 @@ type PanelSelection =
   selector: 'app-track-windows-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    WindowEditorComponent,
     WindowEditorYtComponent,
     NormalButtonComponent,
     UiEmptyStateComponent,
@@ -89,9 +79,9 @@ type PanelSelection =
         size="extra-wide"
         (closed)="onClose()"
       >
-        @if (streamError || waveformError) {
+        @if (streamError) {
           <div class="panel-error">
-            <span>{{ streamError || waveformError }}</span>
+            <span>{{ streamError }}</span>
             <normal-button size="sm" variant="danger" (clicked)="retryStream()">
               Retry
             </normal-button>
@@ -231,40 +221,20 @@ type PanelSelection =
                 </div>
 
                 <div class="panel-editor__body">
-                  @if (useYtEditor) {
-                    <app-window-editor-yt
-                      [videoId]="ytVideoId"
-                      [durationS]="resolvedDurationS || (currentTrack.duration ?? 0)"
-                      [initialFromS]="editorFromS"
-                      [initialToS]="editorToS"
-                      [initialName]="editorName"
-                      [initialFadeInMs]="editorFadeInMs"
-                      [initialFadeOutMs]="editorFadeOutMs"
-                      [lockRegion]="editorLockRegion"
-                      [lockName]="editorLockName"
-                      [applyLabel]="editorApplyLabel"
-                      (apply)="onEditorApply($event)"
-                      (ready)="onEditorStreamComplete()"
-                    />
-                  } @else {
-                    <app-window-editor
-                      [streamUrl]="resolvedStreamUrl"
-                      [durationS]="resolvedDurationS || (currentTrack.duration ?? 0)"
-                      [waveformPeaks]="waveformPeaks"
-                      [waveformLoading]="waveformLoading"
-                      [waveformError]="waveformError"
-                      [initialFromS]="editorFromS"
-                      [initialToS]="editorToS"
-                      [initialName]="editorName"
-                      [initialFadeInMs]="editorFadeInMs"
-                      [initialFadeOutMs]="editorFadeOutMs"
-                      [lockRegion]="editorLockRegion"
-                      [lockName]="editorLockName"
-                      [applyLabel]="editorApplyLabel"
-                      (apply)="onEditorApply($event)"
-                      (streamCompleted)="onEditorStreamComplete()"
-                    />
-                  }
+                  <app-window-editor-yt
+                    [videoId]="ytVideoId"
+                    [durationS]="resolvedDurationS || (currentTrack.duration ?? 0)"
+                    [initialFromS]="editorFromS"
+                    [initialToS]="editorToS"
+                    [initialName]="editorName"
+                    [initialFadeInMs]="editorFadeInMs"
+                    [initialFadeOutMs]="editorFadeOutMs"
+                    [lockRegion]="editorLockRegion"
+                    [lockName]="editorLockName"
+                    [applyLabel]="editorApplyLabel"
+                    (apply)="onEditorApply($event)"
+                    (ready)="onEditorStreamComplete()"
+                  />
                 </div>
               </div>
             } @else {
@@ -791,8 +761,6 @@ type PanelSelection =
   `],
 })
 export class TrackWindowsPanelComponent implements OnDestroy {
-  private readonly previewSession: TrackPreviewSessionService = inject(TrackPreviewSessionService);
-  private readonly destroyRef = inject(DestroyRef);
   private readonly zone = inject(NgZone);
   private readonly confirmDialog = inject(ConfirmDialogService);
 
@@ -803,17 +771,11 @@ export class TrackWindowsPanelComponent implements OnDestroy {
   readonly deleteWindow = output<WindowDeleteEvent>();
   readonly saveTrackFades = output<TrackFadesSaveEvent>();
 
-  readonly useYtEditor = USE_YT_IFRAME_PLAYER;
-
-  resolvedStreamUrl: string | null = null;
   resolvedDurationS = 0;
   ytVideoId: string | null = null;
 
-  streamLoading = false;
+  /** Set when the track link isn't a usable YouTube URL. */
   streamError: string | null = null;
-  waveformLoading = false;
-  waveformError: string | null = null;
-  waveformPeaks: number[] = [];
 
   editorStreamComplete = false;
 
@@ -852,7 +814,6 @@ export class TrackWindowsPanelComponent implements OnDestroy {
   }
 
   private currentTrackId: number | null = null;
-  private previewSessionSub: Subscription | null = null;
   /** Whether the default (whole-track) entry has been auto-selected for the
       current track once the editor became ready. */
   private hasAutoSelected = false;
@@ -896,18 +857,11 @@ export class TrackWindowsPanelComponent implements OnDestroy {
   }
 
   get editorAvailable(): boolean {
-    return this.useYtEditor ? !!this.ytVideoId : !!this.resolvedStreamUrl;
+    return !!this.ytVideoId;
   }
 
   get editorReady(): boolean {
-    if (this.useYtEditor) {
-      return !!this.ytVideoId && this.editorStreamComplete;
-    }
-
-    return !!this.resolvedStreamUrl &&
-      !this.streamLoading &&
-      !this.streamError &&
-      this.editorStreamComplete;
+    return !!this.ytVideoId && this.editorStreamComplete;
   }
 
   get editorHeading(): string {
@@ -1116,40 +1070,14 @@ export class TrackWindowsPanelComponent implements OnDestroy {
     return this.resolvedDurationS || (this.track()?.duration ?? 0);
   }
 
-  private startEditorSessionForTrack(trackId: number, durationS: number): void {
-    this.stopPreviewSession();
-
-    if (this.useYtEditor) {
-      // No backend stream/waveform session: the YT editor resolves audio from
-      // the track link client-side and renders a timeline (no waveform).
-      this.ytVideoId = parseYoutubeId(this.track()?.trackLink ?? null);
-      this.resolvedDurationS = durationS;
-      this.streamLoading = false;
-      this.streamError = this.ytVideoId
-        ? null
-        : 'This track is not a YouTube link and cannot be previewed.';
-      this.waveformLoading = false;
-      this.waveformError = null;
-      this.waveformPeaks = [];
-      return;
-    }
-
-    this.previewSessionSub = this.previewSession.createSession(trackId, durationS)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((state: TrackPreviewState) => {
-        this.streamLoading = state.streamLoading;
-        this.streamError = state.streamError;
-        this.waveformLoading = state.waveformLoading;
-        this.waveformError = state.waveformError;
-        this.resolvedStreamUrl = state.resolvedStreamUrl;
-        this.resolvedDurationS = state.resolvedDurationS;
-        this.waveformPeaks = state.waveformPeaks;
-      });
-  }
-
-  private stopPreviewSession(): void {
-    this.previewSessionSub?.unsubscribe();
-    this.previewSessionSub = null;
+  private startEditorSessionForTrack(_trackId: number, durationS: number): void {
+    // The YT editor resolves audio from the track link client-side and renders a
+    // timeline (no backend stream/waveform session).
+    this.ytVideoId = parseYoutubeId(this.track()?.trackLink ?? null);
+    this.resolvedDurationS = durationS;
+    this.streamError = this.ytVideoId
+      ? null
+      : 'This track is not a YouTube link and cannot be previewed.';
   }
 
   private loadEditorFromWindow(win: TrackWindow): void {
@@ -1200,13 +1128,7 @@ export class TrackWindowsPanelComponent implements OnDestroy {
   }
 
   private resetState(): void {
-    this.stopPreviewSession();
-    this.streamLoading = false;
     this.streamError = null;
-    this.waveformLoading = false;
-    this.waveformError = null;
-    this.waveformPeaks = [];
-    this.resolvedStreamUrl = null;
     this.resolvedDurationS = 0;
     this.ytVideoId = null;
     this.currentTrackId = null;
