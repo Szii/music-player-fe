@@ -1,0 +1,92 @@
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+
+/** Inline stroke icons (Lucide-style) for use inside text / chips / labels.
+    Sized to 1em so it scales with the surrounding font-size. */
+export type UiIconName =
+  | 'single'
+  | 'playlist'
+  | 'loop'
+  | 'shuffle'
+  | 'ordered'
+  | 'overlap'
+  | 'keyboard';
+
+@Component({
+  selector: 'ui-icon',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <svg
+      class="ui-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      @switch (name()) {
+        @case ('single') {
+          <path d="M9 18V5l8-2v11" />
+          <circle cx="6" cy="18" r="3" />
+        }
+        @case ('playlist') {
+          <path d="M21 15V6" />
+          <circle cx="18" cy="16" r="2.5" />
+          <path d="M12 12H3" />
+          <path d="M16 6H3" />
+          <path d="M12 18H3" />
+        }
+        @case ('loop') {
+          <path d="m17 2 4 4-4 4" />
+          <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
+          <path d="m7 22-4-4 4-4" />
+          <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+        }
+        @case ('shuffle') {
+          <path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22" />
+          <path d="m18 2 4 4-4 4" />
+          <path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2" />
+          <path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8" />
+          <path d="m18 14 4 4-4 4" />
+        }
+        @case ('ordered') {
+          <path d="M8 6h13" />
+          <path d="M8 12h13" />
+          <path d="M8 18h13" />
+          <path d="M3 6h.01" />
+          <path d="M3 12h.01" />
+          <path d="M3 18h.01" />
+        }
+        @case ('overlap') {
+          <path d="M12 2 2 7l10 5 10-5-10-5Z" />
+          <path d="m2 17 10 5 10-5" />
+          <path d="m2 12 10 5 10-5" />
+        }
+        @case ('keyboard') {
+          <rect x="2" y="6" width="20" height="12" rx="2" />
+          <path d="M6 10h.01" />
+          <path d="M10 10h.01" />
+          <path d="M14 10h.01" />
+          <path d="M18 10h.01" />
+          <path d="M8 14h8" />
+        }
+      }
+    </svg>
+  `,
+  styles: [`
+    :host {
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .ui-icon {
+      width: 1em;
+      height: 1em;
+      flex: 0 0 auto;
+    }
+  `],
+})
+export class UiIconComponent {
+  readonly name = input.required<UiIconName>();
+}

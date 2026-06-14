@@ -7,14 +7,17 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Track } from '../../../../api/generated';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
-import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
 import { UiListToolbarComponent } from '../../../../shared/ui/list-toolbar/ui-list-toolbar.component';
-import { ToastService } from '../../../../shared/features/toast/toast.service';
+import {
+  UiDataTableColumn,
+  UiDataTableComponent,
+} from '../../../../shared/ui/data-table/ui-data-table.component';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 
 export interface PublishEvent {
@@ -28,7 +31,15 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
   selector: 'app-my-tracks',
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [FormsModule, NormalButtonComponent, IconButtonComponent, UiListToolbarComponent, UiChipComponent, UiDialogShellComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    NormalButtonComponent,
+    UiListToolbarComponent,
+    UiChipComponent,
+    UiDialogShellComponent,
+    UiDataTableComponent,
+  ],
   template: `
     <ui-dialog-shell
       title="My tracks"
@@ -52,17 +63,39 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
       }
 
       @if (filteredTracks().length > 0) {
-        <div class="track-list">
-          @for (track of filteredTracks(); track track.id) {
-            <div class="track-row">
-              <div class="track-row__name">
-                <span class="track-row__title" [title]="displayName(track)">
+        <ui-data-table
+          class="my-tracks-table"
+          [rows]="filteredTracks()"
+          [columns]="columns"
+          [trackBy]="trackById"
+          [maxHeight]="'min(58dvh, 680px)'"
+          [tableClass]="'app-table--workshop'"
+        >
+          <ng-template let-track>
+            <tr>
+              <td class="col-title">
+                <span
+                  class="cell-text cell-text--strong cell-text--truncate"
+                  [title]="displayName(track)"
+                >
                   {{ displayName(track) }}
                 </span>
-                <span class="track-row__duration">{{ formatDuration(track.duration) }}</span>
-              </div>
 
-              <div class="track-row__mid">
+                @if (track.trackShare?.description; as description) {
+                  <span
+                    class="cell-text cell-text--muted cell-text--truncate my-tracks__desktop-desc"
+                    [title]="description"
+                  >
+                    {{ description }}
+                  </span>
+                }
+              </td>
+
+              <td class="col-duration col-num">
+                {{ formatDuration(track.duration) }}
+              </td>
+
+              <td class="col-status">
                 <ui-chip
                   [variant]="track.trackShare ? 'success' : 'gold'"
                   size="sm"
@@ -71,25 +104,63 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
                 >
                   {{ track.trackShare ? 'Published' : 'Unpublished' }}
                 </ui-chip>
+              </td>
 
-                @if (track.trackShare?.shareCode) {
-                  <div class="track-row__code">
-                    <code class="code" [title]="track.trackShare!.shareCode">
-                      {{ track.trackShare!.shareCode }}
-                    </code>
+              <td class="col-actions">
+                <div class="app-actions">
+                  @if (!track.trackShare) {
+                    <normal-button
+                      size="sm"
+                      [disabled]="busyTrackId() === track.id"
+                      (clicked)="openPublish(track)"
+                    >
+                      Publish
+                    </normal-button>
+                  } @else {
+                    <normal-button
+                      size="sm"
+                      variant="danger"
+                      [disabled]="busyTrackId() === track.id"
+                      (clicked)="requestUnpublish(track)"
+                    >
+                      Unpublish
+                    </normal-button>
+                  }
+                </div>
+              </td>
+            </tr>
+          </ng-template>
+        </ui-data-table>
 
-                    <app-icon-button
-                      icon="copy"
-                      size="xs"
-                      variant="ghost"
-                      label="Copy share code"
-                      (clicked)="copyToClipboard(track.trackShare!.shareCode!)"
-                    />
-                  </div>
-                }
+        <ul class="my-tracks-mobile-list app-entity-list" role="list">
+          @for (track of filteredTracks(); track trackById($index, track)) {
+            <li class="app-entity-list__item">
+              <div class="app-entity-list__head">
+                <span class="app-entity-list__title" [title]="displayName(track)">
+                  {{ displayName(track) }}
+                </span>
+
+                <ui-chip
+                  [variant]="track.trackShare ? 'success' : 'gold'"
+                  size="sm"
+                  shape="hex"
+                  [dot]="true"
+                >
+                  {{ track.trackShare ? 'Published' : 'Unpublished' }}
+                </ui-chip>
               </div>
 
-              <div class="track-row__actions">
+              @if (track.trackShare?.description; as description) {
+                <span class="app-entity-list__subtitle" [title]="description">
+                  {{ description }}
+                </span>
+              }
+
+              <div class="app-entity-list__meta">
+                <span>{{ formatDuration(track.duration) }}</span>
+              </div>
+
+              <div class="app-actions app-entity-list__actions">
                 @if (!track.trackShare) {
                   <normal-button
                     size="sm"
@@ -109,9 +180,9 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
                   </normal-button>
                 }
               </div>
-            </div>
+            </li>
           }
-        </div>
+        </ul>
       } @else if (tracks().length === 0) {
         <div class="my-tracks__empty">
           <p class="my-tracks__empty-title">No tracks yet</p>
@@ -138,124 +209,167 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
         [showFooter]="true"
         (closed)="closePublish()"
       >
-      <div class="publish-form">
-        <p class="publish-form__track-name">
-          {{ publishTrack()!.trackName || publishTrack()!.trackOriginalName }}
-        </p>
+        <div class="publish-form">
+          <p class="publish-form__track-name">
+            {{ publishTrack()!.trackName || publishTrack()!.trackOriginalName }}
+          </p>
 
-        <div class="publish-form__field">
-          <label class="app-form-label">
-            Description <span class="optional">(optional)</span>
-          </label>
-          <input
-            class="app-input"
-            type="text"
-            [ngModel]="publishDesc()"
-            [ngModelOptions]="{ standalone: true }"
-            (ngModelChange)="publishDesc.set($event)"
-            placeholder="What is this track for?"
-          />
+          <div class="publish-form__field">
+            <label class="app-form-label">
+              Description <span class="optional">(optional)</span>
+            </label>
+
+            <input
+              class="app-input"
+              type="text"
+              [ngModel]="publishDesc()"
+              [ngModelOptions]="{ standalone: true }"
+              (ngModelChange)="publishDesc.set($event)"
+              placeholder="What is this track for?"
+            />
+          </div>
         </div>
-      </div>
 
-      <ng-container dialog-footer>
-        <normal-button type="button" variant="secondary" (clicked)="closePublish()">
-          Cancel
-        </normal-button>
-        <normal-button type="button" (clicked)="confirmPublish()">
-          Publish
-        </normal-button>
-      </ng-container>
+        <ng-container dialog-footer>
+          <normal-button
+            type="button"
+            variant="secondary"
+            (clicked)="closePublish()"
+          >
+            Cancel
+          </normal-button>
+
+          <normal-button
+            type="button"
+            (clicked)="confirmPublish()"
+          >
+            Publish
+          </normal-button>
+        </ng-container>
       </ui-dialog-shell>
     }
   `,
   styles: [`
     :host {
       display: block;
+      min-width: 0;
+      container-type: inline-size;
+      container-name: my-tracks;
     }
 
     ui-list-toolbar {
-      margin-bottom: 10px;
       display: block;
+      margin-bottom: 12px;
     }
 
-    .track-list {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      max-height: min(46vh, 380px);
-      overflow-y: auto;
-      padding-right: 4px;
-    }
-
-    .track-row {
-      display: grid;
-      grid-template-columns: minmax(0, 240px) minmax(0, 1fr) auto;
-      align-items: center;
-      gap: 14px;
-      padding: 12px 14px;
-      background: var(--app-surface);
-      border: var(--app-border);
-      border-radius: 10px;
-    }
-
-    .track-row__name {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      overflow: hidden;
-      min-width: 0;
-    }
-
-    .track-row__title {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--app-text);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      min-width: 0;
-    }
-
-    .track-row__duration {
-      font-size: 11px;
-      color: var(--app-text-muted);
-    }
-
-    .track-row__mid {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
-      min-width: 0;
-    }
-
-    .track-row__code {
-      display: flex;
-      align-items: center;
-      gap: 6px;
+    .my-tracks-table {
+      display: block !important;
       min-width: 0;
       max-width: 100%;
     }
 
-    .code {
-      font-size: 11px;
-      padding: 3px 8px;
-      background: var(--app-bg);
-      border: var(--app-border);
-      border-radius: 5px;
-      color: var(--app-text-muted);
-      max-width: 280px;
+    .my-tracks-mobile-list {
+      display: none !important;
+    }
+
+    .my-tracks-table ::ng-deep table {
+      width: 100%;
+      table-layout: fixed;
+    }
+
+    .my-tracks-table ::ng-deep th,
+    .my-tracks-table ::ng-deep td {
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .my-tracks__desktop-desc {
+      display: block;
+      margin-top: 3px;
+      font-size: 0.82rem;
+    }
+
+    .col-title {
+      width: auto;
+      min-width: 0;
+      max-width: none;
+    }
+
+    .col-duration {
+      width: 82px;
+      max-width: 82px;
+      white-space: nowrap;
+    }
+
+    .col-status {
+      width: 150px;
+      max-width: 150px;
+      white-space: nowrap;
+    }
+
+    .col-actions {
+      /* Wide enough to hold the "Unpublish" button without clipping, so the
+         flexible Track column is what gives up width — not the action. */
+      width: 160px;
+      max-width: 160px;
+      white-space: nowrap;
+    }
+
+    .col-actions .app-actions {
+      /* Centered so Publish / Unpublish line up under the centered header
+         regardless of their differing widths. */
+      justify-content: center;
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+    }
+
+    .my-tracks-mobile-list .app-entity-list__item {
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+
+    .my-tracks-mobile-list .app-entity-list__head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
+      gap: 12px;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .my-tracks-mobile-list .app-entity-list__title,
+    .my-tracks-mobile-list .app-entity-list__subtitle {
+      display: block;
+      min-width: 0;
+      max-width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      display: inline-block;
     }
 
-    .track-row__actions {
-      display: flex;
-      gap: 6px;
-      flex: 0 0 auto;
+    .my-tracks-mobile-list .app-entity-list__meta {
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+    }
+
+    .my-tracks-mobile-list .app-entity-list__meta span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .my-tracks-mobile-list ui-chip {
+      justify-self: end;
+      max-width: 100%;
+    }
+
+    .app-entity-list__actions {
+      margin-top: 14px;
     }
 
     .empty {
@@ -328,20 +442,39 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
       font-size: 12px;
     }
 
-    @media (max-width: 900px) {
-      .track-row {
-        grid-template-columns: 1fr;
-        align-items: start;
+    @container my-tracks (max-width: 820px) {
+      .my-tracks-table {
+        display: none !important;
       }
 
-      .track-row__actions {
-        justify-content: flex-start;
+      .my-tracks-mobile-list {
+        display: flex !important;
+        flex-direction: column;
+        gap: 14px;
+        margin: 0;
+        padding: 0;
       }
     }
+
+    @media (max-width: 900px) {
+      .my-tracks-table {
+        display: none !important;
+      }
+
+      .my-tracks-mobile-list {
+        display: flex !important;
+        flex-direction: column;
+        gap: 14px;
+        margin: 0;
+        padding: 0;
+      }
+    }
+
+    /* Chip stays top-right at every width — the title truncates instead of
+       the chip dropping to its own line (consistent with the other lists). */
   `],
 })
 export class MyTracksComponent {
-  private readonly toast = inject(ToastService);
   private readonly confirmDialog = inject(ConfirmDialogService);
 
   readonly tracks = input<Track[]>([]);
@@ -358,6 +491,13 @@ export class MyTracksComponent {
     { label: 'Unpublished', value: 'unpublished' },
   ];
 
+  readonly columns: UiDataTableColumn[] = [
+    { label: 'Track', className: 'col-title' },
+    { label: 'Duration', className: 'col-duration', width: '82px' },
+    { label: 'Status', className: 'col-status', width: '150px' },
+    { label: 'Actions', className: 'col-actions', width: '160px' },
+  ];
+
   readonly publishTrack = signal<Track | null>(null);
   readonly publishDesc = signal('');
   readonly search = signal('');
@@ -372,8 +512,7 @@ export class MyTracksComponent {
     const mode = this.filterMode();
 
     return this.tracks().filter(track => {
-      const matchesSearch =
-        !query || this.displayName(track).toLowerCase().includes(query);
+      const matchesSearch = !query || this.matchesSearch(track, query);
 
       const matchesFilter =
         mode === 'all' ||
@@ -429,8 +568,8 @@ export class MyTracksComponent {
     this.unpublish.emit(track);
   }
 
-  trackById(_index: number, track: Track): number {
-    return track.id ?? 0;
+  trackById(index: number, track: Track): number {
+    return track.id ?? index;
   }
 
   displayName(track: Track): string {
@@ -439,18 +578,28 @@ export class MyTracksComponent {
 
   formatDuration(seconds?: number): string {
     if (seconds == null) return '—';
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
+
+    const safe = Math.max(0, Math.floor(seconds));
+    const h = Math.floor(safe / 3600);
+    const m = Math.floor((safe % 3600) / 60);
+    const s = safe % 60;
+
+    if (h > 0) {
+      return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    return `${m}:${String(s).padStart(2, '0')}`;
   }
 
-  async copyToClipboard(text: string): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(text);
-      this.toast.success('Share code copied.');
-    } catch (err) {
-      console.error(err);
-      this.toast.error('Copy failed.');
-    }
+  private matchesSearch(track: Track, query: string): boolean {
+    const haystack = [
+      this.displayName(track),
+      track.trackShare?.description,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return haystack.includes(query);
   }
 }

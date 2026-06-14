@@ -47,35 +47,41 @@ interface WindowRow {
         }
       </ul>
 
-      @if (perSessionBoards().length > 0) {
+      @if (limits()) {
         <details class="limits__details" open>
           <summary class="limits__summary">
             Per-session board quotas ({{ perSessionBoards().length }})
           </summary>
-          <ul class="limits__list limits__list--scroll">
-            @for (b of perSessionBoards(); track b.key) {
-              <li class="limits__row" [class.limits__row--reached]="b.reached">
-                <span class="limits__row-label" [title]="b.label">{{ b.label }}</span>
-                <span class="limits__row-value">{{ b.used }} / {{ b.max }}</span>
-              </li>
-            }
-          </ul>
+          @if (perSessionBoards().length > 0) {
+            <ul class="limits__list limits__list--scroll">
+              @for (b of perSessionBoards(); track b.key) {
+                <li class="limits__row" [class.limits__row--reached]="b.reached">
+                  <span class="limits__row-label" [title]="b.label">{{ b.label }}</span>
+                  <span class="limits__row-value">{{ b.used }} / {{ b.max }}</span>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="limits__empty">No active sessions yet.</p>
+          }
         </details>
-      }
 
-      @if (perTrackWindows().length > 0) {
         <details class="limits__details">
           <summary class="limits__summary">
             Per-track window quotas ({{ perTrackWindows().length }})
           </summary>
-          <ul class="limits__list limits__list--scroll">
-            @for (w of perTrackWindows(); track w.key) {
-              <li class="limits__row" [class.limits__row--reached]="w.reached">
-                <span class="limits__row-label" [title]="w.label">{{ w.label }}</span>
-                <span class="limits__row-value">{{ w.used }} / {{ w.max }}</span>
-              </li>
-            }
-          </ul>
+          @if (perTrackWindows().length > 0) {
+            <ul class="limits__list limits__list--scroll">
+              @for (w of perTrackWindows(); track w.key) {
+                <li class="limits__row" [class.limits__row--reached]="w.reached">
+                  <span class="limits__row-label" [title]="w.label">{{ w.label }}</span>
+                  <span class="limits__row-value">{{ w.used }} / {{ w.max }}</span>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="limits__empty">No tracks of your own yet.</p>
+          }
         </details>
       }
     </div>
@@ -180,6 +186,14 @@ interface WindowRow {
       letter-spacing: 0.04em;
       text-transform: uppercase;
       margin-bottom: 0.5rem;
+    }
+
+    .limits__empty {
+      margin: 0;
+      padding: 0.45rem 0.75rem;
+      font-size: 0.9rem;
+      font-style: italic;
+      color: var(--app-text-muted);
     }
   `],
 })

@@ -116,6 +116,15 @@ import { BoardPlaybackService } from '../../../../core/services/board-playback.s
       color: var(--app-text);
     }
 
+    /* Give the "+" trigger a deliberate gap from the toolbar below it.
+       app-icon-button is display:contents, so without this the spacing is
+       just an inline line-box. :has() keeps the margin off the empty state
+       (no trigger → the create CTA renders instead). */
+    app-track-form:has(app-icon-button) {
+      display: block;
+      margin-bottom: var(--space-sm);
+    }
+
     .tracks-page__section {
       min-width: 0;
     }
@@ -130,7 +139,7 @@ import { BoardPlaybackService } from '../../../../core/services/board-playback.s
       border-top: var(--app-border);
     }
 
-    @media (max-width: 860px) {
+    @media (max-width: 900px) {
       .tracks-page {
         --track-table-max-height: calc(100dvh - 280px);
       }

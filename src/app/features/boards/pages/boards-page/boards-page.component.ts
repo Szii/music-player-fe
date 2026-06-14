@@ -1,4 +1,4 @@
-import { Component, DestroyRef, OnDestroy, OnInit, QueryList, ViewChild, ViewChildren, computed, effect, inject, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, OnDestroy, OnInit, QueryList, ViewChild, ViewChildren, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, forkJoin, of } from 'rxjs';
 import {
@@ -113,8 +113,19 @@ interface VolumeCommit {
             (clicked)="createBoardForm.open()"
           />
         } @else {
+          <div class="boards-tabs" role="tablist" #boardsTabs>
+            @for (board of sessionBoards(); track board.id; let i = $index) {
+              <button
+                type="button"
+                class="boards-tab"
+                [class.boards-tab--active]="activeBoardIndex() === i"
+                (click)="scrollToBoard(i)"
+              >{{ board.name || ('Board ' + (i + 1)) }}</button>
+            }
+          </div>
+
           <div class="boards-list-wrap">
-            <div class="boards-list">
+            <div class="boards-list" #boardsList (scroll)="onBoardsScroll()">
               @for (board of sessionBoards(); track board.id) {
                 <app-board-card
                   [board]="board"
@@ -190,6 +201,77 @@ interface VolumeCommit {
       gap: 6px;
     }
 
+    /* Board-name tabs — only shown for the phone carousel. */
+    .boards-tabs {
+      display: none;
+    }
+
+    @media (max-width: 560px) {
+      /* Phone: boards become a horizontal swipe carousel with a name-tab strip
+         on top; the active board lights up, the rest are greyed. */
+      .boards-tabs {
+        display: flex;
+        gap: 6px;
+        overflow-x: auto;
+        scrollbar-width: none;
+        margin-bottom: 10px;
+        padding-bottom: 2px;
+      }
+
+      .boards-tabs::-webkit-scrollbar {
+        display: none;
+      }
+
+      .boards-tab {
+        flex: 0 0 auto;
+        max-width: 46vw;
+        padding: 6px 14px;
+        border: 1px solid var(--app-border-color-soft);
+        border-radius: 999px;
+        background: var(--app-surface);
+        color: var(--app-text-muted);
+        font-family: var(--app-font-heading);
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        opacity: 0.55;
+        cursor: pointer;
+        transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+      }
+
+      .boards-tab--active {
+        opacity: 1;
+        background: linear-gradient(180deg, #6a1e10 0%, #58180d 100%);
+        color: #fff8ee;
+        border-color: #3d1008;
+      }
+
+      .boards-list {
+        flex-direction: row;
+        flex-wrap: nowrap;
+        gap: 0;
+        overflow-x: auto;
+        overflow-y: visible;
+        scroll-snap-type: x mandatory;
+        scroll-behavior: smooth;
+        scrollbar-width: none;
+        align-items: flex-start;
+      }
+
+      .boards-list::-webkit-scrollbar {
+        display: none;
+      }
+
+      .boards-list app-board-card {
+        flex: 0 0 100%;
+        min-width: 0;
+        scroll-snap-align: start;
+      }
+    }
+
     .boards-list-wrap,
     .boards-list,
     app-create-board-form,
@@ -202,9 +284,13 @@ interface VolumeCommit {
       margin-bottom: 1rem;
     }
 
-    @media (max-width: 860px) {
-      :host {
-        --boards-list-max-height: min(52dvh, 640px);
+    @media (max-width: 900px) {
+      /* Mobile: natural full-page scroll (header scrolls away with the page),
+         matching the other pages — drop the desktop internal scroll area. */
+      .boards-list-wrap {
+        max-height: none;
+        overflow: visible;
+        padding-right: 0;
       }
     }
   `],
@@ -228,6 +314,9 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   readonly errorMessage = signal('');
   readonly createBoardSubmitting = signal(false);
 
+  /** Index of the board currently centred in the mobile carousel. */
+  readonly activeBoardIndex = signal(0);
+
   readonly hasSessions = this.sessionsStore.hasSessions;
   readonly sessionBoards = computed<Board[]>(() => {
     const sessionId = this.sessionsStore.selectedSessionId();
@@ -236,7 +325,39 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   });
 
   @ViewChild('sessionsDropdown') sessionsDropdownRef?: SessionsDropdownComponent;
+  @ViewChild('boardsList') boardsListRef?: ElementRef<HTMLElement>;
+  @ViewChild('boardsTabs') boardsTabsRef?: ElementRef<HTMLElement>;
   @ViewChildren(BoardCardComponent) boardCards!: QueryList<BoardCardComponent>;
+
+  /** Update the active carousel tab as the board strip is swiped. */
+  onBoardsScroll(): void {
+    const el = this.boardsListRef?.nativeElement;
+    if (!el || el.clientWidth === 0) return;
+    const max = this.sessionBoards().length - 1;
+    const idx = Math.max(0, Math.min(Math.round(el.scrollLeft / el.clientWidth), max));
+    if (idx !== this.activeBoardIndex()) {
+      this.activeBoardIndex.set(idx);
+      this.scrollActiveTabIntoView(idx);
+    }
+  }
+
+  scrollToBoard(index: number): void {
+    const el = this.boardsListRef?.nativeElement;
+    if (!el) return;
+    el.scrollTo({ left: index * el.clientWidth, behavior: 'smooth' });
+    this.activeBoardIndex.set(index);
+    this.scrollActiveTabIntoView(index);
+  }
+
+  /** Slide the tab strip so the active board's name stays centred (a sliding
+      window over the full board list). */
+  private scrollActiveTabIntoView(index: number): void {
+    const container = this.boardsTabsRef?.nativeElement;
+    const tab = container?.children[index] as HTMLElement | undefined;
+    if (!container || !tab) return;
+    const target = tab.offsetLeft - (container.clientWidth - tab.offsetWidth) / 2;
+    container.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
+  }
 
   private readonly streamUrlsByBoard = new Map<number, string>();
   private readonly boardStatuses = new Map<number, PlayerStatus>();

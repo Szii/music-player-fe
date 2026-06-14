@@ -36,7 +36,6 @@
   display: flex;
   align-items: center;
   gap: 1rem;
-  flex-wrap: wrap;
 }
 
 .app-navbar__brand {
@@ -69,61 +68,10 @@
   opacity: 1;
 }
 
-.app-navbar__toggle {
-  margin-left: auto;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  min-width: 2.5rem;
-  min-height: 2.5rem;
-  border: 1px solid rgba(201, 164, 76, 0.72);
-  background: rgba(255, 255, 255, 0.03);
-  color: #fff7eb;
-  border-radius: var(--app-radius-sm);
-  padding: 0.35rem 0.7rem;
-  cursor: pointer;
-  font-size: 1rem;
-  line-height: 1;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 2px 8px rgba(0, 0, 0, 0.14);
-  transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease,
-    transform 0.1s ease,
-    box-shadow 0.15s ease;
-}
-
-.app-navbar__toggle:hover {
-  background: rgba(201, 164, 76, 0.1);
-  border-color: rgba(201, 164, 76, 0.98);
-  color: #ffe8a8;
-}
-
-.app-navbar__toggle:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(201, 164, 76, 0.22);
-}
-
-.app-navbar__toggle:active {
-  transform: scale(0.98);
-}
-
-.app-navbar__content {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  min-width: 0;
-}
-
 .app-navbar__links {
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  flex-wrap: wrap;
   min-width: 0;
 }
 
@@ -171,42 +119,6 @@
   align-items: center;
   gap: 0.5rem;
   margin-left: auto;
-}
-
-@media (max-width: 768px) {
-  .app-navbar__toggle {
-    display: inline-flex;
-  }
-
-  .app-navbar__content {
-    display: none;
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.85rem;
-    padding-top: 0.35rem;
-  }
-
-  .app-navbar__content--open {
-    display: flex;
-  }
-
-  .app-navbar__links {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.3rem;
-  }
-
-  .app-navbar__link {
-    display: block;
-    width: 100%;
-  }
-
-  .app-navbar__actions {
-    margin-left: 0;
-    width: 100%;
-    justify-content: flex-start;
-  }
 }
 
 .app-navbar__warning-btn {
@@ -260,4 +172,111 @@
 @keyframes navbar-playing-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%       { opacity: 0.45; transform: scale(0.7); }
+}
+
+/* ---------------------------------------------------------------------------
+   Mobile bottom navigation: thumb-reachable primary tab bar shown in place of
+   the inline links below 768px. Hidden on desktop.
+   --------------------------------------------------------------------------- */
+.app-bottom-nav {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  /* The four primary destinations move out of the top bar into the bottom bar. */
+  .app-navbar__links {
+    display: none;
+  }
+
+  .app-bottom-nav {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0.12)),
+      linear-gradient(90deg, #1e0804 0%, #58180d 60%, #7a2010 100%);
+    border-top: 1px solid rgba(201, 164, 76, 0.4);
+    box-shadow: 0 -8px 22px rgba(10, 4, 2, 0.45);
+  }
+
+  .app-bottom-nav__item {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    /* Comfortable thumb target. */
+    min-height: 56px;
+    padding: 8px 2px;
+    color: rgba(255, 242, 215, 0.66);
+    text-decoration: none;
+    font-family: var(--app-font-heading);
+    font-size: 0.62rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    transition:
+      color 0.15s ease,
+      background-color 0.15s ease;
+  }
+
+  .app-bottom-nav__item:active {
+    background: rgba(201, 164, 76, 0.08);
+  }
+
+  .app-bottom-nav__item:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px rgba(201, 164, 76, 0.5);
+  }
+
+  .app-bottom-nav__icon {
+    width: 23px;
+    height: 23px;
+    flex-shrink: 0;
+  }
+
+  .app-bottom-nav__icon-wrap {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .app-bottom-nav__label {
+    line-height: 1;
+  }
+
+  .app-bottom-nav__item--active {
+    color: #ffe8a8;
+  }
+
+  .app-bottom-nav__item--active .app-bottom-nav__icon {
+    filter: drop-shadow(0 0 6px rgba(201, 164, 76, 0.55));
+  }
+
+  /* Active pill accent along the top edge of the selected tab. */
+  .app-bottom-nav__item--active::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    width: 30px;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    background: #c9a44c;
+    box-shadow: 0 0 8px rgba(201, 164, 76, 0.7);
+  }
+
+  .app-bottom-nav__dot {
+    position: absolute;
+    top: -3px;
+    right: -4px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #c9a44c;
+    box-shadow: 0 0 5px rgba(201, 164, 76, 0.9);
+    animation: navbar-playing-pulse 1.4s ease-in-out infinite;
+  }
 }

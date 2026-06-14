@@ -3,23 +3,39 @@
 }
 
 .ui-dialog-backdrop {
-  --ui-dialog-gap: 24px;
+  --ui-dialog-gap: 20px;
 
+  /*
+    Cover the whole viewport so the blur also covers the area behind/under
+    the navbar. The dialog itself is kept below the navbar by padding-top.
+  */
   position: fixed;
-  top: var(--app-navbar-height, 68px);
-  right: 0;
-  bottom: 0;
-  left: 0;
+  inset: 0;
   z-index: 1000;
 
   display: flex;
-  align-items: center;
   justify-content: center;
-  padding: var(--ui-dialog-gap);
+  align-items: center;
+
+  padding-top: calc(var(--app-navbar-height, 68px) + var(--ui-dialog-gap));
+  padding-right: var(--ui-dialog-gap);
+  padding-bottom: var(--ui-dialog-gap);
+  padding-left: var(--ui-dialog-gap);
+
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+
+  /*
+    Keeps the dialog visually centered when a scrollbar appears.
+  */
+  scrollbar-gutter: stable both-edges;
 }
+
 .ui-dialog-backdrop::before {
   content: '';
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
@@ -30,18 +46,31 @@
 }
 
 @keyframes ui-dialog-fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .ui-dialog {
   position: relative;
   z-index: 1;
+
   width: min(100%, 560px);
-  max-height: calc(100dvh - var(--app-navbar-height, 68px) - (var(--ui-dialog-gap) * 2));
+  max-height: none;
+
+  /*
+    Centers small dialogs.
+    For tall dialogs, the margins collapse naturally and the backdrop scrolls.
+  */
+  margin: auto;
+
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+
   color: var(--app-text);
   background: var(--app-modal-surface);
   border: 1px solid var(--app-border-color);
@@ -53,6 +82,8 @@
     inset 0 0 0 3px rgba(201, 164, 76, 0.1);
   animation: ui-dialog-slide-in 0.2s ease;
   isolation: isolate;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .ui-dialog::before {
@@ -72,7 +103,7 @@
 }
 
 .ui-dialog--extra-wide {
-  width: min(96vw, 1360px);
+  width: min(100%, 1360px);
 }
 
 @keyframes ui-dialog-slide-in {
@@ -80,6 +111,7 @@
     opacity: 0;
     transform: translateY(-14px) scale(0.982);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -89,10 +121,12 @@
 .ui-dialog__header {
   position: relative;
   z-index: 1;
+
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+
   padding: 18px 20px 14px;
   border-bottom: 1px solid var(--app-border-color-soft);
   background: var(--app-header-surface);
@@ -136,12 +170,19 @@
 }
 
 .ui-dialog__body {
- 
   position: relative;
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
+  z-index: 1;
+
+  flex: 0 0 auto;
+  min-height: auto;
+  overflow: visible;
+
   padding: 20px;
+}
+
+.ui-dialog__body--fill {
+  display: block;
+  overflow: visible;
 }
 
 .ui-dialog__body > :first-child {
@@ -153,28 +194,86 @@
 }
 
 .ui-dialog__footer {
+  /* No stacking context here: a select bottom sheet opened from the body must
+     be able to paint above the footer (the body has z-index:1, and a footer
+     z-index would otherwise sit on top of it and cover the sheet). */
   position: relative;
-  z-index: 1;
+
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+
   padding: 14px 20px 18px;
   border-top: 1px solid var(--app-border-color-soft);
   flex-shrink: 0;
   background: var(--app-header-surface);
 }
 
+/*
+  Projected track cards:
+  - ribbon/status goes to the left top
+  - share code is hidden to save space
+*/
+:host ::ng-deep .track-card,
+:host ::ng-deep .workshop-track-card,
+:host ::ng-deep .publish-track-card {
+  position: relative;
+}
+
+:host ::ng-deep .track-card__status,
+:host ::ng-deep .workshop-track-card__status,
+:host ::ng-deep .publish-track-card__status,
+:host ::ng-deep .status-ribbon {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  margin: 0;
+}
+
+:host ::ng-deep .track-card__share-code,
+:host ::ng-deep .workshop-track-card__share-code,
+:host ::ng-deep .publish-track-card__share-code,
+:host ::ng-deep .share-code,
+:host ::ng-deep [data-share-code] {
+  display: none !important;
+}
+
 @media (max-width: 640px) {
+  /* Phone: full-screen dialog below the navbar — the backdrop itself doesn't
+     scroll; the body does, so the header and footer stay pinned (Material /
+     Carbon mobile dialog pattern). */
   .ui-dialog-backdrop {
-    --ui-dialog-gap: 12px;
-    padding: var(--ui-dialog-gap);
-    align-items: flex-end;
+    padding: var(--app-navbar-height, 68px) 0 0;
+    align-items: stretch;
+    justify-content: stretch;
+    overflow: hidden;
   }
 
   .ui-dialog,
-  .ui-dialog--wide {
+  .ui-dialog--wide,
+  .ui-dialog--extra-wide {
     width: 100%;
-    max-height: calc(100dvh - var(--app-navbar-height, 68px) - (var(--ui-dialog-gap) * 2));
+    max-width: 100%;
+    max-height: none;
+    margin: 0;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+  }
+
+  /* Pinned header + footer; the body is the single scroll area so the actions
+     stay reachable without scrolling the whole modal. */
+  .ui-dialog__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .ui-dialog__header,
+  .ui-dialog__footer {
+    flex-shrink: 0;
   }
 
   .ui-dialog__header,
@@ -187,5 +286,13 @@
   .ui-dialog__header::after {
     left: 16px;
     right: 16px;
+  }
+
+  :host ::ng-deep .track-card__status,
+  :host ::ng-deep .workshop-track-card__status,
+  :host ::ng-deep .publish-track-card__status,
+  :host ::ng-deep .status-ribbon {
+    top: 10px;
+    left: 10px;
   }
 }

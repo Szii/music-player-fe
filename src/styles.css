@@ -62,6 +62,32 @@
 
   /* navbar */
   --app-navbar-height: 68px;
+  /* mobile bottom navigation bar height (shown ≤768px) */
+  --app-bottom-nav-height: 56px;
+
+  /* spacing scale — use instead of ad-hoc rem values so rhythm shrinks
+     consistently on small screens */
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+
+  /* responsive page gutter — shrinks on narrow screens, caps on desktop */
+  --app-page-padding: clamp(0.875rem, 4vw, 1.5rem);
+
+  /* canonical breakpoints — CSS custom properties cannot be used inside
+     @media queries, so these are the single source of truth that every
+     component should mirror with the raw px value:
+       sm = 640px   (phone)
+       md = 900px   (tablet / table-to-card stack point)
+       lg = 1100px  (small laptop)
+     Do not invent new breakpoints; snap to the nearest of these. */
+  --bp-sm: 640px;
+  --bp-md: 900px;
+  --bp-lg: 1100px;
 
 
   /* decorative — gold-tipped divider */
@@ -117,12 +143,50 @@ body {
 
 html {
   color-scheme: light;
+  /* No default (blue) tap flash on mobile — it's off-brand and showed up as a
+     full-width bar on the wide expand/collapse buttons. Inherited everywhere;
+     :hover/:active/:focus states provide the feedback instead. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Reserve space for the fixed mobile bottom navigation so page content is
+   never hidden behind it. */
+@media (max-width: 768px) {
+  body {
+    padding-bottom: calc(
+      var(--app-bottom-nav-height) + env(safe-area-inset-bottom, 0px)
+    );
+  }
+
+  /* While a modal/overlay is open it owns the screen — hide the bottom nav so
+     it can't cover the dialog's pinned footer or a select bottom sheet. The
+     dialog renders inside `.app-shell__main` (a stacking context), so it can't
+     be raised above the out-of-context bottom nav by z-index alone. */
+  body.app-modal-open .app-bottom-nav {
+    display: none;
+  }
+
+  body.app-modal-open {
+    padding-bottom: 0;
+  }
 }
 
 *,
 *::before,
 *::after {
   box-sizing: border-box;
+}
+
+/* Honour the OS "reduce motion" setting app-wide. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 ::selection {
@@ -442,13 +506,98 @@ input[type="range"].app-range--seek::-webkit-slider-thumb {
 .app-page {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 1.5rem;
+  padding: var(--app-page-padding);
 }
 
 .app-page--narrow {
   max-width: 520px;
   margin: 0 auto;
-  padding: 1.5rem;
+  padding: var(--app-page-padding);
+}
+
+/* Entity list — the mobile counterpart to a data table. A feature renders
+   its rows as a real <table> on desktop (with `.app-table-desktop-only`) and
+   this stacked, condensed list below the `md` breakpoint: a bold primary
+   value + trailing chip, an optional truncated subtitle, a dot-separated meta
+   line, and actions. Shared so every table collapses to the same shape. */
+.app-entity-list {
+  display: none;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-entity-list__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--app-border-color-soft);
+  border-radius: var(--app-radius-md);
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow-soft);
+}
+
+.app-entity-list__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.app-entity-list__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--app-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-entity-list__head > ui-chip {
+  flex: 0 0 auto;
+}
+
+.app-entity-list__subtitle {
+  min-width: 0;
+  color: var(--app-text-muted);
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-entity-list__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-xs);
+  margin-top: var(--space-2xs);
+  color: var(--app-text-muted);
+  font-size: 0.85rem;
+}
+
+.app-entity-list__sep {
+  color: var(--app-text-soft);
+}
+
+.app-entity-list__actions {
+  margin-top: var(--space-xs);
+  justify-content: flex-start;
+}
+
+@media (max-width: 900px) {
+  .app-entity-list {
+    display: flex;
+  }
+
+  /* Tables opt out below md and let the entity list take over. */
+  .app-table-desktop-only {
+    display: none;
+  }
 }
 
 /* Badges */
@@ -589,6 +738,73 @@ input[type="range"].app-range--seek::-webkit-slider-thumb {
 .app-popover-item--danger:hover {
   background: var(--app-danger-soft);
   color: var(--app-danger);
+}
+
+/* Board playback-settings popover → bottom sheet on phones, matching the select
+   sheets (an anchored dropdown is cramped on mobile). The CDK overlay pane and
+   backdrop are body-level wrappers, so they have to be styled globally; the
+   board card only tags them via panelClass/backdropClass. Desktop is unchanged
+   (transparent click-catcher backdrop, anchored pane, no drag handle). */
+.board-settings-menu__handle {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .board-settings-backdrop {
+    background: rgba(15, 8, 3, 0.45);
+  }
+
+  .cdk-overlay-pane.board-settings-pane {
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    /* Neutralise the connected-position strategy's inline transform / clamped
+       max-height so the sheet sits flush at the bottom and spans full width. */
+    max-height: none !important;
+    transform: none !important;
+  }
+
+  .cdk-overlay-pane.board-settings-pane .board-settings-menu {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    padding-top: 16px;
+    border-radius: var(--app-radius-lg) var(--app-radius-lg) 0 0;
+    border-bottom: none;
+    box-shadow: 0 -10px 30px rgba(15, 8, 3, 0.4);
+    animation: board-sheet-up 0.22s ease;
+  }
+
+  /* Drag/tap handle at the top of the sheet (drag down or tap to close). */
+  .cdk-overlay-pane.board-settings-pane .board-settings-menu__handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 26px;
+    margin: -6px 0 4px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: grab;
+  }
+
+  .cdk-overlay-pane.board-settings-pane .board-settings-menu__handle-bar {
+    width: 38px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--app-border-color);
+  }
+
+  .cdk-overlay-pane.board-settings-pane .board-settings-menu__items {
+    max-height: 62vh;
+  }
+}
+
+@keyframes board-sheet-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
 }
 
 /* Navbar */

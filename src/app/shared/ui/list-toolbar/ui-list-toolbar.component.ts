@@ -97,10 +97,25 @@ import { UiSelectComponent, UiSelectOption } from '../select/ui-select.component
       color: var(--app-text-muted);
     }
 
-    @media (max-width: 860px) {
-      .ui-list-toolbar,
-      .ui-list-toolbar:has(.ui-list-toolbar__field + .ui-list-toolbar__field) {
+    @media (max-width: 900px) {
+      /* Search gets its own full-width row. A lone field stacks beneath it;
+         when both filter and sort exist they share the next row two-up, so
+         the toolbar stays short on phones instead of three tall rows. */
+      .ui-list-toolbar {
         grid-template-columns: 1fr;
+      }
+
+      .ui-list-toolbar:has(.ui-list-toolbar__field + .ui-list-toolbar__field) {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .ui-list-toolbar:has(.ui-list-toolbar__field + .ui-list-toolbar__field)
+        .ui-list-toolbar__search {
+        grid-column: 1 / -1;
+      }
+
+      .ui-list-toolbar__field {
+        min-width: 0;
       }
     }
   `],
