@@ -109,7 +109,7 @@ type DragMode = 'left' | 'right' | 'region';
       cursor: crosshair;
       user-select: none;
       -webkit-user-select: none;
-      touch-action: none;
+      touch-action: pan-y;
       flex-shrink: 0;
       overflow: hidden;
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
@@ -124,13 +124,14 @@ type DragMode = 'left' | 'right' | 'region';
     .wf-handle {
       position: absolute;
       top: 0;
-      width: 20px;
+      width: 34px;
       height: 100%;
       cursor: col-resize;
       z-index: 5;
       transform: translateX(-50%);
       background: transparent;
       transition: background 0.12s ease;
+      touch-action: pan-y;
     }
 
     .wf-handle:hover,
@@ -202,6 +203,10 @@ type DragMode = 'left' | 'right' | 'region';
         border-radius: 12px;
       }
 
+      .wf-handle {
+        width: 44px;
+      }
+
       .wf-handle__grip {
         height: 38px;
       }
@@ -247,8 +252,10 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
 
   private dragging: DragMode | null = null;
   private dragStartX = 0;
+  private dragStartY = 0;
   private dragStartFromS = 0;
   private dragStartToS = 0;
+  private touchGesture: 'pending' | 'horizontal' | 'vertical' | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private redrawFrameId: number | null = null;
   private viewReady = false;
@@ -349,10 +356,12 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
       return;
     }
 
-    event.preventDefault();
-    event.stopPropagation();
+    const touch = event.touches[0];
+    if (!touch) {
+      return;
+    }
 
-    this.beginTouchDrag(side, event.touches[0].clientX);
+    this.beginTouchDrag(side, touch.clientX, touch.clientY);
   }
 
   onCanvasMouseDown(event: MouseEvent): void {
@@ -390,12 +399,17 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
       this.durationS,
     );
 
-    if (!this.handlesDisabled && clickS >= this.regionFromS && clickS <= this.regionToS) {
-      this.beginTouchDrag('region', event.touches[0].clientX);
+    const touch = event.touches[0];
+    if (!touch) {
       return;
     }
 
-    this.seekRequested.emit(clickS);
+    if (!this.handlesDisabled && clickS >= this.regionFromS && clickS <= this.regionToS) {
+      this.beginTouchDrag('region', touch.clientX, touch.clientY);
+      return;
+    }
+
+    this.beginTouchSeek(clickS, touch.clientX, touch.clientY);
   }
 
   drawWaveform(): void {
@@ -511,27 +525,113 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
     document.addEventListener('mouseup', onUp);
   }
 
-  private beginTouchDrag(mode: DragMode, clientX: number): void {
-    this.startDrag(mode, clientX);
+  private beginTouchDrag(mode: DragMode, clientX: number, clientY: number): void {
+    this.startDrag(mode, clientX, clientY);
+    this.touchGesture = 'pending';
 
-    const onMove = (event: TouchEvent) => {
-      event.preventDefault();
-      this.onDragMove(event.touches[0].clientX);
-    };
+    let onMove!: (event: TouchEvent) => void;
+    let onUp!: () => void;
 
-    const onUp = () => {
+    const cleanup = () => {
       document.removeEventListener('touchmove', onMove);
       document.removeEventListener('touchend', onUp);
+      document.removeEventListener('touchcancel', onUp);
       this.dragging = null;
+      this.touchGesture = null;
+    };
+
+    onMove = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (!touch) {
+        cleanup();
+        return;
+      }
+
+      const deltaX = touch.clientX - this.dragStartX;
+      const deltaY = touch.clientY - this.dragStartY;
+      const absX = Math.abs(deltaX);
+      const absY = Math.abs(deltaY);
+
+      if (this.touchGesture === 'pending') {
+        if (absY > 8 && absY > absX * 1.15) {
+          this.touchGesture = 'vertical';
+          cleanup();
+          return;
+        }
+
+        if (absX > 8 && absX > absY) {
+          this.touchGesture = 'horizontal';
+        } else {
+          return;
+        }
+      }
+
+      if (this.touchGesture === 'horizontal') {
+        event.preventDefault();
+        this.onDragMove(touch.clientX);
+      }
+    };
+
+    onUp = () => {
+      cleanup();
     };
 
     document.addEventListener('touchmove', onMove, { passive: false });
     document.addEventListener('touchend', onUp);
+    document.addEventListener('touchcancel', onUp);
   }
 
-  private startDrag(mode: DragMode, clientX: number): void {
+  private beginTouchSeek(targetS: number, clientX: number, clientY: number): void {
+    let cancelled = false;
+    let onMove!: (event: TouchEvent) => void;
+    let onUp!: () => void;
+    let onCancel!: () => void;
+
+    const cleanup = () => {
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
+      document.removeEventListener('touchcancel', onCancel);
+    };
+
+    onMove = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (!touch) {
+        cancelled = true;
+        cleanup();
+        return;
+      }
+
+      const absX = Math.abs(touch.clientX - clientX);
+      const absY = Math.abs(touch.clientY - clientY);
+      if (absX > 8 || absY > 8) {
+        cancelled = true;
+        cleanup();
+      }
+    };
+
+    onUp = () => {
+      cleanup();
+      if (!cancelled) {
+        this.zone.run(() => {
+          this.seekRequested.emit(targetS);
+        });
+      }
+    };
+
+    onCancel = () => {
+      cancelled = true;
+      cleanup();
+    };
+
+    document.addEventListener('touchmove', onMove, { passive: true });
+    document.addEventListener('touchend', onUp);
+    document.addEventListener('touchcancel', onCancel);
+  }
+
+  private startDrag(mode: DragMode, clientX: number, clientY = 0): void {
     this.dragging = mode;
     this.dragStartX = clientX;
+    this.dragStartY = clientY;
     this.dragStartFromS = this.regionFromS;
     this.dragStartToS = this.regionToS;
   }
