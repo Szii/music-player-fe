@@ -1110,6 +1110,8 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
       display: flex;
       flex-direction: column;
       gap: 6px;
+      /* Let a long label ellipsise instead of widening the card. */
+      min-width: 0;
     }
 
     .board-field__label {
@@ -1230,7 +1232,7 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
       }
 
       .board-card__summary-bottom {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
       }
     }
 
@@ -1262,11 +1264,17 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
 
       .board-card__meta-line ::ng-deep ui-chip {
         display: block;
+        min-width: 0;
+        max-width: 100%;
       }
 
+      /* Block-level flex (not inline-flex) so the row is bounded to the card and
+         the value truncates instead of sizing to its (long) text. */
       .board-card__meta-line ::ng-deep .ui-chip {
+        display: flex;
         width: 100%;
-        max-width: none;
+        max-width: 100%;
+        min-width: 0;
         justify-content: space-between;
         gap: 12px;
         padding: 7px 2px;
@@ -1291,7 +1299,7 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
       }
 
       .board-card__controls {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
       }
 
       /* Swap the horizontal bottom-row volume for the vertical fader. */

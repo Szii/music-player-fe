@@ -127,6 +127,13 @@ export class BoardPlayerYtComponent implements OnDestroy {
   readonly masterVolume = input(1);
   readonly masterFadeRampMs = input(0);
   readonly showPrimaryButton = input(true);
+  /**
+   * When the selected window changes while playing, keep the playhead where it is
+   * if it still falls inside the new window (used by the window editor while the
+   * user drags the boundaries). Boards leave this off and always jump to the new
+   * window start.
+   */
+  readonly preservePositionOnWindowChange = input(false);
 
   readonly playRequested = output<void>();
   readonly stopRequested = output<void>();
@@ -136,6 +143,9 @@ export class BoardPlayerYtComponent implements OnDestroy {
   /** Emitted when the user commits a manual seek (so the deck can cancel an
       in-progress loop crossfade and honour the new position). */
   readonly seeked = output<number>();
+  /** Current playhead position (seconds) of this player, emitted as it changes
+      (playback, seek, loop, stop) so a host can mirror it (e.g. a waveform). */
+  readonly positionChange = output<number>();
 
   @ViewChild('mountA', { static: true })
   mountARef?: ElementRef<HTMLDivElement>;
@@ -225,6 +235,9 @@ export class BoardPlayerYtComponent implements OnDestroy {
     });
 
     effect(() => this.fullDurationS.set(this.durationS() ?? 0));
+
+    // Mirror the playhead outward (waveform timelines, etc.) whenever it moves.
+    effect(() => this.positionChange.emit(this.displayPositionS()));
 
     // React to selected-window changes mid-playback: re-seek the active player
     // to the new window start without a backend round-trip.
@@ -1017,6 +1030,17 @@ export class BoardPlayerYtComponent implements OnDestroy {
     }
 
     this.emittedNearEnd = false;
+
+    // Window editor: while the user drags a boundary, keep playing from the
+    // current position if it still lies inside the resized window. Only when the
+    // caret falls outside the new range do we fall through to repositioning.
+    if (this.preservePositionOnWindowChange()) {
+      const positionS = active.player.getCurrentTime();
+      if (positionS >= startS && positionS <= this.windowEndCeil()) {
+        this.seekableMaxS.set(this.seekableWindowEnd());
+        return;
+      }
+    }
 
     // While playing, crossfade into the new window (same video, new start) using
     // the idle slot — same machinery as loop/track-switch. When not actively

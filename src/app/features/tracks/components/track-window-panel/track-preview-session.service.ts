@@ -5,8 +5,11 @@ import { catchError, map, startWith, switchMap, takeWhile } from 'rxjs/operators
 import { environment } from '../../../../../environments/environment';
 import {
   MusicTracksService,
-  PlaybackService,
-  PlaybackState,
+  // PlaybackService removed: backend stream/waveform endpoints are no longer in
+  // the API spec. This legacy preview path is dormant while the YouTube IFrame
+  // player is active (USE_YT_IFRAME_PLAYER).
+  // PlaybackService,
+  // PlaybackState,
   WaveformResponse,
 } from '../../../../api/generated';
 
@@ -25,41 +28,19 @@ export interface TrackPreviewState {
   providedIn: 'root',
 })
 export class TrackPreviewSessionService {
-  private readonly playbackApi = inject(PlaybackService);
   private readonly tracksApi = inject(MusicTracksService);
 
-  createSession(trackId: number, initialDurationS = 0): Observable<TrackPreviewState> {
-    return this.playbackApi.playTrack({ trackId }).pipe(
-      switchMap((playbackState: PlaybackState) => {
-        const resolvedStreamUrl = this.resolveStreamUrl(playbackState?.streamUrl ?? null);
-
-        if (!resolvedStreamUrl) {
-          return of(
-            this.createStreamErrorState('No stream URL returned.', initialDurationS),
-          );
-        }
-
-        const streamReadyState = this.createStreamReadyState(
-          resolvedStreamUrl,
-          initialDurationS,
-        );
-
-        return concat(
-          of(streamReadyState),
-          this.pollWaveform(trackId, resolvedStreamUrl, initialDurationS),
-        );
-      }),
-      catchError((error: unknown) => {
-        console.error('playTrack failed', error);
-
-        return of(
-          this.createStreamErrorState('Failed to start track playback.', initialDurationS),
-        );
-      }),
-      startWith(this.createInitialState(initialDurationS)),
-    );
+  createSession(_trackId: number, initialDurationS = 0): Observable<TrackPreviewState> {
+    // The backend stream (playTrack) and waveform (getTrackWaveform) endpoints
+    // were removed from the API. This path is only reached on the legacy
+    // (non-YouTube) editor, which is inactive, so surface a clear error state.
+    return of(
+      this.createStreamErrorState('Stream preview is unavailable.', initialDurationS),
+    ).pipe(startWith(this.createInitialState(initialDurationS)));
   }
 
+  /* Stream/waveform polling disabled — relied on the removed PlaybackService and
+     MusicTracksService.getTrackWaveform endpoints.
   private pollWaveform(
     trackId: number,
     resolvedStreamUrl: string,
@@ -83,6 +64,7 @@ export class TrackPreviewSessionService {
       takeWhile((state) => !state.complete, true),
     );
   }
+  */
 
   private mapWaveformResponse(
     response: WaveformResponse,

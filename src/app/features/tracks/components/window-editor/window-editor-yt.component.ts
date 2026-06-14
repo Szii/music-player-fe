@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
   NgZone,
   ViewChild,
   computed,
@@ -29,6 +30,7 @@ import {
   formatFadeMs,
   maxFadeForWindow,
 } from '../../utils/fade';
+import { persistentSignal } from '../../../../shared/utils/persistent-signal';
 
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 type PreviewMode = 'selection' | 'full';
@@ -96,6 +98,7 @@ const CROSSFADE_STEP_MS = FADE_STEP_MS * 2;
               <span class="we-card__label">From</span>
               <div class="we-card__row">
                 <input
+                  #fromInput
                   type="text"
                   class="we-card__time-input"
                   [value]="formatTime(regionFromS())"
@@ -114,6 +117,7 @@ const CROSSFADE_STEP_MS = FADE_STEP_MS * 2;
               <span class="we-card__label">To</span>
               <div class="we-card__row">
                 <input
+                  #toInput
                   type="text"
                   class="we-card__time-input"
                   [value]="formatTime(regionToS())"
@@ -192,6 +196,28 @@ const CROSSFADE_STEP_MS = FADE_STEP_MS * 2;
             >
               Full track
             </button>
+
+            <button
+              type="button"
+              class="we-pill we-preview__loop"
+              [class.we-pill--active]="loopEnabled()"
+              [attr.aria-pressed]="loopEnabled()"
+              (click)="toggleLoop()"
+              title="Loop the preview and apply crossfade"
+            >
+              <svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true">
+                <path
+                  d="M6 5h7a3 3 0 0 1 3 3v1M14 15H7a3 3 0 0 1-3-3v-1"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
+                <path d="M4 4l2.5 2.5L4 9" fill="currentColor" />
+                <path d="M16 16l-2.5-2.5L16 11" fill="currentColor" />
+              </svg>
+              Loop
+            </button>
           </div>
 
           <app-board-player-yt-deck
@@ -208,13 +234,15 @@ const CROSSFADE_STEP_MS = FADE_STEP_MS * 2;
             [hasSelectedWindow]="previewMode() === 'selection'"
             [windowFadeInMs]="fadeInMs()"
             [windowFadeOutMs]="fadeOutMs()"
-            [repeat]="true"
+            [repeat]="loopEnabled()"
             [masterVolume]="masterVolume()"
             [masterFadeRampMs]="fadeInMs()"
             [showPrimaryButton]="true"
+            [preservePositionOnWindowChange]="true"
             (playRequested)="onPlayRequested()"
             (stopRequested)="onStopRequested()"
             (ended)="onStopRequested()"
+            (positionChange)="onDeckPosition($event)"
             (audioError)="onPreviewError()"
           />
         </div>
@@ -418,7 +446,9 @@ const CROSSFADE_STEP_MS = FADE_STEP_MS * 2;
       gap: 10px;
     }
 
-    .we-preview__modes { display: inline-flex; gap: 8px; }
+    .we-preview__modes { display: flex; align-items: center; gap: 8px; }
+    /* Loop toggle sits at the end of the mode row, using the free space there. */
+    .we-preview__loop { margin-left: auto; }
     .we-preview__deck { display: block; }
 
     .we-pill {
@@ -491,6 +521,8 @@ export class WindowEditorYtComponent {
 
   @ViewChild('deck') private deck?: BoardPlayerYtDeckComponent;
   @ViewChild('waveformCanvas') private waveformCanvasRef?: WaveformCanvasComponent;
+  @ViewChild('fromInput') private fromInputRef?: ElementRef<HTMLInputElement>;
+  @ViewChild('toInput') private toInputRef?: ElementRef<HTMLInputElement>;
 
   readonly videoId = input<string | null>(null);
   readonly durationS = input(0);
@@ -516,8 +548,12 @@ export class WindowEditorYtComponent {
   readonly masterVolume = signal(0.5);
   readonly status = signal<PlayerStatus>('STOPPED');
   readonly previewMode = signal<PreviewMode>('selection');
+  /** Current playhead position (seconds) reported by the preview deck. */
+  readonly positionS = signal(0);
   /** Playhead position on the timeline canvas, in pixels. */
   readonly playheadPx = signal(0);
+  /** Whether the preview loops with crossfade. Persisted across sessions. */
+  readonly loopEnabled = persistentSignal('mpf:window-editor:loop-preview', true);
 
   readonly crossfadeStepMs = CROSSFADE_STEP_MS;
   readonly volumePercent = computed(() => Math.round(this.masterVolume() * 100));
@@ -613,11 +649,23 @@ export class WindowEditorYtComponent {
     this.regionFromS.set(event.fromS);
     this.regionToS.set(event.toS);
     this.clampFades();
+    // The preview deck keeps playing from the current position while the caret
+    // stays inside the resized window, and only jumps to the start when it falls
+    // outside (see preservePositionOnWindowChange).
   }
 
   onTimelineSeek(_targetS: number): void {
     // Seeking is handled by the embedded deck's controls; the timeline click is
     // only used for region editing, so ignore bare seeks here.
+  }
+
+  /** Mirror the preview deck's playhead onto the waveform timeline. */
+  onDeckPosition(positionS: number): void {
+    this.setPlayhead(positionS);
+  }
+
+  toggleLoop(): void {
+    this.loopEnabled.update((enabled) => !enabled);
   }
 
   onFromTextChange(text: string): void {
@@ -669,6 +717,8 @@ export class WindowEditorYtComponent {
   }
 
   onApply(): void {
+    this.commitPendingTimeInputs();
+
     if (!this.canApply()) {
       this.toast.warning('Pick a name and a valid selection first.');
       return;
@@ -706,6 +756,34 @@ export class WindowEditorYtComponent {
 
   formatFade(ms: number): string {
     return formatFadeMs(ms);
+  }
+
+  private setPlayhead(positionS: number): void {
+    this.positionS.set(positionS);
+    const width = this.waveformCanvasRef?.canvasWidth ?? 0;
+    const duration = this.durationS();
+    this.playheadPx.set(duration > 0 ? (positionS / duration) * width : 0);
+  }
+
+  /**
+   * Commit any uncommitted text in the From/To fields. The Apply button suppresses
+   * mousedown to avoid focus theft, so clicking it never blurs the time inputs and
+   * their (change) handlers don't fire — read the raw values directly here instead.
+   */
+  private commitPendingTimeInputs(): void {
+    if (this.lockRegion()) {
+      return;
+    }
+
+    const fromText = this.fromInputRef?.nativeElement.value;
+    if (fromText != null) {
+      this.onFromTextChange(fromText);
+    }
+
+    const toText = this.toInputRef?.nativeElement.value;
+    if (toText != null) {
+      this.onToTextChange(toText);
+    }
   }
 
   private setRegionFrom(seconds: number): void {
@@ -758,6 +836,7 @@ export class WindowEditorYtComponent {
     this.fadeOutMs.set(clampFadeMs(this.initialFadeOutMs(), maxHalf));
 
     this.status.set('STOPPED');
+    this.setPlayhead(this.previewMode() === 'full' ? 0 : from);
   }
 
   private hasUnsavedChanges(): boolean {
