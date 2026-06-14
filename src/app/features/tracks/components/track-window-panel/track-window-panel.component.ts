@@ -2,11 +2,15 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
+  NgZone,
   OnDestroy,
+  ViewChild,
   effect,
   inject,
   input,
   output,
+  signal,
   untracked,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -33,6 +37,7 @@ import {
   TrackPreviewSessionService,
   TrackPreviewState,
 } from './track-preview-session.service';
+import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 
 export interface WindowSaveEvent {
   trackId: number;
@@ -109,7 +114,21 @@ type PanelSelection =
 
                 <div class="panel-side__content">
                   <div class="panel-side__table-wrap">
-                    <div class="panel-window-list">
+                    <div class="panel-window-scroller">
+                      <button
+                        type="button"
+                        class="panel-window-arrow panel-window-arrow--left"
+                        [class.panel-window-arrow--visible]="canScrollWindowsLeft()"
+                        (click)="scrollWindows(-1)"
+                        aria-label="Scroll to previous windows"
+                        tabindex="-1"
+                      ></button>
+
+                      <div
+                        class="panel-window-list"
+                        #windowList
+                        (scroll)="onWindowListScroll()"
+                      >
                       <button
                         type="button"
                         class="panel-window-item"
@@ -174,6 +193,16 @@ type PanelSelection =
                           </div>
                         </button>
                       }
+                      </div>
+
+                      <button
+                        type="button"
+                        class="panel-window-arrow panel-window-arrow--right"
+                        [class.panel-window-arrow--visible]="canScrollWindowsRight()"
+                        (click)="scrollWindows(1)"
+                        aria-label="Scroll to more windows"
+                        tabindex="-1"
+                      ></button>
                     </div>
                   </div>
                 </div>
@@ -389,6 +418,19 @@ type PanelSelection =
       overflow: hidden;
       display: flex;
       flex-direction: column;
+    }
+
+    .panel-window-scroller {
+      position: relative;
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Swipe arrows are mobile-only (see the max-width: 900px block). */
+    .panel-window-arrow {
+      display: none;
     }
 
     .panel-window-list {
@@ -613,48 +655,133 @@ type PanelSelection =
       }
     }
 
-    @media (max-width: 700px) {
+    /* Mobile: the side-by-side master/detail layout doesn't fit a phone, so
+       stack the windows list above the editor. Everything flows naturally and
+       the dialog scrolls as one (no nested scroll panes). */
+    @media (max-width: 900px) {
       .panel-error {
         padding-left: 18px;
         padding-right: 18px;
       }
 
       .panel-body--split {
-        grid-template-columns: minmax(170px, 40vw) minmax(0, 1fr);
-        gap: 8px;
-        padding: 8px;
+        grid-template-columns: 1fr;
+        gap: 14px;
+        padding: 10px;
+        overflow: visible;
+      }
+
+      .panel-side,
+      .panel-main {
+        grid-column: 1;
+        overflow: visible;
+      }
+
+      .panel-side {
+        grid-row: 1;
+      }
+
+      .panel-main {
+        grid-row: 2;
       }
 
       .panel-side::after {
         display: none;
       }
 
-      .panel-side__inner {
-        padding: 10px 0;
-        gap: 10px;
+      .panel-side__inner,
+      .panel-side__content,
+      .panel-side__table-wrap {
+        overflow: visible;
+        min-height: 0;
       }
 
+      .panel-side__inner {
+        padding: 4px 0 0;
+        gap: 12px;
+      }
+
+      .panel-window-scroller {
+        flex: none;
+        display: block;
+      }
+
+      /* Windows become a horizontal, swipeable row above the editor. */
       .panel-window-list {
+        flex-direction: row;
+        overflow-x: auto;
+        overflow-y: hidden;
         gap: 10px;
-        padding: 2px 2px 4px 0;
+        padding: 2px 2px 8px;
+        scroll-snap-type: x proximity;
+        scrollbar-width: thin;
+        -webkit-overflow-scrolling: touch;
       }
 
       .panel-window-item {
-        padding: 10px 11px;
+        flex: 0 0 auto;
+        width: min(80%, 280px);
+        scroll-snap-align: start;
       }
 
-      .panel-window-item__top {
-        align-items: flex-start;
-        flex-direction: column;
-        gap: 8px;
+      .panel-window-arrow {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 34px;
+        height: 34px;
+        padding: 0;
+        border-radius: 50%;
+        border: 1px solid var(--app-border-color-soft);
+        background: var(--app-surface-elevated);
+        color: var(--app-heading);
+        font-size: 0;
+        cursor: pointer;
+        box-shadow: var(--app-shadow-soft);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.15s ease;
+        z-index: 2;
       }
 
-      .panel-window-item__bottom {
-        align-items: flex-start;
+      .panel-window-arrow::before {
+        content: '';
+        width: 9px;
+        height: 9px;
+        border-top: 2px solid currentColor;
+        border-right: 2px solid currentColor;
       }
 
-      .panel-window-item__actions {
-        align-self: flex-start;
+      .panel-window-arrow--left {
+        left: 6px;
+      }
+
+      .panel-window-arrow--left::before {
+        transform: rotate(-135deg);
+      }
+
+      .panel-window-arrow--right {
+        right: 6px;
+      }
+
+      .panel-window-arrow--right::before {
+        transform: rotate(45deg);
+      }
+
+      .panel-window-arrow--visible {
+        opacity: 0.96;
+        pointer-events: auto;
+      }
+
+      .panel-editor {
+        height: auto;
+      }
+
+      .panel-editor__body {
+        overflow: visible;
       }
 
       .panel-editor__head {
@@ -666,6 +793,8 @@ type PanelSelection =
 export class TrackWindowsPanelComponent implements OnDestroy {
   private readonly previewSession: TrackPreviewSessionService = inject(TrackPreviewSessionService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly zone = inject(NgZone);
+  private readonly confirmDialog = inject(ConfirmDialogService);
 
   readonly track = input<Track | null>(null);
 
@@ -697,6 +826,31 @@ export class TrackWindowsPanelComponent implements OnDestroy {
   editorLockRegion = false;
   editorLockName = false;
 
+  // ── Mobile windows carousel ──────────────────────────────────────────
+  /** Whether the horizontal windows row can scroll further left / right.
+      Drives the swipe arrow indicators shown on mobile. */
+  readonly canScrollWindowsLeft = signal(false);
+  readonly canScrollWindowsRight = signal(false);
+
+  private windowListEl: HTMLElement | null = null;
+  private windowListResizeObserver: ResizeObserver | null = null;
+
+  @ViewChild('windowList')
+  set windowListRef(ref: ElementRef<HTMLElement> | undefined) {
+    this.windowListResizeObserver?.disconnect();
+    this.windowListResizeObserver = null;
+    this.windowListEl = ref?.nativeElement ?? null;
+
+    if (this.windowListEl && typeof ResizeObserver !== 'undefined') {
+      this.windowListResizeObserver = new ResizeObserver(() =>
+        this.zone.run(() => this.updateWindowScrollState()),
+      );
+      this.windowListResizeObserver.observe(this.windowListEl);
+    }
+
+    this.updateWindowScrollState();
+  }
+
   private currentTrackId: number | null = null;
   private previewSessionSub: Subscription | null = null;
   /** Whether the default (whole-track) entry has been auto-selected for the
@@ -727,6 +881,13 @@ export class TrackWindowsPanelComponent implements OnDestroy {
           this.syncSelectionWithTrack();
         }
       });
+    });
+
+    // Recompute the mobile carousel arrows after the windows list re-renders
+    // (windows added/removed). setTimeout lets layout settle first.
+    effect(() => {
+      this.track();
+      setTimeout(() => this.updateWindowScrollState(), 0);
     });
   }
 
@@ -772,7 +933,58 @@ export class TrackWindowsPanelComponent implements OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.windowListResizeObserver?.disconnect();
     this.resetState();
+  }
+
+  onWindowListScroll(): void {
+    this.updateWindowScrollState();
+  }
+
+  scrollWindows(direction: 1 | -1): void {
+    const el = this.windowListEl;
+    if (!el) return;
+    el.scrollBy({ left: direction * el.clientWidth * 0.8, behavior: 'smooth' });
+  }
+
+  private updateWindowScrollState(): void {
+    const el = this.windowListEl;
+    if (!el) {
+      this.canScrollWindowsLeft.set(false);
+      this.canScrollWindowsRight.set(false);
+      return;
+    }
+
+    const tolerancePx = 4;
+    const maxScroll = el.scrollWidth - el.clientWidth;
+
+    if (maxScroll <= tolerancePx) {
+      this.canScrollWindowsLeft.set(false);
+      this.canScrollWindowsRight.set(false);
+      return;
+    }
+
+    const items = el.querySelectorAll<HTMLElement>('.panel-window-item');
+    if (!items.length) {
+      this.canScrollWindowsLeft.set(false);
+      this.canScrollWindowsRight.set(false);
+      return;
+    }
+
+    const firstItem = items.item(0);
+    const lastItem = items.item(items.length - 1);
+    if (!firstItem || !lastItem) {
+      this.canScrollWindowsLeft.set(false);
+      this.canScrollWindowsRight.set(false);
+      return;
+    }
+
+    const scrollerRect = el.getBoundingClientRect();
+    const firstItemRect = firstItem.getBoundingClientRect();
+    const lastItemRect = lastItem.getBoundingClientRect();
+
+    this.canScrollWindowsLeft.set(firstItemRect.left < scrollerRect.left - tolerancePx);
+    this.canScrollWindowsRight.set(lastItemRect.right > scrollerRect.right + tolerancePx);
   }
 
   onClose(): void {
@@ -856,9 +1068,19 @@ export class TrackWindowsPanelComponent implements OnDestroy {
     this.saveWindow.emit({ trackId, windowId, body });
   }
 
-  onDeleteWindow(win: TrackWindow): void {
+  async onDeleteWindow(win: TrackWindow): Promise<void> {
     const trackId = this.track()?.id;
     if (trackId == null || win.id == null) return;
+
+    const name = win.name?.trim();
+    const confirmed = await this.confirmDialog.confirm({
+      title: 'Delete window',
+      message: name ? `Delete window "${name}"?` : 'Delete this window?',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
 
     const wasSelected = this.selection.kind === 'window' && this.selection.id === win.id;
     this.deleteWindow.emit({ trackId, windowId: win.id });

@@ -15,6 +15,7 @@ import {
 } from '../../../../shared/ui/data-table/ui-data-table.component';
 import { UiListToolbarComponent } from '../../../../shared/ui/list-toolbar/ui-list-toolbar.component';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
+import { persistentSignal } from '../../../../shared/utils/persistent-signal';
 
 type TrackFilterMode =
   | 'all'
@@ -67,67 +68,140 @@ type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
         }
 
         @if (filteredTracks().length > 0) {
+          <!-- Desktop / tablet (≥ md): full data table -->
           <ui-data-table
+            class="app-table-desktop-only"
             [rows]="filteredTracks()"
             [columns]="columns"
             [trackBy]="trackByTrackId"
             [maxHeight]="'var(--track-table-max-height)'"
             [tableClass]="'app-table--tracks'"
           >
-          <ng-template let-track>
-            <tr [class.track-row--subscribed]="isSubscribed(track)">
-              <td class="col-name">
-                <span
-                  class="cell-text cell-text--strong cell-text--wrap"
-                  [title]="displayName(track)"
-                >
-                  {{ displayName(track) }}
-                </span>
-              </td>
-
-              <td class="col-original">
-                <span
-                  class="cell-text cell-text--muted cell-text--truncate"
-                  [title]="track.trackOriginalName || ''"
-                >
-                  {{ track.trackOriginalName || '—' }}
-                </span>
-              </td>
-
-              <td class="col-owner">
-                <span class="cell-text cell-text--muted cell-text--truncate">
-                  {{ track.owner?.name || '—' }}
-                </span>
-              </td>
-
-              <td class="col-duration col-num">
-                {{ formatDuration(track.duration) }}
-              </td>
-
-              <td class="col-link">
-                @if (track.trackLink) {
-                  <a
-                    [href]="track.trackLink"
-                    target="_blank"
-                    rel="noopener noreferrer"
+            <ng-template let-track>
+              <tr [class.track-row--subscribed]="isSubscribed(track)">
+                <td class="col-name">
+                  <span
+                    class="cell-text cell-text--strong cell-text--wrap"
+                    [title]="displayName(track)"
                   >
-                    Open ↗
-                  </a>
-                } @else {
-                  <span class="app-muted">—</span>
-                }
-              </td>
+                    {{ displayName(track) }}
+                  </span>
+                </td>
 
-              <td class="col-status">
-                @if (isSubscribed(track)) {
-                  <ui-chip variant="success" size="sm" shape="hex" [dot]="true">Subscribed</ui-chip>
-                } @else {
-                  <ui-chip variant="gold" size="sm" shape="hex" [dot]="true">Own</ui-chip>
-                }
-              </td>
+                <td class="col-original">
+                  <span
+                    class="cell-text cell-text--muted cell-text--truncate"
+                    [title]="track.trackOriginalName || ''"
+                  >
+                    {{ track.trackOriginalName || '—' }}
+                  </span>
+                </td>
 
-              <td class="col-actions">
-                <div class="app-actions">
+                <td class="col-owner">
+                  <span class="cell-text cell-text--muted cell-text--truncate">
+                    {{ track.owner?.name || '—' }}
+                  </span>
+                </td>
+
+                <td class="col-duration col-num">
+                  {{ formatDuration(track.duration) }}
+                </td>
+
+                <td class="col-link">
+                  @if (track.trackLink) {
+                    <a
+                      [href]="track.trackLink"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Open ↗
+                    </a>
+                  } @else {
+                    <span class="app-muted">—</span>
+                  }
+                </td>
+
+                <td class="col-status">
+                  @if (isSubscribed(track)) {
+                    <ui-chip variant="success" size="sm" shape="hex" [dot]="true">Subscribed</ui-chip>
+                  } @else {
+                    <ui-chip variant="gold" size="sm" shape="hex" [dot]="true">Own</ui-chip>
+                  }
+                </td>
+
+                <td class="col-actions">
+                  <div class="app-actions">
+                    <app-icon-button
+                      icon="edit"
+                      label="Edit track"
+                      variant="secondary"
+                      size="md"
+                      [disabled]="isSubscribed(track)"
+                      (clicked)="edit.emit(track)"
+                    />
+
+                    <app-icon-button
+                      icon="windows"
+                      label="Edit track windows"
+                      variant="primary"
+                      size="md"
+                      [disabled]="isSubscribed(track)"
+                      (clicked)="windows.emit(track)"
+                    />
+
+                    <app-icon-button
+                      icon="delete"
+                      label="Delete track"
+                      variant="danger"
+                      size="md"
+                      [disabled]="isSubscribed(track)"
+                      (clicked)="remove.emit(track)"
+                    />
+                  </div>
+                </td>
+              </tr>
+            </ng-template>
+          </ui-data-table>
+
+          <!-- Mobile (< md): condensed list. Per NN/g / UXmatters: a bold
+               primary value, secondary data stacked beneath, long text
+               truncated with an ellipsis to signal it continues. -->
+          <ul class="app-entity-list" role="list">
+            @for (track of filteredTracks(); track trackByTrackId($index, track)) {
+              <li
+                class="app-entity-list__item"
+                [class.is-subscribed]="isSubscribed(track)"
+              >
+                <div class="app-entity-list__head">
+                  <span class="app-entity-list__title" [title]="displayName(track)">
+                    {{ displayName(track) }}
+                  </span>
+                  @if (isSubscribed(track)) {
+                    <ui-chip variant="success" size="sm" shape="hex" [dot]="true">Subscribed</ui-chip>
+                  } @else {
+                    <ui-chip variant="gold" size="sm" shape="hex" [dot]="true">Own</ui-chip>
+                  }
+                </div>
+
+                @if (track.trackOriginalName) {
+                  <span class="app-entity-list__subtitle" [title]="track.trackOriginalName">
+                    {{ track.trackOriginalName }}
+                  </span>
+                }
+
+                <div class="app-entity-list__meta">
+                  <span>{{ track.owner?.name || '—' }}</span>
+                  <span class="app-entity-list__sep" aria-hidden="true">·</span>
+                  <span>{{ formatDuration(track.duration) }}</span>
+                  @if (track.trackLink) {
+                    <span class="app-entity-list__sep" aria-hidden="true">·</span>
+                    <a [href]="track.trackLink" target="_blank" rel="noopener noreferrer">
+                      Open ↗
+                    </a>
+                  }
+                </div>
+
+                <div class="app-actions app-entity-list__actions">
                   <app-icon-button
                     icon="edit"
                     label="Edit track"
@@ -155,10 +229,9 @@ type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
                     (clicked)="remove.emit(track)"
                   />
                 </div>
-              </td>
-            </tr>
-          </ng-template>
-        </ui-data-table>
+              </li>
+            }
+          </ul>
         }
       }
     </div>
@@ -192,14 +265,14 @@ type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
       color: var(--app-text-muted);
     }
 
-    @media (max-width: 860px) {
-      :host {
-        --track-table-max-height: min(55dvh, 640px);
-      }
+    /* Mobile list shape lives in the shared .app-entity-list primitive;
+       only the subscribed-state tint is track-specific. */
+    .app-entity-list__item.is-subscribed {
+      background: rgba(238, 198, 145, 0.12);
+    }
 
-      .app-table--tracks {
-        min-width: 1120px;
-      }
+    .app-entity-list__item.is-subscribed .app-entity-list__title {
+      color: var(--app-text-muted);
     }
   `],
 })
@@ -212,8 +285,8 @@ export class TrackTableComponent {
   readonly windows = output<Track>();
 
   readonly search = signal('');
-  readonly filterMode = signal<TrackFilterMode>('own');
-  readonly sortMode = signal<TrackSortMode>('nameAsc');
+  readonly filterMode = persistentSignal<TrackFilterMode>('mpf:tracks:filter', 'own');
+  readonly sortMode = persistentSignal<TrackSortMode>('mpf:tracks:sort', 'nameAsc');
 
   readonly filterOptions = [
     { label: 'All tracks', value: 'all' },
@@ -235,9 +308,9 @@ export class TrackTableComponent {
     { label: 'Name', className: 'col-name', width: '180px' },
     { label: 'Original name', className: 'col-original' },
     { label: 'Owner', className: 'col-owner', width: '120px' },
-    { label: 'Duration', className: 'col-duration', width: '110px' },
-    { label: 'Link', className: 'col-link', width: '110px' },
-    { label: 'Status', className: 'col-status', width: '170px' },
+    { label: 'Duration', className: 'col-duration', width: '90px' },
+    { label: 'Link', className: 'col-link', width: '90px' },
+    { label: 'Status', className: 'col-status', width: '150px' },
     { label: 'Actions', className: 'col-actions', width: '200px' },
   ];
 

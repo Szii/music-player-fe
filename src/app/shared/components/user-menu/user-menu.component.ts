@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
-  HostListener,
   computed,
   inject,
   output,
@@ -16,6 +15,10 @@ import { ProfileStore } from '../../../features/profile/data-access/profile-stor
   selector: 'app-user-menu',
   imports: [RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '(document:click)': 'onDocumentClick($event)',
+    '(document:keydown.escape)': 'onEscape()',
+  },
   template: `
     <div class="um" [class.um--open]="isOpen()">
       <button
@@ -42,7 +45,7 @@ import { ProfileStore } from '../../../features/profile/data-access/profile-stor
             routerLink="/profile"
             class="app-popover-item"
             role="menuitem"
-            (click)="close()"
+            (click)="onNavigate()"
           >
             <span class="um__item-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
@@ -180,8 +183,24 @@ import { ProfileStore } from '../../../features/profile/data-access/profile-stor
     }
 
     @media (max-width: 768px) {
+      /* In the slim top bar the trigger stays compact (avatar only) so it fits
+         beside the brand; the panel anchors to the right edge and is clamped to
+         the viewport so it never overflows. */
       .um__name {
         display: none;
+      }
+
+      .um__trigger {
+        gap: 0.4rem;
+        padding: 0.3rem 0.6rem;
+      }
+
+      .um__panel {
+        right: 0;
+        left: auto;
+        min-width: 0;
+        width: max-content;
+        max-width: min(260px, calc(100vw - 20px));
       }
     }
   `],
@@ -191,6 +210,8 @@ export class UserMenuComponent {
   private readonly store = inject(ProfileStore);
 
   readonly logout = output<void>();
+  /** Emitted when a menu item navigates, so the parent nav can collapse. */
+  readonly navigate = output<void>();
 
   readonly isOpen = signal(false);
 
@@ -222,19 +243,22 @@ export class UserMenuComponent {
     this.isOpen.set(false);
   }
 
+  onNavigate(): void {
+    this.close();
+    this.navigate.emit();
+  }
+
   onLogout(): void {
     this.close();
     this.logout.emit();
   }
 
-  @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
     if (!this.isOpen()) return;
     if (this.host.nativeElement.contains(event.target as Node)) return;
     this.close();
   }
 
-  @HostListener('document:keydown.escape')
   onEscape(): void {
     if (this.isOpen()) this.close();
   }

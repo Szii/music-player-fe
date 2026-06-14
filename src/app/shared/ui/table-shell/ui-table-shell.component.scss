@@ -161,8 +161,7 @@
   white-space: nowrap;
 }
 
-@media (max-width: 1100px) {
-  .app-table {
-    min-width: 900px;
-  }
-}
+/* No tablet min-width floor: every table fits its container (columns flex /
+   truncate) and switches to the shared .app-entity-list card layout below md.
+   A hard min-width here forced tables wider than narrow containers (dialogs,
+   the 900–1100px band) and clipped trailing columns. */

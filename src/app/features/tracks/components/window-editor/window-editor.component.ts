@@ -352,6 +352,14 @@ export interface WindowEditorResult {
       padding-right: 2px;
     }
 
+    /* Thin out timeline labels on narrow screens so they don't overlap; the
+       first (0:00) and last (duration) markers are always kept. */
+    @media (max-width: 600px) {
+      .we-ruler-mark:nth-child(even):not(:last-child) {
+        display: none;
+      }
+    }
+
     .we-section {
       padding: 10px 14px;
       border-top: var(--app-border);
@@ -370,7 +378,7 @@ export interface WindowEditorResult {
       align-items: stretch;
     }
 
-    @media (max-width: 880px) {
+    @media (max-width: 900px) {
       .we-info__grid {
         grid-template-columns: repeat(2, minmax(120px, 1fr));
       }
@@ -638,7 +646,7 @@ export interface WindowEditorResult {
       min-width: 0;
     }
 
-    @media (max-width: 880px) {
+    @media (max-width: 900px) {
       .we-volume {
         grid-column: 1 / -1;
       }

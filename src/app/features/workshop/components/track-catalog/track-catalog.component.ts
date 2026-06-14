@@ -15,6 +15,7 @@ import {
 } from '../../../../shared/ui/data-table/ui-data-table.component';
 import { UiListToolbarComponent } from '../../../../shared/ui/list-toolbar/ui-list-toolbar.component';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
+import { persistentSignal } from '../../../../shared/utils/persistent-signal';
 
 type CatalogFilterMode = 'all' | 'available' | 'subscribed';
 
@@ -57,6 +58,7 @@ type TrackCatalogSortMode =
 
       @if (filteredTracks().length > 0) {
         <ui-data-table
+          class="app-table-desktop-only"
           [rows]="filteredTracks()"
           [columns]="columns"
           [trackBy]="trackById"
@@ -127,6 +129,58 @@ type TrackCatalogSortMode =
           </tr>
         </ng-template>
         </ui-data-table>
+
+        <!-- Mobile (< md): condensed list mirroring the table columns. -->
+        <ul class="app-entity-list" role="list">
+          @for (track of filteredTracks(); track trackById($index, track)) {
+            <li class="app-entity-list__item">
+              <div class="app-entity-list__head">
+                <span class="app-entity-list__title" [title]="displayName(track)">
+                  {{ displayName(track) }}
+                </span>
+                @if (isSubscribed(track)) {
+                  <ui-chip variant="success" size="sm" shape="hex" [dot]="true">Inscribed</ui-chip>
+                } @else {
+                  <ui-chip variant="gold" size="sm" shape="hex" [dot]="true">Available</ui-chip>
+                }
+              </div>
+
+              @if (track.trackShare?.description; as description) {
+                <span class="app-entity-list__subtitle" [title]="description">
+                  {{ description }}
+                </span>
+              }
+
+              <div class="app-entity-list__meta">
+                <span>{{ track.owner?.name ?? '—' }}</span>
+                <span class="app-entity-list__sep" aria-hidden="true">·</span>
+                <span>{{ formatDuration(track.duration) }}</span>
+              </div>
+
+              <div class="app-actions app-entity-list__actions">
+                @if (!isSubscribed(track)) {
+                  <app-icon-button
+                    icon="bookmark"
+                    variant="secondary"
+                    size="md"
+                    label="Subscribe"
+                    [disabled]="busyTrackId() === track.id"
+                    (clicked)="subscribe.emit(track)"
+                  />
+                } @else {
+                  <app-icon-button
+                    icon="bookmark-remove"
+                    variant="danger"
+                    size="md"
+                    label="Unsubscribe"
+                    [disabled]="busyTrackId() === track.id"
+                    (clicked)="unsubscribe.emit(track)"
+                  />
+                }
+              </div>
+            </li>
+          }
+        </ul>
       } @else if (tracks().length === 0) {
         <p class="empty">Nothing is published right now.</p>
       } @else {
@@ -149,12 +203,6 @@ type TrackCatalogSortMode =
       font-size: 13px;
       font-style: italic;
     }
-
-    @media (max-width: 900px) {
-      .app-table--workshop {
-        min-width: 880px;
-      }
-    }
   `],
 })
 export class TrackCatalogComponent {
@@ -166,8 +214,8 @@ export class TrackCatalogComponent {
   readonly unsubscribe = output<Track>();
 
   readonly search = signal('');
-  readonly filterMode = signal<CatalogFilterMode>('all');
-  readonly sortMode = signal<TrackCatalogSortMode>('nameAsc');
+  readonly filterMode = persistentSignal<CatalogFilterMode>('mpf:workshop:catalog:filter', 'all');
+  readonly sortMode = persistentSignal<TrackCatalogSortMode>('mpf:workshop:catalog:sort', 'nameAsc');
 
   readonly filterOptions = [
     { label: 'All tracks', value: 'all' },
@@ -189,8 +237,8 @@ export class TrackCatalogComponent {
     { label: 'Owner', className: 'col-owner', width: '16%' },
     { label: 'Duration', className: 'col-duration', width: '90px' },
     { label: 'Description', className: 'col-desc' },
-    { label: 'Status', className: 'col-status', width: '170px' },
-    { label: 'Actions', className: 'col-actions', width: '110px' },
+    { label: 'Status', className: 'col-status', width: '140px' },
+    { label: 'Actions', className: 'col-actions', width: '120px' },
   ];
 
   setFilterMode(value: unknown): void {

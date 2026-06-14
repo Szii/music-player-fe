@@ -6,11 +6,15 @@ import {
   computed,
   effect,
   forwardRef,
+  inject,
   input,
   output,
   signal,
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
+
+import { ScrollLockService } from '../../../core/services/scroll-lock.service';
+import { BottomSheetDragDirective } from '../bottom-sheet/bottom-sheet-drag.directive';
 
 export interface UiSelectOption {
   label: string;
@@ -36,6 +40,7 @@ interface PanelRect {
 @Component({
   selector: 'ui-select',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [BottomSheetDragDirective],
   providers: [
     {
       provide: NG_VALUE_ACCESSOR,
@@ -77,7 +82,9 @@ interface PanelRect {
       </button>
 
       @if (isOpen() && panelRect(); as panel) {
+        <div class="sel__scrim" aria-hidden="true" (pointerdown)="onScrimDown($event)"></div>
         <div
+          #sheetEl
           class="app-popover-surface sel__panel"
           [style.top]="panel.top != null ? panel.top + 'px' : 'auto'"
           [style.bottom]="panel.bottom != null ? panel.bottom + 'px' : 'auto'"
@@ -85,6 +92,16 @@ interface PanelRect {
           [style.width.px]="panel.width"
           [style.max-height.px]="panel.maxHeight"
         >
+          <button
+            type="button"
+            class="sel__handle"
+            [appBottomSheetDrag]="sheetEl"
+            (dismiss)="dismissSheet()"
+            aria-label="Close"
+          >
+            <span class="sel__handle-bar" aria-hidden="true"></span>
+          </button>
+
           @if (enableSearch()) {
             <div class="sel__search-wrap">
               <input
@@ -126,7 +143,14 @@ interface PanelRect {
                   <span class="sel__option-label">{{ opt.label }}</span>
 
                   @if ((opt.subOptions?.length ?? 0) > 0) {
-                    <span class="sel__option-subhint" aria-hidden="true">
+                    <span
+                      class="sel__option-subhint"
+                      [class.sel__option-subhint--open]="hoveredOptionValue() === opt.value"
+                      role="button"
+                      tabindex="-1"
+                      aria-label="Show windows for this track"
+                      (click)="onMoreTap(opt, i, $event)"
+                    >
                       <span class="sel__option-subhint-text">More</span>
                       <span class="sel__option-subhint-icon">›</span>
                     </span>
@@ -201,9 +225,11 @@ interface PanelRect {
       transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
     }
 
-    .sel__trigger:hover:not(:disabled) {
-      border-color: var(--app-border-color);
-      background: #f5edd8;
+    @media (hover: hover) {
+      .sel__trigger:hover:not(:disabled) {
+        border-color: var(--app-border-color);
+        background: #f5edd8;
+      }
     }
 
     .sel__trigger:focus-visible {
@@ -251,6 +277,12 @@ interface PanelRect {
     .sel__panel {
       position: fixed;
       z-index: 9999;
+    }
+
+    /* Scrim + drag handle are phone-only (see media query). */
+    .sel__scrim,
+    .sel__handle {
+      display: none;
     }
 
     .sel__search-wrap {
@@ -374,6 +406,12 @@ interface PanelRect {
       transform: translateX(2px);
     }
 
+    .sel__option-subhint--open {
+      border-color: var(--app-primary);
+      background: rgba(201, 164, 76, 0.5);
+      color: var(--app-primary);
+    }
+
     .sel__option-check-slot {
       grid-column: 3;
       width: 24px;
@@ -404,6 +442,91 @@ interface PanelRect {
       font-size: 13px;
       color: var(--app-text-muted);
       font-style: italic;
+    }
+
+    /* Mobile: render the menu as a bottom sheet — full-width, bottom-anchored,
+       large tap targets — instead of a narrow popover anchored to the trigger.
+       Best practice for selects on small screens (NN/g, Material). Overrides
+       the JS-computed inline position with !important. */
+    @media (max-width: 640px) {
+      .sel__trigger {
+        min-height: 44px;
+      }
+
+      /* Dim everything behind the sheet (page or dialog) so it reads as one
+         clean layer on top, not stacked surfaces. */
+      .sel__scrim {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 9998;
+        background: rgba(15, 8, 3, 0.45);
+        animation: sel-scrim-in 0.18s ease;
+      }
+
+      .sel__panel,
+      .sel__flyout {
+        position: fixed !important;
+        top: auto !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        /* Cap to a handful of rows so the list overflows and scrolls inside
+           the sheet, rather than filling the screen with no inner scroll. */
+        max-height: min(52vh, 416px) !important;
+        border-radius: var(--app-radius-lg) var(--app-radius-lg) 0 0 !important;
+        box-shadow: 0 -14px 36px rgba(15, 8, 3, 0.34) !important;
+        animation: sel-sheet-up 0.2s ease !important;
+      }
+
+      /* Drag/tap handle at the top of the sheet (drag down or tap to close). */
+      .sel__handle {
+        display: flex;
+        flex: 0 0 auto;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 26px;
+        padding: 0;
+        border: none;
+        background: transparent;
+        cursor: grab;
+      }
+
+      .sel__handle-bar {
+        width: 38px;
+        height: 4px;
+        border-radius: 999px;
+        background: var(--app-border-color-soft);
+      }
+
+      /* Keep the scroll inside the sheet — don't chain to the page behind. */
+      .sel__options {
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .sel__option {
+        min-height: 48px;
+      }
+
+      /* Bigger "More" tap target to open the windows sheet on touch. */
+      .sel__option-subhint {
+        padding: 8px 12px;
+      }
+    }
+
+    @keyframes sel-sheet-up {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+
+    @keyframes sel-scrim-in {
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
   `],
   host: {
@@ -443,9 +566,12 @@ export class UiSelectComponent implements ControlValueAccessor {
   @ViewChild('trigger') triggerRef?: ElementRef<HTMLButtonElement>;
   @ViewChild('searchInput') searchInputRef?: ElementRef<HTMLInputElement>;
   @ViewChild('optionsList') optionsListRef?: ElementRef<HTMLElement>;
+  @ViewChild(BottomSheetDragDirective) private sheetDrag?: BottomSheetDragDirective;
 
   private onChange: (v: any) => void = () => {};
   private onTouched: () => void = () => {};
+
+  private readonly scrollLock = inject(ScrollLockService);
 
   constructor(private readonly el: ElementRef) {
     effect(() => {
@@ -454,6 +580,18 @@ export class UiSelectComponent implements ControlValueAccessor {
       if (idx >= len) {
         this.highlightedIndex.set(len === 0 ? -1 : len - 1);
       }
+    });
+
+    // On mobile the panel is a bottom sheet that owns the screen: lock the
+    // background scroll and (via the shared body class) hide the bottom nav so
+    // it can't cover the sheet. Ref-counted, so this nests cleanly inside a
+    // dialog that is already locked.
+    effect((onCleanup) => {
+      if (!this.isOpen()) return;
+      if (typeof window === 'undefined') return;
+      if (!window.matchMedia('(max-width: 640px)').matches) return;
+      this.scrollLock.lock();
+      onCleanup(() => this.scrollLock.unlock());
     });
   }
 
@@ -524,7 +662,13 @@ export class UiSelectComponent implements ControlValueAccessor {
       this.isOpen.set(true);
       this.resetHighlightFromCurrent();
 
-      if (this.enableSearch()) {
+      // Auto-focus the search on desktop only. On mobile the sheet would
+      // immediately pop the keyboard over the options — let the user tap the
+      // field to start searching.
+      const isMobile =
+        typeof window !== 'undefined' &&
+        window.matchMedia('(max-width: 640px)').matches;
+      if (this.enableSearch() && !isMobile) {
         setTimeout(() => this.searchInputRef?.nativeElement.focus(), 0);
       }
     } else {
@@ -690,6 +834,30 @@ export class UiSelectComponent implements ControlValueAccessor {
     this.toggle();
   }
 
+  /** Tap the mobile bottom-sheet scrim to dismiss. Uses pointerdown +
+      preventDefault so no ghost click / focus reaches the trigger (which would
+      otherwise re-toggle the menu open). */
+  onScrimDown(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    // Slide the sheet out (same as drag/handle close) before removing it.
+    if (this.sheetDrag) {
+      this.sheetDrag.close();
+    } else {
+      this.dismissSheet();
+    }
+  }
+
+  /** Close the sheet (scrim tap or handle drag/tap) without re-focusing. */
+  dismissSheet(): void {
+    this.isOpen.set(false);
+    this.searchQuery.set('');
+    this.clearFlyoutTimer();
+    this.hoveredOptionValue.set(null);
+    this.highlightedIndex.set(-1);
+    this.highlightedSubIndex.set(-1);
+  }
+
   focusTrigger(): void {
     this.triggerRef?.nativeElement.focus();
   }
@@ -712,6 +880,30 @@ export class UiSelectComponent implements ControlValueAccessor {
     this.onTouched();
     this.subOptionSelected.emit({ parent, sub });
     this.closeAndFocusTrigger();
+  }
+
+  /** Tap the "More ›" affordance to open the sub-options flyout (touch
+      equivalent of hovering it on desktop). Tapping it again closes it. */
+  onMoreTap(opt: UiSelectOption, index: number, event: Event): void {
+    event.stopPropagation();
+    if (opt.disabled || (opt.subOptions?.length ?? 0) === 0) return;
+
+    if (this.hoveredOptionValue() === opt.value) {
+      this.closeFlyout();
+      return;
+    }
+
+    this.highlightedIndex.set(index);
+    this.clearFlyoutTimer();
+
+    const wrap = (event.currentTarget as HTMLElement).closest('.sel__option-wrap');
+    const source =
+      (wrap?.querySelector('.sel__option') as HTMLElement | null) ??
+      (event.currentTarget as HTMLElement);
+
+    this.positionFlyoutFromElement(source);
+    this.hoveredOptionValue.set(opt.value);
+    this.highlightedSubIndex.set(0);
   }
 
   private closeAndFocusTrigger(): void {

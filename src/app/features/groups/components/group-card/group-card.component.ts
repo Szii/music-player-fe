@@ -11,6 +11,7 @@ import { Group, Track } from '../../../../api/generated';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
 import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
+import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 
 export interface RenameEvent {
   group: Group;
@@ -20,45 +21,73 @@ export interface RenameEvent {
 @Component({
   selector: 'app-group-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, NormalButtonComponent, UiDialogShellComponent, IconButtonComponent],
+  imports: [
+    FormsModule,
+    NormalButtonComponent,
+    UiDialogShellComponent,
+    IconButtonComponent,
+    UiChipComponent,
+  ],
+  host: {
+    role: 'listitem',
+  },
   template: `
     <div class="group-card">
       <div class="group-card__header">
         <div class="group-card__identity">
-          <span class="group-card__title">
-            {{ group().listName || ('Group #' + group().id) }}
+          <span class="group-card__title" [title]="displayName()">
+            {{ displayName() }}
           </span>
 
-          <span class="group-card__count">
-            {{ trackCount() }} track{{ trackCount() === 1 ? '' : 's' }}
-          </span>
+          @if (tracksPreview(); as preview) {
+            <span class="group-card__subtitle" [title]="preview">
+              {{ preview }}
+            </span>
+          } @else {
+            <span class="group-card__subtitle">
+              No tracks assigned yet
+            </span>
+          }
         </div>
 
-        <div class="group-card__actions">
-          <app-icon-button
-            icon="tracks"
-            label="Edit tracks"
-            variant="primary"
-            size="md"
-            (clicked)="editTracksRequested.emit(group())"
-          />
+        <ui-chip
+          class="group-card__count"
+          [variant]="trackCount() > 0 ? 'success' : 'gold'"
+          size="sm"
+          shape="hex"
+          [dot]="true"
+        >
+          {{ trackCountLabel() }}
+        </ui-chip>
+      </div>
 
-          <app-icon-button
-            icon="edit"
-            label="Rename group"
-            variant="secondary"
-            size="md"
-            (clicked)="openRename()"
-          />
+      <div class="group-card__actions">
+        <app-icon-button
+          icon="tracks"
+          label="Edit tracks"
+          variant="primary"
+          size="md"
+          [disabled]="updating()"
+          (clicked)="editTracksRequested.emit(group())"
+        />
 
-          <app-icon-button
-            icon="delete"
-            label="Delete group"
-            variant="danger"
-            size="md"
-            (clicked)="deleteRequested.emit(group())"
-          />
-        </div>
+        <app-icon-button
+          icon="edit"
+          label="Rename group"
+          variant="secondary"
+          size="md"
+          [disabled]="updating()"
+          (clicked)="openRename()"
+        />
+
+        <app-icon-button
+          icon="delete"
+          label="Delete group"
+          variant="danger"
+          size="md"
+          [disabled]="updating()"
+          (clicked)="deleteRequested.emit(group())"
+        />
       </div>
     </div>
 
@@ -100,85 +129,103 @@ export interface RenameEvent {
   styles: [`
     :host {
       display: block;
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
     }
 
     .group-card {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      padding: 18px 20px;
+      display: block;
+      min-width: 0;
+      max-width: 100%;
+      box-sizing: border-box;
+      padding: 22px 24px 18px;
       border: 1px solid var(--app-border-color-soft);
       border-radius: var(--app-radius-md);
-      background:
-        linear-gradient(90deg,
-          transparent 0%,
-          rgba(201, 164, 76, 0.55) 12%,
-          #58180d 30%,
-          rgba(201, 164, 76, 0.9) 50%,
-          #58180d 70%,
-          rgba(201, 164, 76, 0.55) 88%,
-          transparent 100%
-        ) top / 100% 3px no-repeat,
-        var(--app-parchment);
+      background: var(--app-surface);
       box-shadow: var(--app-shadow-soft);
+      overflow: hidden;
     }
 
     .group-card__header {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 16px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
+      gap: 14px;
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
     }
 
     .group-card__identity {
-      min-width: 0;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 8px;
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
     }
 
     .group-card__title {
-      font-family: var(--app-font-heading);
-      font-size: 1rem;
+      display: block;
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
       font-weight: 700;
-      letter-spacing: 0.03em;
-      color: var(--app-heading);
-      line-height: 1.2;
-      word-break: break-word;
+      font-size: 1.05rem;
+      line-height: 1.25;
+      color: var(--app-text);
+    }
+
+    .group-card__subtitle {
+      display: block;
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 0.95rem;
+      line-height: 1.35;
+      color: var(--app-text-muted);
     }
 
     .group-card__count {
-      font-size: 0.95rem;
-      color: var(--app-text-muted);
+      justify-self: end;
+      max-width: 100%;
+      min-width: 0;
     }
 
     .group-card__actions {
       display: flex;
       align-items: center;
-      gap: 10px;
-      flex-shrink: 0;
+      justify-content: flex-start;
       flex-wrap: wrap;
-      justify-content: flex-end;
+      gap: 10px;
+      min-width: 0;
+      max-width: 100%;
+      margin-top: 18px;
+      overflow: hidden;
     }
 
     .rename-form {
       display: flex;
       flex-direction: column;
       gap: 6px;
+      min-width: 0;
+      max-width: 100%;
     }
 
-    @media (max-width: 700px) {
+    /* Chip stays top-right with the title ellipsizing (same as the shared
+       entity-list head), so the header needs no narrow-screen collapse. */
+    @media (max-width: 640px) {
       .group-card {
-        padding: 16px;
-      }
-
-      .group-card__header {
-        flex-direction: column;
-        align-items: stretch;
+        padding: 18px 20px;
       }
 
       .group-card__actions {
-        justify-content: flex-start;
+        margin-top: 16px;
       }
     }
   `],
@@ -197,6 +244,34 @@ export class GroupCardComponent {
 
   readonly trackCount = computed(() => this.group().tracks?.length ?? 0);
 
+  readonly trackCountLabel = computed(() => {
+    const count = this.trackCount();
+    return `${count} track${count === 1 ? '' : 's'}`;
+  });
+
+  readonly tracksPreview = computed(() => {
+    const groupTracks = this.group().tracks ?? [];
+
+    if (groupTracks.length === 0) {
+      return '';
+    }
+
+    const names = groupTracks
+      .map(track => this.displayTrackName(track))
+      .filter(Boolean);
+
+    const visible = names.slice(0, 3).join(' · ');
+    const remaining = names.length - 3;
+
+    return remaining > 0
+      ? `${visible} · +${remaining} more`
+      : visible;
+  });
+
+  displayName(): string {
+    return this.group().listName || ('Group #' + this.group().id);
+  }
+
   openRename(): void {
     this.editingName.set(this.group().listName ?? '');
     this.renameOpen.set(true);
@@ -210,7 +285,16 @@ export class GroupCardComponent {
   confirmRename(): void {
     const name = this.editingName().trim();
     if (!name) return;
-    this.renameRequested.emit({ group: this.group(), newName: name });
+
+    this.renameRequested.emit({
+      group: this.group(),
+      newName: name,
+    });
+
     this.closeRename();
+  }
+
+  private displayTrackName(track: Track): string {
+    return track.trackName || track.trackOriginalName || ('Track #' + track.id);
   }
 }

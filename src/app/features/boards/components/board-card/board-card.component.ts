@@ -27,9 +27,12 @@ import {
 import { UiVolumeSliderComponent } from '../../../../shared/ui/volume-slider/ui-volume-slider.component';
 import { UiPlayButtonComponent } from '../../../../shared/ui/play-button/ui-play-button.component';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
+import { UiIconComponent, UiIconName } from '../../../../shared/ui/icon/ui-icon.component';
 import { UiInlineSelectComponent } from '../../../../shared/ui/inline-select/ui-inline-select.component';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { BoardShortcutsService } from '../../../../core/services/board-shortcuts.service';
+import { ScrollLockService } from '../../../../core/services/scroll-lock.service';
+import { BottomSheetDragDirective } from '../../../../shared/ui/bottom-sheet/bottom-sheet-drag.directive';
 
 export interface PlaylistOptions {
   random: boolean;
@@ -59,8 +62,10 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
     UiVolumeSliderComponent,
     UiPlayButtonComponent,
     UiChipComponent,
+    UiIconComponent,
     UiInlineSelectComponent,
     UiAlertComponent,
+    BottomSheetDragDirective,
   ],
   host: {
     '(document:click)': 'onDocumentClick($event)',
@@ -68,20 +73,33 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
   template: `
     <div
       class="board-card"
-      [class.board-card--playing]="isPlaying()">
+      [class.board-card--playing]="isPlaying()"
+      [class.board-card--expanded]="expanded()"
+      (dblclick)="onCardActivate($event)">
 
       <div class="board-card__summary">
         <div class="board-card__summary-left">
-          <div
-            class="board-card__play-wrap"
-            [class.board-card__play-wrap--playlist]="playlistMode()"
-            [class.board-card__play-wrap--playing]="isPlaying()">
-            <ui-play-button
-              size="md"
-              [playing]="isPlaying()"
-              [disabled]="!canStartPlayback()"
-              [ariaLabel]="isPlaying() ? 'Stop playback' : 'Play board'"
-              (clicked)="onPrimaryAction()"
+          <div class="board-card__transport">
+            <div
+              class="board-card__play-wrap"
+              [class.board-card__play-wrap--playlist]="playlistMode()"
+              [class.board-card__play-wrap--playing]="isPlaying()">
+              <ui-play-button
+                size="md"
+                [playing]="isPlaying()"
+                [disabled]="!canStartPlayback()"
+                [ariaLabel]="isPlaying() ? 'Stop playback' : 'Play board'"
+                (clicked)="onPrimaryAction()"
+              />
+            </div>
+
+            <ui-volume-slider
+              class="board-card__volume board-card__volume--fader"
+              [vertical]="true"
+              ariaLabel="Board volume"
+              [value]="displayedVolumePercent()"
+              (preview)="onVolumePreview($event)"
+              (commit)="onVolumeCommit($event)"
             />
           </div>
 
@@ -116,22 +134,46 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
               </div>
 
               <div class="board-card__feature-chips">
-                <ui-chip variant="crimson" size="sm" shape="hex" [dot]="true">
+                <ui-chip
+                  variant="crimson"
+                  size="sm"
+                  shape="hex"
+                  [tooltip]="modeChipTooltip()"
+                >
+                  <ui-icon class="ribbon-ico" [name]="modeIconName()" />
                   {{ modeChipLabel() }}
                 </ui-chip>
 
-                <ui-chip variant="gold" size="sm" shape="hex" [dot]="true">
+                <ui-chip
+                  variant="gold"
+                  size="sm"
+                  shape="hex"
+                  [tooltip]="loopRibbonTooltip()"
+                >
+                  <ui-icon class="ribbon-ico" name="loop" />
                   {{ loopRibbonLabel() }}
                 </ui-chip>
 
                 @if (playlistMode()) {
-                  <ui-chip variant="gold" size="sm" shape="hex" [dot]="true">
+                  <ui-chip
+                    variant="gold"
+                    size="sm"
+                    shape="hex"
+                    [tooltip]="randomRibbonTooltip()"
+                  >
+                    <ui-icon class="ribbon-ico" [name]="randomIconName()" />
                     {{ randomRibbonLabel() }}
                   </ui-chip>
                 }
 
                 @if (board().overplay) {
-                  <ui-chip variant="gold" size="sm" shape="hex" [dot]="true">
+                  <ui-chip
+                    variant="gold"
+                    size="sm"
+                    shape="hex"
+                    tooltip="Overplay — overlap with other boards"
+                  >
+                    <ui-icon class="ribbon-ico" name="overlap" />
                     Overplay
                   </ui-chip>
                 }
@@ -142,7 +184,8 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
                     size="sm"
                     [attr.title]="'Keyboard shortcut: ' + shortcut()"
                   >
-                    ⌨ {{ shortcut() }}
+                    <ui-icon class="ribbon-ico" name="keyboard" />
+                    {{ shortcut() }}
                   </ui-chip>
                 }
               </div>
@@ -172,12 +215,12 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
               </div>
 
               <ui-volume-slider
+                class="board-card__volume board-card__volume--bar"
                 ariaLabel="Board volume"
                 [value]="displayedVolumePercent()"
                 (preview)="onVolumePreview($event)"
                 (commit)="onVolumeCommit($event)"
               />
-
             </div>
           </div>
         </div>
@@ -259,15 +302,26 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
                     [cdkConnectedOverlayOpen]="settingsOpen()"
                     [cdkConnectedOverlayPositions]="settingsPositions"
                     [cdkConnectedOverlayHasBackdrop]="true"
-                    [cdkConnectedOverlayBackdropClass]="'cdk-overlay-transparent-backdrop'"
+                    [cdkConnectedOverlayBackdropClass]="'board-settings-backdrop'"
+                    [cdkConnectedOverlayPanelClass]="'board-settings-pane'"
                     [cdkConnectedOverlayPush]="true"
                     [cdkConnectedOverlayFlexibleDimensions]="true"
                     [cdkConnectedOverlayViewportMargin]="12"
-                    (backdropClick)="closeSettingsMenu()"
+                    (backdropClick)="animateCloseSettings()"
                     (detach)="closeSettingsMenu()">
                     <div
+                      #settingsSheet
                       class="board-settings-menu"
+                      [class.board-settings-menu--closing]="settingsClosing()"
                       (click)="$event.stopPropagation()">
+                      <button
+                        type="button"
+                        class="board-settings-menu__handle"
+                        [appBottomSheetDrag]="settingsSheet"
+                        (dismiss)="closeSettingsMenu()"
+                        aria-label="Close settings">
+                        <span class="board-settings-menu__handle-bar" aria-hidden="true"></span>
+                      </button>
                       <div class="board-settings-menu__title">Playback settings</div>
 
                       <div class="board-settings-menu__items">
@@ -498,6 +552,16 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
           </div>
         </div>
       </div>
+
+      <button
+        type="button"
+        class="board-card__expand-hint"
+        (click)="toggleExpanded()"
+        [attr.aria-label]="expanded() ? 'Collapse board' : 'Expand board'"
+        tabindex="-1"
+      >
+        <span class="board-card__expand-hint-icon" aria-hidden="true">⌄</span>
+      </button>
     </div>
   `,
   styles: [`
@@ -624,6 +688,28 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
       flex-shrink: 0;
     }
 
+    /* Ribbon chip leading icon. */
+    .ribbon-ico {
+      font-size: 1.3em;
+      margin-right: 5px;
+      vertical-align: -0.24em;
+      opacity: 0.9;
+    }
+
+    .board-card__transport {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    /* Desktop/tablet: horizontal bar in the bottom row. Mobile: vertical fader
+       under the play button. Only one is shown per breakpoint. */
+    .board-card__volume--fader {
+      display: none;
+    }
+
     .board-card__play-wrap {
       position: relative;
       display: inline-flex;
@@ -657,6 +743,7 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
       grid-template-columns: minmax(0, 1fr) minmax(200px, 300px);
       gap: 12px;
       align-items: center;
+      min-width: 0;
     }
 
     .board-card__meta-line {
@@ -704,6 +791,30 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
       transform: rotate(180deg);
     }
 
+    /* Bottom expand affordance (phone carousel): tap the chevron to toggle. */
+    .board-card__expand-hint {
+      display: none;
+      width: 100%;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      margin-top: 4px;
+      border: none;
+      background: transparent;
+      color: var(--app-text-soft);
+      cursor: pointer;
+    }
+
+    .board-card__expand-hint-icon {
+      font-size: 22px;
+      line-height: 0.5;
+      transition: transform 0.2s ease;
+    }
+
+    .board-card--expanded .board-card__expand-hint-icon {
+      transform: rotate(180deg);
+    }
+
     .board-icon-btn {
       width: 36px;
       height: 36px;
@@ -731,20 +842,33 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
       margin-top: 10px;
     }
 
+    /* Expand/collapse animates real height via grid 0fr→1fr (no max-height
+       jank, symmetric, no collapse delay). Inner clips during the transition;
+       selects/settings are fixed/CDK overlays so they're never clipped, and
+       there's no display toggle so the player keeps playing while collapsed. */
     .board-card__details {
-      max-height: 0;
+      display: grid;
+      grid-template-rows: 0fr;
       opacity: 0;
-      overflow: hidden;
       pointer-events: none;
-      transition: max-height 0.22s ease, opacity 0.18s ease, margin-top 0.18s ease;
+      transition:
+        grid-template-rows 0.26s cubic-bezier(0.4, 0, 0.2, 1),
+        opacity 0.18s ease;
     }
 
     .board-card__details--open {
-      max-height: 1200px;
+      grid-template-rows: 1fr;
       opacity: 1;
-      overflow: visible;
       pointer-events: auto;
-      margin-top: 12px;
+    }
+
+    /* Inline padding (cancelled by the negative margin) keeps focus rings from
+       being clipped by the overflow used for the height animation. */
+    .board-card__details-inner {
+      min-height: 0;
+      overflow: hidden;
+      padding: 12px 4px 0;
+      margin-inline: -4px;
     }
 
     .board-card__main {
@@ -1110,13 +1234,51 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
       }
     }
 
-    @media (max-width: 840px) {
+    /* Narrow phones only: vertical fader + compact stacked layout. 560–900
+       keeps the horizontal desktop-style row, which uses the width better. */
+    @media (max-width: 560px) {
+      /* Actions stay in the top-right corner; content fills the rest. */
       .board-card__summary {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: start;
+      }
+
+      .board-card__summary-left {
+        align-items: start;
       }
 
       .board-card__summary-actions {
         justify-content: flex-end;
+      }
+
+      /* Meta reads as a definition list (key left, value right, thin
+         separators) rather than pills. */
+      .board-card__meta-line {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+      }
+
+      .board-card__meta-line ::ng-deep ui-chip {
+        display: block;
+      }
+
+      .board-card__meta-line ::ng-deep .ui-chip {
+        width: 100%;
+        max-width: none;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 7px 2px;
+        background: transparent;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        border-bottom: 1px solid rgba(122, 66, 32, 0.14);
+      }
+
+      .board-card__meta-line ::ng-deep ui-chip:last-child .ui-chip {
+        border-bottom: none;
       }
 
       .board-card__header {
@@ -1127,26 +1289,33 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
       .board-card__header-actions {
         justify-content: flex-end;
       }
-    }
-
-    @media (max-width: 720px) {
-      .board-card {
-        padding: 12px;
-      }
 
       .board-card__controls {
         grid-template-columns: 1fr;
       }
 
-      .board-card__meta-line {
-        gap: 8px;
+      /* Swap the horizontal bottom-row volume for the vertical fader. */
+      .board-card__volume--bar {
+        display: none;
       }
 
+      .board-card__volume--fader {
+        display: block;
+      }
+
+      /* Toggle via the bottom chevron; top-right keeps just delete. */
+      .board-card__chevron {
+        display: none;
+      }
+
+      .board-card__expand-hint {
+        display: flex;
+      }
     }
 
     @media (max-width: 480px) {
-      .board-card__summary-left {
-        grid-template-columns: auto minmax(0, 1fr);
+      .board-card {
+        padding: 12px;
       }
     }
   `],
@@ -1202,6 +1371,9 @@ export class BoardCardComponent implements OnInit {
   readonly requestPlay = output<void>();
 
   readonly settingsOpen = signal(false);
+  /** Mobile only: plays the settings sheet's slide-down before it's removed. */
+  readonly settingsClosing = signal(false);
+  private settingsCloseTimer: ReturnType<typeof setTimeout> | null = null;
   readonly expanded = signal(false);
   readonly renaming = signal(false);
   readonly renameValue = signal('');
@@ -1396,25 +1568,56 @@ export class BoardCardComponent implements OnInit {
   // The board state is only Single or Playlist; sequence is surfaced through the
   // loop ribbon, not as a board state.
   readonly modeChipLabel = computed(() =>
-    this.playlistMode() ? '♫ Playlist' : '♫ Single',
+    this.playlistMode() ? 'Playlist' : 'Single',
+  );
+
+  readonly modeIconName = computed<UiIconName>(() =>
+    this.playlistMode() ? 'playlist' : 'single',
+  );
+
+  readonly modeChipTooltip = computed(() =>
+    this.playlistMode() ? 'Playlist mode' : 'Single-track mode',
   );
 
   // Always-present loop ribbon. In playlist mode each track plays to its end, so
   // looping is fixed to "whole track".
   readonly loopRibbonLabel = computed(() => {
-    if (this.playlistMode()) return 'Loop: Whole playback';
+    if (this.playlistMode()) return 'Whole';
     switch (this.loopMode()) {
       case 'whole':
-        return 'Loop: Whole playback';
+        return 'Whole';
       case 'sequence':
-        return 'Loop: Window sequence';
+        return 'Sequence';
       default:
-        return 'Loop: Off';
+        return 'Off';
+    }
+  });
+
+  /** Full loop wording for the chip tooltip — the visible label is iconified. */
+  readonly loopRibbonTooltip = computed(() => {
+    if (this.playlistMode()) return 'Loop: whole playback';
+    switch (this.loopMode()) {
+      case 'whole':
+        return 'Loop: whole playback';
+      case 'sequence':
+        return 'Loop: window sequence';
+      default:
+        return 'Loop: off';
     }
   });
 
   readonly randomRibbonLabel = computed(() =>
-    this.playlistOptions().random ? 'Random: On' : 'Random: Off',
+    this.playlistOptions().random ? 'Shuffle' : 'In order',
+  );
+
+  readonly randomIconName = computed<UiIconName>(() =>
+    this.playlistOptions().random ? 'shuffle' : 'ordered',
+  );
+
+  readonly randomRibbonTooltip = computed(() =>
+    this.playlistOptions().random
+      ? 'Shuffle the group'
+      : 'Play the group in order',
   );
 
   readonly canStartPlayback = computed(() => {
@@ -1530,12 +1733,23 @@ export class BoardCardComponent implements OnInit {
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly elementRef = inject(ElementRef<HTMLElement>);
+  private readonly scrollLock = inject(ScrollLockService);
   constructor() {
     effect(() => {
       const pct = this.volumePercent();
       this.displayedVolumePercent.set(clampPct(pct));
     });
 
+    // On mobile the settings popover is a bottom sheet that owns the screen:
+    // lock background scroll and (via the shared body class) hide the bottom nav
+    // so it doesn't overlap the sheet. Ref-counted, mobile only.
+    effect((onCleanup) => {
+      if (!this.settingsOpen()) return;
+      if (typeof window === 'undefined') return;
+      if (!window.matchMedia('(max-width: 640px)').matches) return;
+      this.scrollLock.lock();
+      onCleanup(() => this.scrollLock.unlock());
+    });
   }
 
   ngOnInit(): void {
@@ -1599,9 +1813,11 @@ export class BoardCardComponent implements OnInit {
   }
 
   onDocumentClick(event: MouseEvent): void {
+    if (!this.settingsOpen()) return;
     if (!(event.target instanceof Node)) return;
     if (!this.elementRef.nativeElement.contains(event.target)) {
-      this.closeSettingsMenu();
+      // Use the animated close; guarded so it doesn't race the backdrop click.
+      this.animateCloseSettings();
     }
   }
 
@@ -1640,11 +1856,43 @@ export class BoardCardComponent implements OnInit {
 
   toggleSettingsMenu(event: MouseEvent): void {
     event.stopPropagation();
-    this.settingsOpen.update(v => !v);
+    if (this.settingsOpen()) {
+      this.animateCloseSettings();
+      return;
+    }
+    if (this.settingsCloseTimer) {
+      clearTimeout(this.settingsCloseTimer);
+      this.settingsCloseTimer = null;
+    }
+    this.settingsClosing.set(false);
+    this.settingsOpen.set(true);
+  }
+
+  /**
+   * Close the settings popover. On mobile (where it's a bottom sheet) play a
+   * slide-down first, mirroring the open animation, then remove it.
+   */
+  animateCloseSettings(): void {
+    if (this.settingsClosing()) return;
+
+    const isMobile =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(max-width: 640px)').matches;
+    if (!isMobile) {
+      this.closeSettingsMenu();
+      return;
+    }
+
+    this.settingsClosing.set(true);
+    this.settingsCloseTimer = setTimeout(() => {
+      this.settingsCloseTimer = null;
+      this.closeSettingsMenu();
+    }, 200);
   }
 
   closeSettingsMenu(): void {
     this.settingsOpen.set(false);
+    this.settingsClosing.set(false);
     this.endShortcutCapture();
   }
 
@@ -1690,6 +1938,20 @@ export class BoardCardComponent implements OnInit {
     }
 
     this.play.emit();
+  }
+
+  /** Double-tap / double-click on empty card space toggles play. */
+  onCardActivate(event: MouseEvent): void {
+    const target = event.target as HTMLElement | null;
+    if (!target) return;
+    if (
+      target.closest(
+        'button, a, input, select, textarea, ui-select, ui-inline-select, ui-volume-slider, .board-card__title-wrap',
+      )
+    ) {
+      return;
+    }
+    this.onPrimaryAction();
   }
 
 

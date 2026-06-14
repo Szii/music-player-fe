@@ -162,10 +162,13 @@
 }
 
 @media (max-width: 768px) {
+  /* Keep the panel anchored to the trigger's right edge (it sits near the
+     screen edge) and clamp it to the viewport so it never overflows. */
   .sd__panel {
-    right: auto;
-    left: 0;
-    min-width: 100%;
+    right: 0;
+    left: auto;
+    min-width: 0;
+    max-width: min(320px, calc(100vw - 20px));
   }
 
   .sd__trigger {

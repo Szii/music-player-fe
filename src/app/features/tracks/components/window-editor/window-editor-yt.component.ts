@@ -301,7 +301,7 @@ const CROSSFADE_STEP_MS = FADE_STEP_MS * 2;
       align-items: stretch;
     }
 
-    @media (max-width: 880px) {
+    @media (max-width: 900px) {
       .we-info__grid { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
       .we-volume { grid-column: 1 / -1; }
     }

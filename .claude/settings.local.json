@@ -4,7 +4,10 @@
       "Bash(xargs grep:*)",
       "Bash(npx tsc:*)",
       "Bash(grep -E \"\\\\.\\(scss|css\\)$\")",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "WebSearch",
+      "WebFetch(domain:www.nngroup.com)",
+      "WebFetch(domain:www.uxmatters.com)"
     ]
   }
 }

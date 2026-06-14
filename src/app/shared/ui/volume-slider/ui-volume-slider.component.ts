@@ -4,7 +4,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
   selector: 'ui-volume-slider',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="ui-volume-slider">
+    <div class="ui-volume-slider" [class.ui-volume-slider--vertical]="vertical()">
       <span class="ui-volume-slider__icon" aria-hidden="true">
         <svg viewBox="0 0 20 20" width="14" height="14">
           <path d="M3 8v4h3l4 3V5L6 8H3z" fill="currentColor" />
@@ -17,22 +17,24 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
           />
         </svg>
       </span>
-      <input
-        #range
-        type="range"
-        class="ui-volume-slider__range app-range"
-        min="0"
-        max="100"
-        step="1"
-        [value]="value()"
-        [style.--app-range-fill.%]="value()"
-        [disabled]="disabled()"
-        [attr.aria-label]="ariaLabel()"
-        (input)="onInput($event)"
-        (change)="onCommit($event)"
-        (mouseup)="range.blur()"
-        (touchend)="range.blur()"
-      />
+      <span class="ui-volume-slider__track-wrap">
+        <input
+          #range
+          type="range"
+          class="ui-volume-slider__range app-range"
+          min="0"
+          max="100"
+          step="1"
+          [value]="value()"
+          [style.--app-range-fill.%]="value()"
+          [disabled]="disabled()"
+          [attr.aria-label]="ariaLabel()"
+          (input)="onInput($event)"
+          (change)="onCommit($event)"
+          (mouseup)="range.blur()"
+          (touchend)="range.blur()"
+        />
+      </span>
       <span class="ui-volume-slider__value">{{ value() }}%</span>
     </div>
   `,
@@ -60,6 +62,12 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
         color: var(--app-primary);
       }
 
+      .ui-volume-slider__track-wrap {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+      }
+
       .ui-volume-slider__range {
         width: 100%;
       }
@@ -72,6 +80,34 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
         min-width: 36px;
         text-align: right;
       }
+
+      /* Vertical fader — the horizontal range is rotated so all the existing
+         track/thumb styling carries over unchanged. */
+      .ui-volume-slider--vertical {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        height: auto;
+        width: 48px;
+        padding: 10px 4px;
+        gap: 8px;
+      }
+
+      .ui-volume-slider--vertical .ui-volume-slider__track-wrap {
+        width: 24px;
+        height: 116px;
+        justify-content: center;
+      }
+
+      .ui-volume-slider--vertical .ui-volume-slider__range {
+        width: 116px;
+        transform: rotate(-90deg);
+      }
+
+      .ui-volume-slider--vertical .ui-volume-slider__value {
+        min-width: 0;
+        text-align: center;
+      }
     `,
   ],
 })
@@ -79,6 +115,8 @@ export class UiVolumeSliderComponent {
   readonly value = input<number>(100);
   readonly disabled = input<boolean>(false);
   readonly ariaLabel = input<string>('Volume');
+  /** Render as an upright fader (used in the compact mobile board layout). */
+  readonly vertical = input<boolean>(false);
 
   readonly preview = output<number>();
   readonly commit = output<number>();
