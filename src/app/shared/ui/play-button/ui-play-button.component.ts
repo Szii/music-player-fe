@@ -28,6 +28,7 @@ export type PlayButtonSize = 'sm' | 'md' | 'lg';
           </svg>
         }
       </span>
+
       @if (label()) {
         <span class="ui-play-button__label">{{ playing() ? stopLabel() : label() }}</span>
       }
@@ -35,6 +36,7 @@ export type PlayButtonSize = 'sm' | 'md' | 'lg';
   `,
   styles: [
     `
+  
       :host {
         display: inline-block;
       }
