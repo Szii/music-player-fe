@@ -231,7 +231,7 @@ const CROSSFADE_STEP_MS = FADE_STEP_MS * 2;
           <app-board-player-yt-deck
             #deck
             class="we-preview__deck"
-            [title]="windowName() || 'Preview'"
+            [title]="windowName() || ''"
             [hasTrack]="!!videoId()"
             [trackId]="0"
             [videoId]="videoId()"
