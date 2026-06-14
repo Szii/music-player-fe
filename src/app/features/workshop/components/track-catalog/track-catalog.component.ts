@@ -15,6 +15,7 @@ import {
 } from '../../../../shared/ui/data-table/ui-data-table.component';
 import { UiListToolbarComponent } from '../../../../shared/ui/list-toolbar/ui-list-toolbar.component';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
+import { persistentSignal } from '../../../../shared/utils/persistent-signal';
 
 type CatalogFilterMode = 'all' | 'available' | 'subscribed';
 
@@ -213,8 +214,8 @@ export class TrackCatalogComponent {
   readonly unsubscribe = output<Track>();
 
   readonly search = signal('');
-  readonly filterMode = signal<CatalogFilterMode>('all');
-  readonly sortMode = signal<TrackCatalogSortMode>('nameAsc');
+  readonly filterMode = persistentSignal<CatalogFilterMode>('mpf:workshop:catalog:filter', 'all');
+  readonly sortMode = persistentSignal<TrackCatalogSortMode>('mpf:workshop:catalog:sort', 'nameAsc');
 
   readonly filterOptions = [
     { label: 'All tracks', value: 'all' },

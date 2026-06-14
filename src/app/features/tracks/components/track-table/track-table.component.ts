@@ -15,6 +15,7 @@ import {
 } from '../../../../shared/ui/data-table/ui-data-table.component';
 import { UiListToolbarComponent } from '../../../../shared/ui/list-toolbar/ui-list-toolbar.component';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
+import { persistentSignal } from '../../../../shared/utils/persistent-signal';
 
 type TrackFilterMode =
   | 'all'
@@ -284,8 +285,8 @@ export class TrackTableComponent {
   readonly windows = output<Track>();
 
   readonly search = signal('');
-  readonly filterMode = signal<TrackFilterMode>('own');
-  readonly sortMode = signal<TrackSortMode>('nameAsc');
+  readonly filterMode = persistentSignal<TrackFilterMode>('mpf:tracks:filter', 'own');
+  readonly sortMode = persistentSignal<TrackSortMode>('mpf:tracks:sort', 'nameAsc');
 
   readonly filterOptions = [
     { label: 'All tracks', value: 'all' },

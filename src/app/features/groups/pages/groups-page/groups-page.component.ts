@@ -15,6 +15,7 @@ import {
   GroupTracksEditorComponent,
   GroupTracksSaveEvent,
 } from '../../components/group-tracks-editor/group-tracks-editor.component';
+import { persistentSignal } from '../../../../shared/utils/persistent-signal';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { UiCreateCtaComponent } from '../../../../shared/ui/create-cta/ui-create-cta.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
@@ -69,11 +70,11 @@ type GroupSortMode =
         <ui-list-toolbar
           [(search)]="search"
           searchPlaceholder="Search groups"
-          [filterValue]="filterMode"
+          [filterValue]="filterMode()"
           [filterOptions]="filterOptions"
           filterLabel="Filter"
           (filterValueChange)="setFilterMode($event)"
-          [sortValue]="sortMode"
+          [sortValue]="sortMode()"
           [sortOptions]="sortOptions"
           (sortValueChange)="setSortMode($event)"
           [filteredCount]="filteredGroups().length"
@@ -184,8 +185,8 @@ export class GroupsPageComponent implements OnInit {
   editingGroup: Group | null = null;
 
   search = '';
-  filterMode: GroupFilterMode = 'all';
-  sortMode: GroupSortMode = 'nameAsc';
+  readonly filterMode = persistentSignal<GroupFilterMode>('mpf:groups:filter', 'all');
+  readonly sortMode = persistentSignal<GroupSortMode>('mpf:groups:sort', 'nameAsc');
 
   readonly filterOptions = [
     { label: 'All groups', value: 'all' },
@@ -208,17 +209,17 @@ export class GroupsPageComponent implements OnInit {
   }
 
   setFilterMode(value: unknown): void {
-    this.filterMode = value as GroupFilterMode;
+    this.filterMode.set(value as GroupFilterMode);
   }
 
   setSortMode(value: unknown): void {
-    this.sortMode = value as GroupSortMode;
+    this.sortMode.set(value as GroupSortMode);
   }
 
   filteredGroups(): Group[] {
     const query = this.search.trim().toLowerCase();
-    const filter = this.filterMode;
-    const sort = this.sortMode;
+    const filter = this.filterMode();
+    const sort = this.sortMode();
 
     const filtered = this.groups.filter(group => {
       const trackCount = this.getTrackIds(group).length;

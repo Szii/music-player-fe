@@ -307,11 +307,12 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
                     [cdkConnectedOverlayPush]="true"
                     [cdkConnectedOverlayFlexibleDimensions]="true"
                     [cdkConnectedOverlayViewportMargin]="12"
-                    (backdropClick)="closeSettingsMenu()"
+                    (backdropClick)="animateCloseSettings()"
                     (detach)="closeSettingsMenu()">
                     <div
                       #settingsSheet
                       class="board-settings-menu"
+                      [class.board-settings-menu--closing]="settingsClosing()"
                       (click)="$event.stopPropagation()">
                       <button
                         type="button"
@@ -1370,6 +1371,9 @@ export class BoardCardComponent implements OnInit {
   readonly requestPlay = output<void>();
 
   readonly settingsOpen = signal(false);
+  /** Mobile only: plays the settings sheet's slide-down before it's removed. */
+  readonly settingsClosing = signal(false);
+  private settingsCloseTimer: ReturnType<typeof setTimeout> | null = null;
   readonly expanded = signal(false);
   readonly renaming = signal(false);
   readonly renameValue = signal('');
@@ -1809,9 +1813,11 @@ export class BoardCardComponent implements OnInit {
   }
 
   onDocumentClick(event: MouseEvent): void {
+    if (!this.settingsOpen()) return;
     if (!(event.target instanceof Node)) return;
     if (!this.elementRef.nativeElement.contains(event.target)) {
-      this.closeSettingsMenu();
+      // Use the animated close; guarded so it doesn't race the backdrop click.
+      this.animateCloseSettings();
     }
   }
 
@@ -1850,11 +1856,43 @@ export class BoardCardComponent implements OnInit {
 
   toggleSettingsMenu(event: MouseEvent): void {
     event.stopPropagation();
-    this.settingsOpen.update(v => !v);
+    if (this.settingsOpen()) {
+      this.animateCloseSettings();
+      return;
+    }
+    if (this.settingsCloseTimer) {
+      clearTimeout(this.settingsCloseTimer);
+      this.settingsCloseTimer = null;
+    }
+    this.settingsClosing.set(false);
+    this.settingsOpen.set(true);
+  }
+
+  /**
+   * Close the settings popover. On mobile (where it's a bottom sheet) play a
+   * slide-down first, mirroring the open animation, then remove it.
+   */
+  animateCloseSettings(): void {
+    if (this.settingsClosing()) return;
+
+    const isMobile =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(max-width: 640px)').matches;
+    if (!isMobile) {
+      this.closeSettingsMenu();
+      return;
+    }
+
+    this.settingsClosing.set(true);
+    this.settingsCloseTimer = setTimeout(() => {
+      this.settingsCloseTimer = null;
+      this.closeSettingsMenu();
+    }, 200);
   }
 
   closeSettingsMenu(): void {
     this.settingsOpen.set(false);
+    this.settingsClosing.set(false);
     this.endShortcutCapture();
   }
 

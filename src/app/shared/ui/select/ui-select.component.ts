@@ -225,9 +225,11 @@ interface PanelRect {
       transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
     }
 
-    .sel__trigger:hover:not(:disabled) {
-      border-color: var(--app-border-color);
-      background: #f5edd8;
+    @media (hover: hover) {
+      .sel__trigger:hover:not(:disabled) {
+        border-color: var(--app-border-color);
+        background: #f5edd8;
+      }
     }
 
     .sel__trigger:focus-visible {
@@ -564,6 +566,7 @@ export class UiSelectComponent implements ControlValueAccessor {
   @ViewChild('trigger') triggerRef?: ElementRef<HTMLButtonElement>;
   @ViewChild('searchInput') searchInputRef?: ElementRef<HTMLInputElement>;
   @ViewChild('optionsList') optionsListRef?: ElementRef<HTMLElement>;
+  @ViewChild(BottomSheetDragDirective) private sheetDrag?: BottomSheetDragDirective;
 
   private onChange: (v: any) => void = () => {};
   private onTouched: () => void = () => {};
@@ -837,7 +840,12 @@ export class UiSelectComponent implements ControlValueAccessor {
   onScrimDown(event: Event): void {
     event.preventDefault();
     event.stopPropagation();
-    this.dismissSheet();
+    // Slide the sheet out (same as drag/handle close) before removing it.
+    if (this.sheetDrag) {
+      this.sheetDrag.close();
+    } else {
+      this.dismissSheet();
+    }
   }
 
   /** Close the sheet (scrim tap or handle drag/tap) without re-focusing. */

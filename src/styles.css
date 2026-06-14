@@ -713,31 +713,33 @@ input[type="range"].app-range--seek::-webkit-slider-thumb {
   transition: background 0.12s ease, color 0.12s ease;
 }
 
-.app-popover-item:hover,
-.app-popover-item--highlighted {
-  background: var(--app-primary-soft);
-  color: var(--app-heading);
-}
-
 .app-popover-item--selected {
   background: rgba(88, 24, 13, 0.06);
   color: var(--app-primary);
   font-weight: 600;
 }
 
-.app-popover-item--selected:hover,
-.app-popover-item--selected.app-popover-item--highlighted {
-  background: var(--app-primary-soft);
-  color: var(--app-heading);
-}
-
 .app-popover-item--danger {
   color: var(--app-danger);
 }
 
-.app-popover-item--danger:hover {
-  background: var(--app-danger-soft);
-  color: var(--app-danger);
+/* Hover + keyboard-highlight only on devices with a real pointer/keyboard. On
+   touch there's no hover (the style would stick after a tap) and no arrow-key
+   navigation, so the auto-highlight just looks like a stuck selection. The
+   genuine `--selected` row (with its check) still shows everywhere. */
+@media (hover: hover) {
+  .app-popover-item:hover,
+  .app-popover-item--highlighted,
+  .app-popover-item--selected:hover,
+  .app-popover-item--selected.app-popover-item--highlighted {
+    background: var(--app-primary-soft);
+    color: var(--app-heading);
+  }
+
+  .app-popover-item--danger:hover {
+    background: var(--app-danger-soft);
+    color: var(--app-danger);
+  }
 }
 
 /* Board playback-settings popover → bottom sheet on phones, matching the select
@@ -776,6 +778,11 @@ input[type="range"].app-range--seek::-webkit-slider-thumb {
     animation: board-sheet-up 0.22s ease;
   }
 
+  /* Slide back down on close (scrim tap / ⚙ toggle), mirroring the open. */
+  .cdk-overlay-pane.board-settings-pane .board-settings-menu--closing {
+    animation: board-sheet-down 0.2s ease forwards;
+  }
+
   /* Drag/tap handle at the top of the sheet (drag down or tap to close). */
   .cdk-overlay-pane.board-settings-pane .board-settings-menu__handle {
     display: flex;
@@ -805,6 +812,11 @@ input[type="range"].app-range--seek::-webkit-slider-thumb {
 @keyframes board-sheet-up {
   from { transform: translateY(100%); }
   to   { transform: translateY(0); }
+}
+
+@keyframes board-sheet-down {
+  from { transform: translateY(0); }
+  to   { transform: translateY(100%); }
 }
 
 /* Navbar */

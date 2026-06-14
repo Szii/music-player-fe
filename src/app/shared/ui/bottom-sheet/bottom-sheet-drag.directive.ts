@@ -96,9 +96,7 @@ export class BottomSheetDragDirective {
 
     // A tap (no real movement) closes too.
     if (!this.moved || passedDistance || flickedDown) {
-      sheet.style.transition = 'transform 0.2s ease';
-      sheet.style.transform = 'translateY(100%)';
-      window.setTimeout(() => this.dismiss.emit(), 190);
+      this.close();
       return;
     }
 
@@ -109,5 +107,13 @@ export class BottomSheetDragDirective {
       sheet.style.transition = '';
       sheet.style.transform = '';
     }, 200);
+  }
+
+  /** Animate the sheet out and dismiss — e.g. from a scrim / outside tap. */
+  close(): void {
+    const sheet = this.sheet();
+    sheet.style.transition = 'transform 0.2s ease';
+    sheet.style.transform = 'translateY(100%)';
+    window.setTimeout(() => this.dismiss.emit(), 190);
   }
 }

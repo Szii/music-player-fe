@@ -11,6 +11,7 @@ import { Group, Track } from '../../../../api/generated';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
 import { UiListToolbarComponent } from '../../../../shared/ui/list-toolbar/ui-list-toolbar.component';
+import { persistentSignal } from '../../../../shared/utils/persistent-signal';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 
 export interface GroupTracksSaveEvent {
@@ -509,7 +510,7 @@ export class GroupTracksEditorComponent {
   readonly browseWorkshop = output<void>();
 
   readonly search = signal('');
-  readonly filterMode = signal<TrackFilterMode>('all');
+  readonly filterMode = persistentSignal<TrackFilterMode>('mpf:groups:editor:filter', 'all');
   readonly selectedIds = signal<ReadonlySet<number>>(new Set<number>());
 
   readonly filterOptions = [

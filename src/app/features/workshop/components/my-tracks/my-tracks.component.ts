@@ -14,6 +14,7 @@ import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-butt
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
 import { UiListToolbarComponent } from '../../../../shared/ui/list-toolbar/ui-list-toolbar.component';
+import { persistentSignal } from '../../../../shared/utils/persistent-signal';
 import {
   UiDataTableColumn,
   UiDataTableComponent,
@@ -501,7 +502,7 @@ export class MyTracksComponent {
   readonly publishTrack = signal<Track | null>(null);
   readonly publishDesc = signal('');
   readonly search = signal('');
-  readonly filterMode = signal<PublishFilterMode>('all');
+  readonly filterMode = persistentSignal<PublishFilterMode>('mpf:workshop:mytracks:filter', 'all');
 
   setFilterMode(value: unknown): void {
     this.filterMode.set(value as PublishFilterMode);
