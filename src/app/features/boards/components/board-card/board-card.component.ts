@@ -1211,19 +1211,73 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
     /* Narrow phones only: vertical fader + compact stacked layout. 560–900
        keeps the horizontal desktop-style row, which uses the width better. */
     @media (max-width: 560px) {
-      /* Actions stay in the top-right corner; content fills the rest. */
+      /* Delete floats in the top-right corner instead of reserving a column,
+         so the play/title, ribbons, info and volume all span the full board
+         width and simply flow underneath it. */
       .board-card__summary {
-        grid-template-columns: minmax(0, 1fr) auto;
+        position: relative;
+        grid-template-columns: minmax(0, 1fr);
         gap: 10px;
-        align-items: start;
-      }
-
-      .board-card__summary-left {
-        align-items: start;
       }
 
       .board-card__summary-actions {
-        justify-content: flex-end;
+        position: absolute;
+        top: 0;
+        right: 0;
+        z-index: 1;
+      }
+
+      /* Three stacked zones, each on its own full-width row:
+           1. header  — play/stop control + board name
+           2. ribbons — board-state chips (mode / loop / overplay / shortcut)
+           3. info    — now-playing list (group/track/window) + volume
+         Flattening summary-content and summary-top lets their children take
+         part directly in this grid. */
+      .board-card__summary-left {
+        align-items: center;
+        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-areas:
+          'play  title'
+          'ribbons ribbons'
+          'info  info';
+        column-gap: 12px;
+        row-gap: 12px;
+      }
+
+      .board-card__summary-content,
+      .board-card__summary-top {
+        display: contents;
+      }
+
+      .board-card__transport {
+        grid-area: play;
+      }
+
+      .board-card__title-wrap {
+        grid-area: title;
+        /* Keep the name clear of the floated delete button in the corner. */
+        padding-right: 3rem;
+      }
+
+      .board-card__feature-chips {
+        grid-area: ribbons;
+        gap: 5px;
+      }
+
+      /* Compact state ribbons so the whole row stays tidy on phones. */
+      .board-card__feature-chips ::ng-deep .ui-chip--hex.ui-chip--sm {
+        padding: 2px 11px;
+        font-size: 9px;
+        gap: 3px;
+      }
+
+      .board-card__feature-chips .ribbon-ico {
+        font-size: 1.1em;
+        margin-right: 3px;
+      }
+
+      .board-card__summary-bottom {
+        grid-area: info;
       }
 
       /* Meta reads as a definition list (key left, value right, thin
@@ -1240,15 +1294,17 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
         max-width: 100%;
       }
 
-      /* Block-level flex (not inline-flex) so the row is bounded to the card and
-         the value truncates instead of sizing to its (long) text. */
+      /* Block-level flex (not inline-flex) so the row is bounded to the card.
+         Key sits in a fixed left column; the value fills the rest and wraps
+         instead of truncating, so it stays fully readable at any width. */
       .board-card__meta-line ::ng-deep .ui-chip {
         display: flex;
         width: 100%;
         max-width: 100%;
         min-width: 0;
-        justify-content: space-between;
-        gap: 12px;
+        align-items: baseline;
+        justify-content: flex-start;
+        gap: 10px;
         padding: 7px 2px;
         background: transparent;
         border: none;
@@ -1257,13 +1313,36 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
         border-bottom: 1px solid rgba(122, 66, 32, 0.14);
       }
 
+      .board-card__meta-line ::ng-deep .ui-chip__key {
+        flex: 0 0 4.5em;
+      }
+
+      .board-card__meta-line ::ng-deep .ui-chip__body {
+        flex: 1 1 auto;
+        min-width: 0;
+        text-align: left;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        /* Show at most two lines, then ellipsis (full text stays in tooltip). */
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        overflow: hidden;
+      }
+
       .board-card__meta-line ::ng-deep ui-chip:last-child .ui-chip {
         border-bottom: none;
       }
 
       .board-card__header {
-        flex-direction: column;
-        align-items: stretch;
+        /* space-between: when both fit, switch left / gear right; when too
+           narrow the gear wraps and (alone on its line) sits flush left. */
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
       }
 
       .board-card__header-actions {
@@ -1274,13 +1353,21 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
         grid-template-columns: minmax(0, 1fr);
       }
 
-      /* Swap the horizontal bottom-row volume for the vertical fader. */
-      .board-card__volume--bar {
+      /* Volume is a full-width horizontal bar at the bottom of the info zone. */
+      .board-card__volume--fader {
         display: none;
       }
 
-      .board-card__volume--fader {
+      .board-card__volume--bar {
         display: block;
+        width: 100%;
+        max-width: 20rem;
+        justify-self: center;
+        margin-inline: auto;
+      }
+
+      .board-card__summary-bottom {
+        row-gap: 14px;
       }
 
       /* Toggle via the bottom chevron; top-right keeps just delete. */
@@ -1617,7 +1704,7 @@ export class BoardCardComponent implements OnInit {
     if (this.playlistMode()) return 'Auto';
     const w = this.selectedWindow() as any;
     if (!w) return 'Whole playback';
-    return `${w.name || 'Window'} (${this.formatTime(w.positionFrom ?? 0)}–${this.formatTime(w.positionTo ?? 0)})`;
+    return w.name || 'Window';
   });
 
   /** Windows belonging to the selected track; sequencing needs at least two. */
@@ -1685,7 +1772,7 @@ export class BoardCardComponent implements OnInit {
               value: { trackId: t.id ?? null, windowId: null },
             },
             ...trackWindows.map(w => ({
-              label: `${(w as any).name || 'Window'} (${this.formatTime((w as any).positionFrom ?? 0)}–${this.formatTime((w as any).positionTo ?? 0)})`,
+              label: (w as any).name || 'Window',
               value: { trackId: t.id ?? null, windowId: (w as any).id ?? null },
             })),
           ]
@@ -1702,7 +1789,7 @@ export class BoardCardComponent implements OnInit {
 
   readonly windowOptions = computed(() =>
     this.windows().map(w => ({
-      label: `${(w as any).name || 'Window #' + (w as any).id} (${this.formatTime((w as any).positionFrom ?? 0)}–${this.formatTime((w as any).positionTo ?? 0)})`,
+      label: (w as any).name || 'Window #' + (w as any).id,
       value: (w as any).id,
     })),
   );
@@ -1931,19 +2018,6 @@ export class BoardCardComponent implements OnInit {
   }
 
 
-
-  formatTime(s: number): string {
-    const safe = Math.max(0, Math.floor(s));
-    const h = Math.floor(safe / 3600);
-    const m = Math.floor((safe % 3600) / 60);
-    const sec = safe % 60;
-
-    if (h > 0) {
-      return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-    }
-
-    return `${m}:${String(sec).padStart(2, '0')}`;
-  }
 
   private getPlaylistCandidates(groupId: number | null): Track[] {
     const unique = new Map<number, Track>();

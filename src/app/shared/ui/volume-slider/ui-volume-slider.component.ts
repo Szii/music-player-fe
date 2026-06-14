@@ -95,12 +95,12 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 
       .ui-volume-slider--vertical .ui-volume-slider__track-wrap {
         width: 24px;
-        height: 116px;
+        height: 93px;
         justify-content: center;
       }
 
       .ui-volume-slider--vertical .ui-volume-slider__range {
-        width: 116px;
+        width: 93px;
         transform: rotate(-90deg);
       }
 

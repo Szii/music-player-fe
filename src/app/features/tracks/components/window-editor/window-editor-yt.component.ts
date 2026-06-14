@@ -29,7 +29,6 @@ import {
   formatFadeMs,
   maxFadeForWindow,
 } from '../../utils/fade';
-import { persistentSignal } from '../../../../shared/utils/persistent-signal';
 
 /** Result emitted when a window (or whole-track fades) is applied. */
 export interface WindowEditorResult {
@@ -157,7 +156,7 @@ const CROSSFADE_STEP_MS = FADE_STEP_MS * 2;
         </div>
       }
 
-      @if (durationS() > 0) {
+      @if (durationS() > 0 && loopPreview()) {
         <div class="we-section we-fades">
           <div class="we-fade">
             <div class="we-fade__head">
@@ -205,27 +204,6 @@ const CROSSFADE_STEP_MS = FADE_STEP_MS * 2;
               Full track
             </button>
 
-            <button
-              type="button"
-              class="we-pill we-preview__loop"
-              [class.we-pill--active]="loopEnabled()"
-              [attr.aria-pressed]="loopEnabled()"
-              (click)="toggleLoop()"
-              title="Loop the preview and apply crossfade"
-            >
-              <svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true">
-                <path
-                  d="M6 5h7a3 3 0 0 1 3 3v1M14 15H7a3 3 0 0 1-3-3v-1"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                />
-                <path d="M4 4l2.5 2.5L4 9" fill="currentColor" />
-                <path d="M16 16l-2.5-2.5L16 11" fill="currentColor" />
-              </svg>
-              Loop
-            </button>
           </div>
 
           <app-board-player-yt-deck
@@ -242,7 +220,7 @@ const CROSSFADE_STEP_MS = FADE_STEP_MS * 2;
             [hasSelectedWindow]="previewMode() === 'selection'"
             [windowFadeInMs]="fadeInMs()"
             [windowFadeOutMs]="fadeOutMs()"
-            [repeat]="loopEnabled()"
+            [repeat]="loopPreview()"
             [masterVolume]="masterVolume()"
             [masterFadeRampMs]="fadeInMs()"
             [showPrimaryButton]="true"
@@ -331,18 +309,23 @@ const CROSSFADE_STEP_MS = FADE_STEP_MS * 2;
     .we-info { padding: 8px 12px; }
 
     .we-info__grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(120px, max-content)) minmax(200px, 1fr);
+      display: flex;
+      flex-wrap: wrap;
       gap: 8px;
       align-items: stretch;
     }
 
+    /* The volume takes the leftover space on the row and drops to its own line
+       only when the cards no longer leave room for it. */
+    .we-volume { flex: 1 1 200px; min-width: 200px; }
+
     @media (max-width: 900px) {
-      .we-info__grid { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
-      .we-volume { grid-column: 1 / -1; }
+      .we-volume { flex-basis: 100%; }
     }
 
     .we-card {
+      /* Size to content — no stretching to fill leftover width. */
+      flex: 0 0 auto;
       display: flex;
       flex-direction: column;
       gap: 2px;
@@ -392,7 +375,7 @@ const CROSSFADE_STEP_MS = FADE_STEP_MS * 2;
       padding: 0 2px;
     }
 
-    .we-card__nudge-group { display: inline-flex; gap: 3px; }
+    .we-card__nudge-group { display: inline-flex; flex-direction: column-reverse; gap: 3px; }
 
     .we-nudge {
       width: 22px;
@@ -455,8 +438,6 @@ const CROSSFADE_STEP_MS = FADE_STEP_MS * 2;
     }
 
     .we-preview__modes { display: flex; align-items: center; gap: 8px; }
-    /* Loop toggle sits at the end of the mode row, using the free space there. */
-    .we-preview__loop { margin-left: auto; }
     .we-preview__deck { display: block; }
 
     .we-pill {
@@ -551,6 +532,9 @@ export class WindowEditorYtComponent {
   /** Lock the window name (whole-track window uses a fixed name). */
   readonly lockName = input(false);
   readonly applyLabel = input('Apply window');
+  /** Whether the preview loops with crossfade. Owned by the parent editor so it
+      applies across all windows, not per-window. */
+  readonly loopPreview = input(true);
 
   readonly apply = output<WindowEditorResult>();
   readonly ready = output<void>();
@@ -567,8 +551,6 @@ export class WindowEditorYtComponent {
   readonly positionS = signal(0);
   /** Playhead position on the timeline canvas, in pixels. */
   readonly playheadPx = signal(0);
-  /** Whether the preview loops with crossfade. Persisted across sessions. */
-  readonly loopEnabled = persistentSignal('mpf:window-editor:loop-preview', true);
 
   readonly crossfadeStepMs = CROSSFADE_STEP_MS;
   readonly volumePercent = computed(() => Math.round(this.masterVolume() * 100));
@@ -677,10 +659,6 @@ export class WindowEditorYtComponent {
   /** Mirror the preview deck's playhead onto the waveform timeline. */
   onDeckPosition(positionS: number): void {
     this.setPlayhead(positionS);
-  }
-
-  toggleLoop(): void {
-    this.loopEnabled.update((enabled) => !enabled);
   }
 
   onFromTextChange(text: string): void {
