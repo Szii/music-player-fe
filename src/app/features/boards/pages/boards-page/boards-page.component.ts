@@ -12,20 +12,16 @@ import {
 } from 'rxjs/operators';
 
 import { environment } from '../../../../../environments/environment';
-import { USE_YT_IFRAME_PLAYER } from '../../../../core/config/feature-flags';
 import { outgoingCrossfadeMs } from '../../utils/crossfade';
 
 import {
   MusicBoardsService,
   MusicGroupsService,
   MusicTracksService,
-  PlaybackService,
   Board,
   BoardCreateRequest,
   BoardUpdateRequest,
   Group,
-  PlaybackState,
-  PlayRequest,
   SessionResponse,
   Track,
   TrackWindow,
@@ -131,7 +127,6 @@ interface VolumeCommit {
                   [board]="board"
                   [availableGroups]="getGroupsForBoard(board)"
                   [status]="getBoardStatus(board)"
-                  [streamUrl]="getStreamUrl(board)"
                   [selectedWindowId]="getSelectedWindowId(board)"
                   [masterVolume]="getMasterVolume(board)"
                   [masterFadeRampMs]="getMasterFadeRampMs(board)"
@@ -299,7 +294,6 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   private readonly boardsApi = inject(MusicBoardsService);
   private readonly groupsApi = inject(MusicGroupsService);
   private readonly tracksApi = inject(MusicTracksService);
-  private readonly playbackApi = inject(PlaybackService);
   private readonly toast = inject(ToastService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly destroyRef = inject(DestroyRef);
@@ -579,24 +573,10 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     };
 
     if (this.isBoardActive(boardId)) {
-      if (USE_YT_IFRAME_PLAYER) {
-        this.clearBoard(boardId);
-        doDelete();
-        return;
-      }
-
-      this.playbackApi.stopBoard({ boardId })
-        .pipe(
-          catchError(() => of(null)),
-          takeUntilDestroyed(this.destroyRef),
-        )
-        .subscribe(() => {
-          this.clearBoard(boardId);
-          doDelete();
-        });
-    } else {
-      doDelete();
+      this.clearBoard(boardId);
     }
+
+    doDelete();
   }
 
   /**
@@ -933,7 +913,9 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
             // With the YouTube IFrame backend, an already-active board applies
             // track/window changes client-side (the player crossfades to the new
             // video id / window) — no backend stream call needed.
-            if (USE_YT_IFRAME_PLAYER && wasActive) {
+            // An already-active board applies track/window changes client-side
+            // (the player crossfades to the new video id / window).
+            if (wasActive) {
               return;
             }
 
@@ -997,7 +979,9 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
           if (selectedId != null && (wasActive || wantsPlay)) {
             // YT backend: an active board crossfades to the new track client-side.
-            if (USE_YT_IFRAME_PLAYER && wasActive) {
+            // An already-active board applies track/window changes client-side
+            // (the player crossfades to the new video id / window).
+            if (wasActive) {
               return;
             }
 
@@ -1042,13 +1026,8 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         },
       });
 
-    if (this.isBoardActive(boardId)) {
-      // With the YouTube IFrame backend the window change is applied client-side
-      // by the player reacting to the new window inputs — no backend stream call.
-      if (!USE_YT_IFRAME_PLAYER) {
-        this.playBoardTrack(board);
-      }
-    }
+    // An active board applies the window change client-side: the player reacts to
+    // the new window inputs and crossfades — no backend call needed.
   }
 
   onBoardVolumePreview(board: Board, volumePercent: number): void {
@@ -1119,32 +1098,12 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       }
     }
 
-    const windowId = this.selectedWindowByBoard.get(targetId) ?? undefined;
-    const playRequest: PlayRequest = windowId != null ? { windowId } : {};
-
-    // YouTube IFrame backend owns playback status client-side: skip the backend
-    // stream/session call and drive the crossfade locally.
-    if (USE_YT_IFRAME_PLAYER) {
-      this.boardStatuses.set(targetId, 'PLAYING');
-      this.streamUrlsByBoard.delete(targetId);
-      this.syncPlayingState();
-      this.applyPlayCrossfade(targetId, wasActive, boardsToStop);
-      return;
-    }
-
-    this.playbackApi.playBoard({ boardId: targetId, playRequest })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: state => {
-          this.applyPlaybackState(targetId, state);
-          this.applyPlayCrossfade(targetId, wasActive, boardsToStop);
-        },
-        error: (err: unknown) => {
-          console.error(err);
-          this.rollbackPlayCrossfade(targetId, wasActive, boardsToStop);
-          this.toast.error('Starting playback failed.');
-        },
-      });
+    // The YouTube IFrame player owns playback status client-side: set the board
+    // playing and drive the crossfade locally (no backend stream/session call).
+    this.boardStatuses.set(targetId, 'PLAYING');
+    this.streamUrlsByBoard.delete(targetId);
+    this.syncPlayingState();
+    this.applyPlayCrossfade(targetId, wasActive, boardsToStop);
   }
 
   /**
@@ -1211,69 +1170,17 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         this.masterVolumesByBoard.delete(item.id!);
         this.masterFadeRampMsByBoard.delete(item.id!);
         this.clearBoard(item.id!);
-        this.stopBoardBackend(item.id!);
       }
 
       this.fadeStateVersion.update(n => n + 1);
     }, rampMs + 60);
   }
 
-  private rollbackPlayCrossfade(
-    targetId: number,
-    wasActive: boolean,
-    boardsToStop: Board[],
-  ): void {
-    if (!wasActive) {
-      this.masterVolumesByBoard.delete(targetId);
-      this.masterFadeRampMsByBoard.delete(targetId);
-    }
-
-    for (const item of boardsToStop) {
-      this.masterVolumesByBoard.delete(item.id!);
-      this.masterFadeRampMsByBoard.delete(item.id!);
-      this.clearBoard(item.id!);
-      this.stopBoardBackend(item.id!);
-    }
-
-    this.fadeStateVersion.update(n => n + 1);
-  }
-
-  /** Issues the backend stop call unless the YT backend owns status locally. */
-  private stopBoardBackend(boardId: number): void {
-    if (USE_YT_IFRAME_PLAYER) {
-      return;
-    }
-
-    this.playbackApi.stopBoard({ boardId })
-      .pipe(
-        catchError(() => of(null)),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe();
-  }
-
   stopBoardTrack(board: Board): void {
     if (board.id == null) return;
 
-    const boardId = board.id;
-
-    // YT backend manages status client-side — no backend stop call.
-    if (USE_YT_IFRAME_PLAYER) {
-      this.clearBoard(boardId);
-      return;
-    }
-
-    this.playbackApi.stopBoard({ boardId })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: state => {
-          this.applyPlaybackState(boardId, state);
-          this.clearBoard(boardId);
-        },
-        error: () => {
-          this.clearBoard(boardId);
-        },
-      });
+    // The YouTube IFrame player manages status client-side — no backend stop call.
+    this.clearBoard(board.id);
   }
 
   onBoardNearEnd(board: Board): void {
@@ -1329,12 +1236,6 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     return board.id != null
       ? (this.boardStatuses.get(board.id) ?? 'STOPPED')
       : 'STOPPED';
-  }
-
-  getStreamUrl(board: Board): string | null {
-    return board.id != null
-      ? (this.streamUrlsByBoard.get(board.id) ?? null)
-      : null;
   }
 
   getMasterVolume(board: Board): number {
@@ -1468,16 +1369,8 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       nextIdx = 0;
     }
 
+    // The YouTube deck crossfades client-side from the window-input change.
     this.setSequenceWindow(boardId, windows[nextIdx]);
-
-    // The YouTube deck crossfades client-side from the window-input change. The
-    // backend-stream player needs an explicit restart at the new window.
-    if (!USE_YT_IFRAME_PLAYER && this.isBoardActive(boardId)) {
-      const fresh = this.boards().find(b => b.id === boardId);
-      if (fresh) {
-        this.playBoardTrack(fresh);
-      }
-    }
   }
 
   /**
@@ -1747,19 +1640,6 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     };
   }
 
-  private applyPlaybackState(boardId: number, state: PlaybackState | null): void {
-    this.boardStatuses.set(boardId, state?.status ?? 'STOPPED');
-
-    const resolvedUrl = this.resolveStreamUrl(state?.streamUrl);
-    if (resolvedUrl) {
-      this.streamUrlsByBoard.set(boardId, resolvedUrl);
-    } else {
-      this.streamUrlsByBoard.delete(boardId);
-    }
-
-    this.syncPlayingState();
-  }
-
   private clearBoard(boardId: number): void {
     this.boardStatuses.set(boardId, 'STOPPED');
     this.streamUrlsByBoard.delete(boardId);
@@ -1906,17 +1786,6 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     return board.sequenceMode ?? undefined;
   }
 
-  private resolveStreamUrl(streamUrl?: string | null): string | null {
-    if (!streamUrl) return null;
-    if (streamUrl.startsWith('http://') || streamUrl.startsWith('https://')) {
-      return streamUrl;
-    }
-
-    const base = environment.apiUrl.replace(/\/$/, '');
-    const path = streamUrl.startsWith('/') ? streamUrl : `/${streamUrl}`;
-    return `${base}${path}`;
-  }
-
   private mergeTracks(own: Track[], subscribed: Track[]): Track[] {
     const seen = new Set<number>();
 
@@ -1993,9 +1862,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
     for (const board of this.boards()) {
       if (board.id == null || !this.isBoardActive(board.id)) continue;
-      const boardId = board.id;
-      this.clearBoard(boardId);
-      this.stopBoardBackend(boardId);
+      this.clearBoard(board.id);
     }
   }
 

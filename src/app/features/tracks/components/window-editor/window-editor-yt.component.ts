@@ -23,7 +23,6 @@ import { UiVolumeSliderComponent } from '../../../../shared/ui/volume-slider/ui-
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 import { BoardPlayerYtDeckComponent } from '../../../boards/components/board-player-yt-deck/board-player-yt-deck.component';
-import { WindowEditorResult } from './window-editor.component';
 import {
   FADE_STEP_MS,
   clampFadeMs,
@@ -31,6 +30,15 @@ import {
   maxFadeForWindow,
 } from '../../utils/fade';
 import { persistentSignal } from '../../../../shared/utils/persistent-signal';
+
+/** Result emitted when a window (or whole-track fades) is applied. */
+export interface WindowEditorResult {
+  name: string;
+  positionFrom: number;
+  positionTo: number;
+  fadeInMs: number;
+  fadeOutMs: number;
+}
 
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 type PreviewMode = 'selection' | 'full';
