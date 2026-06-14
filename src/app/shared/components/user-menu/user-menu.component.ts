@@ -191,8 +191,8 @@ import { ProfileStore } from '../../../features/profile/data-access/profile-stor
       }
 
       .um__trigger {
-        gap: 0;
-        padding: 0.3rem 0.45rem;
+        gap: 0.4rem;
+        padding: 0.3rem 0.6rem;
       }
 
       .um__panel {
