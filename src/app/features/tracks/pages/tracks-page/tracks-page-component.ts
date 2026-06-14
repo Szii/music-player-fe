@@ -18,12 +18,14 @@ import {
 import {
   TrackFadesSaveEvent,
   TrackWindowsPanelComponent,
+  TrackWindowsReorderEvent,
   WindowDeleteEvent,
   WindowSaveEvent,
 } from '../../components/track-window-panel/track-window-panel.component';
 import {
   CreateTrackRequestV2,
   MusicTracksService,
+  ReorderTrackWindowsRequest,
   Track,
   UpdateTrackRequestV2,
 } from '../../../../api/generated';
@@ -96,6 +98,7 @@ import { BoardPlaybackService } from '../../../../core/services/board-playback.s
         (saveWindow)="onSaveWindow($event)"
         (deleteWindow)="onDeleteWindow($event)"
         (saveTrackFades)="onSaveTrackFades($event)"
+        (reorderWindows)="onReorderWindows($event)"
       />
     </div>
   `,
@@ -446,6 +449,28 @@ export class TracksPageComponent implements OnInit {
         error: (err: unknown) => {
           console.error(err);
           this.toast.error('Saving track fades failed.');
+        },
+      });
+  }
+
+  onReorderWindows(event: TrackWindowsReorderEvent): void {
+    const body: ReorderTrackWindowsRequest = {
+      windowIds: event.windowIds,
+    };
+
+    this.tracksApi.reorderTrackWindows({
+      trackId: event.trackId,
+      reorderTrackWindowsRequest: body,
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updatedTrack) => {
+          this.applyTrackUpdate(event.trackId, updatedTrack);
+          this.toast.success('Windows reordered.');
+        },
+        error: (err: unknown) => {
+          console.error(err);
+          this.toast.error('Reordering windows failed.');
         },
       });
   }

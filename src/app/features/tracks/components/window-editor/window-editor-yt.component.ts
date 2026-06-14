@@ -479,12 +479,19 @@ const CROSSFADE_STEP_MS = FADE_STEP_MS * 2;
       transition: background 0.12s, border-color 0.12s, color 0.12s;
     }
 
-    .we-pill--active,
-    .we-pill:hover {
-      background: var(--app-primary-soft);
-      border-color: var(--app-primary);
-      color: var(--app-primary);
-    }
+      .we-pill--active {
+        background: var(--app-primary-soft);
+        border-color: var(--app-primary);
+        color: var(--app-primary);
+      }
+
+      @media (hover: hover) and (pointer: fine) {
+        .we-pill:hover {
+          background: var(--app-primary-soft);
+          border-color: var(--app-primary);
+          color: var(--app-primary);
+        }
+      }
 
     .we-bottom {
       background: var(--app-bg-soft);
