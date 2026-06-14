@@ -23,6 +23,7 @@ import {
   WindowEditorResult,
 } from '../window-editor/window-editor-yt.component';
 import { parseYoutubeId } from '../../../../shared/utils/youtube-id';
+import { persistentSignal } from '../../../../shared/utils/persistent-signal';
 import { formatFadeMs } from '../../utils/fade';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
@@ -265,6 +266,31 @@ type PanelSelection =
                   }
                 </div>
 
+                <div class="panel-editor__toolbar">
+                  <span class="panel-editor__toolbar-label">Loop preview</span>
+                  <button
+                    type="button"
+                    class="panel-loop-toggle"
+                    [class.panel-loop-toggle--active]="loopPreview()"
+                    [attr.aria-pressed]="loopPreview()"
+                    (click)="toggleLoopPreview()"
+                    title="Loop the preview playback with crossfade"
+                  >
+                    <svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true">
+                      <path
+                        d="M6 5h7a3 3 0 0 1 3 3v1M14 15H7a3 3 0 0 1-3-3v-1"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                      />
+                      <path d="M4 4l2.5 2.5L4 9" fill="currentColor" />
+                      <path d="M16 16l-2.5-2.5L16 11" fill="currentColor" />
+                    </svg>
+                    {{ loopPreview() ? 'On' : 'Off' }}
+                  </button>
+                </div>
+
                 <div class="panel-editor__body">
                   <app-window-editor-yt
                     [videoId]="ytVideoId"
@@ -277,6 +303,7 @@ type PanelSelection =
                     [lockRegion]="editorLockRegion"
                     [lockName]="editorLockName"
                     [applyLabel]="editorApplyLabel"
+                    [loopPreview]="loopPreview()"
                     (apply)="onEditorApply($event)"
                     (ready)="onEditorStreamComplete()"
                   />
@@ -667,6 +694,76 @@ type PanelSelection =
       flex-shrink: 0;
     }
 
+    .panel-editor__toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--app-border-color-soft);
+      background: var(--app-surface);
+      flex-shrink: 0;
+    }
+
+    .panel-editor__toolbar-label {
+      font-family: var(--app-font-heading);
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--app-text-muted);
+    }
+
+    .panel-loop-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      font: inherit;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      color: var(--app-text);
+      background: var(--app-surface-elevated);
+      border: 1px solid var(--app-border-color-soft);
+      border-radius: var(--app-radius-md);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.12s, border-color 0.12s, color 0.12s;
+    }
+
+    /* Off state reads as deactivated via diagonal hatching. */
+    .panel-loop-toggle:not(.panel-loop-toggle--active) {
+      background: repeating-linear-gradient(
+        -45deg,
+        var(--app-surface-elevated),
+        var(--app-surface-elevated) 5px,
+        var(--app-surface-muted) 5px,
+        var(--app-surface-muted) 10px
+      );
+      color: var(--app-text-muted);
+    }
+
+    .panel-loop-toggle--active {
+      background: var(--app-primary-soft);
+      border-color: var(--app-primary);
+      color: var(--app-primary);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .panel-loop-toggle:hover {
+        background: var(--app-primary-soft);
+        border-color: var(--app-primary);
+        color: var(--app-primary);
+      }
+    }
+
+    .panel-loop-toggle:focus-visible {
+      outline: none;
+      box-shadow: var(--app-focus-ring);
+    }
+
     .panel-editor__body {
       min-height: 0;
       flex: 1 1 auto;
@@ -804,8 +901,14 @@ type PanelSelection =
         gap: 10px;
         padding: 2px 2px 8px;
         scroll-snap-type: x proximity;
-        scrollbar-width: thin;
         -webkit-overflow-scrolling: touch;
+        /* Hide the native scrollbar (off-style); the swipe arrows indicate
+           there's more to scroll. */
+        scrollbar-width: none;
+      }
+
+      .panel-window-list::-webkit-scrollbar {
+        display: none;
       }
 
       .panel-window-item {
@@ -909,6 +1012,10 @@ export class TrackWindowsPanelComponent implements OnDestroy {
   private readonly confirmDialog = inject(ConfirmDialogService);
 
   readonly track = input<Track | null>(null);
+
+  /** Editor-wide preview-loop preference (applies to every window, not one).
+      Persisted across sessions. */
+  readonly loopPreview = persistentSignal('mpf:window-editor:loop-preview', true);
 
   readonly close = output<void>();
   readonly saveWindow = output<WindowSaveEvent>();
@@ -1033,7 +1140,7 @@ export class TrackWindowsPanelComponent implements OnDestroy {
       case 'whole-track':
         return 'Whole track fades';
       case 'window':
-        return 'Edit window';
+        return this.editorName.trim() || 'Untitled window';
       default:
         return 'Create new window';
     }
@@ -1053,6 +1160,10 @@ export class TrackWindowsPanelComponent implements OnDestroy {
   ngOnDestroy(): void {
     this.windowListResizeObserver?.disconnect();
     this.resetState();
+  }
+
+  toggleLoopPreview(): void {
+    this.loopPreview.update(enabled => !enabled);
   }
 
   onWindowListScroll(): void {
@@ -1110,16 +1221,26 @@ export class TrackWindowsPanelComponent implements OnDestroy {
   }
 
   private scrollWindowIntoView(windowId: number): void {
+    this.centerCarouselItem(
+      this.windowListEl?.querySelector<HTMLElement>(`[data-window-id="${windowId}"]`) ?? null,
+    );
+  }
+
+  /**
+   * Slide the windows carousel so the given item is centred (a sliding window
+   * over the full list), the same way the mobile boards page centres its tabs.
+   * Only scrolls horizontally, so it never jolts the dialog vertically; a no-op
+   * on the desktop vertical list where the row can't scroll sideways.
+   */
+  private centerCarouselItem(item: HTMLElement | null): void {
     const el = this.windowListEl;
-    if (!el) return;
+    if (!el || !item) return;
 
-    const target = el.querySelector<HTMLElement>(`[data-window-id="${windowId}"]`);
-    target?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'nearest',
-      inline: 'center',
-    });
+    const elRect = el.getBoundingClientRect();
+    const itemRect = item.getBoundingClientRect();
+    const delta = (itemRect.left - elRect.left) - (el.clientWidth - itemRect.width) / 2;
 
+    el.scrollTo({ left: Math.max(0, el.scrollLeft + delta), behavior: 'smooth' });
     setTimeout(() => this.updateWindowScrollState(), 250);
   }
 
@@ -1187,6 +1308,11 @@ export class TrackWindowsPanelComponent implements OnDestroy {
     this.editorFadeOutMs = track?.fadeOutDurationMs ?? 0;
     this.editorLockRegion = true;
     this.editorLockName = true;
+
+    // Whole track is the first carousel item.
+    this.centerCarouselItem(
+      this.windowListEl?.querySelector<HTMLElement>('.panel-window-item') ?? null,
+    );
   }
 
   selectWindow(win: TrackWindow): void {
@@ -1194,6 +1320,10 @@ export class TrackWindowsPanelComponent implements OnDestroy {
 
     this.selection = { kind: 'window', id: win.id };
     this.loadEditorFromWindow(win);
+
+    this.centerCarouselItem(
+      this.windowListEl?.querySelector<HTMLElement>(`[data-window-id="${win.id}"]`) ?? null,
+    );
   }
 
   startCreateWindow(): void {

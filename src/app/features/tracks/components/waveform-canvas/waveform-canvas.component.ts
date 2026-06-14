@@ -102,7 +102,7 @@ type DragMode = 'left' | 'right' | 'region';
 
     .wf-wrap {
       position: relative;
-      height: 180px;
+      height: 126px;
       background: var(--app-surface);
       border: var(--app-border);
       border-radius: 14px;
@@ -198,7 +198,7 @@ type DragMode = 'left' | 'right' | 'region';
 
     @media (max-width: 700px) {
       .wf-wrap {
-        height: 160px;
+        height: 112px;
         border-radius: 12px;
       }
 

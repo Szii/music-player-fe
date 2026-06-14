@@ -7,7 +7,8 @@
       "Bash(npm run *)",
       "WebSearch",
       "WebFetch(domain:www.nngroup.com)",
-      "WebFetch(domain:www.uxmatters.com)"
+      "WebFetch(domain:www.uxmatters.com)",
+      "PowerShell(npm run build 2>&1)"
     ]
   }
 }
