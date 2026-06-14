@@ -21,37 +21,66 @@ import { RouterLink } from '@angular/router';
 
       <nav class="home-nav" aria-label="Main navigation">
         <a routerLink="/tracks" class="home-card">
-          <div class="home-card__glyph" aria-hidden="true">♪</div>
+          <div class="home-card__glyph" aria-hidden="true">
+            <svg class="home-card__icon" viewBox="0 0 24 24">
+              <path d="M9 18V5l10-2v13" />
+              <circle cx="6" cy="18" r="3" />
+              <circle cx="16" cy="16" r="3" />
+            </svg>
+          </div>
           <div class="home-card__body">
             <div class="home-card__title">Tracks</div>
-            <div class="home-card__text">Manage your music library and define precise playback windows for each track.</div>
+            <div class="home-card__text">
+              Manage your music library and define precise playback windows for each track.
+            </div>
           </div>
           <div class="home-card__chevron" aria-hidden="true">›</div>
         </a>
 
         <a routerLink="/boards" class="home-card">
-          <div class="home-card__glyph" aria-hidden="true">⚔</div>
+          <div class="home-card__glyph" aria-hidden="true">
+            <svg class="home-card__icon" viewBox="0 0 24 24">
+              <rect x="4" y="4" width="6" height="6" rx="1" />
+              <rect x="14" y="4" width="6" height="6" rx="1" />
+              <rect x="4" y="14" width="6" height="6" rx="1" />
+              <rect x="14" y="14" width="6" height="6" rx="1" />
+            </svg>
+          </div>
           <div class="home-card__body">
             <div class="home-card__title">Boards</div>
-            <div class="home-card__text">Play tracks live with seamlesss switching, windows replaying, volume control, and looping.</div>
+            <div class="home-card__text">
+              Play tracks live with seamless switching, windows replaying, volume control, and looping.
+            </div>
           </div>
           <div class="home-card__chevron" aria-hidden="true">›</div>
         </a>
 
         <a routerLink="/groups" class="home-card">
-          <div class="home-card__glyph" aria-hidden="true">⚜</div>
+          <div class="home-card__glyph" aria-hidden="true">
+            <svg class="home-card__icon" viewBox="0 0 24 24">
+              <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z" />
+            </svg>
+          </div>
           <div class="home-card__body">
             <div class="home-card__title">Groups</div>
-            <div class="home-card__text">Organize tracks into themed groups for quick access during sessions.</div>
+            <div class="home-card__text">
+              Organize tracks into themed groups for quick access during sessions.
+            </div>
           </div>
           <div class="home-card__chevron" aria-hidden="true">›</div>
         </a>
 
         <a routerLink="/workshop" class="home-card">
-          <div class="home-card__glyph" aria-hidden="true">⚗</div>
+          <div class="home-card__glyph" aria-hidden="true">
+            <svg class="home-card__icon" viewBox="0 0 24 24">
+              <path d="M14.7 6.3a4.5 4.5 0 0 0-5.9 5.9L4 17v3h3l4.8-4.8a4.5 4.5 0 0 0 5.9-5.9l-3 3-3-3z" />
+            </svg>
+          </div>
           <div class="home-card__body">
             <div class="home-card__title">Workshop</div>
-            <div class="home-card__text">Subscribe to tracks from other bards or publish your own compositions.</div>
+            <div class="home-card__text">
+              Subscribe to tracks from other bards or publish your own compositions.
+            </div>
           </div>
           <div class="home-card__chevron" aria-hidden="true">›</div>
         </a>
@@ -175,13 +204,22 @@ import { RouterLink } from '@angular/router';
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.6rem;
       color: var(--app-secondary);
       background: rgba(201, 164, 76, 0.1);
       border: 1px solid rgba(201, 164, 76, 0.3);
       border-radius: var(--app-radius-sm);
       flex-shrink: 0;
       line-height: 1;
+    }
+
+    .home-card__icon {
+      width: 27px;
+      height: 27px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.9;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .home-card__body {
@@ -261,7 +299,11 @@ import { RouterLink } from '@angular/router';
       .home-card__glyph {
         width: 44px;
         height: 44px;
-        font-size: 1.3rem;
+      }
+
+      .home-card__icon {
+        width: 24px;
+        height: 24px;
       }
     }
   `],
