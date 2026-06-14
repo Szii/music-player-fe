@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 
 export type PlayButtonSize = 'sm' | 'md' | 'lg';
 
@@ -11,7 +11,9 @@ export type PlayButtonSize = 'sm' | 'md' | 'lg';
       class="ui-play-button"
       [class.ui-play-button--playing]="playing()"
       [class.ui-play-button--labeled]="!!label()"
-      [class]="sizeClass()"
+      [class.ui-play-button--sm]="size() === 'sm'"
+      [class.ui-play-button--md]="size() === 'md'"
+      [class.ui-play-button--lg]="size() === 'lg'"
       [disabled]="disabled()"
       [attr.aria-label]="effectiveAriaLabel()"
       (mousedown)="$event.preventDefault()"
@@ -19,11 +21,11 @@ export type PlayButtonSize = 'sm' | 'md' | 'lg';
     >
       <span class="ui-play-button__icon" aria-hidden="true">
         @if (playing()) {
-          <svg viewBox="0 0 20 20" width="14" height="14">
+          <svg viewBox="0 0 20 20">
             <rect x="4" y="4" width="12" height="12" rx="1" fill="currentColor" />
           </svg>
         } @else {
-          <svg viewBox="0 0 20 20" width="14" height="14">
+          <svg viewBox="0 0 20 20">
             <polygon points="5,3 5,17 17,10" fill="currentColor" />
           </svg>
         }
@@ -36,7 +38,6 @@ export type PlayButtonSize = 'sm' | 'md' | 'lg';
   `,
   styles: [
     `
-  
       :host {
         display: inline-block;
       }
@@ -89,26 +90,57 @@ export type PlayButtonSize = 'sm' | 'md' | 'lg';
         background: color-mix(in srgb, var(--app-danger) 88%, black);
       }
 
+      .ui-play-button__icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        line-height: 0;
+      }
+
+      .ui-play-button__icon svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      .ui-play-button:not(.ui-play-button--playing) .ui-play-button__icon {
+        transform: translateX(1px);
+      }
+
       /* Round variant — default */
       .ui-play-button--sm {
         width: 32px;
         height: 32px;
         border-radius: 50%;
       }
+
       .ui-play-button--md {
         width: 42px;
         height: 42px;
         border-radius: 50%;
       }
+
       .ui-play-button--lg {
         width: 46px;
         height: 46px;
         border-radius: 50%;
       }
 
-      .ui-play-button--sm .ui-play-button__icon svg { width: 11px; height: 11px; }
-      .ui-play-button--md .ui-play-button__icon svg { width: 14px; height: 14px; }
-      .ui-play-button--lg .ui-play-button__icon svg { width: 16px; height: 16px; }
+      .ui-play-button--sm .ui-play-button__icon {
+        width: 11px;
+        height: 11px;
+      }
+
+      .ui-play-button--md .ui-play-button__icon {
+        width: 14px;
+        height: 14px;
+      }
+
+      .ui-play-button--lg .ui-play-button__icon {
+        width: 16px;
+        height: 16px;
+      }
 
       /* Labeled variant — pill */
       .ui-play-button--labeled {
@@ -145,11 +177,9 @@ export class UiPlayButtonComponent {
 
   readonly clicked = output<void>();
 
-  readonly sizeClass = computed(() => `ui-play-button--${this.size()}`);
-
-  readonly effectiveAriaLabel = computed(() => {
+  effectiveAriaLabel(): string {
     const explicit = this.ariaLabel();
     if (explicit) return explicit;
     return this.playing() ? this.stopLabel() : (this.label() ?? 'Play');
-  });
+  }
 }
