@@ -42,7 +42,12 @@ type DragMode = 'left' | 'right' | 'region';
   imports: [CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="wf-wrap" #waveformWrap>
+    <div
+      class="wf-wrap"
+      #waveformWrap
+      [class.wf-wrap--locked]="handlesDisabled"
+      [attr.aria-disabled]="handlesDisabled"
+    >
       <canvas
         #waveformCanvas
         class="wf-canvas"
@@ -53,6 +58,8 @@ type DragMode = 'left' | 'right' | 'region';
       <div
         *ngIf="audioReady"
         class="wf-handle wf-handle--left"
+        [class.wf-handle--locked]="handlesDisabled"
+        [attr.title]="handlesDisabled ? 'Whole-track window: bounds are locked' : null"
         [style.left.px]="regionLeftPx"
         (mousedown)="onHandleMouseDown($event, 'left')"
         (touchstart)="onHandleTouchStart($event, 'left')"
@@ -63,11 +70,19 @@ type DragMode = 'left' | 'right' | 'region';
       <div
         *ngIf="audioReady"
         class="wf-handle wf-handle--right"
+        [class.wf-handle--locked]="handlesDisabled"
+        [attr.title]="handlesDisabled ? 'Whole-track window: bounds are locked' : null"
         [style.left.px]="regionRightPx"
         (mousedown)="onHandleMouseDown($event, 'right')"
         (touchstart)="onHandleTouchStart($event, 'right')"
       >
         <div class="wf-handle__grip"></div>
+      </div>
+
+      <div class="wf-lock-shade" *ngIf="audioReady && handlesDisabled" aria-hidden="true"></div>
+
+      <div class="wf-lock-badge" *ngIf="audioReady && handlesDisabled" aria-hidden="true">
+        Bounds locked
       </div>
 
       <div class="wf-playhead" [style.left.px]="playheadPx" *ngIf="audioReady"></div>
@@ -153,6 +168,70 @@ type DragMode = 'left' | 'right' | 'region';
         0 0 0 2px rgba(255, 255, 255, 0.9);
     }
 
+    .wf-wrap--locked {
+      cursor: default;
+    }
+
+    .wf-wrap--locked .wf-canvas {
+      cursor: default;
+    }
+
+    .wf-wrap--locked .wf-handle {
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .wf-wrap--locked .wf-handle:hover,
+    .wf-wrap--locked .wf-handle:active {
+      background: transparent;
+    }
+
+    .wf-wrap--locked .wf-handle__grip {
+      background: var(--app-text-muted);
+      opacity: 0.42;
+      box-shadow:
+        0 1px 3px rgba(0, 0, 0, 0.12),
+        0 0 0 2px rgba(255, 255, 255, 0.55);
+    }
+
+    .wf-lock-shade {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        135deg,
+        rgba(122, 92, 46, 0.045) 0,
+        rgba(122, 92, 46, 0.045) 8px,
+        transparent 8px,
+        transparent 16px
+      );
+    }
+
+    .wf-lock-badge {
+      position: absolute;
+      top: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 6;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px 9px;
+      border: 1px solid var(--app-border-color-soft);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.78);
+      color: var(--app-text-muted);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      line-height: 1;
+      text-transform: uppercase;
+      pointer-events: none;
+      backdrop-filter: blur(2px);
+      box-shadow: 0 2px 7px rgba(0, 0, 0, 0.08);
+    }
+
     .wf-playhead {
       position: absolute;
       top: 0;
@@ -209,6 +288,12 @@ type DragMode = 'left' | 'right' | 'region';
 
       .wf-handle__grip {
         height: 38px;
+      }
+
+      .wf-lock-badge {
+        top: 6px;
+        padding: 4px 8px;
+        font-size: 9px;
       }
     }
   `],
