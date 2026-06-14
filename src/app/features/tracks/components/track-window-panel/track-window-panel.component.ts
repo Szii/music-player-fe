@@ -25,6 +25,7 @@ import {
 import { parseYoutubeId } from '../../../../shared/utils/youtube-id';
 import { formatFadeMs } from '../../utils/fade';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
+import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
 import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empty-state.component';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
@@ -48,6 +49,12 @@ export interface TrackFadesSaveEvent {
   fadeOutMs: number;
 }
 
+export interface TrackWindowsReorderEvent {
+  trackId: number;
+  windowIds: number[];
+  movedWindowId: number;
+}
+
 /**
  * Which entry the editor is bound to:
  * - `create`: a brand-new window.
@@ -66,6 +73,7 @@ type PanelSelection =
   imports: [
     WindowEditorYtComponent,
     NormalButtonComponent,
+    IconButtonComponent,
     UiEmptyStateComponent,
     UiChipComponent,
     UiDialogShellComponent,
@@ -144,29 +152,34 @@ type PanelSelection =
                         </div>
                       </button>
 
-                      @for (win of windows; track win.id) {
-                        <button
-                          type="button"
+                      @for (win of windows; track win.id; let i = $index) {
+                        <article
                           class="panel-window-item"
+                          role="button"
+                          tabindex="0"
+                          [attr.data-window-id]="win.id"
                           [class.panel-window-item--selected]="selection.kind === 'window' && selection.id === win.id"
                           (click)="selectWindow(win)"
+                          (keydown.enter)="selectWindow(win)"
+                          (keydown.space)="$event.preventDefault(); selectWindow(win)"
                         >
                           <div class="panel-window-item__top">
-                            <span
-                              class="panel-window-item__name"
-                              [title]="win.name || 'Untitled window'"
-                            >
-                              {{ win.name || 'Untitled window' }}
-                            </span>
-
-                            <div class="panel-window-item__actions" (click)="$event.stopPropagation()">
-                              <normal-button
-                                size="sm"
-                                variant="danger"
-                                (clicked)="onDeleteWindow(win)"
+                            <div class="panel-window-item__title-row">
+                              <span
+                                class="panel-window-item__name"
+                                [title]="win.name || 'Untitled window'"
                               >
-                                Delete
-                              </normal-button>
+                                {{ win.name || 'Untitled window' }}
+                              </span>
+
+                              <ui-chip
+                                class="panel-window-item__position"
+                                variant="gold"
+                                size="sm"
+                                keyLabel="Pos"
+                              >
+                                {{ win.positionWithinTrack ?? (i + 1) }}
+                              </ui-chip>
                             </div>
                           </div>
 
@@ -181,7 +194,39 @@ type PanelSelection =
                               </ui-chip>
                             </div>
                           </div>
-                        </button>
+
+                          <div class="panel-window-item__footer" (click)="$event.stopPropagation()">
+                            <div class="panel-window-item__move-actions">
+                              <button
+                                type="button"
+                                class="panel-window-move panel-window-move--previous"
+                                [disabled]="!canMoveWindow(win, -1)"
+                                (mousedown)="$event.preventDefault(); $event.stopPropagation()"
+                                (click)="onMoveWindowClick($event, win, -1)"
+                                aria-label="Move window earlier"
+                                title="Move earlier"
+                              ></button>
+
+                              <button
+                                type="button"
+                                class="panel-window-move panel-window-move--next"
+                                [disabled]="!canMoveWindow(win, 1)"
+                                (mousedown)="$event.preventDefault(); $event.stopPropagation()"
+                                (click)="onMoveWindowClick($event, win, 1)"
+                                aria-label="Move window later"
+                                title="Move later"
+                              ></button>
+                            </div>
+
+                            <app-icon-button
+                              icon="delete"
+                              label="Delete window"
+                              variant="danger"
+                              size="md"
+                              (clicked)="onDeleteWindow(win)"
+                            />
+                          </div>
+                        </article>
                       }
                       </div>
 
@@ -451,6 +496,14 @@ type PanelSelection =
         inset 0 1px 0 rgba(255, 255, 255, 0.3);
     }
 
+    .panel-window-item:focus-visible {
+      outline: none;
+      box-shadow:
+        var(--app-shadow-soft),
+        var(--app-focus-ring),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+
     .panel-window-item--disabled,
     .panel-window-item:disabled {
       cursor: default;
@@ -469,6 +522,15 @@ type PanelSelection =
       align-items: center;
       justify-content: space-between;
       gap: 12px;
+      min-width: 0;
+    }
+
+    .panel-window-item__title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      width: 100%;
     }
 
     .panel-window-item__name {
@@ -483,9 +545,14 @@ type PanelSelection =
       white-space: nowrap;
     }
 
+    .panel-window-item__position {
+      flex: 0 0 auto;
+      margin-left: auto;
+    }
+
     .panel-window-item__bottom {
       display: flex;
-      align-items: center;
+      align-items: flex-end;
       justify-content: space-between;
       gap: 10px;
       flex-wrap: wrap;
@@ -498,10 +565,63 @@ type PanelSelection =
       min-width: 0;
     }
 
-    .panel-window-item__actions {
+    .panel-window-item__footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      width: 100%;
+      margin-top: 2px;
+    }
+
+    .panel-window-item__move-actions {
       flex: 0 0 auto;
       display: flex;
       align-items: center;
+      justify-content: flex-start;
+      gap: 6px;
+    }
+
+    .panel-window-move {
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      border-radius: var(--app-radius-sm);
+      border: 1px solid var(--app-border-color-soft);
+      background: var(--app-surface-elevated);
+      color: var(--app-text-muted);
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s, color 0.12s;
+    }
+
+    .panel-window-move::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-top: 2px solid currentColor;
+      border-right: 2px solid currentColor;
+    }
+
+    .panel-window-move--previous::before {
+      transform: translateY(2px) rotate(-45deg);
+    }
+
+    .panel-window-move--next::before {
+      transform: translateY(-2px) rotate(135deg);
+    }
+
+    .panel-window-move:hover:not(:disabled) {
+      border-color: var(--app-primary);
+      background: var(--app-primary-soft);
+      color: var(--app-primary);
+    }
+
+    .panel-window-move:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
     }
 
     .panel-main {
@@ -694,6 +814,30 @@ type PanelSelection =
         scroll-snap-align: start;
       }
 
+      .panel-window-item__bottom {
+        align-items: flex-end;
+      }
+
+      .panel-window-item__meta {
+        flex: 1 1 auto;
+      }
+
+      .panel-window-item__footer {
+        margin-top: 2px;
+      }
+
+      .panel-window-item__move-actions {
+        justify-content: flex-start;
+      }
+
+      .panel-window-move--previous::before {
+        transform: rotate(-135deg);
+      }
+
+      .panel-window-move--next::before {
+        transform: rotate(45deg);
+      }
+
       .panel-window-arrow {
         display: flex;
         align-items: center;
@@ -770,6 +914,7 @@ export class TrackWindowsPanelComponent implements OnDestroy {
   readonly saveWindow = output<WindowSaveEvent>();
   readonly deleteWindow = output<WindowDeleteEvent>();
   readonly saveTrackFades = output<TrackFadesSaveEvent>();
+  readonly reorderWindows = output<TrackWindowsReorderEvent>();
 
   resolvedDurationS = 0;
   ytVideoId: string | null = null;
@@ -820,6 +965,8 @@ export class TrackWindowsPanelComponent implements OnDestroy {
   /** Window ids present just before a create-save, used to auto-select the
       newly created window once the refreshed track arrives. */
   private windowIdsBeforeCreate: Set<number> | null = null;
+  /** Window to keep visible after a reorder refresh. */
+  private pendingScrollWindowId: number | null = null;
 
   constructor() {
     // React to the track input the way the old ngOnChanges did: a different
@@ -845,15 +992,32 @@ export class TrackWindowsPanelComponent implements OnDestroy {
     });
 
     // Recompute the mobile carousel arrows after the windows list re-renders
-    // (windows added/removed). setTimeout lets layout settle first.
+    // (windows added/removed/reordered). setTimeout lets layout settle first.
     effect(() => {
       this.track();
-      setTimeout(() => this.updateWindowScrollState(), 0);
+      setTimeout(() => {
+        this.updateWindowScrollState();
+
+        if (this.pendingScrollWindowId != null) {
+          const id = this.pendingScrollWindowId;
+          this.pendingScrollWindowId = null;
+          this.scrollWindowIntoView(id);
+        }
+      }, 0);
     });
   }
 
   get windows(): TrackWindow[] {
-    return this.track()?.trackWindows ?? [];
+    return [...(this.track()?.trackWindows ?? [])].sort((a, b) => {
+      const positionA = a.positionWithinTrack ?? Number.MAX_SAFE_INTEGER;
+      const positionB = b.positionWithinTrack ?? Number.MAX_SAFE_INTEGER;
+
+      if (positionA !== positionB) {
+        return positionA - positionB;
+      }
+
+      return (a.id ?? 0) - (b.id ?? 0);
+    });
   }
 
   get editorAvailable(): boolean {
@@ -899,6 +1063,64 @@ export class TrackWindowsPanelComponent implements OnDestroy {
     const el = this.windowListEl;
     if (!el) return;
     el.scrollBy({ left: direction * el.clientWidth * 0.8, behavior: 'smooth' });
+  }
+
+  canMoveWindow(win: TrackWindow, direction: 1 | -1): boolean {
+    if (win.id == null) return false;
+
+    const index = this.windows.findIndex(item => item.id === win.id);
+    if (index < 0) return false;
+
+    const targetIndex = index + direction;
+    return targetIndex >= 0 && targetIndex < this.windows.length;
+  }
+
+  onMoveWindowClick(event: Event, win: TrackWindow, direction: 1 | -1): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.moveWindow(win, direction);
+  }
+
+  private moveWindow(win: TrackWindow, direction: 1 | -1): void {
+    const trackId = this.track()?.id;
+    if (trackId == null || win.id == null) return;
+
+    const orderedWindows = this.windows;
+    const index = orderedWindows.findIndex(item => item.id === win.id);
+    const targetIndex = index + direction;
+
+    if (index < 0 || targetIndex < 0 || targetIndex >= orderedWindows.length) {
+      return;
+    }
+
+    const windowIds = orderedWindows
+      .map(item => item.id)
+      .filter((id): id is number => id != null);
+
+    [windowIds[index], windowIds[targetIndex]] = [windowIds[targetIndex], windowIds[index]];
+
+    this.selection = { kind: 'window', id: win.id };
+    this.pendingScrollWindowId = win.id;
+
+    this.reorderWindows.emit({
+      trackId,
+      windowIds,
+      movedWindowId: win.id,
+    });
+  }
+
+  private scrollWindowIntoView(windowId: number): void {
+    const el = this.windowListEl;
+    if (!el) return;
+
+    const target = el.querySelector<HTMLElement>(`[data-window-id="${windowId}"]`);
+    target?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'center',
+    });
+
+    setTimeout(() => this.updateWindowScrollState(), 250);
   }
 
   private updateWindowScrollState(): void {
@@ -1135,6 +1357,7 @@ export class TrackWindowsPanelComponent implements OnDestroy {
     this.editorStreamComplete = false;
     this.hasAutoSelected = false;
     this.windowIdsBeforeCreate = null;
+    this.pendingScrollWindowId = null;
     this.selection = { kind: 'create' };
     this.editorFromS = null;
     this.editorToS = null;

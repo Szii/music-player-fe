@@ -58,7 +58,7 @@ type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 
           <div class="player__meta">
             @if (windowLabel(); as label) {
-              <span class="player__window-label">{{ label }}</span>
+             <!-- <span class="player__window-label">{{ label }}</span>  -->
             }
             @if (status() === 'BUFFERING') {
               <span class="player__buffering">buffering…</span>
