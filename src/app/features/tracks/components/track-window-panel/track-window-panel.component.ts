@@ -196,7 +196,7 @@ type PanelSelection =
                             </div>
                           </div>
 
-                          <div class="panel-window-item__footer" (click)="$event.stopPropagation()">
+                          <div class="panel-window-item__footer">
                             <div class="panel-window-item__move-actions">
                               <button
                                 type="button"
@@ -219,13 +219,18 @@ type PanelSelection =
                               ></button>
                             </div>
 
-                            <app-icon-button
-                              icon="delete"
-                              label="Delete window"
-                              variant="danger"
-                              size="md"
-                              (clicked)="onDeleteWindow(win)"
-                            />
+                            <span
+                              class="panel-window-item__delete"
+                              (click)="$event.stopPropagation()"
+                            >
+                              <app-icon-button
+                                icon="delete"
+                                label="Delete window"
+                                variant="danger"
+                                size="md"
+                                (clicked)="onDeleteWindow(win)"
+                              />
+                            </span>
                           </div>
                         </article>
                       }
@@ -607,6 +612,11 @@ type PanelSelection =
       align-items: center;
       justify-content: flex-start;
       gap: 6px;
+    }
+
+    .panel-window-item__delete {
+      flex: 0 0 auto;
+      display: inline-flex;
     }
 
     .panel-window-move {
