@@ -60,11 +60,11 @@ type DragMode = 'left' | 'right' | 'region';
         class="wf-handle wf-handle--left"
         [class.wf-handle--locked]="handlesDisabled"
         [attr.title]="handlesDisabled ? 'Whole-track window: bounds are locked' : null"
-        [style.left.px]="regionLeftPx"
+        [style.left.px]="leftHandleBoxPx"
         (mousedown)="onHandleMouseDown($event, 'left')"
         (touchstart)="onHandleTouchStart($event, 'left')"
       >
-        <div class="wf-handle__grip"></div>
+        <div class="wf-handle__grip" [style.left.px]="leftGripPx"></div>
       </div>
 
       <div
@@ -72,11 +72,11 @@ type DragMode = 'left' | 'right' | 'region';
         class="wf-handle wf-handle--right"
         [class.wf-handle--locked]="handlesDisabled"
         [attr.title]="handlesDisabled ? 'Whole-track window: bounds are locked' : null"
-        [style.left.px]="regionRightPx"
+        [style.left.px]="rightHandleBoxPx"
         (mousedown)="onHandleMouseDown($event, 'right')"
         (touchstart)="onHandleTouchStart($event, 'right')"
       >
-        <div class="wf-handle__grip"></div>
+        <div class="wf-handle__grip" [style.left.px]="rightGripPx"></div>
       </div>
 
       <div class="wf-lock-shade" *ngIf="audioReady && handlesDisabled" aria-hidden="true"></div>
@@ -143,7 +143,6 @@ type DragMode = 'left' | 'right' | 'region';
       height: 100%;
       cursor: col-resize;
       z-index: 5;
-      transform: translateX(-50%);
       background: transparent;
       transition: background 0.12s ease;
       touch-action: pan-y;
@@ -303,6 +302,9 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
   private readonly cdr = inject(ChangeDetectorRef);
 
   private static readonly MIN_REGION_S = 0.1;
+  /** Half the grip's visible footprint (6px pill + ~2px ring), used to keep it
+      fully on-screen at the transport edges. */
+  private static readonly GRIP_HALF_PX = 6;
 
   @Input() durationS = 0;
   @Input() regionFromS = 0;
@@ -332,6 +334,15 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
 
   regionLeftPx = 0;
   regionRightPx = 0;
+  /** Left of each handle's hit-area box, clamped so the full box stays inside
+      the transport even when the region edge sits at the very edge (otherwise
+      the outer half is clipped and the handle becomes half as easy to grab). */
+  leftHandleBoxPx = 0;
+  rightHandleBoxPx = 0;
+  /** Where the visible grip sits inside its hit-area box, so it stays pinned to
+      the true region edge regardless of the clamped box position. */
+  leftGripPx = 0;
+  rightGripPx = 0;
   canvasWidth = 0;
   canvasHeight = 0;
 
@@ -594,6 +605,32 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
 
     this.regionLeftPx = (this.regionFromS / this.durationS) * this.canvasWidth;
     this.regionRightPx = (this.regionToS / this.durationS) * this.canvasWidth;
+
+    // Keep each handle's full hit-area box inside the transport so an edge-pinned
+    // handle stays as easy to grab as one in the middle; the grip is offset back
+    // out toward the region edge.
+    const handleWidth = this.handleWidthPx();
+    const maxBoxLeft = Math.max(0, this.canvasWidth - handleWidth);
+
+    // The grip is a 6px pill with a ~2px outer ring; nudge it just inside the
+    // transport at the extremes so it never renders half-clipped by overflow.
+    const gripHalf = WaveformCanvasComponent.GRIP_HALF_PX;
+    const maxGripCenter = Math.max(gripHalf, this.canvasWidth - gripHalf);
+
+    this.leftHandleBoxPx = this.clamp(this.regionLeftPx - handleWidth / 2, 0, maxBoxLeft);
+    this.leftGripPx = this.clamp(this.regionLeftPx, gripHalf, maxGripCenter) - this.leftHandleBoxPx;
+
+    this.rightHandleBoxPx = this.clamp(this.regionRightPx - handleWidth / 2, 0, maxBoxLeft);
+    this.rightGripPx = this.clamp(this.regionRightPx, gripHalf, maxGripCenter) - this.rightHandleBoxPx;
+  }
+
+  /** Rendered handle hit-area width — wider on touch layouts (see the
+      max-width: 700px style block). */
+  private handleWidthPx(): number {
+    const isTouchLayout =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(max-width: 700px)').matches;
+    return isTouchLayout ? 44 : 34;
   }
 
   private beginMouseDrag(mode: DragMode, clientX: number): void {
