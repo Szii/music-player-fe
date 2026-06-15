@@ -22,6 +22,7 @@ import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-t
 import { UiListToolbarComponent } from '../../../../shared/ui/list-toolbar/ui-list-toolbar.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
+import { httpErrorMessage } from '../../../../shared/utils/http-error';
 
 type GroupFilterMode = 'all' | 'empty' | 'withTracks';
 
@@ -314,7 +315,7 @@ export class GroupsPageComponent implements OnInit {
       },
       error: (err) => {
         console.error(err);
-        this.toast.error('Creating group failed.');
+        this.toast.error(httpErrorMessage(err, { fallback: 'Creating group failed.' }));
         this.createFormRef?.reset();
       },
     });
@@ -348,7 +349,7 @@ export class GroupsPageComponent implements OnInit {
       },
       error: (err) => {
         console.error(err);
-        this.toast.error('Deleting group failed.');
+        this.toast.error(httpErrorMessage(err, { fallback: 'Deleting group failed.' }));
       },
       complete: () => {
         this.updatingGroupId = null;
@@ -408,7 +409,7 @@ export class GroupsPageComponent implements OnInit {
       },
       error: (err) => {
         console.error(err);
-        this.toast.error('Updating group failed.');
+        this.toast.error(httpErrorMessage(err, { fallback: 'Updating group failed.' }));
       },
       complete: () => {
         this.updatingGroupId = null;

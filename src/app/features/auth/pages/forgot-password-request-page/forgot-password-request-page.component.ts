@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { HttpErrorResponse } from '@angular/common/http';
 import { finalize } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -12,6 +11,7 @@ import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-i
 import { UiFormActionsComponent } from '../../../../shared/ui/form-actions/ui-form-actions.component';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
+import { httpErrorMessage } from '../../../../shared/utils/http-error';
 
 @Component({
   selector: 'app-forgot-password-request-page',
@@ -121,17 +121,10 @@ export class ForgotPasswordRequestPageComponent {
         next: () => this.sent.set(true),
         error: (err: unknown) => {
           console.error(err);
-          if (err instanceof HttpErrorResponse) {
-            if (err.status === 400) {
-              this.toast.error('Invalid email format.');
-              return;
-            }
-            if (err.status === 429) {
-              this.toast.error('Too many reset requests. Please wait a moment and try again.');
-              return;
-            }
-          }
-          this.toast.error('Could not send password reset email. Please try again.');
+          this.toast.error(httpErrorMessage(err, {
+            overrides: { 400: 'Please enter a valid email address.' },
+            fallback: 'Could not send password reset email. Please try again.',
+          }));
         },
       });
   }

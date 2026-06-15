@@ -35,6 +35,7 @@ import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { UiCreateCtaComponent } from '../../../../shared/ui/create-cta/ui-create-cta.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
+import { httpErrorMessage } from '../../../../shared/utils/http-error';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 import { BoardPlaybackService } from '../../../../core/services/board-playback.service';
 
@@ -287,7 +288,7 @@ export class TracksPageComponent implements OnInit {
         next: () => this.onTrackCreated(),
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error('Creating track failed.');
+          this.toast.error(httpErrorMessage(err, { fallback: 'Creating track failed.' }));
         },
       });
   }
@@ -306,7 +307,7 @@ export class TracksPageComponent implements OnInit {
         },
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error('Updating track failed.');
+          this.toast.error(httpErrorMessage(err, { fallback: 'Updating track failed.' }));
         },
       });
   }
@@ -366,7 +367,7 @@ export class TracksPageComponent implements OnInit {
         },
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error('Deleting track failed.');
+          this.toast.error(httpErrorMessage(err, { fallback: 'Deleting track failed.' }));
         },
       });
   }
@@ -414,9 +415,9 @@ export class TracksPageComponent implements OnInit {
         },
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error(
-            event.windowId != null ? 'Updating window failed.' : 'Creating window failed.',
-          );
+          this.toast.error(httpErrorMessage(err, {
+            fallback: event.windowId != null ? 'Updating window failed.' : 'Creating window failed.',
+          }));
         },
       });
   }
@@ -448,7 +449,7 @@ export class TracksPageComponent implements OnInit {
         },
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error('Saving track fades failed.');
+          this.toast.error(httpErrorMessage(err, { fallback: 'Saving track fades failed.' }));
         },
       });
   }
@@ -470,7 +471,7 @@ export class TracksPageComponent implements OnInit {
         },
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error('Reordering windows failed.');
+          this.toast.error(httpErrorMessage(err, { fallback: 'Reordering windows failed.' }));
         },
       });
   }
@@ -488,7 +489,7 @@ export class TracksPageComponent implements OnInit {
         },
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error('Deleting window failed.');
+          this.toast.error(httpErrorMessage(err, { fallback: 'Deleting window failed.' }));
         },
       });
   }

@@ -42,6 +42,7 @@ import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-t
 import { UiCreateCtaComponent } from '../../../../shared/ui/create-cta/ui-create-cta.component';
 import { SessionsDropdownComponent } from '../../../../shared/components/sessions-dropdown/sessions-dropdown.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
+import { httpErrorMessage } from '../../../../shared/utils/http-error';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 import { BoardPlaybackService } from '../../../../core/services/board-playback.service';
 import { BoardShortcutsService } from '../../../../core/services/board-shortcuts.service';
@@ -530,7 +531,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         },
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error('Creating board failed.');
+          this.toast.error(httpErrorMessage(err, { fallback: 'Creating board failed.' }));
         },
       });
   }
@@ -567,7 +568,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
           },
           error: (err: unknown) => {
             console.error(err);
-            this.toast.error('Deleting board failed.');
+            this.toast.error(httpErrorMessage(err, { fallback: 'Deleting board failed.' }));
           },
         });
     };
@@ -767,7 +768,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         },
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error('Restoring track failed.');
+          this.toast.error(httpErrorMessage(err, { fallback: 'Restoring track failed.' }));
         },
       });
   }
@@ -874,7 +875,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         },
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error('Updating group failed.');
+          this.toast.error(httpErrorMessage(err, { fallback: 'Updating group failed.' }));
         },
       });
   }
@@ -931,7 +932,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
           console.error(err);
           this.pendingTrackUpdateBoardIds.delete(boardId);
           this.playPendingAfterUpdateBoardIds.delete(boardId);
-          this.toast.error('Updating board failed.');
+          this.toast.error(httpErrorMessage(err, { fallback: 'Updating board failed.' }));
         },
       });
   }
@@ -997,7 +998,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
           console.error(err);
           this.pendingTrackUpdateBoardIds.delete(boardId);
           this.playPendingAfterUpdateBoardIds.delete(boardId);
-          this.toast.error('Updating board failed.');
+          this.toast.error(httpErrorMessage(err, { fallback: 'Updating board failed.' }));
         },
       });
   }
@@ -1022,7 +1023,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         next: updated => this.upsertBoard(updated),
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error('Updating window failed.');
+          this.toast.error(httpErrorMessage(err, { fallback: 'Updating window failed.' }));
         },
       });
 
@@ -1475,7 +1476,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
                     ),
                   );
 
-                  this.toast.error('Updating volume failed.');
+                  this.toast.error(httpErrorMessage(err, { fallback: 'Updating volume failed.' }));
                   return of(null);
                 }),
               );
@@ -1603,7 +1604,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         },
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error(errorMessage);
+          this.toast.error(httpErrorMessage(err, { fallback: errorMessage }));
         },
       });
   }

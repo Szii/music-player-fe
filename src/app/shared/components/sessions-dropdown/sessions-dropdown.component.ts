@@ -12,6 +12,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { SessionResponse } from '../../../api/generated';
 import { SessionsStore } from '../../../core/services/sessions-store.service';
 import { ToastService } from '../../features/toast/toast.service';
+import { httpErrorMessage } from '../../utils/http-error';
 import { ConfirmDialogService } from '../../features/confirm-dialog/confirm-dialog.service';
 import { PromptDialogService } from '../../features/prompt-dialog/prompt-dialog.service';
 import { BoardPlaybackService } from '../../../core/services/board-playback.service';
@@ -174,7 +175,7 @@ export class SessionsDropdownComponent {
         },
         error: err => {
           console.error(err);
-          this.toast.error('Creating session failed.');
+          this.toast.error(httpErrorMessage(err, { fallback: 'Creating session failed.' }));
         },
       });
   }
@@ -206,7 +207,7 @@ export class SessionsDropdownComponent {
         },
         error: err => {
           console.error(err);
-          this.toast.error('Renaming session failed.');
+          this.toast.error(httpErrorMessage(err, { fallback: 'Renaming session failed.' }));
         },
       });
   }
@@ -236,7 +237,7 @@ export class SessionsDropdownComponent {
         },
         error: err => {
           console.error(err);
-          this.toast.error('Deleting session failed.');
+          this.toast.error(httpErrorMessage(err, { fallback: 'Deleting session failed.' }));
         },
       });
   }

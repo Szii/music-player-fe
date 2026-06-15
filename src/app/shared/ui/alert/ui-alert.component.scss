@@ -1,3 +1,11 @@
+:host {
+  display: block;
+  /* Vertical rhythm lives on the host so the card's
+     `.app-card__body > :first-child { margin-top: 0 }` reset can strip the
+     leading gap when the alert is the first element in a card. */
+  margin-block: 1rem;
+}
+
 .app-alert {
   display: flex;
   justify-content: space-between;
@@ -7,7 +15,6 @@
   border-radius: var(--app-radius-sm);
   border: 1px solid transparent;
   border-left: 4px solid transparent;
-  margin-top: 1rem;
   box-shadow: 0 2px 8px rgba(15, 8, 3, 0.08);
 }
 

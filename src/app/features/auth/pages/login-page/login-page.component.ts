@@ -14,9 +14,10 @@ import { UiFormFieldComponent } from '../../../../shared/ui/form-field/ui-form-f
 import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-input.component';
 import { UiFormActionsComponent } from '../../../../shared/ui/form-actions/ui-form-actions.component';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
-import { ToastService } from '../../../../shared/features/toast/toast.service';
+import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { VerificationRequiredComponent } from '../../components/verification-required/verification-required.component';
 import { SHOW_EMAIL_INPUTS } from '../../../../core/config/feature-flags';
+import { httpErrorMessage } from '../../../../shared/utils/http-error';
 
 @Component({
   selector: 'app-login-page',
@@ -28,6 +29,7 @@ import { SHOW_EMAIL_INPUTS } from '../../../../core/config/feature-flags';
     UiTextInputComponent,
     UiFormActionsComponent,
     NormalButtonComponent,
+    UiAlertComponent,
     VerificationRequiredComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -37,6 +39,10 @@ import { SHOW_EMAIL_INPUTS } from '../../../../core/config/feature-flags';
         @if (needsVerification()) {
           <app-verification-required (cancel)="onBackToLogin()" />
         } @else {
+          @if (formError()) {
+            <ui-alert variant="danger" role="alert">{{ formError() }}</ui-alert>
+          }
+
           <form class="app-form-stack" [formGroup]="form" (ngSubmit)="onSubmit()">
             <ui-form-field
               label="Username"
@@ -95,7 +101,6 @@ export class LoginPageComponent implements OnDestroy {
   private readonly session = inject(SessionService);
   private readonly tokenRenewal = inject(TokenRenewalService);
   private readonly router = inject(Router);
-  private readonly toast = inject(ToastService);
   private readonly credentialsStore = inject(AuthCredentialsStore);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -104,6 +109,8 @@ export class LoginPageComponent implements OnDestroy {
   readonly isSubmitting = signal(false);
   readonly submitted = signal(false);
   readonly needsVerification = signal(false);
+  /** Form-level error shown inline above the fields; persists until the next submit. */
+  readonly formError = signal('');
 
   readonly form = this.fb.nonNullable.group({
     name: ['', [Validators.required]],
@@ -135,6 +142,7 @@ export class LoginPageComponent implements OnDestroy {
 
   onSubmit(): void {
     this.submitted.set(true);
+    this.formError.set('');
     this.form.markAllAsTouched();
     if (this.form.invalid) return;
 
@@ -166,11 +174,10 @@ export class LoginPageComponent implements OnDestroy {
             this.needsVerification.set(true);
             return;
           }
-          if (err instanceof HttpErrorResponse && err.status === 401) {
-            this.toast.error('Invalid username or password.');
-            return;
-          }
-          this.toast.error('Login failed.');
+          this.formError.set(httpErrorMessage(err, {
+            overrides: { 401: 'Invalid username or password.' },
+            fallback: 'Login failed. Please try again.',
+          }));
         },
       });
   }
