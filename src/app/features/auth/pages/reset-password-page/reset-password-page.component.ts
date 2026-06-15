@@ -13,6 +13,7 @@ import { UiFormActionsComponent } from '../../../../shared/ui/form-actions/ui-fo
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { matchPasswords } from '../../utils/match-passwords.validator';
+import { httpErrorMessage } from '../../../../shared/utils/http-error';
 
 type FormStatus = 'ready' | 'submitting' | 'invalid-token' | 'error';
 
@@ -73,7 +74,7 @@ type FormStatus = 'ready' | 'submitting' | 'invalid-token' | 'error';
               }
               @case ('error') {
                 <p class="reset-page__text reset-page__text--error">
-                  Could not change your password. Please try again.
+                  {{ formError() }}
                 </p>
               }
             }
@@ -121,6 +122,8 @@ export class ResetPasswordPageComponent implements OnInit {
   readonly status = signal<FormStatus>('ready');
   readonly success = signal(false);
   readonly submitted = signal(false);
+  /** Message rendered when `status() === 'error'`. */
+  readonly formError = signal('Could not change your password. Please try again.');
 
   readonly form = this.fb.nonNullable.group({
     password: ['', [Validators.required, Validators.minLength(6)]],
@@ -187,6 +190,9 @@ export class ResetPasswordPageComponent implements OnInit {
             this.status.set('invalid-token');
             return;
           }
+          this.formError.set(httpErrorMessage(err, {
+            fallback: 'Could not change your password. Please try again.',
+          }));
           this.status.set('error');
         },
       });

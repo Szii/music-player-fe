@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { HttpErrorResponse } from '@angular/common/http';
 import { finalize } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -11,6 +10,7 @@ import { UiFormActionsComponent } from '../../../../shared/ui/form-actions/ui-fo
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { SHOW_EMAIL_INPUTS } from '../../../../core/config/feature-flags';
+import { httpErrorMessage } from '../../../../shared/utils/http-error';
 
 @Component({
   selector: 'app-change-email-form',
@@ -145,17 +145,13 @@ export class ChangeEmailFormComponent {
         },
         error: (err: unknown) => {
           console.error(err);
-          if (err instanceof HttpErrorResponse) {
-            if (err.status === 403) {
-              this.toast.error('Current password is incorrect.');
-              return;
-            }
-            if (err.status === 409) {
-              this.toast.error('That email is already registered.');
-              return;
-            }
-          }
-          this.toast.error('Could not change email. Please try again.');
+          this.toast.error(httpErrorMessage(err, {
+            overrides: {
+              403: 'Current password is incorrect.',
+              409: 'That email is already registered.',
+            },
+            fallback: 'Could not change email. Please try again.',
+          }));
         },
       });
   }

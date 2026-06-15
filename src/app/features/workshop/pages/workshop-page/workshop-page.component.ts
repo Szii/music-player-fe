@@ -21,6 +21,7 @@ import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
+import { httpErrorMessage } from '../../../../shared/utils/http-error';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 
 @Component({
@@ -221,7 +222,7 @@ export class WorkshopPageComponent implements OnInit {
             return;
           }
 
-          this.toast.error('Publishing failed.');
+          this.toast.error(httpErrorMessage(err, { fallback: 'Publishing failed.' }));
         },
       });
   }
@@ -244,7 +245,7 @@ export class WorkshopPageComponent implements OnInit {
         },
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error('Unpublishing failed.');
+          this.toast.error(httpErrorMessage(err, { fallback: 'Unpublishing failed.' }));
         },
       });
   }
@@ -279,7 +280,7 @@ export class WorkshopPageComponent implements OnInit {
             return;
           }
 
-          this.toast.error('Subscribe failed.');
+          this.toast.error(httpErrorMessage(err, { fallback: 'Subscribe failed.' }));
         },
       });
   }
@@ -312,7 +313,7 @@ export class WorkshopPageComponent implements OnInit {
         },
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error('Unsubscribing failed.');
+          this.toast.error(httpErrorMessage(err, { fallback: 'Unsubscribing failed.' }));
         },
       });
   }

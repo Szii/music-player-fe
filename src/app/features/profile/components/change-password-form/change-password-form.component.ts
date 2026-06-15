@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { HttpErrorResponse } from '@angular/common/http';
 import { finalize } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -10,6 +9,7 @@ import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-i
 import { UiFormActionsComponent } from '../../../../shared/ui/form-actions/ui-form-actions.component';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
+import { httpErrorMessage } from '../../../../shared/utils/http-error';
 
 @Component({
   selector: 'app-change-password-form',
@@ -103,11 +103,10 @@ export class ChangePasswordFormComponent {
         },
         error: (err: unknown) => {
           console.error(err);
-          if (err instanceof HttpErrorResponse && err.status === 403) {
-            this.toast.error('Current password is incorrect.');
-            return;
-          }
-          this.toast.error('Could not change password. Please try again.');
+          this.toast.error(httpErrorMessage(err, {
+            overrides: { 403: 'Current password is incorrect.' },
+            fallback: 'Could not change password. Please try again.',
+          }));
         },
       });
   }

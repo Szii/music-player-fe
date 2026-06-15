@@ -1,48 +1,46 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { ToastItem, ToastService } from './toast.service'
+import { ToastItem, ToastService } from './toast.service';
 
 @Component({
   selector: 'app-toast-container',
-  standalone: true,
-  imports: [CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="toast-stack" aria-live="polite" aria-atomic="true">
-      <div
-        *ngFor="let toast of toastService.toasts(); trackBy: trackByToastId"
-        class="toast"
-        [class.toast--success]="toast.type === 'success'"
-        [class.toast--error]="toast.type === 'error'"
-        [class.toast--info]="toast.type === 'info'"
-        [class.toast--warning]="toast.type === 'warning'"
-        role="status">
-        <div class="toast__body">
-          <div class="toast__icon" aria-hidden="true">
-            <span *ngIf="toast.type === 'success'">✓</span>
-            <span *ngIf="toast.type === 'error'">!</span>
-            <span *ngIf="toast.type === 'info'">i</span>
-            <span *ngIf="toast.type === 'warning'">!</span>
-          </div>
+    <div class="toast-stack" role="region" aria-label="Notifications">
+      @for (toast of toastService.toasts(); track toast.id) {
+        <div
+          class="toast"
+          [class.toast--success]="toast.type === 'success'"
+          [class.toast--error]="toast.type === 'error'"
+          [class.toast--info]="toast.type === 'info'"
+          [class.toast--warning]="toast.type === 'warning'"
+          [class.toast--leaving]="toast.leaving"
+          [attr.role]="isUrgent(toast) ? 'alert' : 'status'"
+          [attr.aria-live]="isUrgent(toast) ? 'assertive' : 'polite'"
+          aria-atomic="true"
+          (pointerenter)="toastService.pause(toast.id)"
+          (pointerleave)="toastService.resume(toast.id)"
+          (focusin)="toastService.pause(toast.id)"
+          (focusout)="toastService.resume(toast.id)"
+        >
+          <div class="toast__body">
+            <div class="toast__icon" aria-hidden="true">{{ icon(toast) }}</div>
 
-          <div class="toast__content">
-            <div class="toast__title">
-              {{ getTitle(toast) }}
+            <div class="toast__content">
+              <div class="toast__title">{{ title(toast) }}</div>
+              <div class="toast__message">{{ toast.message }}</div>
             </div>
-            <div class="toast__message">
-              {{ toast.message }}
-            </div>
-          </div>
 
-          <button
-            type="button"
-            class="toast__close"
-            (click)="toastService.dismiss(toast.id)"
-            aria-label="Dismiss notification">
-            ✕
-          </button>
+            <button
+              type="button"
+              class="toast__close"
+              (click)="toastService.dismiss(toast.id)"
+              aria-label="Dismiss notification"
+            >
+              ✕
+            </button>
+          </div>
         </div>
-      </div>
+      }
     </div>
   `,
   styles: [`
@@ -69,6 +67,10 @@ import { ToastItem, ToastService } from './toast.service'
       box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
       overflow: hidden;
       animation: toast-in 180ms ease-out;
+    }
+
+    .toast--leaving {
+      animation: toast-out 160ms ease-in forwards;
     }
 
     .toast__body {
@@ -135,6 +137,11 @@ import { ToastItem, ToastService } from './toast.service'
       color: var(--app-text);
     }
 
+    .toast__close:focus-visible {
+      outline: 2px solid var(--app-primary);
+      outline-offset: 2px;
+    }
+
     .toast--success {
       border-color: color-mix(in srgb, var(--app-success) 22%, transparent);
     }
@@ -182,16 +189,58 @@ import { ToastItem, ToastService } from './toast.service'
       }
     }
 
+    @keyframes toast-out {
+      from {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+      to {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.98);
+      }
+    }
+
     @media (max-width: 640px) {
       :host {
         top: auto;
         right: 12px;
         left: 12px;
-        bottom: 12px;
+        /* Sit above the iOS home indicator / Android gesture bar. */
+        bottom: calc(12px + env(safe-area-inset-bottom, 0px));
       }
 
       .toast-stack {
         width: 100%;
+      }
+
+      /* On mobile the stack lives at the bottom, so it should rise into view. */
+      @keyframes toast-in {
+        from {
+          opacity: 0;
+          transform: translateY(8px) scale(0.98);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      @keyframes toast-out {
+        from {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+        to {
+          opacity: 0;
+          transform: translateY(8px) scale(0.98);
+        }
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .toast,
+      .toast--leaving {
+        animation-duration: 0.01ms;
       }
     }
   `],
@@ -199,11 +248,23 @@ import { ToastItem, ToastService } from './toast.service'
 export class ToastContainerComponent {
   readonly toastService = inject(ToastService);
 
-  trackByToastId(_index: number, toast: ToastItem): number {
-    return toast.id;
+  /** Errors and warnings interrupt the screen reader; info/success wait. */
+  isUrgent(toast: ToastItem): boolean {
+    return toast.type === 'error' || toast.type === 'warning';
   }
 
-  getTitle(toast: ToastItem): string {
+  icon(toast: ToastItem): string {
+    switch (toast.type) {
+      case 'success':
+        return '✓';
+      case 'info':
+        return 'i';
+      default:
+        return '!';
+    }
+  }
+
+  title(toast: ToastItem): string {
     switch (toast.type) {
       case 'success':
         return 'Success';

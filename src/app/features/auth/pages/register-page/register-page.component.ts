@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnDestroy, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { HttpErrorResponse } from '@angular/common/http';
 import { finalize } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -13,8 +12,10 @@ import { UiFormFieldComponent } from '../../../../shared/ui/form-field/ui-form-f
 import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-input.component';
 import { UiFormActionsComponent } from '../../../../shared/ui/form-actions/ui-form-actions.component';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
+import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { VerificationRequiredComponent } from '../../components/verification-required/verification-required.component';
+import { httpErrorMessage } from '../../../../shared/utils/http-error';
 
 @Component({
   selector: 'app-register-page',
@@ -26,6 +27,7 @@ import { VerificationRequiredComponent } from '../../components/verification-req
     UiTextInputComponent,
     UiFormActionsComponent,
     NormalButtonComponent,
+    UiAlertComponent,
     VerificationRequiredComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -35,6 +37,10 @@ import { VerificationRequiredComponent } from '../../components/verification-req
         @if (registered()) {
           <app-verification-required (cancel)="onGoToLogin()" />
         } @else {
+          @if (formError()) {
+            <ui-alert variant="danger" role="alert">{{ formError() }}</ui-alert>
+          }
+
           <form class="app-form-stack" [formGroup]="form" (ngSubmit)="onSubmit()">
             <ui-form-field
               label="Username"
@@ -99,6 +105,8 @@ export class RegisterPageComponent implements OnDestroy {
   readonly isSubmitting = signal(false);
   readonly submitted = signal(false);
   readonly registered = signal(false);
+  /** Form-level error shown inline above the fields; persists until the next submit. */
+  readonly formError = signal('');
 
   readonly form = this.fb.nonNullable.group({
     name: ['', [Validators.required]],
@@ -149,6 +157,7 @@ export class RegisterPageComponent implements OnDestroy {
 
   onSubmit(): void {
     this.submitted.set(true);
+    this.formError.set('');
     this.form.markAllAsTouched();
     if (this.form.invalid) return;
 
@@ -177,11 +186,10 @@ export class RegisterPageComponent implements OnDestroy {
         },
         error: (err: unknown) => {
           console.error(err);
-          if (err instanceof HttpErrorResponse && err.status === 409) {
-            this.toast.error('Username or email already exists.');
-          } else {
-            this.toast.error('Registration failed.');
-          }
+          this.formError.set(httpErrorMessage(err, {
+            overrides: { 409: 'Username or email already exists.' },
+            fallback: 'Registration failed. Please try again.',
+          }));
         },
       });
   }
