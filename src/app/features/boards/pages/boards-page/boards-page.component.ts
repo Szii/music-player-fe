@@ -177,8 +177,7 @@ interface VolumeCommit {
 
     .boards-page__sessions {
       flex-shrink: 0;
-      align-self: flex-start;
-      transform: translateY(0.50rem);
+      align-self: left;
       position: relative;
       z-index: 50;
     }
@@ -1891,4 +1890,4 @@ function clampPct(value: number | null | undefined): number {
   return Number.isFinite(numeric)
     ? Math.max(0, Math.min(Math.round(numeric), 100))
     : 100;
-}
+} 

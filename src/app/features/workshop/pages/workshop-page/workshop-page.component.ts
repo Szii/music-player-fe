@@ -36,14 +36,19 @@ import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog
   ],
   template: `
     <div class="app-page workshop-page">
-      <ui-page-title
-        title="Workshop"
+      <ui-page-title title="Workshop">
+        <span class="workshop-page__desktop-action">
+          <normal-button type="button" (clicked)="openMyTracks()">
+            My tracks
+          </normal-button>
+        </span>
+      </ui-page-title>
 
-      >
+      <div class="workshop-page__mobile-action">
         <normal-button type="button" (clicked)="openMyTracks()">
           My tracks
         </normal-button>
-      </ui-page-title>
+      </div>
 
       @if (errorMessage()) {
         <ui-alert variant="danger">{{ errorMessage() }}</ui-alert>
@@ -78,7 +83,6 @@ import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog
     </div>
   `,
   styles: [`
-
     .workshop-page__divider {
       border: none;
       border-top: var(--app-border);
@@ -89,6 +93,26 @@ import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog
       min-height: 0;
     }
 
+    .workshop-page__mobile-action {
+      display: none;
+    }
+
+    .workshop-page__desktop-action {
+      display: inline-flex;
+    }
+
+    @media (max-width: 330px) {
+      .workshop-page__desktop-action {
+        display: none;
+      }
+
+      .workshop-page__mobile-action {
+        display: flex;
+        justify-content: flex-start;
+        margin-top: -6px;
+        margin-bottom: 18px;
+      }
+    }
   `],
 })
 export class WorkshopPageComponent implements OnInit {

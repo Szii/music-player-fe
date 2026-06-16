@@ -2,11 +2,16 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
+  inject,
   input,
   output,
   signal,
 } from '@angular/core';
 import { ConnectedPosition, OverlayModule } from '@angular/cdk/overlay';
+
+import { ScrollLockService } from '../../../core/services/scroll-lock.service';
+import { BottomSheetDragDirective } from '../bottom-sheet/bottom-sheet-drag.directive';
 
 export interface ActionMenuItem {
   /** Stable identifier emitted on select. */
@@ -27,9 +32,9 @@ export interface ActionMenuItem {
 @Component({
   selector: 'ui-action-menu',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OverlayModule],
+  imports: [OverlayModule, BottomSheetDragDirective],
   host: {
-    '(document:keydown.escape)': 'close()',
+    '(document:keydown.escape)': 'animateClose()',
   },
   template: `
     <button
@@ -58,13 +63,31 @@ export interface ActionMenuItem {
       [cdkConnectedOverlayOpen]="open()"
       [cdkConnectedOverlayPositions]="positions"
       [cdkConnectedOverlayHasBackdrop]="true"
-      cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop"
+      cdkConnectedOverlayBackdropClass="action-menu-backdrop"
+      cdkConnectedOverlayPanelClass="action-menu-pane"
       [cdkConnectedOverlayPush]="true"
       [cdkConnectedOverlayViewportMargin]="8"
-      (backdropClick)="close()"
+      (backdropClick)="animateClose()"
       (detach)="close()"
     >
-      <div class="app-popover-surface action-menu__panel" role="menu">
+      <div
+        #sheetEl
+        class="app-popover-surface action-menu__panel"
+        [class.action-menu__panel--closing]="closing()"
+        role="menu"
+      >
+        <button
+          type="button"
+          class="action-menu__handle"
+          [appBottomSheetDrag]="sheetEl"
+          (dismiss)="close()"
+          aria-label="Close menu"
+        >
+          <span class="action-menu__handle-bar" aria-hidden="true"></span>
+        </button>
+
+        <div class="app-popover-header action-menu__heading">{{ triggerLabel() }}</div>
+
         @for (item of items(); track item.id) {
           @if (item.href) {
             <a
@@ -142,11 +165,26 @@ export interface ActionMenuItem {
 
     .action-menu__panel {
       min-width: 180px;
-      padding: 4px;
+      /* No padding so rows run edge-to-edge and their hairline dividers read as
+         a clean list (the rounded panel clips the first/last row). */
+      padding: 0;
     }
 
+    /* Drag handle + heading are phone-only; shown via the global bottom-sheet
+       rules. Desktop stays a compact anchored dropdown with no header. */
+    .action-menu__handle,
+    .action-menu__heading {
+      display: none;
+    }
+
+    /* Full-width rows separated by hairlines, on desktop and mobile alike. */
     .app-popover-item {
-      border-radius: var(--app-radius-sm);
+      border-radius: 0;
+      border-bottom: 1px solid rgba(158, 98, 53, 0.12);
+    }
+
+    .app-popover-item:last-child {
+      border-bottom: none;
     }
 
     .app-popover-item:disabled {
@@ -163,6 +201,11 @@ export class UiActionMenuComponent {
   readonly select = output<string>();
 
   readonly open = signal(false);
+  /** Drives the slide-down animation before the mobile sheet detaches. */
+  readonly closing = signal(false);
+
+  private readonly scrollLock = inject(ScrollLockService);
+  private closeTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly positions: ConnectedPosition[] = [
     { originX: 'end', originY: 'bottom', overlayX: 'end', overlayY: 'top', offsetY: 6 },
@@ -171,11 +214,60 @@ export class UiActionMenuComponent {
 
   readonly hasItems = computed(() => this.items().length > 0);
 
+  constructor() {
+    // On phones the menu is a bottom sheet that owns the screen: lock background
+    // scroll (and hide the bottom nav via the shared body class) so the sheet
+    // can't drift on scroll. Ref-counted, mobile only.
+    effect((onCleanup) => {
+      if (!this.open()) return;
+      if (typeof window === 'undefined') return;
+      if (!window.matchMedia('(max-width: 640px)').matches) return;
+      this.scrollLock.lock();
+      onCleanup(() => this.scrollLock.unlock());
+    });
+  }
+
   toggle(): void {
-    this.open.update(value => !value);
+    if (this.open()) {
+      this.animateClose();
+      return;
+    }
+    if (this.closeTimer) {
+      clearTimeout(this.closeTimer);
+      this.closeTimer = null;
+    }
+    this.closing.set(false);
+    this.open.set(true);
+  }
+
+  /**
+   * Close the menu. On mobile (where it's a bottom sheet) play a slide-down
+   * first, mirroring the open animation, then remove it.
+   */
+  animateClose(): void {
+    if (!this.open() || this.closing()) return;
+
+    const isMobile =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(max-width: 640px)').matches;
+    if (!isMobile) {
+      this.close();
+      return;
+    }
+
+    this.closing.set(true);
+    this.closeTimer = setTimeout(() => {
+      this.closeTimer = null;
+      this.close();
+    }, 200);
   }
 
   close(): void {
+    if (this.closeTimer) {
+      clearTimeout(this.closeTimer);
+      this.closeTimer = null;
+    }
+    this.closing.set(false);
     if (this.open()) this.open.set(false);
   }
 

@@ -48,7 +48,7 @@ interface WindowRow {
       </ul>
 
       @if (limits()) {
-        <details class="limits__details" open>
+        <details class="limits__details">
           <summary class="limits__summary">
             Per-session board quotas ({{ perSessionBoards().length }})
           </summary>

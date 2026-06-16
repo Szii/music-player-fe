@@ -14,6 +14,7 @@ export class ScrollLockService {
   private lockCount = 0;
   private previousOverflow = '';
   private previousPaddingRight = '';
+  private savedScrollY = 0;
 
   lock(): void {
     if (this.lockCount === 0) {
@@ -22,6 +23,12 @@ export class ScrollLockService {
       const scrollbarWidth = view
         ? view.innerWidth - this.doc.documentElement.clientWidth
         : 0;
+
+      // Capture the scroll position before mutating the layout. Hiding the bottom
+      // nav (via app-modal-open) shortens the document, which can clamp scrollY
+      // upward while the overlay is open; we restore it on unlock so closing the
+      // overlay never leaves the page scrolled to a different spot.
+      this.savedScrollY = view ? view.scrollY : 0;
 
       this.previousOverflow = body.style.overflow;
       this.previousPaddingRight = body.style.paddingRight;
@@ -48,6 +55,9 @@ export class ScrollLockService {
       body.style.overflow = this.previousOverflow;
       body.style.paddingRight = this.previousPaddingRight;
       body.classList.remove('app-modal-open');
+
+      // Restore the pre-lock scroll position (see lock()).
+      this.doc.defaultView?.scrollTo(0, this.savedScrollY);
     }
   }
 }

@@ -4,8 +4,10 @@ import {
   DestroyRef,
   ElementRef,
   computed,
+  effect,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -16,12 +18,14 @@ import { httpErrorMessage } from '../../utils/http-error';
 import { ConfirmDialogService } from '../../features/confirm-dialog/confirm-dialog.service';
 import { PromptDialogService } from '../../features/prompt-dialog/prompt-dialog.service';
 import { BoardPlaybackService } from '../../../core/services/board-playback.service';
+import { ScrollLockService } from '../../../core/services/scroll-lock.service';
 import { IconButtonComponent } from '../../ui/buttons/ui-icon-button.component';
+import { BottomSheetDragDirective } from '../../ui/bottom-sheet/bottom-sheet-drag.directive';
 import { FIELD_LIMITS } from '../../constants/field-limits';
 
 @Component({
   selector: 'app-sessions-dropdown',
-  imports: [IconButtonComponent],
+  imports: [IconButtonComponent, BottomSheetDragDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '(document:click)': 'onDocumentClick($event)',
@@ -47,7 +51,18 @@ import { FIELD_LIMITS } from '../../constants/field-limits';
         </button>
 
         @if (isOpen()) {
-          <div class="app-popover-surface sd__panel" role="menu">
+          <div class="sd__scrim" aria-hidden="true" (pointerdown)="onScrimDown($event)"></div>
+          <div #sheetEl class="app-popover-surface sd__panel" role="menu">
+            <button
+              type="button"
+              class="sd__handle"
+              [appBottomSheetDrag]="sheetEl"
+              (dismiss)="dismissSheet()"
+              aria-label="Close"
+            >
+              <span class="sd__handle-bar" aria-hidden="true"></span>
+            </button>
+
             <div class="app-popover-header">Sessions</div>
 
             @if (sessions().length === 0) {
@@ -116,8 +131,24 @@ export class SessionsDropdownComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly boardPlayback = inject(BoardPlaybackService);
+  private readonly scrollLock = inject(ScrollLockService);
+
+  private readonly sheetDrag = viewChild(BottomSheetDragDirective);
 
   readonly isOpen = signal(false);
+
+  constructor() {
+    // On phones the panel becomes a bottom sheet that owns the screen: lock the
+    // background scroll (and hide the bottom nav via the shared body class) while
+    // it's open, matching ui-select and the board-settings menu.
+    effect((onCleanup) => {
+      if (!this.isOpen()) return;
+      if (typeof window === 'undefined') return;
+      if (!window.matchMedia('(max-width: 640px)').matches) return;
+      this.scrollLock.lock();
+      onCleanup(() => this.scrollLock.unlock());
+    });
+  }
 
   readonly sessions = this.store.sessions;
   readonly selectedId = this.store.selectedSessionId;
@@ -146,6 +177,24 @@ export class SessionsDropdownComponent {
 
   close(): void {
     this.isOpen.set(false);
+  }
+
+  /** Tap the mobile bottom-sheet scrim to dismiss. pointerdown + preventDefault
+      avoids a ghost click reaching the trigger (which would re-open the menu). */
+  onScrimDown(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const drag = this.sheetDrag();
+    if (drag) {
+      drag.close();
+    } else {
+      this.dismissSheet();
+    }
+  }
+
+  /** Close the sheet after a scrim tap or handle drag/tap. */
+  dismissSheet(): void {
+    this.close();
   }
 
   select(session: SessionResponse): void {
