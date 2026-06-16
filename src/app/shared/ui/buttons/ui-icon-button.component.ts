@@ -18,7 +18,8 @@ export type AppIconName =
   | 'plus'
   | 'copy'
   | 'bookmark'
-  | 'bookmark-remove';
+  | 'bookmark-remove'
+  | 'more';
 
 export type AppIconButtonVariant =
   | 'neutral'
@@ -108,6 +109,11 @@ export type AppIconButtonSize = 'xs' | 'sm' | 'md' | 'lg';
             <path d="M7 4h10a1 1 0 0 1 1 1v15l-6-4-6 4V5a1 1 0 0 1 1-1Z" fill="currentColor" stroke="none" />
             <path d="M9 10l6 6" stroke="white" stroke-width="2" />
             <path d="M15 10l-6 6" stroke="white" stroke-width="2" />
+          }
+          @case ('more') {
+            <circle cx="12" cy="5" r="1.6" fill="currentColor" stroke="none" />
+            <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+            <circle cx="12" cy="19" r="1.6" fill="currentColor" stroke="none" />
           }
           @default {
             <circle cx="12" cy="12" r="7" />
