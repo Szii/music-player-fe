@@ -10,13 +10,16 @@ import {
 import { CommonModule } from '@angular/common';
 import { Track } from '../../../../api/generated';
 import { InfoDialogService } from '../../../../shared/features/info-dialog/info-dialog.service';
-import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
 import {
   UiDataTableColumn,
   UiDataTableComponent,
 } from '../../../../shared/ui/data-table/ui-data-table.component';
 import { UiListToolbarComponent } from '../../../../shared/ui/list-toolbar/ui-list-toolbar.component';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
+import {
+  ActionMenuItem,
+  UiActionMenuComponent,
+} from '../../../../shared/ui/action-menu/ui-action-menu.component';
 import { persistentSignal } from '../../../../shared/utils/persistent-signal';
 
 type CatalogFilterMode = 'all' | 'available' | 'subscribed';
@@ -37,10 +40,10 @@ type TrackCatalogSortMode =
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
-    IconButtonComponent,
     UiDataTableComponent,
     UiListToolbarComponent,
     UiChipComponent,
+    UiActionMenuComponent,
   ],
   template: `
     <div class="section">
@@ -127,27 +130,11 @@ type TrackCatalogSortMode =
             </td>
 
             <td class="col-actions">
-              <div class="app-actions">
-                @if (!isSubscribed(track)) {
-                  <app-icon-button
-                    icon="bookmark"
-                    variant="secondary"
-                    size="md"
-                    label="Subscribe"
-                    [disabled]="busyTrackId() === track.id"
-                    (clicked)="subscribe.emit(track)"
-                  />
-                } @else {
-                  <app-icon-button
-                    icon="bookmark-remove"
-                    variant="danger"
-                    size="md"
-                    label="Unsubscribe"
-                    [disabled]="busyTrackId() === track.id"
-                    (clicked)="unsubscribe.emit(track)"
-                  />
-                }
-              </div>
+              <ui-action-menu
+                [items]="menuItems(track)"
+                [triggerLabel]="'Actions for ' + displayName(track)"
+                (select)="onMenuSelect(track, $event)"
+              />
             </td>
           </tr>
         </ng-template>
@@ -194,28 +181,13 @@ type TrackCatalogSortMode =
                     subscriberCount(track)
                   }}</span>
                 </span>
-              </div>
 
-              <div class="app-actions app-entity-list__actions">
-                @if (!isSubscribed(track)) {
-                  <app-icon-button
-                    icon="bookmark"
-                    variant="secondary"
-                    size="md"
-                    label="Subscribe"
-                    [disabled]="busyTrackId() === track.id"
-                    (clicked)="subscribe.emit(track)"
-                  />
-                } @else {
-                  <app-icon-button
-                    icon="bookmark-remove"
-                    variant="danger"
-                    size="md"
-                    label="Unsubscribe"
-                    [disabled]="busyTrackId() === track.id"
-                    (clicked)="unsubscribe.emit(track)"
-                  />
-                }
+                <ui-action-menu
+                  class="track-catalog__menu"
+                  [items]="menuItems(track)"
+                  [triggerLabel]="'Actions for ' + displayName(track)"
+                  (select)="onMenuSelect(track, $event)"
+                />
               </div>
             </li>
           }
@@ -293,6 +265,25 @@ type TrackCatalogSortMode =
       outline-offset: 2px;
       border-radius: var(--app-radius-sm, 4px);
     }
+
+    /* Trim the default 24px header padding so narrow labels (e.g. "Duration")
+       don't clip into the neighbouring column. */
+    :host ::ng-deep .app-table--workshop th {
+      padding-left: 14px;
+      padding-right: 14px;
+    }
+
+    :host ::ng-deep .app-table--workshop td.col-actions {
+      text-align: right;
+      /* Breathing room between the kebab and the table's right edge. */
+      padding-right: 18px;
+    }
+
+    /* Mobile card: kebab menu sits at the right end of the meta row. */
+    .track-catalog__menu {
+      margin-left: auto;
+      align-self: center;
+    }
   `],
 })
 export class TrackCatalogComponent {
@@ -327,11 +318,11 @@ export class TrackCatalogComponent {
   readonly columns: UiDataTableColumn[] = [
     { label: 'Track', className: 'col-title' },
     { label: 'Owner', className: 'col-owner', width: '16%' },
-    { label: 'Duration', className: 'col-duration', width: '90px' },
+    { label: 'Duration', className: 'col-duration', width: '100px' },
     { label: 'Subscribers', className: 'col-subscribers', width: '110px' },
     { label: 'Description', className: 'col-desc' },
     { label: 'Status', className: 'col-status', width: '140px' },
-    { label: 'Actions', className: 'col-actions', width: '120px' },
+    { label: '', className: 'col-actions', width: '72px' },
   ];
 
   setFilterMode(value: unknown): void {
@@ -366,6 +357,24 @@ export class TrackCatalogComponent {
 
   isSubscribed(track: Track): boolean {
     return track.id != null && this.subscribedIds().has(track.id);
+  }
+
+  menuItems(track: Track): ActionMenuItem[] {
+    const busy = this.busyTrackId() === track.id;
+
+    if (this.isSubscribed(track)) {
+      return [{ id: 'unsubscribe', label: 'Unsubscribe', variant: 'danger', disabled: busy }];
+    }
+
+    return [{ id: 'subscribe', label: 'Subscribe', disabled: busy }];
+  }
+
+  onMenuSelect(track: Track, id: string): void {
+    if (id === 'subscribe') {
+      this.subscribe.emit(track);
+    } else if (id === 'unsubscribe') {
+      this.unsubscribe.emit(track);
+    }
   }
 
   openDescription(track: Track): void {

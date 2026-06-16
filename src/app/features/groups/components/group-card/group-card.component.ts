@@ -10,9 +10,12 @@ import { FormsModule } from '@angular/forms';
 import { Group, Track } from '../../../../api/generated';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
-import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 import { UiCharCounterComponent } from '../../../../shared/ui/char-counter/ui-char-counter.component';
+import {
+  ActionMenuItem,
+  UiActionMenuComponent,
+} from '../../../../shared/ui/action-menu/ui-action-menu.component';
 import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 
 export interface RenameEvent {
@@ -27,9 +30,9 @@ export interface RenameEvent {
     FormsModule,
     NormalButtonComponent,
     UiDialogShellComponent,
-    IconButtonComponent,
     UiChipComponent,
     UiCharCounterComponent,
+    UiActionMenuComponent,
   ],
   host: {
     role: 'listitem',
@@ -37,60 +40,28 @@ export interface RenameEvent {
   template: `
     <div class="group-card">
       <div class="group-card__header">
-        <div class="group-card__identity">
-          <span class="group-card__title" [title]="displayName()">
-            {{ displayName() }}
-          </span>
+        <span class="group-card__title" [title]="displayName()">
+          {{ displayName() }}
+        </span>
 
-          @if (tracksPreview(); as preview) {
-            <span class="group-card__subtitle" [title]="preview">
-              {{ preview }}
-            </span>
-          } @else {
-            <span class="group-card__subtitle">
-              No tracks assigned yet
-            </span>
-          }
+        <div class="group-card__header-actions">
+          <ui-chip
+            class="group-card__count"
+            [variant]="trackCount() > 0 ? 'success' : 'gold'"
+            size="sm"
+            shape="hex"
+            [dot]="true"
+          >
+            {{ trackCountLabel() }}
+          </ui-chip>
+
+          <ui-action-menu
+            [items]="menuItems()"
+            [disabled]="updating()"
+            [triggerLabel]="'Actions for ' + displayName()"
+            (select)="onMenuSelect($event)"
+          />
         </div>
-
-        <ui-chip
-          class="group-card__count"
-          [variant]="trackCount() > 0 ? 'success' : 'gold'"
-          size="sm"
-          shape="hex"
-          [dot]="true"
-        >
-          {{ trackCountLabel() }}
-        </ui-chip>
-      </div>
-
-      <div class="group-card__actions">
-        <app-icon-button
-          icon="tracks"
-          label="Edit tracks"
-          variant="primary"
-          size="md"
-          [disabled]="updating()"
-          (clicked)="editTracksRequested.emit(group())"
-        />
-
-        <app-icon-button
-          icon="edit"
-          label="Rename group"
-          variant="secondary"
-          size="md"
-          [disabled]="updating()"
-          (clicked)="openRename()"
-        />
-
-        <app-icon-button
-          icon="delete"
-          label="Delete group"
-          variant="danger"
-          size="md"
-          [disabled]="updating()"
-          (clicked)="deleteRequested.emit(group())"
-        />
       </div>
     </div>
 
@@ -155,63 +126,37 @@ export interface RenameEvent {
     .group-card__header {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
-      align-items: start;
+      align-items: center;
       gap: 14px;
       min-width: 0;
       max-width: 100%;
       overflow: hidden;
     }
 
-    .group-card__identity {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      min-width: 0;
-      max-width: 100%;
-      overflow: hidden;
-    }
-
     .group-card__title {
-      display: block;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
       min-width: 0;
       max-width: 100%;
       overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      overflow-wrap: anywhere;
       font-weight: 700;
       font-size: 1.05rem;
       line-height: 1.25;
       color: var(--app-text);
     }
 
-    .group-card__subtitle {
-      display: block;
+    .group-card__header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
       min-width: 0;
-      max-width: 100%;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-size: 0.95rem;
-      line-height: 1.35;
-      color: var(--app-text-muted);
     }
 
     .group-card__count {
-      justify-self: end;
       max-width: 100%;
       min-width: 0;
-    }
-
-    .group-card__actions {
-      display: flex;
-      align-items: center;
-      justify-content: flex-start;
-      flex-wrap: wrap;
-      gap: 10px;
-      min-width: 0;
-      max-width: 100%;
-      margin-top: 18px;
-      overflow: hidden;
     }
 
     .rename-form {
@@ -255,24 +200,28 @@ export class GroupCardComponent {
     return `${count} track${count === 1 ? '' : 's'}`;
   });
 
-  readonly tracksPreview = computed(() => {
-    const groupTracks = this.group().tracks ?? [];
+  menuItems(): ActionMenuItem[] {
+    const busy = this.updating();
+    return [
+      { id: 'tracks', label: 'Edit tracks', disabled: busy },
+      { id: 'rename', label: 'Rename group', disabled: busy },
+      { id: 'delete', label: 'Delete group', variant: 'danger', disabled: busy },
+    ];
+  }
 
-    if (groupTracks.length === 0) {
-      return '';
+  onMenuSelect(id: string): void {
+    switch (id) {
+      case 'tracks':
+        this.editTracksRequested.emit(this.group());
+        break;
+      case 'rename':
+        this.openRename();
+        break;
+      case 'delete':
+        this.deleteRequested.emit(this.group());
+        break;
     }
-
-    const names = groupTracks
-      .map(track => this.displayTrackName(track))
-      .filter(Boolean);
-
-    const visible = names.slice(0, 3).join(' · ');
-    const remaining = names.length - 3;
-
-    return remaining > 0
-      ? `${visible} · +${remaining} more`
-      : visible;
-  });
+  }
 
   displayName(): string {
     return this.group().listName || ('Group #' + this.group().id);
@@ -298,9 +247,5 @@ export class GroupCardComponent {
     });
 
     this.closeRename();
-  }
-
-  private displayTrackName(track: Track): string {
-    return track.trackName || track.trackOriginalName || ('Track #' + track.id);
   }
 }

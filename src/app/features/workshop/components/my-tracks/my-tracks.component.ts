@@ -22,6 +22,10 @@ import {
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 import { InfoDialogService } from '../../../../shared/features/info-dialog/info-dialog.service';
 import { UiCharCounterComponent } from '../../../../shared/ui/char-counter/ui-char-counter.component';
+import {
+  ActionMenuItem,
+  UiActionMenuComponent,
+} from '../../../../shared/ui/action-menu/ui-action-menu.component';
 import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 
 export interface PublishEvent {
@@ -44,6 +48,7 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
     UiDialogShellComponent,
     UiDataTableComponent,
     UiCharCounterComponent,
+    UiActionMenuComponent,
   ],
   template: `
     <ui-dialog-shell
@@ -131,26 +136,11 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
               </td>
 
               <td class="col-actions">
-                <div class="app-actions">
-                  @if (!track.trackShare) {
-                    <normal-button
-                      size="sm"
-                      [disabled]="busyTrackId() === track.id"
-                      (clicked)="openPublish(track)"
-                    >
-                      Publish
-                    </normal-button>
-                  } @else {
-                    <normal-button
-                      size="sm"
-                      variant="danger"
-                      [disabled]="busyTrackId() === track.id"
-                      (clicked)="requestUnpublish(track)"
-                    >
-                      Unpublish
-                    </normal-button>
-                  }
-                </div>
+                <ui-action-menu
+                  [items]="menuItems(track)"
+                  [triggerLabel]="'Actions for ' + displayName(track)"
+                  (select)="onMenuSelect(track, $event)"
+                />
               </td>
             </tr>
           </ng-template>
@@ -200,27 +190,13 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
                     }}</span>
                   </span>
                 }
-              </div>
 
-              <div class="app-actions app-entity-list__actions">
-                @if (!track.trackShare) {
-                  <normal-button
-                    size="sm"
-                    [disabled]="busyTrackId() === track.id"
-                    (clicked)="openPublish(track)"
-                  >
-                    Publish
-                  </normal-button>
-                } @else {
-                  <normal-button
-                    size="sm"
-                    variant="danger"
-                    [disabled]="busyTrackId() === track.id"
-                    (clicked)="requestUnpublish(track)"
-                  >
-                    Unpublish
-                  </normal-button>
-                }
+                <ui-action-menu
+                  class="my-tracks__menu"
+                  [items]="menuItems(track)"
+                  [triggerLabel]="'Actions for ' + displayName(track)"
+                  (select)="onMenuSelect(track, $event)"
+                />
               </div>
             </li>
           }
@@ -330,6 +306,15 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
       overflow: hidden;
     }
 
+    /* Trim the default 24px header padding so narrow labels (e.g. "Duration")
+       don't clip into the neighbouring column. */
+    .my-tracks-table ::ng-deep th,
+    .my-tracks-table ::ng-deep td.col-duration,
+    .my-tracks-table ::ng-deep td.col-subscribers {
+      padding-left: 14px;
+      padding-right: 14px;
+    }
+
     .my-tracks__desktop-desc {
       display: block;
       margin-top: 3px;
@@ -369,8 +354,8 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
     }
 
     .col-duration {
-      width: 82px;
-      max-width: 82px;
+      width: 100px;
+      max-width: 100px;
       white-space: nowrap;
     }
 
@@ -406,20 +391,18 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
     }
 
     .col-actions {
-      /* Wide enough to hold the "Unpublish" button without clipping, so the
-         flexible Track column is what gives up width — not the action. */
-      width: 160px;
-      max-width: 160px;
+      width: 72px;
+      max-width: 72px;
       white-space: nowrap;
+      text-align: right;
+      /* Breathing room between the kebab and the table's right edge. */
+      padding-right: 18px;
     }
 
-    .col-actions .app-actions {
-      /* Centered so Publish / Unpublish line up under the centered header
-         regardless of their differing widths. */
-      justify-content: center;
-      min-width: 0;
-      max-width: 100%;
-      overflow: hidden;
+    /* Mobile card: kebab menu sits at the right end of the meta row. */
+    .my-tracks__menu {
+      margin-left: auto;
+      align-self: center;
     }
 
     .my-tracks-mobile-list .app-entity-list__item {
@@ -592,10 +575,10 @@ export class MyTracksComponent {
 
   readonly columns: UiDataTableColumn[] = [
     { label: 'Track', className: 'col-title' },
-    { label: 'Duration', className: 'col-duration', width: '82px' },
+    { label: 'Duration', className: 'col-duration', width: '100px' },
     { label: 'Subscribers', className: 'col-subscribers', width: '120px' },
     { label: 'Status', className: 'col-status', width: '150px' },
-    { label: 'Actions', className: 'col-actions', width: '160px' },
+    { label: '', className: 'col-actions', width: '72px' },
   ];
 
   readonly descriptionMaxLength = FIELD_LIMITS.trackShare.description;
@@ -672,6 +655,24 @@ export class MyTracksComponent {
 
   trackById(index: number, track: Track): number {
     return track.id ?? index;
+  }
+
+  menuItems(track: Track): ActionMenuItem[] {
+    const busy = this.busyTrackId() === track.id;
+
+    if (track.trackShare) {
+      return [{ id: 'unpublish', label: 'Unpublish', variant: 'danger', disabled: busy }];
+    }
+
+    return [{ id: 'publish', label: 'Publish', disabled: busy }];
+  }
+
+  onMenuSelect(track: Track, id: string): void {
+    if (id === 'publish') {
+      this.openPublish(track);
+    } else if (id === 'unpublish') {
+      void this.requestUnpublish(track);
+    }
   }
 
   openDescription(track: Track): void {

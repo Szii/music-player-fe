@@ -8,13 +8,16 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Track } from '../../../../api/generated';
-import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
 import {
   UiDataTableColumn,
   UiDataTableComponent,
 } from '../../../../shared/ui/data-table/ui-data-table.component';
 import { UiListToolbarComponent } from '../../../../shared/ui/list-toolbar/ui-list-toolbar.component';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
+import {
+  ActionMenuItem,
+  UiActionMenuComponent,
+} from '../../../../shared/ui/action-menu/ui-action-menu.component';
 import { persistentSignal } from '../../../../shared/utils/persistent-signal';
 
 type TrackFilterMode =
@@ -33,10 +36,10 @@ type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
-    IconButtonComponent,
     UiDataTableComponent,
     UiListToolbarComponent,
     UiChipComponent,
+    UiActionMenuComponent,
   ],
   template: `
     <div class="track-table">
@@ -107,20 +110,6 @@ type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
                   {{ formatDuration(track.duration) }}
                 </td>
 
-                <td class="col-link">
-                  @if (track.trackLink) {
-                    <a
-                      [href]="track.trackLink"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Open ↗
-                    </a>
-                  } @else {
-                    <span class="app-muted">—</span>
-                  }
-                </td>
-
                 <td class="col-status">
                   @if (isSubscribed(track)) {
                     <ui-chip variant="success" size="sm" shape="hex" [dot]="true">Subscribed</ui-chip>
@@ -130,34 +119,11 @@ type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
                 </td>
 
                 <td class="col-actions">
-                  <div class="app-actions">
-                    <app-icon-button
-                      icon="edit"
-                      label="Edit track"
-                      variant="secondary"
-                      size="md"
-                      [disabled]="isSubscribed(track)"
-                      (clicked)="edit.emit(track)"
-                    />
-
-                    <app-icon-button
-                      icon="windows"
-                      label="Edit track windows"
-                      variant="primary"
-                      size="md"
-                      [disabled]="isSubscribed(track)"
-                      (clicked)="windows.emit(track)"
-                    />
-
-                    <app-icon-button
-                      icon="delete"
-                      label="Delete track"
-                      variant="danger"
-                      size="md"
-                      [disabled]="isSubscribed(track)"
-                      (clicked)="remove.emit(track)"
-                    />
-                  </div>
+                  <ui-action-menu
+                    [items]="menuItems(track)"
+                    [triggerLabel]="'Actions for ' + displayName(track)"
+                    (select)="onMenuSelect(track, $event)"
+                  />
                 </td>
               </tr>
             </ng-template>
@@ -199,34 +165,12 @@ type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
                       Open ↗
                     </a>
                   }
-                </div>
 
-                <div class="app-actions app-entity-list__actions">
-                  <app-icon-button
-                    icon="edit"
-                    label="Edit track"
-                    variant="secondary"
-                    size="md"
-                    [disabled]="isSubscribed(track)"
-                    (clicked)="edit.emit(track)"
-                  />
-
-                  <app-icon-button
-                    icon="windows"
-                    label="Edit track windows"
-                    variant="primary"
-                    size="md"
-                    [disabled]="isSubscribed(track)"
-                    (clicked)="windows.emit(track)"
-                  />
-
-                  <app-icon-button
-                    icon="delete"
-                    label="Delete track"
-                    variant="danger"
-                    size="md"
-                    [disabled]="isSubscribed(track)"
-                    (clicked)="remove.emit(track)"
+                  <ui-action-menu
+                    class="track-item__menu"
+                    [items]="menuItems(track)"
+                    [triggerLabel]="'Actions for ' + displayName(track)"
+                    (select)="onMenuSelect(track, $event)"
                   />
                 </div>
               </li>
@@ -252,9 +196,42 @@ type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
     }
 
     .col-duration,
-    .col-link,
     .col-status {
       white-space: nowrap;
+    }
+
+    /* Desktop data-table alignment, scoped to this table so other tables keep
+       their own conventions. Best practice for tabular data: text columns are
+       left-aligned, numeric columns right-aligned (digits line up and are
+       easy to compare); the header label matches its column's alignment.
+       Trimmed horizontal padding also stops narrow headers from clipping. */
+    :host ::ng-deep .app-table--tracks th,
+    :host ::ng-deep .app-table--tracks td {
+      padding-left: 16px;
+      padding-right: 16px;
+    }
+
+    :host ::ng-deep .app-table--tracks th.col-name,
+    :host ::ng-deep .app-table--tracks th.col-original,
+    :host ::ng-deep .app-table--tracks th.col-owner,
+    :host ::ng-deep .app-table--tracks td.col-owner {
+      text-align: left;
+    }
+
+    :host ::ng-deep .app-table--tracks th.col-duration,
+    :host ::ng-deep .app-table--tracks td.col-duration {
+      text-align: right;
+    }
+
+    :host ::ng-deep .app-table--tracks th.col-actions,
+    :host ::ng-deep .app-table--tracks td.col-actions {
+      text-align: center;
+    }
+
+    /* Mobile card: kebab menu sits in the top-right of the meta row. */
+    .track-item__menu {
+      margin-left: auto;
+      align-self: center;
     }
 
     .track-row--subscribed td {
@@ -308,10 +285,9 @@ export class TrackTableComponent {
     { label: 'Name', className: 'col-name', width: '180px' },
     { label: 'Original name', className: 'col-original' },
     { label: 'Owner', className: 'col-owner', width: '120px' },
-    { label: 'Duration', className: 'col-duration', width: '90px' },
-    { label: 'Link', className: 'col-link', width: '90px' },
+    { label: 'Duration', className: 'col-duration', width: '110px' },
     { label: 'Status', className: 'col-status', width: '150px' },
-    { label: 'Actions', className: 'col-actions', width: '200px' },
+    { label: '', className: 'col-actions', width: '64px' },
   ];
 
   readonly filteredTracks = computed(() => {
@@ -337,6 +313,36 @@ export class TrackTableComponent {
   }
 
   trackByTrackId = (index: number, track: Track): number | string => track.id ?? index;
+
+  menuItems(track: Track): ActionMenuItem[] {
+    const subscribed = this.isSubscribed(track);
+    const items: ActionMenuItem[] = [
+      { id: 'edit', label: 'Edit track', disabled: subscribed },
+      { id: 'windows', label: 'Edit windows', disabled: subscribed },
+    ];
+
+    if (track.trackLink) {
+      items.push({ id: 'open', label: 'Open source ↗', href: track.trackLink });
+    }
+
+    items.push({ id: 'delete', label: 'Delete track', variant: 'danger', disabled: subscribed });
+
+    return items;
+  }
+
+  onMenuSelect(track: Track, id: string): void {
+    switch (id) {
+      case 'edit':
+        this.edit.emit(track);
+        break;
+      case 'windows':
+        this.windows.emit(track);
+        break;
+      case 'delete':
+        this.remove.emit(track);
+        break;
+    }
+  }
 
   displayName(track: Track): string {
     return track.trackName || track.trackOriginalName || '—';
