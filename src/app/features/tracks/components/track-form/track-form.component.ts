@@ -14,6 +14,7 @@ import { UiFormFieldComponent } from '../../../../shared/ui/form-field/ui-form-f
 import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-input.component';
 import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
+import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 
 export interface TrackFormEvent {
   trackName: string;
@@ -55,6 +56,7 @@ export interface TrackFormEvent {
             <ui-text-input
               formControlName="trackName"
               placeholder="e.g. Dark Forest Ambience"
+              [maxLength]="limits.name"
             />
           </ui-form-field>
 
@@ -63,6 +65,7 @@ export interface TrackFormEvent {
               formControlName="trackLink"
               type="url"
               placeholder="https://youtube.com/..."
+              [maxLength]="trackLinkMaxLength()"
             />
             @if (linkLocked()) {
               <span class="track-form__hint">
@@ -124,8 +127,13 @@ export class TrackFormComponent {
 
   readonly isOpen = signal(false);
 
+  readonly limits = FIELD_LIMITS.track;
+
   readonly isEditing = computed(() => this.editingTrackId() != null);
   readonly linkLocked = computed(() => this.isEditing() && this.lockTrackLink());
+  readonly trackLinkMaxLength = computed(() =>
+    this.isEditing() ? this.limits.linkUpdate : this.limits.linkCreate,
+  );
 
   readonly form = this.fb.group({
     trackName: this.fb.nonNullable.control(''),

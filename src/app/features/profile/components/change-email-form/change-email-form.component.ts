@@ -11,6 +11,7 @@ import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-butt
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { SHOW_EMAIL_INPUTS } from '../../../../core/config/feature-flags';
 import { httpErrorMessage } from '../../../../shared/utils/http-error';
+import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 
 @Component({
   selector: 'app-change-email-form',
@@ -42,14 +43,14 @@ import { httpErrorMessage } from '../../../../shared/utils/http-error';
         label="New email"
         [error]="emailError()"
       >
-        <ui-text-input formControlName="email" type="email" />
+        <ui-text-input formControlName="email" type="email" [maxLength]="limits.email" />
       </ui-form-field>
 
       <ui-form-field
         label="Current password"
         [error]="passwordError()"
       >
-        <ui-text-input formControlName="password" type="password" />
+        <ui-text-input formControlName="password" type="password" [maxLength]="limits.password" />
       </ui-form-field>
 
       <ui-form-actions>
@@ -86,6 +87,7 @@ export class ChangeEmailFormComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly showEmailInputs = SHOW_EMAIL_INPUTS;
+  readonly limits = FIELD_LIMITS.user;
 
   readonly isSubmitting = signal(false);
   readonly submitted = signal(false);

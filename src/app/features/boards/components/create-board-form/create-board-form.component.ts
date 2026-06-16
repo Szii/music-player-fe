@@ -15,6 +15,7 @@ import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-butt
 import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
 import { UiSelectComponent } from '../../../../shared/ui/select/ui-select.component';
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
+import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 
 export interface CreateBoardEvent {
   name: string;
@@ -57,6 +58,7 @@ export interface CreateBoardEvent {
           <ui-text-input
             formControlName="name"
             placeholder="e.g. Tavern Ambience"
+            [maxLength]="nameMaxLength"
           />
         </ui-form-field>
 
@@ -111,6 +113,7 @@ export class CreateBoardFormComponent {
   readonly create = output<CreateBoardEvent>();
 
   readonly isOpen = signal(false);
+  readonly nameMaxLength = FIELD_LIMITS.board.name;
 
   readonly trackOptions = computed(() =>
     this.tracks().map(t => ({

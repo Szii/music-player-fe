@@ -1,9 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
+import { UiCharCounterComponent } from '../char-counter/ui-char-counter.component';
 
 @Component({
   selector: 'ui-text-input',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [UiCharCounterComponent],
   template: `
     <div class="ui-text-input" [class.ui-text-input--password]="isPassword()">
       <input
@@ -12,6 +14,7 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
         [placeholder]="placeholder()"
         [disabled]="disabled()"
         [value]="value()"
+        [attr.maxlength]="maxLength()"
         (input)="handleInput($event)"
         (blur)="handleBlur()"
       />
@@ -49,6 +52,10 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
         </button>
       }
     </div>
+
+    @if (showCounter()) {
+      <ui-char-counter [current]="count()" [max]="maxLength()!" />
+    }
   `,
   styleUrls: ['./ui-text-input.component.scss'],
   providers: [
@@ -62,6 +69,8 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 export class UiTextInputComponent implements ControlValueAccessor {
   readonly type = input<'text' | 'email' | 'password' | 'url'>('text');
   readonly placeholder = input('');
+  /** Max character length. When set, enforces the limit and shows a counter. */
+  readonly maxLength = input<number | null>(null);
 
   readonly value = signal('');
   readonly disabled = signal(false);
@@ -70,6 +79,12 @@ export class UiTextInputComponent implements ControlValueAccessor {
   readonly isPassword = computed(() => this.type() === 'password');
   readonly currentType = computed(() =>
     this.isPassword() && this.showPassword() ? 'text' : this.type(),
+  );
+
+  readonly count = computed(() => this.value().length);
+  /** Counter is hidden on passwords — surfacing length there is poor UX. */
+  readonly showCounter = computed(
+    () => this.maxLength() != null && !this.isPassword(),
   );
 
   private onChange: (value: string) => void = () => {};

@@ -31,6 +31,8 @@ import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component
 import { BoardShortcutsService } from '../../../../core/services/board-shortcuts.service';
 import { ScrollLockService } from '../../../../core/services/scroll-lock.service';
 import { BottomSheetDragDirective } from '../../../../shared/ui/bottom-sheet/bottom-sheet-drag.directive';
+import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
+import { UiCharCounterComponent } from '../../../../shared/ui/char-counter/ui-char-counter.component';
 
 export interface PlaylistOptions {
   random: boolean;
@@ -63,6 +65,7 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
     UiInlineSelectComponent,
     UiAlertComponent,
     BottomSheetDragDirective,
+    UiCharCounterComponent,
   ],
   host: {
     '(document:click)': 'onDocumentClick($event)',
@@ -118,15 +121,22 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
                   >✎</button>
                 </ng-container>
                 <ng-template #renameTpl>
-                  <input
-                    #renameInput
-                    type="text"
-                    class="board-card__rename-input"
-                    [value]="renameValue()"
-                    (input)="renameValue.set($any($event.target).value)"
-                    (keydown)="onRenameKeydown($event)"
-                    (blur)="commitRename()"
-                  />
+                  <div class="board-card__rename">
+                    <input
+                      #renameInput
+                      type="text"
+                      class="board-card__rename-input"
+                      [value]="renameValue()"
+                      [attr.maxlength]="nameMaxLength"
+                      (input)="renameValue.set($any($event.target).value)"
+                      (keydown)="onRenameKeydown($event)"
+                      (blur)="commitRename()"
+                    />
+                    <ui-char-counter
+                      [current]="renameValue().length"
+                      [max]="nameMaxLength"
+                    />
+                  </div>
                 </ng-template>
               </div>
 
@@ -635,8 +645,16 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
       opacity: 1;
     }
 
-    .board-card__rename-input {
+    .board-card__rename {
       flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .board-card__rename-input {
+      width: 100%;
       min-width: 0;
       padding: 2px 6px;
       border: 1px solid var(--app-primary);
@@ -1440,6 +1458,7 @@ export class BoardCardComponent implements OnInit {
   readonly expanded = signal(false);
   readonly renaming = signal(false);
   readonly renameValue = signal('');
+  readonly nameMaxLength = FIELD_LIMITS.board.name;
   readonly displayedVolumePercent = signal(100);
   readonly capturingShortcut = signal(false);
 

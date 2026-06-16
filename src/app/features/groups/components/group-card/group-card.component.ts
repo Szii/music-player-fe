@@ -12,6 +12,8 @@ import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-butt
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
 import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
+import { UiCharCounterComponent } from '../../../../shared/ui/char-counter/ui-char-counter.component';
+import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 
 export interface RenameEvent {
   group: Group;
@@ -27,6 +29,7 @@ export interface RenameEvent {
     UiDialogShellComponent,
     IconButtonComponent,
     UiChipComponent,
+    UiCharCounterComponent,
   ],
   host: {
     role: 'listitem',
@@ -106,9 +109,11 @@ export interface RenameEvent {
             (ngModelChange)="editingName.set($event)"
             [ngModelOptions]="{ standalone: true }"
             placeholder="e.g. Combat Music"
+            [maxlength]="nameMaxLength"
             (keydown.enter)="confirmRename()"
             (keydown.escape)="closeRename()"
           />
+          <ui-char-counter [current]="editingName().length" [max]="nameMaxLength" />
         </div>
 
         <normal-button dialog-footer type="button" variant="secondary" (clicked)="closeRename()">
@@ -241,6 +246,7 @@ export class GroupCardComponent {
 
   readonly renameOpen = signal(false);
   readonly editingName = signal('');
+  readonly nameMaxLength = FIELD_LIMITS.group.name;
 
   readonly trackCount = computed(() => this.group().tracks?.length ?? 0);
 

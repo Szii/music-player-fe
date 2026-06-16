@@ -2,12 +2,14 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  inject,
   input,
   output,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Track } from '../../../../api/generated';
+import { InfoDialogService } from '../../../../shared/features/info-dialog/info-dialog.service';
 import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
 import {
   UiDataTableColumn,
@@ -25,7 +27,9 @@ type TrackCatalogSortMode =
   | 'ownerAsc'
   | 'ownerDesc'
   | 'durationAsc'
-  | 'durationDesc';
+  | 'durationDesc'
+  | 'subscribersAsc'
+  | 'subscribersDesc';
 
 @Component({
   selector: 'app-track-catalog',
@@ -86,13 +90,32 @@ type TrackCatalogSortMode =
               {{ formatDuration(track.duration) }}
             </td>
 
-            <td class="col-desc">
+            <td class="col-subscribers">
               <span
-                class="cell-text cell-text--muted cell-text--truncate"
-                [title]="track.trackShare?.description || ''"
+                class="subscriber-stat"
+                [title]="subscriberTitle(track)"
+                [attr.aria-label]="subscriberTitle(track)"
               >
-                {{ track.trackShare?.description || '—' }}
+                <span class="subscriber-stat__star" aria-hidden="true">★</span>
+                <span class="subscriber-stat__count">{{
+                  subscriberCount(track)
+                }}</span>
               </span>
+            </td>
+
+            <td class="col-desc">
+              @if (track.trackShare?.description; as description) {
+                <button
+                  type="button"
+                  class="cell-text cell-text--muted cell-text--truncate desc-button"
+                  [title]="description"
+                  (click)="openDescription(track)"
+                >
+                  {{ description }}
+                </button>
+              } @else {
+                <span class="cell-text cell-text--muted">—</span>
+              }
             </td>
 
             <td class="col-status">
@@ -146,15 +169,31 @@ type TrackCatalogSortMode =
               </div>
 
               @if (track.trackShare?.description; as description) {
-                <span class="app-entity-list__subtitle" [title]="description">
+                <button
+                  type="button"
+                  class="app-entity-list__subtitle desc-button"
+                  [title]="description"
+                  (click)="openDescription(track)"
+                >
                   {{ description }}
-                </span>
+                </button>
               }
 
               <div class="app-entity-list__meta">
                 <span>{{ track.owner?.name ?? '—' }}</span>
                 <span class="app-entity-list__sep" aria-hidden="true">·</span>
                 <span>{{ formatDuration(track.duration) }}</span>
+                <span class="app-entity-list__sep" aria-hidden="true">·</span>
+                <span
+                  class="subscriber-stat"
+                  [title]="subscriberTitle(track)"
+                  [attr.aria-label]="subscriberTitle(track)"
+                >
+                  <span class="subscriber-stat__star" aria-hidden="true">★</span>
+                  <span class="subscriber-stat__count">{{
+                    subscriberCount(track)
+                  }}</span>
+                </span>
               </div>
 
               <div class="app-actions app-entity-list__actions">
@@ -203,6 +242,57 @@ type TrackCatalogSortMode =
       font-size: 13px;
       font-style: italic;
     }
+
+    .col-subscribers {
+      width: 110px;
+      max-width: 110px;
+      white-space: nowrap;
+      text-align: center;
+    }
+
+    .subscriber-stat {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .subscriber-stat__star {
+      color: var(--app-secondary);
+      font-size: 1rem;
+    }
+
+    .subscriber-stat__count {
+      font-weight: 600;
+      color: var(--app-text);
+    }
+
+    /* Description rendered as a button so the full text can be opened in a
+       dialog when it is truncated. Looks like inline text, behaves like a link. */
+    .desc-button {
+      appearance: none;
+      border: 0;
+      background: none;
+      padding: 0;
+      margin: 0;
+      font: inherit;
+      text-align: left;
+      width: 100%;
+      max-width: 100%;
+      cursor: pointer;
+      color: inherit;
+    }
+
+    .desc-button:hover {
+      text-decoration: underline;
+    }
+
+    .desc-button:focus-visible {
+      outline: 2px solid var(--app-secondary);
+      outline-offset: 2px;
+      border-radius: var(--app-radius-sm, 4px);
+    }
   `],
 })
 export class TrackCatalogComponent {
@@ -230,12 +320,15 @@ export class TrackCatalogComponent {
     { label: 'Owner Z–A', value: 'ownerDesc' },
     { label: 'Duration shortest', value: 'durationAsc' },
     { label: 'Duration longest', value: 'durationDesc' },
+    { label: 'Most subscribed', value: 'subscribersDesc' },
+    { label: 'Least subscribed', value: 'subscribersAsc' },
   ];
 
   readonly columns: UiDataTableColumn[] = [
     { label: 'Track', className: 'col-title' },
     { label: 'Owner', className: 'col-owner', width: '16%' },
     { label: 'Duration', className: 'col-duration', width: '90px' },
+    { label: 'Subscribers', className: 'col-subscribers', width: '110px' },
     { label: 'Description', className: 'col-desc' },
     { label: 'Status', className: 'col-status', width: '140px' },
     { label: 'Actions', className: 'col-actions', width: '120px' },
@@ -269,8 +362,29 @@ export class TrackCatalogComponent {
     return [...filtered].sort((a, b) => this.compareTracks(a, b, sort));
   });
 
+  private readonly infoDialog = inject(InfoDialogService);
+
   isSubscribed(track: Track): boolean {
     return track.id != null && this.subscribedIds().has(track.id);
+  }
+
+  openDescription(track: Track): void {
+    const description = track.trackShare?.description;
+    if (!description) return;
+
+    this.infoDialog.open({
+      title: this.displayName(track),
+      message: description,
+    });
+  }
+
+  subscriberCount(track: Track): number {
+    return track.trackShare?.subscriberCount ?? 0;
+  }
+
+  subscriberTitle(track: Track): string {
+    const count = this.subscriberCount(track);
+    return `${count} ${count === 1 ? 'subscriber' : 'subscribers'}`;
   }
 
   trackById = (index: number, track: Track): number => track.id ?? index;
@@ -312,6 +426,10 @@ export class TrackCatalogComponent {
         return (a.duration ?? Number.MAX_SAFE_INTEGER) - (b.duration ?? Number.MAX_SAFE_INTEGER);
       case 'durationDesc':
         return (b.duration ?? -1) - (a.duration ?? -1);
+      case 'subscribersAsc':
+        return this.subscriberCount(a) - this.subscriberCount(b);
+      case 'subscribersDesc':
+        return this.subscriberCount(b) - this.subscriberCount(a);
       case 'nameAsc':
       default:
         return this.compareStrings(this.displayName(a), this.displayName(b));

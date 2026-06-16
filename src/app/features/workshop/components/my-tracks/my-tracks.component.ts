@@ -20,6 +20,9 @@ import {
   UiDataTableComponent,
 } from '../../../../shared/ui/data-table/ui-data-table.component';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
+import { InfoDialogService } from '../../../../shared/features/info-dialog/info-dialog.service';
+import { UiCharCounterComponent } from '../../../../shared/ui/char-counter/ui-char-counter.component';
+import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 
 export interface PublishEvent {
   track: Track;
@@ -40,6 +43,7 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
     UiChipComponent,
     UiDialogShellComponent,
     UiDataTableComponent,
+    UiCharCounterComponent,
   ],
   template: `
     <ui-dialog-shell
@@ -83,17 +87,36 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
                 </span>
 
                 @if (track.trackShare?.description; as description) {
-                  <span
-                    class="cell-text cell-text--muted cell-text--truncate my-tracks__desktop-desc"
+                  <button
+                    type="button"
+                    class="cell-text cell-text--muted cell-text--truncate my-tracks__desktop-desc desc-button"
                     [title]="description"
+                    (click)="openDescription(track)"
                   >
                     {{ description }}
-                  </span>
+                  </button>
                 }
               </td>
 
               <td class="col-duration col-num">
                 {{ formatDuration(track.duration) }}
+              </td>
+
+              <td class="col-subscribers">
+                @if (track.trackShare) {
+                  <span
+                    class="subscriber-stat"
+                    [title]="subscriberTitle(track)"
+                    [attr.aria-label]="subscriberTitle(track)"
+                  >
+                    <span class="subscriber-stat__star" aria-hidden="true">★</span>
+                    <span class="subscriber-stat__count">{{
+                      subscriberCount(track)
+                    }}</span>
+                  </span>
+                } @else {
+                  <span class="cell-text cell-text--muted" aria-hidden="true">—</span>
+                }
               </td>
 
               <td class="col-status">
@@ -152,13 +175,31 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
               </div>
 
               @if (track.trackShare?.description; as description) {
-                <span class="app-entity-list__subtitle" [title]="description">
+                <button
+                  type="button"
+                  class="app-entity-list__subtitle desc-button"
+                  [title]="description"
+                  (click)="openDescription(track)"
+                >
                   {{ description }}
-                </span>
+                </button>
               }
 
               <div class="app-entity-list__meta">
                 <span>{{ formatDuration(track.duration) }}</span>
+
+                @if (track.trackShare) {
+                  <span
+                    class="subscriber-stat"
+                    [title]="subscriberTitle(track)"
+                    [attr.aria-label]="subscriberTitle(track)"
+                  >
+                    <span class="subscriber-stat__star" aria-hidden="true">★</span>
+                    <span class="subscriber-stat__count">{{
+                      subscriberCount(track)
+                    }}</span>
+                  </span>
+                }
               </div>
 
               <div class="app-actions app-entity-list__actions">
@@ -227,6 +268,11 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
               [ngModelOptions]="{ standalone: true }"
               (ngModelChange)="publishDesc.set($event)"
               placeholder="What is this track for?"
+              [maxlength]="descriptionMaxLength"
+            />
+            <ui-char-counter
+              [current]="publishDesc().length"
+              [max]="descriptionMaxLength"
             />
           </div>
         </div>
@@ -290,6 +336,32 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
       font-size: 0.82rem;
     }
 
+    /* Description rendered as a button so the full text can be opened in a
+       dialog when it is truncated. Looks like inline text, behaves like a link. */
+    .desc-button {
+      appearance: none;
+      border: 0;
+      background: none;
+      padding: 0;
+      margin: 0;
+      font: inherit;
+      text-align: left;
+      width: 100%;
+      max-width: 100%;
+      cursor: pointer;
+      color: inherit;
+    }
+
+    .desc-button:hover {
+      text-decoration: underline;
+    }
+
+    .desc-button:focus-visible {
+      outline: 2px solid var(--app-secondary);
+      outline-offset: 2px;
+      border-radius: var(--app-radius-sm, 4px);
+    }
+
     .col-title {
       width: auto;
       min-width: 0;
@@ -300,6 +372,31 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
       width: 82px;
       max-width: 82px;
       white-space: nowrap;
+    }
+
+    .col-subscribers {
+      width: 120px;
+      max-width: 120px;
+      white-space: nowrap;
+      text-align: center;
+    }
+
+    .subscriber-stat {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .subscriber-stat__star {
+      color: var(--app-secondary);
+      font-size: 1rem;
+    }
+
+    .subscriber-stat__count {
+      font-weight: 600;
+      color: var(--app-text);
     }
 
     .col-status {
@@ -477,6 +574,7 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
 })
 export class MyTracksComponent {
   private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly infoDialog = inject(InfoDialogService);
 
   readonly tracks = input<Track[]>([]);
   readonly busyTrackId = input<number | null>(null);
@@ -495,9 +593,12 @@ export class MyTracksComponent {
   readonly columns: UiDataTableColumn[] = [
     { label: 'Track', className: 'col-title' },
     { label: 'Duration', className: 'col-duration', width: '82px' },
+    { label: 'Subscribers', className: 'col-subscribers', width: '120px' },
     { label: 'Status', className: 'col-status', width: '150px' },
     { label: 'Actions', className: 'col-actions', width: '160px' },
   ];
+
+  readonly descriptionMaxLength = FIELD_LIMITS.trackShare.description;
 
   readonly publishTrack = signal<Track | null>(null);
   readonly publishDesc = signal('');
@@ -571,6 +672,25 @@ export class MyTracksComponent {
 
   trackById(index: number, track: Track): number {
     return track.id ?? index;
+  }
+
+  openDescription(track: Track): void {
+    const description = track.trackShare?.description;
+    if (!description) return;
+
+    this.infoDialog.open({
+      title: this.displayName(track),
+      message: description,
+    });
+  }
+
+  subscriberCount(track: Track): number {
+    return track.trackShare?.subscriberCount ?? 0;
+  }
+
+  subscriberTitle(track: Track): string {
+    const count = this.subscriberCount(track);
+    return `${count} ${count === 1 ? 'subscriber' : 'subscribers'}`;
   }
 
   displayName(track: Track): string {

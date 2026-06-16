@@ -14,6 +14,7 @@ import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-butt
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { matchPasswords } from '../../utils/match-passwords.validator';
 import { httpErrorMessage } from '../../../../shared/utils/http-error';
+import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 
 type FormStatus = 'ready' | 'submitting' | 'invalid-token' | 'error';
 
@@ -56,14 +57,14 @@ type FormStatus = 'ready' | 'submitting' | 'invalid-token' | 'error';
               label="New password"
               [error]="passwordError()"
             >
-              <ui-text-input formControlName="password" type="password" />
+              <ui-text-input formControlName="password" type="password" [maxLength]="passwordMaxLength" />
             </ui-form-field>
 
             <ui-form-field
               label="Confirm new password"
               [error]="confirmError()"
             >
-              <ui-text-input formControlName="confirm" type="password" />
+              <ui-text-input formControlName="confirm" type="password" [maxLength]="passwordMaxLength" />
             </ui-form-field>
 
             @switch (status()) {
@@ -117,6 +118,8 @@ export class ResetPasswordPageComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
+
+  readonly passwordMaxLength = FIELD_LIMITS.user.password;
 
   readonly token = signal<string | null>(null);
   readonly status = signal<FormStatus>('ready');

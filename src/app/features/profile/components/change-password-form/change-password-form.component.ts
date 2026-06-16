@@ -10,6 +10,7 @@ import { UiFormActionsComponent } from '../../../../shared/ui/form-actions/ui-fo
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { httpErrorMessage } from '../../../../shared/utils/http-error';
+import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 
 @Component({
   selector: 'app-change-password-form',
@@ -27,14 +28,14 @@ import { httpErrorMessage } from '../../../../shared/utils/http-error';
         label="Current password"
         [error]="currentError()"
       >
-        <ui-text-input formControlName="current" type="password" />
+        <ui-text-input formControlName="current" type="password" [maxLength]="passwordMaxLength" />
       </ui-form-field>
 
       <ui-form-field
         label="New password"
         [error]="newError()"
       >
-        <ui-text-input formControlName="next" type="password" />
+        <ui-text-input formControlName="next" type="password" [maxLength]="passwordMaxLength" />
       </ui-form-field>
 
       <ui-form-actions>
@@ -57,6 +58,7 @@ export class ChangePasswordFormComponent {
 
   readonly isSubmitting = signal(false);
   readonly submitted = signal(false);
+  readonly passwordMaxLength = FIELD_LIMITS.user.password;
 
   readonly form = this.fb.nonNullable.group({
     current: ['', [Validators.required]],
