@@ -864,13 +864,34 @@ export class UiSelectComponent implements ControlValueAccessor {
 
   selectOption(opt: UiSelectOption): void {
     if (opt.disabled) return;
+
+    // On touch, an open window flyout has no hover to dismiss it, so the first
+    // tap on any row just closes the flyout instead of selecting that track.
+    if (!this.isHoverDevice() && this.hoveredOptionValue() !== null) {
+      this.closeFlyout();
+      return;
+    }
+
     this.currentValue.set(opt.value);
     this.onChange(opt.value);
     this.onTouched();
     this.closeAndFocusTrigger();
   }
 
+  /**
+   * True only on real hover-capable pointers. Touch devices fire synthetic
+   * mouseenter/mousemove/mouseleave on tap; treating those as hover makes the
+   * "More" flyout open on mouseenter and then get toggled shut by the tap's
+   * click, forcing a second tap. Hover handlers no-op on touch so a single tap
+   * opens the flyout.
+   */
+  private isHoverDevice(): boolean {
+    return typeof window !== 'undefined'
+      && window.matchMedia('(hover: hover)').matches;
+  }
+
   onOptionMouseMove(opt: UiSelectOption, index: number): void {
+    if (!this.isHoverDevice()) return;
     if (opt.disabled) return;
     this.highlightedIndex.set(index);
     this.highlightedSubIndex.set(-1);
@@ -917,6 +938,7 @@ export class UiSelectComponent implements ControlValueAccessor {
   }
 
   onOptionHover(opt: UiSelectOption, index: number, event: MouseEvent): void {
+    if (!this.isHoverDevice()) return;
     if (opt.disabled) {
       this.clearFlyoutTimer();
       this.hoveredOptionValue.set(null);
@@ -943,6 +965,7 @@ export class UiSelectComponent implements ControlValueAccessor {
   }
 
   onOptionUnhover(): void {
+    if (!this.isHoverDevice()) return;
     this.scheduleFlyoutClose();
   }
 
@@ -951,6 +974,7 @@ export class UiSelectComponent implements ControlValueAccessor {
   }
 
   onFlyoutUnhover(): void {
+    if (!this.isHoverDevice()) return;
     this.scheduleFlyoutClose();
   }
 

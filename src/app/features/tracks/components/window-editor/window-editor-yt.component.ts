@@ -496,8 +496,12 @@ const CROSSFADE_STEP_MS = FADE_STEP_MS * 2;
       color: var(--app-heading);
     }
 
-    .we-bottom__name-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
-    .we-bottom__name-input { flex: 1 1 auto; min-width: 0; }
+    /* Wrap so the apply button drops to its own line on narrow screens instead
+       of colliding with the name field. The input keeps a real flex-basis so it
+       never shrinks below its content (which made the locked name text overflow
+       under the button). */
+    .we-bottom__name-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; min-width: 0; }
+    .we-bottom__name-input { flex: 1 1 200px; min-width: 0; }
     .we-bottom__name-locked {
       display: flex;
       align-items: center;

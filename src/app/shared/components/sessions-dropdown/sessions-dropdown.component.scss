@@ -161,9 +161,15 @@
   font-weight: 700;
 }
 
+/* Scrim + drag handle are phone-only (shown in the bottom-sheet media query). */
+.sd__scrim,
+.sd__handle {
+  display: none;
+}
+
 @media (max-width: 768px) {
-  /* Keep the panel anchored to the trigger's right edge (it sits near the
-     screen edge) and clamp it to the viewport so it never overflows. */
+  /* Clamp the anchored panel to the viewport so it never overflows the right
+     edge on tablets. */
   .sd__panel {
     right: 0;
     left: auto;
@@ -171,11 +177,96 @@
     max-width: min(320px, calc(100vw - 20px));
   }
 
+  /* Cap the trigger so a long selected session name truncates instead of
+     expanding past the viewport and shoving the page title off-screen. */
   .sd__trigger {
-    max-width: 100%;
+    max-width: min(52vw, 220px);
   }
 
   .sd__label {
-    max-width: none;
+    max-width: 100%;
   }
+}
+
+/* Phone: render the menu as a bottom sheet — full-width, bottom-anchored, large
+   tap targets — instead of a narrow popover anchored to the (near-edge) trigger.
+   Matches ui-select and the board-settings menu. */
+@media (max-width: 640px) {
+  /* Dim the page behind so the sheet reads as one clean layer on top. */
+  .sd__scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 1099;
+    background: rgba(15, 8, 3, 0.45);
+    animation: sd-scrim-in 0.18s ease;
+  }
+
+  .sd__panel {
+    position: fixed;
+    inset: auto 0 0 0;
+    top: auto;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    max-height: min(70vh, 560px);
+    border-radius: var(--app-radius-lg) var(--app-radius-lg) 0 0;
+    box-shadow: 0 -14px 36px rgba(15, 8, 3, 0.34) !important;
+    /* Override .app-popover-surface's drop-in animation with the slide-up. */
+    animation: sd-sheet-up 0.2s ease !important;
+  }
+
+  /* Drag/tap handle at the top of the sheet (drag down or tap to close). */
+  .sd__handle {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 26px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: grab;
+  }
+
+  .sd__handle-bar {
+    width: 38px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--app-border-color-soft);
+  }
+
+  /* The list is the sheet's scroll region: it flexes to fill the space between
+     the header and the pinned "New session" button, and scrolls internally. */
+  .sd__list {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .sd__item-select {
+    min-height: 48px;
+  }
+
+  /* Full width is available here, so let long names wrap (up to two lines) and
+     be fully readable instead of truncating like the trigger. */
+  .sd__item-name {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+}
+
+@keyframes sd-sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes sd-scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

@@ -159,12 +159,8 @@ type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
                   <span>{{ track.owner?.name || '—' }}</span>
                   <span class="app-entity-list__sep" aria-hidden="true">·</span>
                   <span>{{ formatDuration(track.duration) }}</span>
-                  @if (track.trackLink) {
-                    <span class="app-entity-list__sep" aria-hidden="true">·</span>
-                    <a [href]="track.trackLink" target="_blank" rel="noopener noreferrer">
-                      Open ↗
-                    </a>
-                  }
+                  <!-- "Open" is intentionally omitted here: it's already in the
+                       kebab menu (menuItems adds "Open source ↗"). -->
 
                   <ui-action-menu
                     class="track-item__menu"
