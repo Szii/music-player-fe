@@ -17,6 +17,7 @@ import { ConfirmDialogService } from '../../features/confirm-dialog/confirm-dial
 import { PromptDialogService } from '../../features/prompt-dialog/prompt-dialog.service';
 import { BoardPlaybackService } from '../../../core/services/board-playback.service';
 import { IconButtonComponent } from '../../ui/buttons/ui-icon-button.component';
+import { FIELD_LIMITS } from '../../constants/field-limits';
 
 @Component({
   selector: 'app-sessions-dropdown',
@@ -164,6 +165,7 @@ export class SessionsDropdownComponent {
       placeholder: 'Session name',
       confirmText: 'Create',
       cancelText: 'Cancel',
+      maxLength: FIELD_LIMITS.session.name,
     });
     if (!name) return;
 
@@ -196,6 +198,7 @@ export class SessionsDropdownComponent {
       initialValue: session.sessionName ?? '',
       confirmText: 'Save',
       cancelText: 'Cancel',
+      maxLength: FIELD_LIMITS.session.name,
     });
     if (!name) return;
 

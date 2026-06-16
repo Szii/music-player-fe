@@ -13,11 +13,12 @@ import { FormsModule } from '@angular/forms';
 
 import { NormalButtonComponent } from '../../ui/buttons/normal-button.component';
 import { UiDialogShellComponent } from '../../ui/dialog-shell/ui-dialog-shell.component';
+import { UiCharCounterComponent } from '../../ui/char-counter/ui-char-counter.component';
 import { PromptDialogService } from './prompt-dialog.service';
 
 @Component({
   selector: 'app-prompt-dialog',
-  imports: [FormsModule, NormalButtonComponent, UiDialogShellComponent],
+  imports: [FormsModule, NormalButtonComponent, UiDialogShellComponent, UiCharCounterComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '(document:keydown.escape)': 'onEscape()',
@@ -48,6 +49,7 @@ import { PromptDialogService } from './prompt-dialog.service';
             [maxlength]="dlg.maxLength"
             autocomplete="off"
           />
+          <ui-char-counter [current]="value().length" [max]="dlg.maxLength" />
         </form>
 
         <ng-container dialog-footer>

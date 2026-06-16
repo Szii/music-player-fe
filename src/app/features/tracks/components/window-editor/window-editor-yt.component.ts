@@ -19,6 +19,7 @@ import {
 } from '../waveform-canvas/waveform-canvas.component';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-input.component';
+import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 import { UiVolumeSliderComponent } from '../../../../shared/ui/volume-slider/ui-volume-slider.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
@@ -250,6 +251,7 @@ const CROSSFADE_STEP_MS = FADE_STEP_MS * 2;
                   [ngModel]="windowName()"
                   (ngModelChange)="windowName.set($event)"
                   placeholder="e.g. Intro"
+                  [maxLength]="windowNameMaxLength"
                 />
               }
               <normal-button
@@ -544,6 +546,7 @@ export class WindowEditorYtComponent {
   readonly fadeInMs = signal(0);
   readonly fadeOutMs = signal(0);
   readonly windowName = signal('');
+  readonly windowNameMaxLength = FIELD_LIMITS.trackWindow.name;
   readonly masterVolume = signal(0.5);
   readonly status = signal<PlayerStatus>('STOPPED');
   readonly previewMode = signal<PreviewMode>('selection');

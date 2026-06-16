@@ -16,6 +16,7 @@ import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { VerificationRequiredComponent } from '../../components/verification-required/verification-required.component';
 import { httpErrorMessage } from '../../../../shared/utils/http-error';
+import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 
 @Component({
   selector: 'app-register-page',
@@ -46,28 +47,28 @@ import { httpErrorMessage } from '../../../../shared/utils/http-error';
               label="Username"
               [error]="nameError()"
             >
-              <ui-text-input formControlName="name" />
+              <ui-text-input formControlName="name" [maxLength]="limits.name" />
             </ui-form-field>
 
             <ui-form-field
               label="Email"
               [error]="emailError()"
             >
-              <ui-text-input formControlName="email" type="email" />
+              <ui-text-input formControlName="email" type="email" [maxLength]="limits.email" />
             </ui-form-field>
 
             <ui-form-field
               label="Password"
               [error]="passwordError()"
             >
-              <ui-text-input formControlName="password" type="password" />
+              <ui-text-input formControlName="password" type="password" [maxLength]="limits.password" />
             </ui-form-field>
 
             <ui-form-field
               label="Confirm password"
               [error]="confirmError()"
             >
-              <ui-text-input formControlName="confirm" type="password" />
+              <ui-text-input formControlName="confirm" type="password" [maxLength]="limits.password" />
             </ui-form-field>
 
             <ui-form-actions>
@@ -101,6 +102,8 @@ export class RegisterPageComponent implements OnDestroy {
   private readonly toast = inject(ToastService);
   private readonly credentialsStore = inject(AuthCredentialsStore);
   private readonly destroyRef = inject(DestroyRef);
+
+  readonly limits = FIELD_LIMITS.user;
 
   readonly isSubmitting = signal(false);
   readonly submitted = signal(false);

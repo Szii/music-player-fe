@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { GroupRequest } from '../../../../api/generated';
+import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 import { UiFormFieldComponent } from '../../../../shared/ui/form-field/ui-form-field.component';
 import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-input.component';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
@@ -49,6 +50,7 @@ import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-di
             <ui-text-input
               formControlName="listName"
               placeholder="e.g. Combat Music"
+              [maxLength]="nameMaxLength"
             />
           </ui-form-field>
         </form>
@@ -86,6 +88,7 @@ export class CreateGroupFormComponent {
 
   readonly isOpen = signal(false);
   readonly submitting = signal(false);
+  readonly nameMaxLength = FIELD_LIMITS.group.name;
 
   readonly createForm = this.fb.group({
     listName: [''],
