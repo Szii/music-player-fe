@@ -141,7 +141,7 @@ type TrackCatalogSortMode =
         </ui-data-table>
 
         <!-- Mobile (< md): condensed list mirroring the table columns. -->
-        <ul class="app-entity-list" role="list">
+        <ul class="track-catalog-mobile-list app-entity-list" role="list">
           @for (track of filteredTracks(); track trackById($index, track)) {
             <li class="app-entity-list__item">
               <div class="app-entity-list__head">
@@ -166,28 +166,29 @@ type TrackCatalogSortMode =
                 </button>
               }
 
-              <div class="app-entity-list__meta">
-                <span>{{ track.owner?.name ?? '—' }}</span>
-                <span class="app-entity-list__sep" aria-hidden="true">·</span>
-                <span>{{ formatDuration(track.duration) }}</span>
-                <span class="app-entity-list__sep" aria-hidden="true">·</span>
-                <span
-                  class="subscriber-stat"
-                  [title]="subscriberTitle(track)"
-                  [attr.aria-label]="subscriberTitle(track)"
-                >
-                  <span class="subscriber-stat__star" aria-hidden="true">★</span>
-                  <span class="subscriber-stat__count">{{
-                    subscriberCount(track)
-                  }}</span>
-                </span>
+              <div class="app-entity-list__meta track-catalog__mobile-meta">
+                <span class="track-catalog__owner">{{ track.owner?.name ?? '—' }}</span>
 
-                <ui-action-menu
-                  class="track-catalog__menu"
-                  [items]="menuItems(track)"
-                  [triggerLabel]="'Actions for ' + displayName(track)"
-                  (select)="onMenuSelect(track, $event)"
-                />
+                <div class="track-catalog__stats-row">
+                  <span>{{ formatDuration(track.duration) }}</span>
+                  <span
+                    class="subscriber-stat"
+                    [title]="subscriberTitle(track)"
+                    [attr.aria-label]="subscriberTitle(track)"
+                  >
+                    <span class="subscriber-stat__star" aria-hidden="true">★</span>
+                    <span class="subscriber-stat__count">{{
+                      subscriberCount(track)
+                    }}</span>
+                  </span>
+
+                  <ui-action-menu
+                    class="track-catalog__menu"
+                    [items]="menuItems(track)"
+                    [triggerLabel]="'Actions for ' + displayName(track)"
+                    (select)="onMenuSelect(track, $event)"
+                  />
+                </div>
               </div>
             </li>
           }
@@ -279,10 +280,69 @@ type TrackCatalogSortMode =
       padding-right: 18px;
     }
 
-    /* Mobile card: kebab menu sits at the right end of the meta row. */
+    .track-catalog-mobile-list .app-entity-list__item {
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+
+    .track-catalog-mobile-list .app-entity-list__head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
+      gap: 12px;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .track-catalog-mobile-list .app-entity-list__title,
+    .track-catalog-mobile-list .app-entity-list__subtitle,
+    .track-catalog__owner {
+      display: block;
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .track-catalog__mobile-meta {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+    }
+
+    .track-catalog__stats-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+    }
+
+    .track-catalog__stats-row > span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .track-catalog-mobile-list ui-chip {
+      justify-self: end;
+      max-width: 100%;
+    }
+
+    /* Mobile card: duration and subscriber count stay with the kebab menu. */
     .track-catalog__menu {
       margin-left: auto;
       align-self: center;
+      flex: 0 0 auto;
     }
   `],
 })
