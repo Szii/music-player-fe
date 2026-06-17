@@ -313,7 +313,6 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
   @Input() regionFromS = 0;
   @Input() regionToS = 0;
   @Input() seekableMaxS = 0;
-  @Input() playheadPx = 0;
   @Input() waveformPeaks: number[] = [];
   @Input() audioReady = false;
   @Input() loadingStream = false;
@@ -329,7 +328,15 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
   readonly fadeInS = input(0);
   readonly fadeOutS = input(0);
 
+  /** Current playback position, in seconds. Drives the playhead; the pixel
+      position is derived on each redraw so it tracks canvas resizes (the parent
+      no longer needs to read this component's pixel width). */
+  readonly playheadS = input(0);
+
   @Output() regionChange = new EventEmitter<RegionChangeEvent>();
+  /** Emitted once when a region drag is released, so listeners can react to the
+      committed bounds rather than every intermediate drag frame. */
+  @Output() regionCommit = new EventEmitter<void>();
   @Output() seekRequested = new EventEmitter<number>();
 
   @ViewChild('waveformCanvas') canvasRef!: ElementRef<HTMLCanvasElement>;
@@ -346,6 +353,8 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
       the true region edge regardless of the clamped box position. */
   leftGripPx = 0;
   rightGripPx = 0;
+  /** Playhead x-position, derived from {@link playheadS} on each redraw. */
+  playheadPx = 0;
   canvasWidth = 0;
   canvasHeight = 0;
 
@@ -369,6 +378,18 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
       this.fadeOutS();
       if (this.viewReady) {
         this.scheduleRedraw();
+      }
+    });
+
+    // The playhead is a DOM overlay, not part of the canvas drawing, so a moving
+    // position only needs its derived pixel recomputed and a CD pass — no full
+    // (and frequent) waveform redraw. Resizes/region changes refresh it via the
+    // redraw pipeline instead (see scheduleRedraw).
+    effect(() => {
+      this.playheadS();
+      if (this.viewReady) {
+        this.updatePlayheadPx();
+        this.cdr.markForCheck();
       }
     });
   }
@@ -631,6 +652,23 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
 
     this.rightHandleBoxPx = this.clamp(this.regionRightPx - handleWidth / 2, 0, maxBoxLeft);
     this.rightGripPx = this.clamp(this.regionRightPx, gripHalf, maxGripCenter) - this.rightHandleBoxPx;
+
+    this.updatePlayheadPx();
+  }
+
+  /** Derive the playhead's x-position from the current time and canvas width, so
+      it stays aligned with the waveform/handles across resizes. */
+  private updatePlayheadPx(): void {
+    if (this.durationS <= 0 || this.canvasWidth <= 0) {
+      this.playheadPx = 0;
+      return;
+    }
+
+    this.playheadPx = this.clamp(
+      (this.playheadS() / this.durationS) * this.canvasWidth,
+      0,
+      this.canvasWidth,
+    );
   }
 
   /** Rendered handle hit-area width — wider on touch layouts (see the
@@ -650,6 +688,7 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       this.dragging = null;
+      this.zone.run(() => this.regionCommit.emit());
     };
 
     document.addEventListener('mousemove', onMove);
@@ -704,7 +743,11 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
     };
 
     onUp = () => {
+      const didDrag = this.touchGesture === 'horizontal';
       cleanup();
+      if (didDrag) {
+        this.zone.run(() => this.regionCommit.emit());
+      }
     };
 
     document.addEventListener('touchmove', onMove, { passive: false });

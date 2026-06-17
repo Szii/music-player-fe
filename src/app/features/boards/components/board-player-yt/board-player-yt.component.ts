@@ -1009,6 +1009,56 @@ export class BoardPlayerYtComponent implements OnDestroy {
   }
 
   /**
+   * Apply a committed window change from the editor (boundary-drag released).
+   *
+   * If the playhead now sits outside the window it snaps to the new start and
+   * keeps playing; if it still lies inside, playback is left untouched. This is
+   * deferred to here — rather than running on every drag frame via
+   * {@link onWindowChanged} — so adjusting a boundary doesn't crossfade-spam.
+   */
+  commitWindowReposition(): void {
+    if (!this.hasSelectedWindow()) {
+      return;
+    }
+
+    const active = this.active();
+    if (
+      this.crossfadeInProgress ||
+      !active.loadedVideoId ||
+      !active.player ||
+      !active.ready
+    ) {
+      return;
+    }
+
+    const startS = this.windowStartFloor();
+    const positionS = active.player.getCurrentTime();
+
+    // Still inside the new window — keep playing from where we are.
+    if (positionS >= startS && positionS <= this.windowEndCeil()) {
+      this.seekableMaxS.set(this.seekableWindowEnd());
+      return;
+    }
+
+    this.emittedNearEnd = false;
+
+    if (active.player.getPlayerState() === YT.PlayerState.PLAYING) {
+      void this.crossfadeInto(
+        active.loadedVideoId,
+        active.loadedTrackId,
+        startS,
+        this.switchCrossfadeMs(),
+        true,
+      );
+      return;
+    }
+
+    active.player.seekTo(startS, true);
+    this.displayPositionS.set(startS);
+    this.seekableMaxS.set(this.seekableWindowEnd());
+  }
+
+  /**
    * Handles a change to the selected window while a track is loaded. Seeks the
    * active player to the new window start; ignored on the first evaluation and
    * for whole-track playback (so duration metadata arriving doesn't jump).
@@ -1034,15 +1084,13 @@ export class BoardPlayerYtComponent implements OnDestroy {
 
     this.emittedNearEnd = false;
 
-    // Window editor: while the user drags a boundary, keep playing from the
-    // current position if it still lies inside the resized window. Only when the
-    // caret falls outside the new range do we fall through to repositioning.
+    // Window editor: defer all repositioning to the boundary-drag release
+    // (commitWindowReposition). Repositioning on every intermediate frame would
+    // crossfade-spam and fight the user while they are still adjusting the bounds,
+    // so here we only keep the seek range current.
     if (this.preservePositionOnWindowChange()) {
-      const positionS = active.player.getCurrentTime();
-      if (positionS >= startS && positionS <= this.windowEndCeil()) {
-        this.seekableMaxS.set(this.seekableWindowEnd());
-        return;
-      }
+      this.seekableMaxS.set(this.seekableWindowEnd());
+      return;
     }
 
     // While playing, crossfade into the new window (same video, new start) using
