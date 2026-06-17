@@ -15,7 +15,7 @@ import {
 } from '@angular/core';
 import { PlayerControlsComponent } from '../player-controls/player-controls.component';
 import { YoutubeIframeApiService } from '../../../../core/services/youtube-iframe-api.service';
-import { outgoingCrossfadeMs } from '../../utils/crossfade';
+import { effectiveCrossfadeMs, sourceCrossfadeMs } from '../../utils/crossfade';
 
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 type SlotName = 'A' | 'B';
@@ -99,9 +99,6 @@ export class BoardPlayerYtComponent implements OnDestroy {
       the window has no (or a very short) fade-out. */
   private static readonly MIN_NEAR_END_LEAD_S = 0.25;
   private static readonly POLL_INTERVAL_MS = 50;
-  /** Fallback crossfades when the relevant window/track has no fades set. */
-  private static readonly DEFAULT_LOOP_CROSSFADE_MS = 2500;
-  private static readonly DEFAULT_SWITCH_CROSSFADE_MS = 2500;
   /** Used for the final target when the user skips several tracks mid-fade. */
   private static readonly RAPID_SWITCH_CROSSFADE_MS = 250;
   /** Extra head-start so the incoming slot can buffer before the fade starts. */
@@ -127,6 +124,12 @@ export class BoardPlayerYtComponent implements OnDestroy {
   readonly masterVolume = input(1);
   readonly masterFadeRampMs = input(0);
   readonly showPrimaryButton = input(true);
+  /**
+   * When set (playlist mode), track switches use this fixed crossfade length
+   * instead of deriving it from the per-track fades, and near-end fires a
+   * crossfade-plus-buffer early so the async track advance can overlap it.
+   */
+  readonly forcedCrossfadeMs = input<number | null>(null);
   /**
    * When the selected window changes while playing, keep the playhead where it is
    * if it still falls inside the new window (used by the window editor while the
@@ -179,10 +182,10 @@ export class BoardPlayerYtComponent implements OnDestroy {
   };
 
   private activeSlot: SlotName = 'A';
-  /** Fade-out (ms) of the window currently committed to the active slot. At a
-      switch this is the *outgoing* value, combined with the new window's
-      incoming fade-in to size the crossfade. */
-  private activeFadeOutMs = 0;
+  /** Crossfade (ms) of the window/track currently committed to the active slot
+      (its fade-in + fade-out). At a switch this is the *outgoing* crossfade,
+      compared against the incoming window's crossfade so the longer one wins. */
+  private activeCrossfadeMs = 0;
   private currentMaster = 1;
   /**
    * Last requested master-volume target. Used so a ramp-duration-only input
@@ -1062,32 +1065,37 @@ export class BoardPlayerYtComponent implements OnDestroy {
   }
 
   /**
-   * Loop crossfade length: a window loops into itself, so the overlap is sized by
-   * that window's own fade-out (the outgoing edge), defaulting when unset.
+   * Loop crossfade length: a window loops into itself, so the overlap is that
+   * window's own crossfade (fade-in + fade-out), floored at the safety fade when
+   * crossfading is turned off.
    */
   private loopCrossfadeMs(): number {
-    return outgoingCrossfadeMs(
-      this.windowFadeOutMs(),
-      BoardPlayerYtComponent.DEFAULT_LOOP_CROSSFADE_MS,
-    );
+    return effectiveCrossfadeMs(this.incomingCrossfadeMs());
   }
 
   /**
-   * Window/track switch crossfade length: governed solely by the outgoing
-   * window/track's fade-out (captured on the active slot). The incoming side's
-   * fade-in does not extend the overlap.
+   * Window/track switch crossfade length: the *longer* of the outgoing window's
+   * crossfade (captured on the active slot) and the incoming window's crossfade,
+   * floored at the safety fade when both are off.
    */
   private switchCrossfadeMs(): number {
-    return outgoingCrossfadeMs(
-      this.activeFadeOutMs,
-      BoardPlayerYtComponent.DEFAULT_SWITCH_CROSSFADE_MS,
-    );
+    const forced = this.forcedCrossfadeMs();
+    if (forced != null) {
+      return forced;
+    }
+    return effectiveCrossfadeMs(this.activeCrossfadeMs, this.incomingCrossfadeMs());
   }
 
-  /** Record the now-active window's fades so a later switch can use them as the
-      outgoing fade-out. Called whenever a slot becomes the committed active one. */
+  /** Crossfade (fade-in + fade-out) of the window/track on the current inputs —
+      i.e. the incoming side at a switch, or the looping window itself. */
+  private incomingCrossfadeMs(): number {
+    return sourceCrossfadeMs(this.windowFadeInMs(), this.windowFadeOutMs());
+  }
+
+  /** Record the now-active window's crossfade so a later switch can use it as the
+      outgoing side. Called whenever a slot becomes the committed active one. */
   private captureActiveWindowFades(): void {
-    this.activeFadeOutMs = this.windowFadeOutMs();
+    this.activeCrossfadeMs = this.incomingCrossfadeMs();
   }
 
   /**
@@ -1097,6 +1105,16 @@ export class BoardPlayerYtComponent implements OnDestroy {
    * incoming source).
    */
   private nearEndLeadS(): number {
+    // Playlist track switches advance through an async backend call, so fire
+    // near-end a crossfade-plus-buffer early to give the next track time to load
+    // and overlap rather than gapping after the current one ends.
+    const forced = this.forcedCrossfadeMs();
+    if (forced != null) {
+      return Math.max(
+        BoardPlayerYtComponent.MIN_NEAR_END_LEAD_S,
+        forced / 1000 + BoardPlayerYtComponent.CROSSFADE_BUFFER_LEAD_S,
+      );
+    }
     return Math.max(
       BoardPlayerYtComponent.MIN_NEAR_END_LEAD_S,
       this.loopCrossfadeMs() / 1000,
@@ -1144,9 +1162,9 @@ export class BoardPlayerYtComponent implements OnDestroy {
   private seekableWindowEnd(): number {
     const startS = this.windowStartFloor();
     const endS = this.windowEndCeil();
-    // The crossfade tail (the window's fade-out) is not seekable — that ending
-    // section is where the crossfade runs.
-    const tailS = this.windowFadeOutMs() / 1000;
+    // The crossfade tail is not seekable — that ending section is where the loop
+    // crossfade runs.
+    const tailS = this.loopCrossfadeMs() / 1000;
     return Math.max(startS, endS - tailS);
   }
 

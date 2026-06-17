@@ -305,6 +305,9 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
   /** Half the grip's visible footprint (6px pill + ~2px ring), used to keep it
       fully on-screen at the transport edges. */
   private static readonly GRIP_HALF_PX = 6;
+  /** Smallest width a non-zero fade zone is drawn at, so short fades on long
+      tracks (a few seconds out of many minutes) stay visible. */
+  private static readonly MIN_FADE_PX = 10;
 
   @Input() durationS = 0;
   @Input() regionFromS = 0;
@@ -580,16 +583,22 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
       return;
     }
 
-    const rect = wrap.getBoundingClientRect();
+    // Use the untransformed layout size (offsetWidth/Height) rather than
+    // getBoundingClientRect, whose width reflects an in-progress open/transition
+    // transform on an ancestor panel. That transient (scaled) width sized the
+    // canvas too narrow and left the right edge inset until the next redraw —
+    // visible only on the whole-track window, whose content sits flush right.
+    const width = wrap.offsetWidth;
+    const height = wrap.offsetHeight;
     const dpr = window.devicePixelRatio || 1;
 
-    this.canvasWidth = rect.width;
-    this.canvasHeight = rect.height;
+    this.canvasWidth = width;
+    this.canvasHeight = height;
 
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    canvas.style.width = `${rect.width}px`;
-    canvas.style.height = `${rect.height}px`;
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
 
     const ctx = canvas.getContext('2d');
     if (ctx) {
@@ -844,13 +853,70 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
       return;
     }
 
-    // Only the end crossfade region is drawn — there is no ramp at the start.
+    // The crossfade is symmetric: a fade-in ramp at the region start and a
+    // fade-out ramp at the region end. Each half is capped at half the region so
+    // the two never overlap.
     const pxPerSecond = this.canvasWidth / this.durationS;
-    const fadeOutWidth = Math.min(this.fadeOutS() * pxPerSecond, regionWidth);
+    const halfRegion = regionWidth / 2;
+    const fadeInWidth = this.fadeZoneWidth(this.fadeInS(), pxPerSecond, halfRegion);
+    const fadeOutWidth = this.fadeZoneWidth(this.fadeOutS(), pxPerSecond, halfRegion);
 
+    if (fadeInWidth > 0) {
+      this.drawFadeInZone(ctx, fromPx, fadeInWidth, height, palette);
+    }
     if (fadeOutWidth > 0) {
       this.drawFadeOutZone(ctx, toPx, fadeOutWidth, height, palette);
     }
+  }
+
+  /**
+   * Pixel width to draw a fade zone at: the fade length scaled to the timeline,
+   * but floored at {@link MIN_FADE_PX} so a non-zero fade is always visible, and
+   * capped at `maxWidth` (half the region).
+   */
+  private fadeZoneWidth(
+    fadeS: number,
+    pxPerSecond: number,
+    maxWidth: number,
+  ): number {
+    if (fadeS <= 0 || maxWidth <= 0) {
+      return 0;
+    }
+    const scaled = Math.max(
+      fadeS * pxPerSecond,
+      WaveformCanvasComponent.MIN_FADE_PX,
+    );
+    return Math.min(scaled, maxWidth);
+  }
+
+  private drawFadeInZone(
+    ctx: CanvasRenderingContext2D,
+    fromPx: number,
+    fadeWidth: number,
+    height: number,
+    palette: WaveformPalette,
+  ): void {
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(fromPx, height);
+    ctx.lineTo(fromPx + fadeWidth, 0);
+    ctx.lineTo(fromPx, 0);
+    ctx.closePath();
+    ctx.clip();
+
+    const gradient = ctx.createLinearGradient(fromPx, 0, fromPx + fadeWidth, 0);
+    gradient.addColorStop(0, palette.primary);
+    gradient.addColorStop(1, palette.primarySoft);
+
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = gradient;
+    ctx.fillRect(fromPx, 0, fadeWidth, height);
+
+    this.drawDiagonalStripes(ctx, fromPx, fromPx + fadeWidth, height, palette.primary, 'rising');
+    ctx.restore();
+
+    // Bold envelope ramp: volume rising 0 -> 1 across the fade-in.
+    this.drawFadeRamp(ctx, fromPx, height, fromPx + fadeWidth, 0, palette.primary);
   }
 
   private drawFadeOutZone(

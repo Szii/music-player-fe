@@ -12,7 +12,7 @@ import {
 } from 'rxjs/operators';
 
 import { environment } from '../../../../../environments/environment';
-import { outgoingCrossfadeMs } from '../../utils/crossfade';
+import { effectiveCrossfadeMs, sourceCrossfadeMs } from '../../utils/crossfade';
 
 import {
   MusicBoardsService,
@@ -375,9 +375,6 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   private readonly pendingTrackUpdateBoardIds = new Set<number>();
   private readonly playPendingAfterUpdateBoardIds = new Set<number>();
   private readonly playlistAdvanceInFlightBoardIds = new Set<number>();
-
-  /** Fallback board-to-board crossfade when neither side has fades configured. */
-  private static readonly DEFAULT_CROSSFADE_MS = 2000;
 
   private readonly fadeStateVersion = signal(0);
   /** Bumped whenever the locally-selected window changes without a `boards()`
@@ -1122,24 +1119,15 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // A board-to-board switch is governed by the outgoing board's fade-out (the
-    // same "outgoing source" rule used for window/track crossfades): one duration
-    // drives the ramp-up and all ramp-downs. When starting from silence there is
-    // no outgoing board, so the incoming board's fade-in sizes the fade-up.
-    let outgoingFadeMs: number;
-    if (boardsToStop.length > 0) {
-      outgoingFadeMs = boardsToStop.reduce(
-        (max, item) => Math.max(max, this.boardFadeOutMs(item)),
-        0,
-      );
-    } else {
-      // Fading in from silence: no outgoing board, so use the incoming fade-in.
-      const incomingBoard = this.findBoard(targetId);
-      outgoingFadeMs = incomingBoard ? this.boardFadeInMs(incomingBoard) : 0;
-    }
-    const rampMs = outgoingCrossfadeMs(
-      outgoingFadeMs,
-      BoardsPageComponent.DEFAULT_CROSSFADE_MS,
+    // A board-to-board switch always respects the *longer* crossfade among the
+    // boards involved: every stopping board's crossfade and the incoming board's
+    // own crossfade. That one duration drives the ramp-up and all ramp-downs. When
+    // starting from silence there are no stopping boards, so the incoming board's
+    // crossfade sizes the fade-up. A 0 setting is floored at a tiny safety fade.
+    const incomingBoard = this.findBoard(targetId);
+    const rampMs = effectiveCrossfadeMs(
+      incomingBoard ? this.boardCrossfadeMs(incomingBoard) : 0,
+      ...boardsToStop.map(item => this.boardCrossfadeMs(item)),
     );
 
     // Schedule audio-clock-driven master gain ramps in each affected
@@ -1308,19 +1296,15 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Fade lengths (ms) currently in effect for a board: the selected window's
-   * fades, or the track's own ("whole track") fades when no window is selected.
+   * Crossfade length (ms) currently in effect for a board: the fade-in + fade-out
+   * of the selected window, or the track's own ("whole track") fades when no
+   * window is selected.
    */
-  private boardFadeInMs(board: Board): number {
-    return this.selectedWindowFor(board)?.fadeInDurationMs
-      ?? board.selectedTrack?.fadeInDurationMs
-      ?? 0;
-  }
-
-  private boardFadeOutMs(board: Board): number {
-    return this.selectedWindowFor(board)?.fadeOutDurationMs
-      ?? board.selectedTrack?.fadeOutDurationMs
-      ?? 0;
+  private boardCrossfadeMs(board: Board): number {
+    const window = this.selectedWindowFor(board);
+    const fadeInMs = window?.fadeInDurationMs ?? board.selectedTrack?.fadeInDurationMs ?? 0;
+    const fadeOutMs = window?.fadeOutDurationMs ?? board.selectedTrack?.fadeOutDurationMs ?? 0;
+    return sourceCrossfadeMs(fadeInMs, fadeOutMs);
   }
 
   private selectedWindowFor(board: Board): TrackWindow | null {

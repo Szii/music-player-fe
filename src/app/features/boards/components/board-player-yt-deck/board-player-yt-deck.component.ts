@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  NgZone,
   ViewChild,
   computed,
   effect,
@@ -11,7 +12,7 @@ import {
   signal,
 } from '@angular/core';
 import { BoardPlayerYtComponent } from '../board-player-yt/board-player-yt.component';
-import { outgoingCrossfadeMs } from '../../utils/crossfade';
+import { effectiveCrossfadeMs, sourceCrossfadeMs } from '../../utils/crossfade';
 
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 type SourceName = 'A' | 'B';
@@ -50,6 +51,7 @@ type SourceName = 'A' | 'B';
           [hasSelectedWindow]="hasSelectedWindow()"
           [windowFadeInMs]="windowFadeInMs()"
           [windowFadeOutMs]="windowFadeOutMs()"
+          [forcedCrossfadeMs]="forcedCrossfadeMs()"
           [repeat]="false"
           [masterVolume]="sourceAMasterVolume()"
           [masterFadeRampMs]="sourceAFadeRampMs()"
@@ -81,6 +83,7 @@ type SourceName = 'A' | 'B';
           [hasSelectedWindow]="hasSelectedWindow()"
           [windowFadeInMs]="windowFadeInMs()"
           [windowFadeOutMs]="windowFadeOutMs()"
+          [forcedCrossfadeMs]="forcedCrossfadeMs()"
           [repeat]="false"
           [masterVolume]="sourceBMasterVolume()"
           [masterFadeRampMs]="sourceBFadeRampMs()"
@@ -118,10 +121,11 @@ type SourceName = 'A' | 'B';
   ],
 })
 export class BoardPlayerYtDeckComponent {
-  /** Fallback loop crossfade when the looping window has no fades configured. */
-  private static readonly DEFAULT_LOOP_CROSSFADE_MS = 3000;
+  /** Playhead clock tick while looping. */
+  private static readonly PLAYHEAD_TICK_MS = 50;
 
   private readonly destroyRef = inject(DestroyRef);
+  private readonly zone = inject(NgZone);
 
   readonly title = input('');
   readonly hasTrack = input(false);
@@ -138,6 +142,8 @@ export class BoardPlayerYtDeckComponent {
   readonly masterVolume = input(1);
   readonly masterFadeRampMs = input(0);
   readonly showPrimaryButton = input(true);
+  /** Fixed track-switch crossfade for playlist mode (see board-player-yt). */
+  readonly forcedCrossfadeMs = input<number | null>(null);
   /** Keep the playhead in place on window changes while it stays inside the new
       window (window editor boundary dragging). */
   readonly preservePositionOnWindowChange = input(false);
@@ -172,14 +178,13 @@ export class BoardPlayerYtDeckComponent {
   );
 
   /**
-   * Symmetric loop crossfade length, sized by the looping window's own fade-out
-   * (the outgoing edge), falling back to the default when unset. Both sources ramp
-   * over this same duration — the proven preset-style crossfade.
+   * Symmetric loop crossfade length. A window loops into itself, so the overlap is
+   * the looping window's own crossfade (fade-in + fade-out), floored at the safety
+   * fade when crossfading is turned off. Both sources ramp over this duration.
    */
   readonly loopCrossfadeMs = computed(() =>
-    outgoingCrossfadeMs(
-      this.windowFadeOutMs(),
-      BoardPlayerYtDeckComponent.DEFAULT_LOOP_CROSSFADE_MS,
+    effectiveCrossfadeMs(
+      sourceCrossfadeMs(this.windowFadeInMs(), this.windowFadeOutMs()),
     ),
   );
 
@@ -196,6 +201,17 @@ export class BoardPlayerYtDeckComponent {
   private syncSeq = 0;
   private lastVideoId: string | null = null;
   private lastTrackId: number | null = null;
+
+  // Logical playhead clock. While looping, the audible position can't sweep
+  // cleanly because the loop crossfade overlaps two sources (the incoming one is
+  // already `crossfade` seconds in at the seam). So instead of forwarding the raw
+  // audible position, we run a steady clock that sweeps the loop region and wraps
+  // cleanly to the start — snapping back to reality on play-start and on seeks.
+  private playheadTimer: ReturnType<typeof setInterval> | null = null;
+  private playheadLastTs = 0;
+  private playheadResyncPending = true;
+  private rawActivePositionS = 0;
+  private emittedPositionS = 0;
 
   constructor() {
     effect(() => {
@@ -225,7 +241,20 @@ export class BoardPlayerYtDeckComponent {
       this.syncSources(status, canPlay, repeat);
     });
 
-    this.destroyRef.onDestroy(() => this.clearCrossfadeTimer());
+    // Run the smooth loop playhead only while looping; otherwise the raw audible
+    // position is forwarded directly (it sweeps fine with no seam to smooth over).
+    effect(() => {
+      if (this.status() === 'PLAYING' && this.repeat()) {
+        this.startPlayheadClock();
+      } else {
+        this.stopPlayheadClock();
+      }
+    });
+
+    this.destroyRef.onDestroy(() => {
+      this.clearCrossfadeTimer();
+      this.stopPlayheadClock();
+    });
   }
 
   /** Current playback position (seconds) of the audible source. */
@@ -234,19 +263,95 @@ export class BoardPlayerYtDeckComponent {
     return active?.displayPositionS() ?? 0;
   }
 
-  /** Forward only the currently audible source's playhead to the host. */
+  /** Track the audible source's playhead. When not looping it is forwarded
+      directly; while looping the playhead clock owns what is emitted. */
   onSourcePosition(source: SourceName, positionS: number): void {
-    if (source === this.activeSource()) {
-      this.positionChange.emit(positionS);
+    if (source !== this.activeSource()) {
+      return;
+    }
+    this.rawActivePositionS = positionS;
+    if (!(this.status() === 'PLAYING' && this.repeat())) {
+      this.emitPlayhead(positionS);
     }
   }
 
   onSourceSeeked(source: SourceName): void {
+    if (source !== this.activeSource()) {
+      return;
+    }
     // A manual seek on the audible source cancels the loop crossfade so it
     // doesn't swap to the silent source (snapping back to the loop start).
-    if (this.crossfadeInProgress && source === this.activeSource()) {
+    if (this.crossfadeInProgress) {
       this.abortLoopCrossfade();
     }
+    // Snap the smooth playhead to the seeked position on the next tick.
+    this.playheadResyncPending = true;
+  }
+
+  private startPlayheadClock(): void {
+    if (this.playheadTimer !== null) {
+      return;
+    }
+    this.playheadResyncPending = true;
+    this.playheadLastTs = performance.now();
+    this.zone.runOutsideAngular(() => {
+      this.playheadTimer = setInterval(
+        () => this.zone.run(() => this.advancePlayhead()),
+        BoardPlayerYtDeckComponent.PLAYHEAD_TICK_MS,
+      );
+    });
+  }
+
+  private stopPlayheadClock(): void {
+    if (this.playheadTimer !== null) {
+      clearInterval(this.playheadTimer);
+      this.playheadTimer = null;
+    }
+  }
+
+  /** Advance the smooth loop playhead by real elapsed time, wrapping cleanly at
+      the loop end back to the loop start. */
+  private advancePlayhead(): void {
+    const now = performance.now();
+    const dtS = Math.min(0.25, Math.max(0, (now - this.playheadLastTs) / 1000));
+    this.playheadLastTs = now;
+
+    const start = this.loopStartS();
+    const end = this.loopEndS();
+
+    let pos: number;
+    if (this.playheadResyncPending || end <= start) {
+      // Snap to the real audible position (play-start / seek), clamped to range.
+      pos = end > start
+        ? Math.min(Math.max(this.rawActivePositionS, start), end)
+        : this.rawActivePositionS;
+      this.playheadResyncPending = false;
+    } else {
+      pos = this.emittedPositionS + dtS;
+      if (pos >= end) {
+        // Clean wrap to the window start (a hard-loop-style visual seam).
+        pos = start;
+      }
+    }
+
+    this.emitPlayhead(pos);
+  }
+
+  private loopStartS(): number {
+    return this.hasSelectedWindow() ? Math.max(0, this.windowStartS() ?? 0) : 0;
+  }
+
+  private loopEndS(): number {
+    const duration = this.durationS() ?? 0;
+    if (!this.hasSelectedWindow()) {
+      return duration;
+    }
+    return Math.max(this.loopStartS(), this.windowEndS() ?? duration);
+  }
+
+  private emitPlayhead(positionS: number): void {
+    this.emittedPositionS = positionS;
+    this.positionChange.emit(positionS);
   }
 
   onSourceNearEnd(source: SourceName): void {

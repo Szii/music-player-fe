@@ -17,6 +17,7 @@ import { FormsModule } from '@angular/forms';
 import { ConnectedPosition, OverlayModule } from '@angular/cdk/overlay';
 import { Board, Group, Track } from '../../../../api/generated';
 import { BoardPlayerYtDeckComponent } from '../board-player-yt-deck/board-player-yt-deck.component';
+import { PLAYLIST_CROSSFADE_MS } from '../../utils/crossfade';
 import { parseYoutubeId } from '../../../../shared/utils/youtube-id';
 import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
 import {
@@ -521,6 +522,7 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
                 [hasSelectedWindow]="hasSelectedWindow()"
                 [windowFadeInMs]="selectedWindowFadeInMs()"
                 [windowFadeOutMs]="selectedWindowFadeOutMs()"
+                [forcedCrossfadeMs]="playlistCrossfadeMs()"
                 [repeat]="effectiveRepeat()"
                 [masterVolume]="masterVolume()"
                 [masterFadeRampMs]="masterFadeRampMs()"
@@ -1602,6 +1604,12 @@ export class BoardCardComponent implements OnInit {
     const window = this.hasSelectedWindow() ? this.selectedWindow() : null;
     return window?.fadeOutDurationMs ?? this.board().selectedTrack?.fadeOutDurationMs ?? 0;
   });
+
+  /** Playlist track-to-track uses a fixed crossfade (whole tracks advancing
+      through an async backend call); other modes derive it from the fades. */
+  readonly playlistCrossfadeMs = computed(() =>
+    this.playlistMode() ? PLAYLIST_CROSSFADE_MS : null,
+  );
 
   // In sequence mode the page advances windows and loops the whole sequence, so
   // the player itself must not loop the current window. When the track can't be
