@@ -201,9 +201,9 @@ interface VolumeCommit {
       display: none;
     }
 
-    @media (max-width: 560px) {
-      /* Phone: boards become a horizontal swipe carousel with a name-tab strip
-         on top; the active board lights up, the rest are greyed. */
+    @media (max-width: 640px) {
+      /* Phone (≤sm): boards become a horizontal swipe carousel with a name-tab
+         strip on top; the active board lights up, the rest are greyed. */
       .boards-tabs {
         display: flex;
         gap: 6px;

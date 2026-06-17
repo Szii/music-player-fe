@@ -176,13 +176,13 @@
 
 /* ---------------------------------------------------------------------------
    Mobile bottom navigation: thumb-reachable primary tab bar shown in place of
-   the inline links below 768px. Hidden on desktop.
+   the inline links below md (900px). Hidden on desktop.
    --------------------------------------------------------------------------- */
 .app-bottom-nav {
   display: none;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   /* The four primary destinations move out of the top bar into the bottom bar. */
   .app-navbar__links {
     display: none;

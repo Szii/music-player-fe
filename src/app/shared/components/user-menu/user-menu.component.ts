@@ -182,7 +182,7 @@ import { ProfileStore } from '../../../features/profile/data-access/profile-stor
       color: currentColor;
     }
 
-    @media (max-width: 768px) {
+    @media (max-width: 900px) {
       /* In the slim top bar the trigger stays compact (avatar only) so it fits
          beside the brand; the panel anchors to the right edge and is clamped to
          the viewport so it never overflows. */

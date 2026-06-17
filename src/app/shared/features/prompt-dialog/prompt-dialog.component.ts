@@ -11,6 +11,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
+import { DeviceCapabilitiesService } from '../../../core/services/device-capabilities.service';
 import { NormalButtonComponent } from '../../ui/buttons/normal-button.component';
 import { UiDialogShellComponent } from '../../ui/dialog-shell/ui-dialog-shell.component';
 import { UiCharCounterComponent } from '../../ui/char-counter/ui-char-counter.component';
@@ -107,6 +108,7 @@ export class PromptDialogComponent implements AfterViewChecked {
   readonly canSubmit = computed(() => this.value().trim().length > 0);
 
   private readonly inputRef = viewChild<ElementRef<HTMLInputElement>>('inputEl');
+  private readonly device = inject(DeviceCapabilitiesService);
   private needsFocus = false;
 
   constructor() {
@@ -123,6 +125,14 @@ export class PromptDialogComponent implements AfterViewChecked {
 
   ngAfterViewChecked(): void {
     if (!this.needsFocus) return;
+    // Only autofocus on precise-pointer devices (mouse/trackpad). On touch —
+    // phones and tablets alike — this would pop the soft keyboard over the
+    // dialog before the user has decided to type. Selecting the text only
+    // matters when there's a keyboard anyway.
+    if (!this.device.prefersAutoFocus()) {
+      this.needsFocus = false;
+      return;
+    }
     const input = this.inputRef()?.nativeElement;
     if (!input) return;
     input.focus();

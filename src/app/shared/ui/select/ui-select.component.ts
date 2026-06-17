@@ -13,6 +13,7 @@ import {
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 
+import { DeviceCapabilitiesService } from '../../../core/services/device-capabilities.service';
 import { ScrollLockService } from '../../../core/services/scroll-lock.service';
 import { BottomSheetDragDirective } from '../bottom-sheet/bottom-sheet-drag.directive';
 
@@ -572,6 +573,7 @@ export class UiSelectComponent implements ControlValueAccessor {
   private onTouched: () => void = () => {};
 
   private readonly scrollLock = inject(ScrollLockService);
+  private readonly device = inject(DeviceCapabilitiesService);
 
   constructor(private readonly el: ElementRef) {
     effect(() => {
@@ -662,13 +664,12 @@ export class UiSelectComponent implements ControlValueAccessor {
       this.isOpen.set(true);
       this.resetHighlightFromCurrent();
 
-      // Auto-focus the search on desktop only. On mobile the sheet would
-      // immediately pop the keyboard over the options — let the user tap the
-      // field to start searching.
-      const isMobile =
-        typeof window !== 'undefined' &&
-        window.matchMedia('(max-width: 640px)').matches;
-      if (this.enableSearch() && !isMobile) {
+      // Auto-focus the search on precise-pointer devices (mouse/trackpad) only.
+      // On touch devices — phones *and* tablets — focusing would immediately pop
+      // the soft keyboard over the options, so let the user tap the field to
+      // start searching. Keyed on input modality, not viewport width, so a wide
+      // tablet doesn't get desktop behaviour.
+      if (this.enableSearch() && this.device.prefersAutoFocus()) {
         setTimeout(() => this.searchInputRef?.nativeElement.focus(), 0);
       }
     } else {
@@ -886,8 +887,7 @@ export class UiSelectComponent implements ControlValueAccessor {
    * opens the flyout.
    */
   private isHoverDevice(): boolean {
-    return typeof window !== 'undefined'
-      && window.matchMedia('(hover: hover)').matches;
+    return this.device.canHover();
   }
 
   onOptionMouseMove(opt: UiSelectOption, index: number): void {
