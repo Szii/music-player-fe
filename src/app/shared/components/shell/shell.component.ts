@@ -3,7 +3,7 @@ import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { NavbarComponent } from '../navbar/navbar.component';
 import { BrowserWarningBannerComponent } from '../browser-warning-banner/browser-warning-banner.component';
 import { BoardPlaybackService } from '../../../core/services/board-playback.service';
-import { BrowserSupportService } from '../../../core/services/browser-support.service';
+import { EnvironmentWarningsService } from '../../../core/services/environment-warnings.service';
 import { BoardsPageComponent } from '../../../features/boards/pages/boards-page/boards-page.component';
 import { filter, skip } from 'rxjs';
 
@@ -15,10 +15,11 @@ import { filter, skip } from 'rxjs';
     <div class="app-shell">
       <app-navbar></app-navbar>
 
-      @if (browserSupport.showWarning) {
+      @for (warning of warnings.activeWarnings(); track warning.id) {
         <app-browser-warning-banner
-          [open]="browserSupport.bannerOpen()"
-          (close)="browserSupport.closeBanner()"
+          [open]="warning.open()"
+          [message]="warning.message"
+          (close)="warnings.closeBanner(warning.id)"
         />
       }
 
@@ -37,7 +38,7 @@ import { filter, skip } from 'rxjs';
 })
 export class ShellComponent {
   private readonly boardPlayback = inject(BoardPlaybackService);
-  readonly browserSupport = inject(BrowserSupportService);
+  readonly warnings = inject(EnvironmentWarningsService);
   readonly isBoardsRoute = signal(false);
 
   constructor() {
