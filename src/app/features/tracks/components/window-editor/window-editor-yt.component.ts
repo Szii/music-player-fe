@@ -43,8 +43,9 @@ export interface WindowEditorResult {
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 type PreviewMode = 'selection' | 'full';
 
-/** Crossfade is split evenly into a fade-in and a fade-out half. */
-const CROSSFADE_STEP_MS = FADE_STEP_MS * 2;
+/** The crossfade slider sets fade-in and fade-out to the same length, so it steps
+    by a single fade step. */
+const CROSSFADE_STEP_MS = FADE_STEP_MS;
 
 /**
  * YouTube IFrame-backed window editor (behind {@link USE_YT_IFRAME_PLAYER}).
@@ -56,7 +57,8 @@ const CROSSFADE_STEP_MS = FADE_STEP_MS * 2;
  * crossfade length comes from the same fade values.
  *
  * A single "Crossfade" slider sets the window's fades symmetrically — a 6 s
- * crossfade means a 3 s fade-in and a 3 s fade-out.
+ * crossfade means the window fades in over 6 s and out over 6 s, and that 6 s is
+ * also the loop/seam overlap.
  *
  * Mirrors {@link WindowEditorResult} on apply so the panel handles it
  * identically to the stream-based editor.
@@ -179,7 +181,7 @@ const CROSSFADE_STEP_MS = FADE_STEP_MS * 2;
               <button type="button" class="we-nudge" [disabled]="crossfadeMs() >= maxCrossfadeMs()" (click)="nudgeCrossfade(1)" aria-label="Increase crossfade">+</button>
             </div>
             <span class="we-fade__hint">
-              Split evenly: {{ formatFade(fadeInMs()) }} fade-in + {{ formatFade(fadeOutMs()) }} fade-out
+              Fades in and out over {{ formatFade(crossfadeMs()) }} — the loop/seam overlap
             </span>
           </div>
         </div>
@@ -562,11 +564,12 @@ export class WindowEditorYtComponent {
   readonly crossfadeStepMs = CROSSFADE_STEP_MS;
   readonly volumePercent = computed(() => Math.round(this.masterVolume() * 100));
 
-  /** Total crossfade = fade-in + fade-out (the two halves are kept equal). */
-  readonly crossfadeMs = computed(() => this.fadeInMs() + this.fadeOutMs());
+  /** Crossfade length: the window fades in and out over this same duration, so it
+      equals each (kept-equal) fade edge — not their sum. */
+  readonly crossfadeMs = computed(() => Math.max(this.fadeInMs(), this.fadeOutMs()));
 
   readonly maxCrossfadeMs = computed(
-    () => maxFadeForWindow(this.regionToS() - this.regionFromS()) * 2,
+    () => maxFadeForWindow(this.regionToS() - this.regionFromS()),
   );
 
   readonly canApply = computed(() => {
@@ -798,13 +801,12 @@ export class WindowEditorYtComponent {
     this.clampFades();
   }
 
-  /** Set the total crossfade and split it evenly into fade-in / fade-out. */
-  private setCrossfadeMs(totalMs: number): void {
+  /** Set the crossfade length, applied as an equal fade-in and fade-out. */
+  private setCrossfadeMs(lengthMs: number): void {
     const maxMs = this.maxCrossfadeMs();
-    const clampedTotal = Math.max(0, Math.min(this.snapCrossfade(totalMs), maxMs));
-    const half = clampFadeMs(clampedTotal / 2, maxFadeForWindow(this.regionToS() - this.regionFromS()));
-    this.fadeInMs.set(half);
-    this.fadeOutMs.set(half);
+    const clamped = clampFadeMs(this.snapCrossfade(lengthMs), maxMs);
+    this.fadeInMs.set(clamped);
+    this.fadeOutMs.set(clamped);
   }
 
   private clampFades(): void {
