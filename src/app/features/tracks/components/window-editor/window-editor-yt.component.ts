@@ -77,12 +77,11 @@ const CROSSFADE_STEP_MS = FADE_STEP_MS;
   template: `
     <div class="we-root">
       <app-waveform-canvas
-        #waveformCanvas
         [durationS]="durationS()"
         [regionFromS]="regionFromS()"
         [regionToS]="regionToS()"
         [seekableMaxS]="durationS()"
-        [playheadPx]="playheadPx()"
+        [playheadS]="positionS()"
         [waveformPeaks]="[]"
         [audioReady]="durationS() > 0"
         [waveformReady]="true"
@@ -90,6 +89,7 @@ const CROSSFADE_STEP_MS = FADE_STEP_MS;
         [fadeOutS]="fadeOutMs() / 1000"
         [handlesDisabled]="durationS() <= 0 || lockRegion()"
         (regionChange)="onRegionChange($event)"
+        (regionCommit)="onRegionCommit()"
         (seekRequested)="onTimelineSeek($event)"
       />
 
@@ -524,7 +524,6 @@ export class WindowEditorYtComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   @ViewChild('deck') private deck?: BoardPlayerYtDeckComponent;
-  @ViewChild('waveformCanvas') private waveformCanvasRef?: WaveformCanvasComponent;
   @ViewChild('fromInput') private fromInputRef?: ElementRef<HTMLInputElement>;
   @ViewChild('toInput') private toInputRef?: ElementRef<HTMLInputElement>;
 
@@ -556,10 +555,9 @@ export class WindowEditorYtComponent {
   readonly masterVolume = signal(0.5);
   readonly status = signal<PlayerStatus>('STOPPED');
   readonly previewMode = signal<PreviewMode>('selection');
-  /** Current playhead position (seconds) reported by the preview deck. */
+  /** Current playhead position (seconds) reported by the preview deck. Fed to the
+      timeline, which derives the pixel position itself so it tracks resizes. */
   readonly positionS = signal(0);
-  /** Playhead position on the timeline canvas, in pixels. */
-  readonly playheadPx = signal(0);
 
   readonly crossfadeStepMs = CROSSFADE_STEP_MS;
   readonly volumePercent = computed(() => Math.round(this.masterVolume() * 100));
@@ -658,7 +656,14 @@ export class WindowEditorYtComponent {
     this.clampFades();
     // The preview deck keeps playing from the current position while the caret
     // stays inside the resized window, and only jumps to the start when it falls
-    // outside (see preservePositionOnWindowChange).
+    // outside (see preservePositionOnWindowChange). The displayed playhead is only
+    // re-anchored once the drag is released (onRegionCommit), not on every frame.
+  }
+
+  /** A region edit has settled (drag released). Re-anchor the preview playhead to
+      the real position so it snaps into the committed window. */
+  onRegionCommit(): void {
+    this.requestPlayheadResync();
   }
 
   onTimelineSeek(_targetS: number): void {
@@ -763,9 +768,6 @@ export class WindowEditorYtComponent {
 
   private setPlayhead(positionS: number): void {
     this.positionS.set(positionS);
-    const width = this.waveformCanvasRef?.canvasWidth ?? 0;
-    const duration = this.durationS();
-    this.playheadPx.set(duration > 0 ? (positionS / duration) * width : 0);
   }
 
   /**
@@ -793,12 +795,24 @@ export class WindowEditorYtComponent {
     const maxFrom = Math.max(0, this.regionToS() - 0.1);
     this.regionFromS.set(this.roundToTenth(this.clamp(seconds, 0, maxFrom)));
     this.clampFades();
+    this.requestPlayheadResync();
   }
 
   private setRegionTo(seconds: number): void {
     const minTo = this.regionFromS() + 0.1;
     this.regionToS.set(this.roundToTenth(this.clamp(seconds, minTo, this.durationS())));
     this.clampFades();
+    this.requestPlayheadResync();
+  }
+
+  /**
+   * Apply a committed region edit to the preview deck: reposition playback to the
+   * new window start when the playhead now falls outside it, and re-anchor the
+   * displayed playhead. Called when an edit is committed (drag released, or a
+   * text/nudge change) — not on each live drag frame.
+   */
+  private requestPlayheadResync(): void {
+    this.deck?.commitWindowReposition();
   }
 
   /** Set the crossfade length, applied as an equal fade-in and fade-out. */

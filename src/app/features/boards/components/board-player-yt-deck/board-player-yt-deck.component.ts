@@ -257,6 +257,20 @@ export class BoardPlayerYtDeckComponent {
     });
   }
 
+  /**
+   * Apply a committed window change from the editor (boundary-drag released, or a
+   * text/nudge edit): reposition the audible source to the new window start when
+   * the playhead falls outside it, and re-anchor the smooth playhead to the real
+   * position. Deferred to the commit rather than running on every drag frame.
+   */
+  commitWindowReposition(): void {
+    const active = this.activeSource() === 'A' ? this.sourceA : this.sourceB;
+    active?.commitWindowReposition();
+    // Snap the smooth loop clock to the (possibly repositioned) real position on
+    // the next tick instead of letting it free-run outside the new window.
+    this.playheadResyncPending = true;
+  }
+
   /** Current playback position (seconds) of the audible source. */
   getCurrentPositionS(): number {
     const active = this.activeSource() === 'A' ? this.sourceA : this.sourceB;
