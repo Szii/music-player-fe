@@ -62,7 +62,7 @@
 
   /* navbar */
   --app-navbar-height: 68px;
-  /* mobile bottom navigation bar height (shown ≤768px) */
+  /* mobile bottom navigation bar height (shown ≤md / 900px) */
   --app-bottom-nav-height: 56px;
 
   /* spacing scale — use instead of ad-hoc rem values so rhythm shrinks
@@ -150,8 +150,9 @@ html {
 }
 
 /* Reserve space for the fixed mobile bottom navigation so page content is
-   never hidden behind it. */
-@media (max-width: 768px) {
+   never hidden behind it. Snapped to the canonical md breakpoint so the app
+   flips to its compact shape (cards + bottom nav) at one consistent line. */
+@media (max-width: 900px) {
   body {
     padding-bottom: calc(
       var(--app-bottom-nav-height) + env(safe-area-inset-bottom, 0px)

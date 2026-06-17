@@ -1211,7 +1211,7 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
       border-top: 1px solid var(--app-border-color-soft);
     }
 
-    @media (max-width: 1120px) {
+    @media (max-width: 1100px) {
       .board-card__summary-top {
         flex-direction: column;
         align-items: flex-start;
@@ -1226,9 +1226,9 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
       }
     }
 
-    /* Narrow phones only: vertical fader + compact stacked layout. 560–900
-       keeps the horizontal desktop-style row, which uses the width better. */
-    @media (max-width: 560px) {
+    /* Phones (≤sm): vertical fader + compact stacked layout. 640–900 keeps the
+       horizontal desktop-style row, which uses the width better. */
+    @media (max-width: 640px) {
       /* Delete floats in the top-right corner instead of reserving a column,
          so the play/title, ribbons, info and volume all span the full board
          width and simply flow underneath it. */
@@ -1396,9 +1396,9 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
       .board-card__expand-hint {
         display: flex;
       }
-    }
 
-    @media (max-width: 480px) {
+      /* Tighter padding on phones (was a separate 480px tweak; folded into the
+         single phone breakpoint). */
       .board-card {
         padding: 12px;
       }
