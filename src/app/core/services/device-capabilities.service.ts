@@ -27,6 +27,14 @@ export class DeviceCapabilitiesService {
   /** Whether the primary pointer can hover (desktop-style hover affordances). */
   readonly canHover = this.matches('(hover: hover)');
 
+  /**
+   * A touch-first device with no precise pointer or hover — i.e. phones and
+   * tablets, excluding desktops/laptops (even touchscreen ones, whose primary
+   * pointer is still a trackpad). Used to warn that a desktop environment is
+   * needed for uninterrupted background playback.
+   */
+  readonly isMobile = this.matches('(pointer: coarse) and (hover: none)');
+
   private matches(query: string): Signal<boolean> {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
       return signal(false).asReadonly();

@@ -1,9 +1,10 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 
 /**
- * Dismissible notice shown under the navbar on unsupported (non-Chromium)
- * browsers. Visibility is owned by the caller; this component only renders the
- * message and emits {@link close} when the user dismisses it.
+ * Dismissible environment notice shown under the navbar (e.g. unsupported
+ * browser, or background playback needing a desktop). Visibility and message are
+ * owned by the caller; this component only renders the message and emits
+ * {@link close} when the user dismisses it.
  */
 @Component({
   selector: 'app-browser-warning-banner',
@@ -20,7 +21,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
           type="button"
           class="browser-warning__close"
           (click)="close.emit()"
-          aria-label="Dismiss browser support notice"
+          aria-label="Dismiss notice"
           title="Dismiss"
         >
           ×
