@@ -1,0 +1,69 @@
+
+<div class="app-page group-page">
+  <ui-page-title title="Groups" />
+
+  <app-create-group-form
+    #createForm
+    [showTrigger]="groups.length > 0"
+    (groupCreateRequested)="createGroup($event)"
+  />
+
+  @if (errorMessage) {
+    <ui-alert variant="danger">
+      {{ errorMessage }}
+    </ui-alert>
+  }
+
+  @if (loading) {
+    <div class="app-muted groups-page__loading">Loading...</div>
+  } @else if (groups.length === 0) {
+    <ui-create-cta
+      label="Create your first group"
+      (clicked)="createForm.open()"
+    />
+  } @else {
+    <ui-list-toolbar
+      [(search)]="search"
+      searchPlaceholder="Search groups"
+      [filterValue]="filterMode()"
+      [filterOptions]="filterOptions"
+      filterLabel="Filter"
+      (filterValueChange)="setFilterMode($event)"
+      [sortValue]="sortMode()"
+      [sortOptions]="sortOptions"
+      (sortValueChange)="setSortMode($event)"
+      [filteredCount]="filteredGroups().length"
+      [totalCount]="groups.length"
+      itemLabel="group"
+    />
+
+    @if (filteredGroups().length > 0) {
+      <div class="groups-list" role="list">
+        @for (group of filteredGroups(); track group.id) {
+          <app-group-card
+            [group]="group"
+            [tracks]="tracks"
+            [updating]="updatingGroupId === group.id"
+            (deleteRequested)="deleteGroup($event)"
+            (renameRequested)="renameGroup($event)"
+            (editTracksRequested)="openTrackEditor($event)"
+          />
+        }
+      </div>
+    } @else {
+      <p class="app-empty-note">No groups match the current search or filter.</p>
+    }
+  }
+
+  @if (editingGroup; as group) {
+    <app-group-tracks-editor
+      [group]="group"
+      [tracks]="tracks"
+      [saving]="updatingGroupId === group.id"
+      (cancel)="closeTrackEditor()"
+      (save)="saveGroupTracks($event)"
+      (addTrack)="goToAddTrack()"
+      (browseWorkshop)="goToWorkshop()"
+    />
+  }
+</div>

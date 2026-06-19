@@ -1,0 +1,66 @@
+
+<div class="yt-deck">
+  <div
+    class="yt-deck__source"
+    [class.yt-deck__source--hidden]="activeSource() !== 'A'">
+    <app-board-player-yt
+      #sourceA
+      [showPrimaryButton]="showPrimaryButton() && activeSource() === 'A'"
+      [preservePositionOnWindowChange]="preservePositionOnWindowChange()"
+      [title]="title()"
+      [hasTrack]="hasTrack()"
+      [trackId]="trackId()"
+      [videoId]="videoId()"
+      [status]="sourceAStatus()"
+      [durationS]="durationS()"
+      [windowStartS]="windowStartS()"
+      [windowEndS]="windowEndS()"
+      [hasSelectedWindow]="hasSelectedWindow()"
+      [windowFadeInMs]="windowFadeInMs()"
+      [windowFadeOutMs]="windowFadeOutMs()"
+      [forcedCrossfadeMs]="forcedCrossfadeMs()"
+      [repeat]="false"
+      [masterVolume]="sourceAMasterVolume()"
+      [masterFadeRampMs]="sourceAFadeRampMs()"
+      (playRequested)="playRequested.emit()"
+      (stopRequested)="stopRequested.emit()"
+      (ended)="onSourceEnded('A')"
+      (nearEnd)="onSourceNearEnd('A')"
+      (seeked)="onSourceSeeked('A')"
+      (positionChange)="onSourcePosition('A', $event)"
+      (audioError)="audioError.emit()"
+    />
+  </div>
+
+  <div
+    class="yt-deck__source"
+    [class.yt-deck__source--hidden]="activeSource() !== 'B'">
+    <app-board-player-yt
+      #sourceB
+      [showPrimaryButton]="showPrimaryButton() && activeSource() === 'B'"
+      [preservePositionOnWindowChange]="preservePositionOnWindowChange()"
+      [title]="title()"
+      [hasTrack]="hasTrack()"
+      [trackId]="trackId()"
+      [videoId]="videoId()"
+      [status]="sourceBStatus()"
+      [durationS]="durationS()"
+      [windowStartS]="windowStartS()"
+      [windowEndS]="windowEndS()"
+      [hasSelectedWindow]="hasSelectedWindow()"
+      [windowFadeInMs]="windowFadeInMs()"
+      [windowFadeOutMs]="windowFadeOutMs()"
+      [forcedCrossfadeMs]="forcedCrossfadeMs()"
+      [repeat]="false"
+      [masterVolume]="sourceBMasterVolume()"
+      [masterFadeRampMs]="sourceBFadeRampMs()"
+      (playRequested)="playRequested.emit()"
+      (stopRequested)="stopRequested.emit()"
+      (ended)="onSourceEnded('B')"
+      (nearEnd)="onSourceNearEnd('B')"
+      (seeked)="onSourceSeeked('B')"
+      (positionChange)="onSourcePosition('B', $event)"
+      (audioError)="audioError.emit()"
+    />
+  </div>
+</div>

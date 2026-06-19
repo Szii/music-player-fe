@@ -1,0 +1,244 @@
+
+.we-root {
+  background: var(--app-surface);
+  overflow: hidden;
+  font: inherit;
+  color: var(--app-text);
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.we-ruler {
+  position: relative;
+  height: 16px;
+  background: var(--app-surface);
+  border-top: var(--app-border);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.we-ruler-mark {
+  position: absolute;
+  top: 1px;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: var(--app-text-muted);
+  white-space: nowrap;
+}
+
+.we-ruler-mark:first-child { transform: translateX(0); padding-left: 2px; }
+.we-ruler-mark:last-child { transform: translateX(-100%); padding-right: 2px; }
+
+.we-section {
+  padding: 10px 14px;
+  border-top: var(--app-border);
+  background: var(--app-surface);
+  flex-shrink: 0;
+}
+
+.we-info { padding: 8px 12px; }
+
+.we-info__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: stretch;
+}
+
+/* The volume takes the leftover space on the row and drops to its own line
+   only when the cards no longer leave room for it. */
+.we-volume { flex: 1 1 200px; min-width: 200px; }
+
+@media (max-width: 900px) {
+  .we-volume { flex-basis: 100%; }
+}
+
+.we-card {
+  /* Size to content — no stretching to fill leftover width. */
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px 7px;
+  border: 1px solid var(--app-border-color-soft);
+  border-radius: var(--app-radius-md);
+  background: var(--app-surface-elevated);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.we-card__label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--app-text-muted);
+}
+
+.we-card__row { display: flex; align-items: center; gap: 6px; min-height: 26px; }
+
+.we-card__time-input {
+  flex: 0 0 auto;
+  width: 56px;
+  padding: 2px 4px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--app-text);
+  background: var(--app-bg-soft);
+  border: 1px solid var(--app-border-color-soft);
+  border-radius: var(--app-radius-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.we-card__time-input:focus-visible {
+  outline: none;
+  border-color: var(--app-primary);
+  box-shadow: var(--app-focus-ring);
+}
+
+.we-card__time-display {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--app-text);
+  font-variant-numeric: tabular-nums;
+  padding: 0 2px;
+}
+
+.we-card__nudge-group { display: inline-flex; flex-direction: column-reverse; gap: 3px; }
+
+.we-nudge {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--app-text);
+  background: var(--app-bg-soft);
+  border: 1px solid var(--app-border-color-soft);
+  border-radius: var(--app-radius-sm);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.we-nudge:hover:not(:disabled) {
+  background: var(--app-primary-soft);
+  border-color: var(--app-primary);
+  color: var(--app-primary);
+}
+
+.we-nudge:focus-visible { outline: none; box-shadow: var(--app-focus-ring); }
+.we-nudge:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.we-fades { display: flex; flex-direction: column; gap: 6px; padding: 8px 14px; }
+.we-fade { display: flex; flex-direction: column; gap: 6px; }
+
+.we-fade__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.we-fade__value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--app-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.we-fade__controls { display: flex; align-items: center; gap: 8px; }
+.we-fade__range { flex: 1; min-width: 0; }
+
+.we-fade__hint {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--app-text-muted);
+}
+
+.we-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.we-preview__modes { display: flex; align-items: center; gap: 8px; }
+.we-preview__deck { display: block; }
+
+.we-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  color: var(--app-text);
+  background: var(--app-surface-elevated);
+  border: 1px solid var(--app-border-color-soft);
+  border-radius: var(--app-radius-md);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+  .we-pill--active {
+    background: var(--app-primary-soft);
+    border-color: var(--app-primary);
+    color: var(--app-primary);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .we-pill:hover {
+      background: var(--app-primary-soft);
+      border-color: var(--app-primary);
+      color: var(--app-primary);
+    }
+  }
+
+.we-bottom {
+  background: var(--app-bg-soft);
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 14px 10px;
+}
+
+.we-bottom__name-block { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+
+.we-bottom__name-label {
+  font-family: var(--app-font-heading);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--app-heading);
+}
+
+/* Wrap so the apply button drops to its own line on narrow screens instead
+   of colliding with the name field. The input keeps a real flex-basis so it
+   never shrinks below its content (which made the locked name text overflow
+   under the button). */
+.we-bottom__name-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; min-width: 0; }
+.we-bottom__name-input { flex: 1 1 200px; min-width: 0; }
+.we-bottom__name-locked {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  font-weight: 700;
+  color: var(--app-text-muted);
+  background: var(--app-bg-muted);
+  border: 1px solid var(--app-border-color-soft);
+  border-radius: var(--app-radius-sm);
+}
+.we-bottom__apply { flex: 0 0 auto; }

@@ -1,0 +1,54 @@
+
+<div class="ui-inline-select" [class.ui-inline-select--open]="open()">
+  <button
+    type="button"
+    class="ui-inline-select__trigger"
+    aria-haspopup="listbox"
+    [attr.aria-expanded]="open()"
+    [attr.aria-label]="ariaLabel() || null"
+    (mousedown)="$event.preventDefault()"
+    (keydown)="onTriggerKeydown($event)"
+    (click)="$event.stopPropagation(); toggle()"
+  >
+    <span class="ui-inline-select__value">{{ selectedLabel() }}</span>
+    <span class="ui-inline-select__arrow" aria-hidden="true">
+      <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
+        <path
+          d="M1 1L5 5L9 1"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    </span>
+  </button>
+
+  @if (open()) {
+    <div
+      class="app-popover-surface ui-inline-select__panel"
+      role="listbox"
+      [attr.aria-label]="ariaLabel() || null"
+    >
+      @for (opt of options(); track opt.value) {
+        <button
+          type="button"
+          role="option"
+          class="app-popover-item ui-inline-select__option"
+          [class.app-popover-item--selected]="value() === opt.value"
+          [class.ui-inline-select__option--disabled]="opt.disabled"
+          [disabled]="opt.disabled"
+          [attr.aria-selected]="value() === opt.value"
+          [attr.aria-disabled]="opt.disabled || null"
+          (mousedown)="$event.preventDefault()"
+          (click)="$event.stopPropagation(); select(opt)"
+        >
+          <span class="ui-inline-select__option-label">{{ opt.label }}</span>
+          @if (value() === opt.value) {
+            <span class="ui-inline-select__option-check" aria-hidden="true">✓</span>
+          }
+        </button>
+      }
+    </div>
+  }
+</div>

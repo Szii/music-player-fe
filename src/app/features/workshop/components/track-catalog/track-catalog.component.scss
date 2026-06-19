@@ -1,0 +1,94 @@
+
+:host {
+  display: block;
+  min-width: 0;
+}
+
+ui-list-toolbar {
+  margin-bottom: 12px;
+}
+
+.col-subscribers {
+  width: 110px;
+  max-width: 110px;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* Trim the default 24px header padding so narrow labels (e.g. "Duration")
+   don't clip into the neighbouring column. */
+:host ::ng-deep .app-table--workshop th {
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
+:host ::ng-deep .app-table--workshop td.col-actions {
+  text-align: right;
+  /* Breathing room between the kebab and the table's right edge. */
+  padding-right: 18px;
+}
+
+.track-catalog-mobile-list .app-entity-list__item {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.track-catalog-mobile-list .app-entity-list__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.track-catalog-mobile-list .app-entity-list__title,
+.track-catalog-mobile-list .app-entity-list__subtitle,
+.track-catalog__owner {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-catalog__mobile-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.track-catalog__stats-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.track-catalog__stats-row > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-catalog-mobile-list ui-chip {
+  justify-self: end;
+  max-width: 100%;
+}
+
+/* Mobile card: duration and subscriber count stay with the kebab menu. */
+.track-catalog__menu {
+  margin-left: auto;
+  align-self: center;
+  flex: 0 0 auto;
+}

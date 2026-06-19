@@ -1,0 +1,23 @@
+
+/* Layer above any underlying ui-dialog-shell (z-index 1000) — prompt dialogs
+   are routinely opened from inside other modals. Skip the backdrop blur so
+   the modal underneath doesn't visibly blur/unblur when the prompt opens. */
+:host ::ng-deep .ui-dialog-backdrop {
+  z-index: 1300;
+  backdrop-filter: none;
+}
+
+.prompt-dialog__form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.prompt-dialog__label {
+  font-family: var(--app-font-heading);
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: var(--app-heading);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

@@ -1,0 +1,12 @@
+
+<span class="ui-chip" [class]="classList()" [attr.title]="tooltip()">
+  @if (dot()) {
+    <span class="ui-chip__dot" aria-hidden="true"></span>
+  }
+  @if (keyLabel()) {
+    <span class="ui-chip__key">{{ keyLabel() }}</span>
+  }
+  <span class="ui-chip__body" [class.ui-chip__body--value]="!!keyLabel()">
+    <ng-content />
+  </span>
+</span>

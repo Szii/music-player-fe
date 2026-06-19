@@ -1,0 +1,76 @@
+
+:host {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.group-card {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 22px 24px 18px;
+  border: 1px solid var(--app-border-color-soft);
+  border-radius: var(--app-radius-md);
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow-soft);
+  overflow: hidden;
+}
+
+.group-card__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.group-card__title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+  font-size: 1.05rem;
+  line-height: 1.25;
+  color: var(--app-text);
+}
+
+.group-card__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.group-card__count {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.rename-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Chip stays top-right with the title ellipsizing (same as the shared
+   entity-list head), so the header needs no narrow-screen collapse. */
+@media (max-width: 640px) {
+  .group-card {
+    padding: 18px 20px;
+  }
+
+  .group-card__actions {
+    margin-top: 16px;
+  }
+}

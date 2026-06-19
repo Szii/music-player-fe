@@ -34,86 +34,8 @@ import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog
     NormalButtonComponent,
     UiPageTitleComponent,
   ],
-  template: `
-    <div class="app-page workshop-page">
-      <ui-page-title title="Workshop">
-        <span class="workshop-page__desktop-action">
-          <normal-button type="button" (clicked)="openMyTracks()">
-            My tracks
-          </normal-button>
-        </span>
-      </ui-page-title>
-
-      <div class="workshop-page__mobile-action">
-        <normal-button type="button" (clicked)="openMyTracks()">
-          My tracks
-        </normal-button>
-      </div>
-
-      @if (errorMessage()) {
-        <ui-alert variant="danger">{{ errorMessage() }}</ui-alert>
-      }
-
-      @if (!hasLoaded()) {
-        <div class="app-muted">Loading...</div>
-      } @else {
-        <div class="workshop-page__body">
-          <app-track-catalog
-            [tracks]="catalogTracks()"
-            [subscribedIds]="subscribedIds()"
-            [busyTrackId]="busyTrackId()"
-            (subscribe)="subscribeFromCatalog($event)"
-            (unsubscribe)="unsubscribe($event)"
-          />
-
-          <hr class="workshop-page__divider" />
-        </div>
-      }
-
-      @if (myTracksOpen()) {
-        <app-my-tracks
-          [tracks]="myTracks()"
-          [busyTrackId]="busyTrackId()"
-          (publish)="publishTrack($event)"
-          (unpublish)="unpublishTrack($event)"
-          (close)="closeMyTracks()"
-          (addTrack)="goToAddTrack()"
-        />
-      }
-    </div>
-  `,
-  styles: [`
-    .workshop-page__divider {
-      border: none;
-      border-top: var(--app-border);
-    }
-
-    .workshop-page,
-    .workshop-page__body {
-      min-height: 0;
-    }
-
-    .workshop-page__mobile-action {
-      display: none;
-    }
-
-    .workshop-page__desktop-action {
-      display: inline-flex;
-    }
-
-    @media (max-width: 330px) {
-      .workshop-page__desktop-action {
-        display: none;
-      }
-
-      .workshop-page__mobile-action {
-        display: flex;
-        justify-content: flex-start;
-        margin-top: -6px;
-        margin-bottom: 18px;
-      }
-    }
-  `],
+  templateUrl: './workshop-page.component.html',
+  styleUrl: './workshop-page.component.scss',
 })
 export class WorkshopPageComponent implements OnInit {
   private readonly tracksApi = inject(MusicTracksService);

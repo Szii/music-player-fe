@@ -24,82 +24,8 @@ import { PromptDialogService } from './prompt-dialog.service';
   host: {
     '(document:keydown.escape)': 'onEscape()',
   },
-  template: `
-    @if (dialog(); as dlg) {
-      <ui-dialog-shell
-        [title]="dlg.title"
-        titleId="prompt-dialog-title"
-        [showFooter]="true"
-        (closed)="cancel()"
-      >
-        <form class="prompt-dialog__form" (ngSubmit)="submit()">
-          @if (dlg.label) {
-            <label class="prompt-dialog__label" for="prompt-dialog-input">
-              {{ dlg.label }}
-            </label>
-          }
-          <input
-            #inputEl
-            id="prompt-dialog-input"
-            class="app-input"
-            type="text"
-            [ngModel]="value()"
-            (ngModelChange)="value.set($event)"
-            name="promptDialogValue"
-            [placeholder]="dlg.placeholder"
-            [maxlength]="dlg.maxLength"
-            autocomplete="off"
-          />
-          <ui-char-counter [current]="value().length" [max]="dlg.maxLength" />
-        </form>
-
-        <ng-container dialog-footer>
-          <normal-button
-            type="button"
-            variant="secondary"
-            size="md"
-            (clicked)="cancel()"
-          >
-            {{ dlg.cancelText }}
-          </normal-button>
-
-          <normal-button
-            type="button"
-            variant="primary"
-            size="md"
-            [disabled]="!canSubmit()"
-            (clicked)="submit()"
-          >
-            {{ dlg.confirmText }}
-          </normal-button>
-        </ng-container>
-      </ui-dialog-shell>
-    }
-  `,
-  styles: [`
-    /* Layer above any underlying ui-dialog-shell (z-index 1000) — prompt dialogs
-       are routinely opened from inside other modals. Skip the backdrop blur so
-       the modal underneath doesn't visibly blur/unblur when the prompt opens. */
-    :host ::ng-deep .ui-dialog-backdrop {
-      z-index: 1300;
-      backdrop-filter: none;
-    }
-
-    .prompt-dialog__form {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .prompt-dialog__label {
-      font-family: var(--app-font-heading);
-      font-weight: 600;
-      font-size: 0.82rem;
-      color: var(--app-heading);
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-  `],
+  templateUrl: './prompt-dialog.component.html',
+  styleUrl: './prompt-dialog.component.scss',
 })
 export class PromptDialogComponent implements AfterViewChecked {
   readonly promptDialog = inject(PromptDialogService);

@@ -1,0 +1,40 @@
+
+<p class="change-email__hint">
+  We will send a verification link to the new address.
+  The change becomes active once you click that link.
+</p>
+
+@if (!showEmailInputs) {
+  <p class="change-email__disabled-note">Email changes are currently unavailable.</p>
+}
+
+<form
+  class="app-form-stack"
+  [class.change-email__form--disabled]="!showEmailInputs"
+  [formGroup]="form"
+  (ngSubmit)="onSubmit()"
+>
+  <ui-form-field
+    label="New email"
+    [error]="emailError()"
+  >
+    <ui-text-input formControlName="email" type="email" [maxLength]="limits.email" />
+  </ui-form-field>
+
+  <ui-form-field
+    label="Current password"
+    [error]="passwordError()"
+  >
+    <ui-text-input formControlName="password" type="password" [maxLength]="limits.password" />
+  </ui-form-field>
+
+  <ui-form-actions>
+    <normal-button
+      type="submit"
+      [disabled]="form.invalid || isSubmitting() || !showEmailInputs"
+      [loading]="isSubmitting()"
+    >
+      {{ isSubmitting() ? 'Sending...' : 'Send verification' }}
+    </normal-button>
+  </ui-form-actions>
+</form>

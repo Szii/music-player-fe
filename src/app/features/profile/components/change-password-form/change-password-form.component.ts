@@ -22,33 +22,7 @@ import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
     NormalButtonComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <form class="app-form-stack" [formGroup]="form" (ngSubmit)="onSubmit()">
-      <ui-form-field
-        label="Current password"
-        [error]="currentError()"
-      >
-        <ui-text-input formControlName="current" type="password" [maxLength]="passwordMaxLength" />
-      </ui-form-field>
-
-      <ui-form-field
-        label="New password"
-        [error]="newError()"
-      >
-        <ui-text-input formControlName="next" type="password" [maxLength]="passwordMaxLength" />
-      </ui-form-field>
-
-      <ui-form-actions>
-        <normal-button
-          type="submit"
-          [disabled]="form.invalid || isSubmitting()"
-          [loading]="isSubmitting()"
-        >
-          {{ isSubmitting() ? 'Saving...' : 'Change password' }}
-        </normal-button>
-      </ui-form-actions>
-    </form>
-  `,
+  templateUrl: './change-password-form.component.html',
 })
 export class ChangePasswordFormComponent {
   private readonly fb = inject(FormBuilder);

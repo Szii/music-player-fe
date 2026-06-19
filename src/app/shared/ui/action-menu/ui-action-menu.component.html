@@ -1,0 +1,80 @@
+
+<button
+  cdkOverlayOrigin
+  #origin="cdkOverlayOrigin"
+  type="button"
+  class="action-menu__trigger"
+  [class.action-menu__trigger--open]="open()"
+  [attr.aria-label]="triggerLabel()"
+  [attr.title]="triggerLabel()"
+  aria-haspopup="menu"
+  [attr.aria-expanded]="open()"
+  [disabled]="disabled()"
+  (click)="toggle()"
+>
+  <svg viewBox="0 0 24 24" aria-hidden="true" class="action-menu__icon">
+    <circle cx="12" cy="5" r="1.6" />
+    <circle cx="12" cy="12" r="1.6" />
+    <circle cx="12" cy="19" r="1.6" />
+  </svg>
+</button>
+
+<ng-template
+  cdkConnectedOverlay
+  [cdkConnectedOverlayOrigin]="origin"
+  [cdkConnectedOverlayOpen]="open()"
+  [cdkConnectedOverlayPositions]="positions"
+  [cdkConnectedOverlayHasBackdrop]="true"
+  cdkConnectedOverlayBackdropClass="action-menu-backdrop"
+  cdkConnectedOverlayPanelClass="action-menu-pane"
+  [cdkConnectedOverlayPush]="true"
+  [cdkConnectedOverlayViewportMargin]="8"
+  (backdropClick)="animateClose()"
+  (detach)="close()"
+>
+  <div
+    #sheetEl
+    class="app-popover-surface action-menu__panel"
+    [class.action-menu__panel--closing]="closing()"
+    role="menu"
+  >
+    <button
+      type="button"
+      class="action-menu__handle"
+      [appBottomSheetDrag]="sheetEl"
+      (dismiss)="close()"
+      aria-label="Close menu"
+    >
+      <span class="action-menu__handle-bar" aria-hidden="true"></span>
+    </button>
+
+    <div class="app-popover-header action-menu__heading">{{ triggerLabel() }}</div>
+
+    @for (item of items(); track item.id) {
+      @if (item.href) {
+        <a
+          class="app-popover-item"
+          [class.app-popover-item--danger]="item.variant === 'danger'"
+          role="menuitem"
+          [href]="item.href"
+          target="_blank"
+          rel="noopener noreferrer"
+          (click)="close()"
+        >
+          {{ item.label }}
+        </a>
+      } @else {
+        <button
+          type="button"
+          class="app-popover-item"
+          [class.app-popover-item--danger]="item.variant === 'danger'"
+          role="menuitem"
+          [disabled]="item.disabled"
+          (click)="onSelect(item)"
+        >
+          {{ item.label }}
+        </button>
+      }
+    }
+  </div>
+</ng-template>

@@ -7,18 +7,7 @@ export type CloseButtonTone = 'default' | 'danger' | 'muted';
   selector: 'ui-close-button',
   standalone: true,
   imports: [],
-  template: `
-    <button
-      type="button"
-      [disabled]="disabled"
-      [attr.aria-label]="ariaLabel"
-      [class]="classes"
-      (mousedown)="$event.preventDefault()"
-      (click)="clicked.emit()"
-    >
-      <span class="ui-close-button__icon" aria-hidden="true">✕</span>
-    </button>
-  `,
+  templateUrl: './ui-close-button.component.html',
   styleUrls: ['./ui-close-button.component.scss'],
 })
 export class UiCloseButtonComponent {

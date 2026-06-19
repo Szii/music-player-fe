@@ -1,0 +1,89 @@
+
+@if (showTrigger()) {
+  <div class="sd" [class.sd--open]="isOpen()">
+    <button
+      type="button"
+      class="sd__trigger"
+      [attr.aria-expanded]="isOpen()"
+      aria-haspopup="menu"
+      (click)="toggle()"
+    >
+      <span class="sd__label">{{ triggerLabel() }}</span>
+      <span class="sd__arrow" aria-hidden="true">
+        <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
+          <path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.6"
+            stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </span>
+    </button>
+
+    @if (isOpen()) {
+      <div class="sd__scrim" aria-hidden="true" (pointerdown)="onScrimDown($event)"></div>
+      <div #sheetEl class="app-popover-surface sd__panel" role="menu">
+        <button
+          type="button"
+          class="sd__handle"
+          [appBottomSheetDrag]="sheetEl"
+          (dismiss)="dismissSheet()"
+          aria-label="Close"
+        >
+          <span class="sd__handle-bar" aria-hidden="true"></span>
+        </button>
+
+        <div class="app-popover-header">Sessions</div>
+
+        @if (sessions().length === 0) {
+          <div class="sd__empty">No sessions yet.</div>
+        } @else {
+          <ul class="sd__list">
+            @for (s of sessions(); track s.sessionId) {
+              <li
+                class="sd__item"
+                [class.sd__item--selected]="s.sessionId === selectedId()"
+              >
+                <button
+                  type="button"
+                  class="app-popover-item sd__item-select"
+                  [class.app-popover-item--selected]="s.sessionId === selectedId()"
+                  (click)="select(s)"
+                  [attr.aria-current]="s.sessionId === selectedId() ? 'true' : null"
+                >
+                  <span class="sd__item-name">{{ s.sessionName || 'Untitled session' }}</span>
+                  @if (s.sessionId === selectedId()) {
+                    <span class="sd__item-check" aria-hidden="true">✓</span>
+                  }
+                </button>
+
+                <div class="sd__item-actions">
+                  <app-icon-button
+                    icon="edit"
+                    size="xs"
+                    variant="ghost"
+                    label="Rename session"
+                    (clicked)="startRename(s)"
+                  />
+                  <app-icon-button
+                    icon="delete"
+                    size="xs"
+                    variant="ghost"
+                    label="Delete session"
+                    (clicked)="confirmDelete(s)"
+                  />
+                </div>
+              </li>
+            }
+          </ul>
+        }
+
+        <button
+          type="button"
+          class="sd__create"
+          (click)="startCreate()"
+        >
+          <span class="sd__create-plus" aria-hidden="true">＋</span>
+          <span>New session</span>
+        </button>
+      </div>
+    }
+  </div>
+}

@@ -1,0 +1,30 @@
+
+<button
+  type="button"
+  class="ui-play-button"
+  [class.ui-play-button--playing]="playing()"
+  [class.ui-play-button--labeled]="!!label()"
+  [class.ui-play-button--sm]="size() === 'sm'"
+  [class.ui-play-button--md]="size() === 'md'"
+  [class.ui-play-button--lg]="size() === 'lg'"
+  [disabled]="disabled()"
+  [attr.aria-label]="effectiveAriaLabel()"
+  (mousedown)="$event.preventDefault()"
+  (click)="clicked.emit()"
+>
+  <span class="ui-play-button__icon" aria-hidden="true">
+    @if (playing()) {
+      <svg viewBox="0 0 20 20">
+        <rect x="4" y="4" width="12" height="12" rx="1" fill="currentColor" />
+      </svg>
+    } @else {
+      <svg viewBox="0 0 20 20">
+        <polygon points="5,3 5,17 17,10" fill="currentColor" />
+      </svg>
+    }
+  </span>
+
+  @if (label()) {
+    <span class="ui-play-button__label">{{ playing() ? stopLabel() : label() }}</span>
+  }
+</button>

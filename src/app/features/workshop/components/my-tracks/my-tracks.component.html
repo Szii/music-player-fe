@@ -1,0 +1,221 @@
+
+<ui-dialog-shell
+  title="My tracks"
+  subtitle="Publish your tracks so other users can find and subscribe to them."
+  titleId="my-tracks-title"
+  size="wide"
+  (closed)="close.emit()"
+>
+  @if (tracks().length > 0) {
+    <ui-list-toolbar
+      [(search)]="search"
+      searchPlaceholder="Search tracks by name"
+      [filterValue]="filterMode()"
+      [filterOptions]="filterOptions"
+      filterLabel="Status"
+      (filterValueChange)="setFilterMode($event)"
+      [filteredCount]="filteredTracks().length"
+      [totalCount]="tracks().length"
+      itemLabel="track"
+    />
+  }
+
+  @if (filteredTracks().length > 0) {
+    <ui-data-table
+      class="my-tracks-table"
+      [rows]="filteredTracks()"
+      [columns]="columns"
+      [trackBy]="trackById"
+      [maxHeight]="'min(58dvh, 680px)'"
+      [tableClass]="'app-table--workshop'"
+    >
+      <ng-template let-track>
+        <tr>
+          <td class="col-title">
+            <span
+              class="cell-text cell-text--strong cell-text--truncate"
+              [title]="displayName(track)"
+            >
+              {{ displayName(track) }}
+            </span>
+
+            @if (track.trackShare?.description; as description) {
+              <button
+                type="button"
+                class="cell-text cell-text--muted cell-text--truncate my-tracks__desktop-desc app-text-button"
+                [title]="description"
+                (click)="openDescription(track)"
+              >
+                {{ description }}
+              </button>
+            }
+          </td>
+
+          <td class="col-duration col-num">
+            {{ formatDuration(track.duration) }}
+          </td>
+
+          <td class="col-subscribers">
+            @if (track.trackShare) {
+              <span
+                class="app-subscriber-stat"
+                [title]="subscriberTitle(track)"
+                [attr.aria-label]="subscriberTitle(track)"
+              >
+                <span class="app-subscriber-stat__star" aria-hidden="true">★</span>
+                <span class="app-subscriber-stat__count">{{
+                  subscriberCount(track)
+                }}</span>
+              </span>
+            } @else {
+              <span class="cell-text cell-text--muted" aria-hidden="true">—</span>
+            }
+          </td>
+
+          <td class="col-status">
+            <ui-chip
+              [variant]="track.trackShare ? 'success' : 'gold'"
+              size="sm"
+              shape="hex"
+              [dot]="true"
+            >
+              {{ track.trackShare ? 'Published' : 'Unpublished' }}
+            </ui-chip>
+          </td>
+
+          <td class="col-actions">
+            <ui-action-menu
+              [items]="menuItems(track)"
+              [triggerLabel]="'Actions for ' + displayName(track)"
+              (select)="onMenuSelect(track, $event)"
+            />
+          </td>
+        </tr>
+      </ng-template>
+    </ui-data-table>
+
+    <ul class="my-tracks-mobile-list app-entity-list" role="list">
+      @for (track of filteredTracks(); track trackById($index, track)) {
+        <li class="app-entity-list__item">
+          <div class="app-entity-list__head">
+            <span class="app-entity-list__title" [title]="displayName(track)">
+              {{ displayName(track) }}
+            </span>
+
+            <ui-chip
+              [variant]="track.trackShare ? 'success' : 'gold'"
+              size="sm"
+              shape="hex"
+              [dot]="true"
+            >
+              {{ track.trackShare ? 'Published' : 'Unpublished' }}
+            </ui-chip>
+          </div>
+
+          @if (track.trackShare?.description; as description) {
+            <button
+              type="button"
+              class="app-entity-list__subtitle app-text-button"
+              [title]="description"
+              (click)="openDescription(track)"
+            >
+              {{ description }}
+            </button>
+          }
+
+          <div class="app-entity-list__meta">
+            <span>{{ formatDuration(track.duration) }}</span>
+
+            @if (track.trackShare) {
+              <span
+                class="app-subscriber-stat"
+                [title]="subscriberTitle(track)"
+                [attr.aria-label]="subscriberTitle(track)"
+              >
+                <span class="app-subscriber-stat__star" aria-hidden="true">★</span>
+                <span class="app-subscriber-stat__count">{{
+                  subscriberCount(track)
+                }}</span>
+              </span>
+            }
+
+            <ui-action-menu
+              class="my-tracks__menu"
+              [items]="menuItems(track)"
+              [triggerLabel]="'Actions for ' + displayName(track)"
+              (select)="onMenuSelect(track, $event)"
+            />
+          </div>
+        </li>
+      }
+    </ul>
+  } @else if (tracks().length === 0) {
+    <div class="my-tracks__empty">
+      <p class="my-tracks__empty-title">No tracks yet</p>
+      <p class="my-tracks__empty-msg">
+        Add a track first, then you can publish it here for other users to
+        find and subscribe to.
+      </p>
+
+      <div class="my-tracks__empty-actions">
+        <normal-button type="button" (clicked)="addTrack.emit()">
+          Add a track
+        </normal-button>
+      </div>
+    </div>
+  } @else {
+    <p class="app-empty-note">No tracks match the current search or filter.</p>
+  }
+</ui-dialog-shell>
+
+@if (publishTrack()) {
+  <ui-dialog-shell
+    title="Publish track"
+    titleId="publish-track-title"
+    [showFooter]="true"
+    (closed)="closePublish()"
+  >
+    <div class="publish-form">
+      <p class="publish-form__track-name">
+        {{ publishTrack()!.trackName || publishTrack()!.trackOriginalName }}
+      </p>
+
+      <div class="publish-form__field">
+        <label class="app-form-label">
+          Description <span class="optional">(optional)</span>
+        </label>
+
+        <input
+          class="app-input"
+          type="text"
+          [ngModel]="publishDesc()"
+          [ngModelOptions]="{ standalone: true }"
+          (ngModelChange)="publishDesc.set($event)"
+          placeholder="What is this track for?"
+          [maxlength]="descriptionMaxLength"
+        />
+        <ui-char-counter
+          [current]="publishDesc().length"
+          [max]="descriptionMaxLength"
+        />
+      </div>
+    </div>
+
+    <ng-container dialog-footer>
+      <normal-button
+        type="button"
+        variant="secondary"
+        (clicked)="closePublish()"
+      >
+        Cancel
+      </normal-button>
+
+      <normal-button
+        type="button"
+        (clicked)="confirmPublish()"
+      >
+        Publish
+      </normal-button>
+    </ng-container>
+  </ui-dialog-shell>
+}

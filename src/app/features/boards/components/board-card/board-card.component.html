@@ -1,0 +1,476 @@
+
+<div
+  class="board-card"
+  [class.board-card--playing]="isPlaying()"
+  [class.board-card--expanded]="expanded()"
+  (dblclick)="onCardActivate($event)">
+
+  <div class="board-card__summary">
+    <div class="board-card__summary-left">
+      <div class="board-card__transport">
+        <div
+          class="board-card__play-wrap"
+          [class.board-card__play-wrap--playlist]="playlistMode()"
+          [class.board-card__play-wrap--playing]="isPlaying()">
+          <ui-play-button
+            size="md"
+            [playing]="isPlaying()"
+            [disabled]="!canStartPlayback()"
+            [ariaLabel]="isPlaying() ? 'Stop playback' : 'Play board'"
+            (clicked)="onPrimaryAction()"
+          />
+        </div>
+
+        <ui-volume-slider
+          class="board-card__volume board-card__volume--fader"
+          [vertical]="true"
+          ariaLabel="Board volume"
+          [value]="displayedVolumePercent()"
+          (preview)="onVolumePreview($event)"
+          (commit)="onVolumeCommit($event)"
+        />
+      </div>
+
+      <div class="board-card__summary-content">
+        <div class="board-card__summary-top">
+          <div class="board-card__title-wrap">
+            <ng-container *ngIf="!renaming(); else renameTpl">
+              <span
+                class="board-card__title"
+                title="Double-click to rename"
+                (dblclick)="startRename()"
+              >{{ board().name || 'Unnamed board' }}</span>
+              <button
+                type="button"
+                class="board-card__rename-btn"
+                aria-label="Rename board"
+                (mousedown)="$event.preventDefault()"
+                (click)="startRename()"
+              >✎</button>
+            </ng-container>
+            <ng-template #renameTpl>
+              <div class="board-card__rename">
+                <input
+                  #renameInput
+                  type="text"
+                  class="board-card__rename-input"
+                  [value]="renameValue()"
+                  [attr.maxlength]="nameMaxLength"
+                  (input)="renameValue.set($any($event.target).value)"
+                  (keydown)="onRenameKeydown($event)"
+                  (blur)="commitRename()"
+                />
+                <ui-char-counter
+                  [current]="renameValue().length"
+                  [max]="nameMaxLength"
+                />
+              </div>
+            </ng-template>
+          </div>
+
+          <div class="board-card__feature-chips">
+            <ui-chip
+              variant="crimson"
+              size="sm"
+              shape="hex"
+              [tooltip]="modeChipTooltip()"
+            >
+              <ui-icon class="ribbon-ico" [name]="modeIconName()" />
+              {{ modeChipLabel() }}
+            </ui-chip>
+
+            <ui-chip
+              variant="gold"
+              size="sm"
+              shape="hex"
+              [tooltip]="loopRibbonTooltip()"
+            >
+              <ui-icon class="ribbon-ico" name="loop" />
+              {{ loopRibbonLabel() }}
+            </ui-chip>
+
+            @if (playlistMode()) {
+              <ui-chip
+                variant="gold"
+                size="sm"
+                shape="hex"
+                [tooltip]="randomRibbonTooltip()"
+              >
+                <ui-icon class="ribbon-ico" [name]="randomIconName()" />
+                {{ randomRibbonLabel() }}
+              </ui-chip>
+            }
+
+            @if (board().overplay) {
+              <ui-chip
+                variant="gold"
+                size="sm"
+                shape="hex"
+                tooltip="Overplay — overlap with other boards"
+              >
+                <ui-icon class="ribbon-ico" name="overlap" />
+                Overplay
+              </ui-chip>
+            }
+
+            @if (shortcut()) {
+              <ui-chip
+                variant="neutral"
+                size="sm"
+                [attr.title]="'Keyboard shortcut: ' + shortcut()"
+              >
+                <ui-icon class="ribbon-ico" name="keyboard" />
+                {{ shortcut() }}
+              </ui-chip>
+            }
+          </div>
+        </div>
+
+        <div class="board-card__summary-bottom">
+          <div class="board-card__meta-line">
+            <ui-chip
+              variant="neutral"
+              keyLabel="Group"
+              [tooltip]="currentGroupLabel()"
+            >{{ currentGroupLabel() }}</ui-chip>
+
+            <ui-chip
+              variant="neutral"
+              [keyLabel]="playlistMode() ? 'Now playing' : 'Track'"
+              [tooltip]="currentTrackLabel()"
+            >{{ currentTrackLabel() }}</ui-chip>
+
+            @if (!playlistMode()) {
+              <ui-chip
+                variant="neutral"
+                keyLabel="Window"
+                [tooltip]="currentWindowLabel()"
+              >{{ currentWindowLabel() }}</ui-chip>
+            }
+          </div>
+
+          <ui-volume-slider
+            class="board-card__volume board-card__volume--bar"
+            ariaLabel="Board volume"
+            [value]="displayedVolumePercent()"
+            (preview)="onVolumePreview($event)"
+            (commit)="onVolumeCommit($event)"
+          />
+        </div>
+      </div>
+    </div>
+
+    <div class="board-card__summary-actions">
+      <app-icon-button
+        icon="delete"
+        label="Delete board"
+        variant="danger"
+        size="md"
+        (clicked)="delete.emit()"
+      />
+
+      <button
+        #chevronBtn
+        type="button"
+        class="board-card__chevron"
+        [class.board-card__chevron--open]="expanded()"
+        (click)="toggleExpanded()"
+        (keydown)="onChevronKeydown($event)"
+        [attr.aria-label]="expanded() ? 'Collapse board' : 'Expand board'">
+        ▾
+      </button>
+    </div>
+  </div>
+
+  @if (warningMessage(); as warning) {
+    <ui-alert variant="warning" class="board-card__warning">
+      {{ warning }}
+    </ui-alert>
+  }
+
+  <div
+    class="board-card__details"
+    [class.board-card__details--open]="expanded()">
+    <div class="board-card__details-inner">
+      <div class="board-card__main">
+        <div class="board-card__header">
+          <div class="board-mode-switch" role="group" aria-label="Playback mode">
+            <button
+              type="button"
+              class="board-mode-switch__btn"
+              [class.board-mode-switch__btn--active]="!playlistMode()"
+              title="Play one track — choose its loop mode in playback settings"
+              (mousedown)="$event.preventDefault()"
+              (click)="setPlaylistTab(false)">
+              ♫ Single
+            </button>
+            <button
+              type="button"
+              class="board-mode-switch__btn"
+              [class.board-mode-switch__btn--active]="playlistMode()"
+              [disabled]="!canUsePlaylist() && !playlistMode()"
+              [attr.title]="playlistButtonTitle()"
+              (mousedown)="$event.preventDefault()"
+              (click)="setPlaylistTab(true)">
+              ♫ Playlist
+            </button>
+          </div>
+
+          <div class="board-card__header-actions">
+            <div class="board-card__menu-wrap">
+              <button
+                cdkOverlayOrigin
+                #settingsOrigin="cdkOverlayOrigin"
+                type="button"
+                class="board-icon-btn"
+                [class.board-icon-btn--active]="settingsOpen()"
+                (mousedown)="$event.preventDefault()"
+                (click)="toggleSettingsMenu($event)"
+                title="Board settings"
+                aria-label="Board settings">
+                ⚙
+              </button>
+
+              <ng-template
+                cdkConnectedOverlay
+                [cdkConnectedOverlayOrigin]="settingsOrigin"
+                [cdkConnectedOverlayOpen]="settingsOpen()"
+                [cdkConnectedOverlayPositions]="settingsPositions"
+                [cdkConnectedOverlayHasBackdrop]="true"
+                [cdkConnectedOverlayBackdropClass]="'board-settings-backdrop'"
+                [cdkConnectedOverlayPanelClass]="'board-settings-pane'"
+                [cdkConnectedOverlayPush]="true"
+                [cdkConnectedOverlayFlexibleDimensions]="true"
+                [cdkConnectedOverlayViewportMargin]="12"
+                (backdropClick)="animateCloseSettings()"
+                (detach)="closeSettingsMenu()">
+                <div
+                  #settingsSheet
+                  class="board-settings-menu"
+                  [class.board-settings-menu--closing]="settingsClosing()"
+                  (click)="$event.stopPropagation()">
+                  <button
+                    type="button"
+                    class="board-settings-menu__handle"
+                    [appBottomSheetDrag]="settingsSheet"
+                    (dismiss)="closeSettingsMenu()"
+                    aria-label="Close settings">
+                    <span class="board-settings-menu__handle-bar" aria-hidden="true"></span>
+                  </button>
+                  <div class="board-settings-menu__title">Playback settings</div>
+
+                  <div class="board-settings-menu__items">
+                    @if (playlistMode()) {
+                      <label class="board-settings-item">
+                        <div class="board-settings-item__copy">
+                          <span class="board-settings-item__label">Random</span>
+                          <span class="board-settings-item__hint">
+                            Shuffle the group instead of playing it in order
+                          </span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          [checked]="playlistOptions().random"
+                          (change)="onPlaylistRandomToggle()" />
+                      </label>
+                    } @else {
+                      <div class="board-settings-item board-settings-item--loop-mode">
+                        <div class="board-settings-item__copy">
+                          <span class="board-settings-item__label">Loop mode</span>
+                          <span class="board-settings-item__hint">{{ loopModeHint() }}</span>
+                        </div>
+                        <ui-inline-select
+                          class="board-loop-select"
+                          ariaLabel="Loop mode"
+                          [options]="loopModeChoices()"
+                          [value]="loopMode()"
+                          (valueChange)="onLoopModeSelected($event)" />
+                      </div>
+                    }
+
+                    <label class="board-settings-item">
+                      <div class="board-settings-item__copy">
+                        <span class="board-settings-item__label">Overplay</span>
+                        <span class="board-settings-item__hint">Allow overlap with other boards</span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        [checked]="board().overplay ?? false"
+                        (change)="toggleOverplay.emit()" />
+                    </label>
+
+                    <div class="board-settings-item board-settings-item--shortcut">
+                      <div class="board-settings-item__copy">
+                        <span class="board-settings-item__label">Keyboard shortcut</span>
+                        <span class="board-settings-item__hint">
+                          {{ capturingShortcut()
+                            ? 'Press a key combination (Esc to cancel)'
+                            : 'Toggle play/stop from the keyboard' }}
+                        </span>
+                      </div>
+                      <div class="board-shortcut">
+                        <span
+                          *ngIf="capturingShortcut()"
+                          class="board-shortcut__chip board-shortcut__chip--listening">
+                          Listening…
+                        </span>
+                        <span
+                          *ngIf="!capturingShortcut() && shortcut()"
+                          class="board-shortcut__chip">
+                          {{ shortcut() }}
+                        </span>
+                        <span
+                          *ngIf="!capturingShortcut() && !shortcut()"
+                          class="board-shortcut__chip board-shortcut__chip--empty">
+                          None
+                        </span>
+
+                        <button
+                          type="button"
+                          class="board-shortcut__btn"
+                          (mousedown)="$event.preventDefault()"
+                          (click)="toggleCaptureShortcut()">
+                          {{ capturingShortcut() ? 'Cancel' : (shortcut() ? 'Change' : 'Set') }}
+                        </button>
+                        <button
+                          type="button"
+                          class="board-shortcut__btn board-shortcut__btn--danger"
+                          *ngIf="shortcut() && !capturingShortcut()"
+                          (mousedown)="$event.preventDefault()"
+                          (click)="clearShortcut()">
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </ng-template>
+            </div>
+          </div>
+        </div>
+
+        <div class="board-card__controls">
+          <div class="board-field">
+            <span class="board-field__label">
+              Group
+              @if (groupDesynced()) {
+                <span
+                  class="board-field__desync"
+                  role="img"
+                  title="Selected group does not match the playing track — pick a track to switch"
+                  aria-label="Group out of sync with playing track"
+                >⚠</span>
+              }
+            </span>
+            <ui-select
+              #groupSelectRef
+              class="board-control"
+              [class.board-control--desynced]="groupDesynced()"
+              [navigateUpWhenClosed]="true"
+              [options]="groupOptions()"
+              nullOption="All tracks"
+              [ngModel]="board().selectedGroup?.id ?? null"
+              [ngModelOptions]="{ standalone: true }"
+              (ngModelChange)="groupChange.emit($event)"
+              (navigateNext)="focusTrack()"
+              (navigateUp)="focusChevron()"
+              (escape)="focusChevron()"
+            />
+          </div>
+
+          <div class="board-field">
+            <span class="board-field__label">{{ playlistMode() ? 'Now playing' : 'Track' }}</span>
+            <ng-container *ngIf="!playlistMode(); else nowPlayingTpl">
+              <ui-select
+                #trackSelectRef
+                class="board-control"
+                [navigateUpWhenClosed]="true"
+                [options]="trackOptions()"
+                nullOption="No track"
+                [ngModel]="displayedTrack()?.id ?? null"
+                [ngModelOptions]="{ standalone: true }"
+                (ngModelChange)="trackChange.emit($event)"
+                (subOptionSelected)="trackWithWindowChange.emit($event.sub.value)"
+                (enterCommitted)="requestPlay.emit()"
+                (navigateNext)="focusWindow()"
+                (navigatePrev)="focusGroup()"
+                (navigateUp)="focusChevron()"
+                (escape)="focusChevron()"
+              />
+            </ng-container>
+            <ng-template #nowPlayingTpl>
+              <div class="board-now-playing">
+                <div class="board-control board-field__readonly">{{ currentTrackLabel() }}</div>
+                <button
+                  type="button"
+                  class="board-skip-btn"
+                  [disabled]="!isPlaying()"
+                  (click)="skipNext.emit()"
+                  aria-label="Skip to next track"
+                  title="Skip to next track">⏭</button>
+              </div>
+            </ng-template>
+          </div>
+
+          <div
+            class="board-field"
+            *ngIf="showWindowSelector()"
+            [attr.title]="sequentialWindows() ? 'Sequence mode steps through every window automatically' : null">
+            <span class="board-field__label">Window</span>
+            <ui-select
+              #windowSelectRef
+              class="board-control"
+              [navigateUpWhenClosed]="true"
+              [options]="windowOptions()"
+              nullOption="Whole playback"
+              [disabled]="sequentialWindows()"
+              [ngModel]="selectedWindowId()"
+              [ngModelOptions]="{ standalone: true }"
+              (ngModelChange)="windowChange.emit($event)"
+              (enterCommitted)="requestPlay.emit()"
+              (navigatePrev)="focusTrack()"
+              (navigateUp)="focusChevron()"
+              (escape)="focusChevron()"
+            />
+          </div>
+        </div>
+
+        <div class="board-card__player">
+          <app-board-player-yt-deck
+            [showPrimaryButton]="false"
+            [title]="board().name || ('Board #' + board().id)"
+            [hasTrack]="!!board().selectedTrack"
+            [trackId]="board().selectedTrack?.id ?? null"
+            [videoId]="selectedVideoId()"
+            [status]="status()"
+            [durationS]="board().selectedTrack?.duration ?? null"
+            [windowStartS]="selectedWindowStart()"
+            [windowEndS]="selectedWindowEnd()"
+            [hasSelectedWindow]="hasSelectedWindow()"
+            [windowFadeInMs]="selectedWindowFadeInMs()"
+            [windowFadeOutMs]="selectedWindowFadeOutMs()"
+            [forcedCrossfadeMs]="playlistCrossfadeMs()"
+            [repeat]="effectiveRepeat()"
+            [masterVolume]="masterVolume()"
+            [masterFadeRampMs]="masterFadeRampMs()"
+            (playRequested)="play.emit()"
+            (stopRequested)="stop.emit()"
+            (ended)="ended.emit()"
+            (nearEnd)="nearEnd.emit()"
+            (audioError)="audioError.emit()"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button
+    type="button"
+    class="board-card__expand-hint"
+    (click)="toggleExpanded()"
+    [attr.aria-label]="expanded() ? 'Collapse board' : 'Expand board'"
+    tabindex="-1"
+  >
+    <span class="board-card__expand-hint-icon" aria-hidden="true">⌄</span>
+  </button>
+</div>

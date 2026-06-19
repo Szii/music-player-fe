@@ -1,0 +1,58 @@
+
+<div class="limits">
+  <div class="limits__rank">
+    <span class="limits__rank-label">Rank</span>
+    <span class="limits__rank-value" [class.limits__rank-value--elite]="isUnrestricted()">
+      {{ rankLabel() }}
+    </span>
+  </div>
+
+  <ul class="limits__list">
+    @for (q of quotas(); track q.label) {
+      <li class="limits__row" [class.limits__row--reached]="q.reached">
+        <span class="limits__row-label">{{ q.label }}</span>
+        <span class="limits__row-value">
+          {{ q.used }} / {{ q.max }}
+        </span>
+      </li>
+    }
+  </ul>
+
+  @if (limits()) {
+    <details class="limits__details">
+      <summary class="limits__summary">
+        Per-session board quotas ({{ perSessionBoards().length }})
+      </summary>
+      @if (perSessionBoards().length > 0) {
+        <ul class="limits__list limits__list--scroll">
+          @for (b of perSessionBoards(); track b.key) {
+            <li class="limits__row" [class.limits__row--reached]="b.reached">
+              <span class="limits__row-label" [title]="b.label">{{ b.label }}</span>
+              <span class="limits__row-value">{{ b.used }} / {{ b.max }}</span>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="limits__empty">No active sessions yet.</p>
+      }
+    </details>
+
+    <details class="limits__details">
+      <summary class="limits__summary">
+        Per-track window quotas ({{ perTrackWindows().length }})
+      </summary>
+      @if (perTrackWindows().length > 0) {
+        <ul class="limits__list limits__list--scroll">
+          @for (w of perTrackWindows(); track w.key) {
+            <li class="limits__row" [class.limits__row--reached]="w.reached">
+              <span class="limits__row-label" [title]="w.label">{{ w.label }}</span>
+              <span class="limits__row-value">{{ w.used }} / {{ w.max }}</span>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="limits__empty">No tracks of your own yet.</p>
+      }
+    </details>
+  }
+</div>

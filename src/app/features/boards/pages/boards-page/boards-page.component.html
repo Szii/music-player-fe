@@ -1,0 +1,93 @@
+
+<div class="app-page board-page">
+  <ui-page-title title="Boards">
+    <app-sessions-dropdown
+      #sessionsDropdown
+      class="boards-page__sessions"
+    />
+  </ui-page-title>
+
+  @if (errorMessage()) {
+    <ui-alert variant="danger">
+      {{ errorMessage() }}
+    </ui-alert>
+  }
+
+  @if (loading()) {
+    <div class="app-muted boards-page__loading">
+      Loading boards…
+    </div>
+  } @else if (!hasSessions()) {
+    <ui-create-cta
+      label="Create your first session"
+      (clicked)="openCreateSession($event)"
+    />
+  } @else {
+    <app-create-board-form
+      #createBoardForm
+      class="boards-page__create-board-form"
+      [tracks]="tracks()"
+      [submitting]="createBoardSubmitting()"
+      [showTrigger]="sessionBoards().length > 0"
+      (create)="createBoard($event)"
+    />
+
+    @if (sessionBoards().length === 0) {
+      <ui-create-cta
+        label="Create your first music board in this session"
+        (clicked)="createBoardForm.open()"
+      />
+    } @else {
+      <div class="boards-tabs" role="tablist" #boardsTabs>
+        @for (board of sessionBoards(); track board.id; let i = $index) {
+          <button
+            type="button"
+            class="boards-tab"
+            [class.boards-tab--active]="activeBoardIndex() === i"
+            (click)="scrollToBoard(i)"
+          >{{ board.name || ('Board ' + (i + 1)) }}</button>
+        }
+      </div>
+
+      <div class="boards-list-wrap">
+        <div class="boards-list" #boardsList (scroll)="onBoardsScroll()">
+          @for (board of sessionBoards(); track board.id) {
+            <app-board-card
+              [board]="board"
+              [availableGroups]="getGroupsForBoard(board)"
+              [status]="getBoardStatus(board)"
+              [selectedWindowId]="getSelectedWindowId(board)"
+              [masterVolume]="getMasterVolume(board)"
+              [masterFadeRampMs]="getMasterFadeRampMs(board)"
+              [volumePercent]="getBoardVolumePercent(board)"
+              [playlistMode]="board.playlistMode ?? false"
+              [sequentialWindows]="getSequentialWindows(board)"
+              [playlistOptions]="getPlaylistOptions(board)"
+              (delete)="deleteBoard(board)"
+              (groupChange)="onGroupSelectionChange(board, $event)"
+              (trackChange)="onTrackSelectionChange(board, $event)"
+              (windowChange)="onWindowSelectionChange(board, $event)"
+              (trackWithWindowChange)="onTrackWithWindowChange(board, $event)"
+              (loopModeChange)="onLoopModeChange(board, $event)"
+              (toggleOverplay)="toggleOverplay(board)"
+              (play)="playBoardTrack(board)"
+              (stop)="stopBoardTrack(board)"
+              (nearEnd)="onBoardNearEnd(board)"
+              (ended)="onAudioEnded(board)"
+              (audioError)="onAudioError(board)"
+              (modeChange)="onModeChange(board, $event)"
+              (playlistOptionsChange)="onPlaylistOptionsChange(board, $event)"
+              (skipNext)="onPlaylistSkip(board)"
+              (volumePreviewChange)="onBoardVolumePreview(board, $event)"
+              (volumeCommit)="onBoardVolumeCommit(board, $event)"
+              (rename)="onBoardRename(board, $event)"
+              (navigateBoardUp)="focusBoardByOffset(board, -1)"
+              (navigateBoardDown)="focusBoardByOffset(board, 1)"
+              (requestPlay)="onBoardRequestPlay(board)"
+            />
+          }
+        </div>
+      </div>
+    }
+  }
+</div>

@@ -1,0 +1,46 @@
+
+<div class="app-page">
+  <ui-page-title title="User profile" />
+
+  @switch (status()) {
+    @case ('loading') {
+      <p class="app-muted">Loading your profile...</p>
+    }
+
+    @case ('error') {
+      <p class="profile-error">{{ errorMessage() }}</p>
+    }
+
+    @case ('loaded') {
+      <ui-card title="Account">
+        <dl class="profile-identity">
+          <dt>Username</dt>
+          <dd>{{ user()?.name || '—' }}</dd>
+
+          <dt>Email</dt>
+          <dd>{{ user()?.email || '—' }}</dd>
+        </dl>
+      </ui-card>
+
+      <div class="profile-grid">
+        <div class="profile-grid__security">
+          <ui-card title="Change password">
+            <app-change-password-form />
+          </ui-card>
+
+          <ui-card title="Change email">
+            <app-change-email-form />
+          </ui-card>
+        </div>
+
+        <ui-card title="Rank & limits">
+          <app-user-limits-card
+            [limits]="user()?.limits ?? null"
+            [trackNames]="trackNames()"
+            [sessionNames]="sessionNames()"
+          />
+        </ui-card>
+      </div>
+    }
+  }
+</div>

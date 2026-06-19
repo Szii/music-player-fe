@@ -1,0 +1,9 @@
+
+<span
+  class="ui-char-counter"
+  [class.ui-char-counter--near]="state() === 'near'"
+  [class.ui-char-counter--at]="state() === 'at'"
+  aria-hidden="true"
+>
+  {{ current() }}/{{ max() }}
+</span>
