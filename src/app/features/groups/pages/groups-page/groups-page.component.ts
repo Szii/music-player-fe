@@ -97,7 +97,7 @@ type GroupSortMode =
             }
           </div>
         } @else {
-          <p class="empty">No groups match the current search or filter.</p>
+          <p class="app-empty-note">No groups match the current search or filter.</p>
         }
       }
 
@@ -158,14 +158,6 @@ type GroupSortMode =
         max-height: none;
         overflow: visible;
       }
-    }
-
-    .empty {
-      margin: 0;
-      padding: 12px 0;
-      color: var(--app-text-muted);
-      font-size: 13px;
-      font-style: italic;
     }
   `],
 })

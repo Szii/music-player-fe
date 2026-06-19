@@ -7,7 +7,6 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Track } from '../../../../api/generated';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
@@ -40,7 +39,6 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     NormalButtonComponent,
     UiListToolbarComponent,
@@ -94,7 +92,7 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
                 @if (track.trackShare?.description; as description) {
                   <button
                     type="button"
-                    class="cell-text cell-text--muted cell-text--truncate my-tracks__desktop-desc desc-button"
+                    class="cell-text cell-text--muted cell-text--truncate my-tracks__desktop-desc app-text-button"
                     [title]="description"
                     (click)="openDescription(track)"
                   >
@@ -110,12 +108,12 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
               <td class="col-subscribers">
                 @if (track.trackShare) {
                   <span
-                    class="subscriber-stat"
+                    class="app-subscriber-stat"
                     [title]="subscriberTitle(track)"
                     [attr.aria-label]="subscriberTitle(track)"
                   >
-                    <span class="subscriber-stat__star" aria-hidden="true">★</span>
-                    <span class="subscriber-stat__count">{{
+                    <span class="app-subscriber-stat__star" aria-hidden="true">★</span>
+                    <span class="app-subscriber-stat__count">{{
                       subscriberCount(track)
                     }}</span>
                   </span>
@@ -167,7 +165,7 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
               @if (track.trackShare?.description; as description) {
                 <button
                   type="button"
-                  class="app-entity-list__subtitle desc-button"
+                  class="app-entity-list__subtitle app-text-button"
                   [title]="description"
                   (click)="openDescription(track)"
                 >
@@ -180,12 +178,12 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
 
                 @if (track.trackShare) {
                   <span
-                    class="subscriber-stat"
+                    class="app-subscriber-stat"
                     [title]="subscriberTitle(track)"
                     [attr.aria-label]="subscriberTitle(track)"
                   >
-                    <span class="subscriber-stat__star" aria-hidden="true">★</span>
-                    <span class="subscriber-stat__count">{{
+                    <span class="app-subscriber-stat__star" aria-hidden="true">★</span>
+                    <span class="app-subscriber-stat__count">{{
                       subscriberCount(track)
                     }}</span>
                   </span>
@@ -216,7 +214,7 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
           </div>
         </div>
       } @else {
-        <p class="empty">No tracks match the current search or filter.</p>
+        <p class="app-empty-note">No tracks match the current search or filter.</p>
       }
     </ui-dialog-shell>
 
@@ -321,32 +319,6 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
       font-size: 0.82rem;
     }
 
-    /* Description rendered as a button so the full text can be opened in a
-       dialog when it is truncated. Looks like inline text, behaves like a link. */
-    .desc-button {
-      appearance: none;
-      border: 0;
-      background: none;
-      padding: 0;
-      margin: 0;
-      font: inherit;
-      text-align: left;
-      width: 100%;
-      max-width: 100%;
-      cursor: pointer;
-      color: inherit;
-    }
-
-    .desc-button:hover {
-      text-decoration: underline;
-    }
-
-    .desc-button:focus-visible {
-      outline: 2px solid var(--app-secondary);
-      outline-offset: 2px;
-      border-radius: var(--app-radius-sm, 4px);
-    }
-
     .col-title {
       width: auto;
       min-width: 0;
@@ -364,24 +336,6 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
       max-width: 120px;
       white-space: nowrap;
       text-align: center;
-    }
-
-    .subscriber-stat {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      font-variant-numeric: tabular-nums;
-      line-height: 1;
-    }
-
-    .subscriber-stat__star {
-      color: var(--app-secondary);
-      font-size: 1rem;
-    }
-
-    .subscriber-stat__count {
-      font-weight: 600;
-      color: var(--app-text);
     }
 
     .col-status {
@@ -451,14 +405,6 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
 
     .app-entity-list__actions {
       margin-top: 14px;
-    }
-
-    .empty {
-      color: var(--app-text-muted);
-      font-size: 13px;
-      font-style: italic;
-      margin: 0;
-      padding: 12px 0;
     }
 
     .my-tracks__empty {

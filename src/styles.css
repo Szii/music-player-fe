@@ -920,3 +920,57 @@ input[type="range"].app-range--seek::-webkit-slider-thumb {
     inset 0 -1px 0 rgba(255, 255, 255, 0.04);
 }
 
+/* Borderless button that looks like inline text but behaves like a link.
+   Used for truncated descriptions that open a dialog. */
+.app-text-button {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+  max-width: 100%;
+  cursor: pointer;
+  color: inherit;
+}
+
+.app-text-button:hover {
+  text-decoration: underline;
+}
+
+.app-text-button:focus-visible {
+  outline: 2px solid var(--app-secondary);
+  outline-offset: 2px;
+  border-radius: var(--app-radius-sm, 4px);
+}
+
+/* Compact star + count badge (e.g. subscriber counts in track lists). */
+.app-subscriber-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.app-subscriber-stat__star {
+  color: var(--app-secondary);
+  font-size: 1rem;
+}
+
+.app-subscriber-stat__count {
+  font-weight: 600;
+  color: var(--app-text);
+}
+
+/* One-line muted note shown in place of an empty list/section. */
+.app-empty-note {
+  margin: 0;
+  padding: 12px 0;
+  color: var(--app-text-muted);
+  font-size: 13px;
+  font-style: italic;
+}
+

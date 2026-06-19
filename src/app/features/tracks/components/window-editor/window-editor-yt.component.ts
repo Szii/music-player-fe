@@ -48,7 +48,7 @@ type PreviewMode = 'selection' | 'full';
 const CROSSFADE_STEP_MS = FADE_STEP_MS;
 
 /**
- * YouTube IFrame-backed window editor (behind {@link USE_YT_IFRAME_PLAYER}).
+ * YouTube IFrame-backed window editor.
  *
  * The timeline (ruler + draggable region handles) is rendered with the waveform
  * canvas (empty peaks). Playback is delegated to the real board player deck

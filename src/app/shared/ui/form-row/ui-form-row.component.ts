@@ -1,10 +1,9 @@
-import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
 
 @Component({
   selector: 'ui-form-row',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   template: `
     <div class="app-form-row">
       <ng-content></ng-content>

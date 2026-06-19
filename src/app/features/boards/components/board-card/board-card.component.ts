@@ -1554,9 +1554,10 @@ export class BoardCardComponent implements OnInit {
 
 
   readonly displayedTrack = computed(() => {
-    const selected = this.board().selectedTrack;
+    const board = this.board();
+    const selected = board.selectedTrack;
     if (!selected) return null;
-    const tracks = this.board().availableTracks ?? [];
+    const tracks = board.availableTracks ?? [];
     return tracks.some(t => t.id === selected.id) ? selected : null;
   });
 

@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 
 export type CloseButtonSize = 'sm' | 'md';
@@ -7,7 +6,7 @@ export type CloseButtonTone = 'default' | 'danger' | 'muted';
 @Component({
   selector: 'ui-close-button',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   template: `
     <button
       type="button"
