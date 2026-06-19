@@ -1,11 +1,10 @@
-import { CommonModule } from '@angular/common';
 import { Component, Input, forwardRef } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 
 @Component({
   selector: 'ui-number-input',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   template: `
     <input
       class="app-input app-input--number"

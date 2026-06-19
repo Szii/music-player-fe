@@ -6,7 +6,6 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { Track } from '../../../../api/generated';
 import {
   UiDataTableColumn,
@@ -35,7 +34,6 @@ type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     UiDataTableComponent,
     UiListToolbarComponent,
     UiChipComponent,

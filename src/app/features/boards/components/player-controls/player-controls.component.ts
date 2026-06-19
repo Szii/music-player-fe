@@ -265,9 +265,10 @@ export class PlayerControlsComponent {
 
   /** Start of the non-seekable crossfade tail (window end minus the fade-out). */
   private readonly crossfadeStartS = computed(() => {
-    const region = Math.max(0, this.fadeRegionEndS() - this.fadeRegionStartS());
+    const end = this.fadeRegionEndS();
+    const region = Math.max(0, end - this.fadeRegionStartS());
     const len = Math.min(this.fadeOutS(), region);
-    return this.fadeRegionEndS() - len;
+    return end - len;
   });
 
   // The stripes begin at the later of the crossfade-tail start and the current

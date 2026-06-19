@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import {
   Component,
   HostBinding,
@@ -9,7 +8,7 @@ import {
 @Component({
   selector: 'ui-table-shell',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   encapsulation: ViewEncapsulation.None,
   template: `
     <div

@@ -7,7 +7,6 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { Track } from '../../../../api/generated';
 import { InfoDialogService } from '../../../../shared/features/info-dialog/info-dialog.service';
 import {
@@ -39,7 +38,6 @@ type TrackCatalogSortMode =
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     UiDataTableComponent,
     UiListToolbarComponent,
     UiChipComponent,
@@ -95,12 +93,12 @@ type TrackCatalogSortMode =
 
             <td class="col-subscribers">
               <span
-                class="subscriber-stat"
+                class="app-subscriber-stat"
                 [title]="subscriberTitle(track)"
                 [attr.aria-label]="subscriberTitle(track)"
               >
-                <span class="subscriber-stat__star" aria-hidden="true">★</span>
-                <span class="subscriber-stat__count">{{
+                <span class="app-subscriber-stat__star" aria-hidden="true">★</span>
+                <span class="app-subscriber-stat__count">{{
                   subscriberCount(track)
                 }}</span>
               </span>
@@ -110,7 +108,7 @@ type TrackCatalogSortMode =
               @if (track.trackShare?.description; as description) {
                 <button
                   type="button"
-                  class="cell-text cell-text--muted cell-text--truncate desc-button"
+                  class="cell-text cell-text--muted cell-text--truncate app-text-button"
                   [title]="description"
                   (click)="openDescription(track)"
                 >
@@ -158,7 +156,7 @@ type TrackCatalogSortMode =
               @if (track.trackShare?.description; as description) {
                 <button
                   type="button"
-                  class="app-entity-list__subtitle desc-button"
+                  class="app-entity-list__subtitle app-text-button"
                   [title]="description"
                   (click)="openDescription(track)"
                 >
@@ -172,12 +170,12 @@ type TrackCatalogSortMode =
                 <div class="track-catalog__stats-row">
                   <span>{{ formatDuration(track.duration) }}</span>
                   <span
-                    class="subscriber-stat"
+                    class="app-subscriber-stat"
                     [title]="subscriberTitle(track)"
                     [attr.aria-label]="subscriberTitle(track)"
                   >
-                    <span class="subscriber-stat__star" aria-hidden="true">★</span>
-                    <span class="subscriber-stat__count">{{
+                    <span class="app-subscriber-stat__star" aria-hidden="true">★</span>
+                    <span class="app-subscriber-stat__count">{{
                       subscriberCount(track)
                     }}</span>
                   </span>
@@ -194,9 +192,9 @@ type TrackCatalogSortMode =
           }
         </ul>
       } @else if (tracks().length === 0) {
-        <p class="empty">Nothing is published right now.</p>
+        <p class="app-empty-note">Nothing is published right now.</p>
       } @else {
-        <p class="empty">No tracks match the current search or filter.</p>
+        <p class="app-empty-note">No tracks match the current search or filter.</p>
       }
     </div>
   `,
@@ -210,61 +208,11 @@ type TrackCatalogSortMode =
       margin-bottom: 12px;
     }
 
-    .empty {
-      color: var(--app-text-muted);
-      font-size: 13px;
-      font-style: italic;
-    }
-
     .col-subscribers {
       width: 110px;
       max-width: 110px;
       white-space: nowrap;
       text-align: center;
-    }
-
-    .subscriber-stat {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      font-variant-numeric: tabular-nums;
-      line-height: 1;
-    }
-
-    .subscriber-stat__star {
-      color: var(--app-secondary);
-      font-size: 1rem;
-    }
-
-    .subscriber-stat__count {
-      font-weight: 600;
-      color: var(--app-text);
-    }
-
-    /* Description rendered as a button so the full text can be opened in a
-       dialog when it is truncated. Looks like inline text, behaves like a link. */
-    .desc-button {
-      appearance: none;
-      border: 0;
-      background: none;
-      padding: 0;
-      margin: 0;
-      font: inherit;
-      text-align: left;
-      width: 100%;
-      max-width: 100%;
-      cursor: pointer;
-      color: inherit;
-    }
-
-    .desc-button:hover {
-      text-decoration: underline;
-    }
-
-    .desc-button:focus-visible {
-      outline: 2px solid var(--app-secondary);
-      outline-offset: 2px;
-      border-radius: var(--app-radius-sm, 4px);
     }
 
     /* Trim the default 24px header padding so narrow labels (e.g. "Duration")

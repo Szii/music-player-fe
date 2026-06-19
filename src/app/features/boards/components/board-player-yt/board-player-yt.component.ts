@@ -39,11 +39,7 @@ interface PendingTrack {
 }
 
 /**
- * YouTube IFrame-backed board player (experimental, behind
- * {@link USE_YT_IFRAME_PLAYER}).
- *
- * Reproduces the input/output contract of `BoardPlayerComponent` so it can be
- * swapped in at the `board-card` leaf without touching page orchestration.
+ * YouTube IFrame-backed board player.
  *
  * Uses two YouTube players (A/B slots), mirroring the original engine, so
  * loop-seam and track-switch crossfades overlap two streams and ramp their

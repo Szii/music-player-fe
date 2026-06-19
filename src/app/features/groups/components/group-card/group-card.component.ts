@@ -224,7 +224,8 @@ export class GroupCardComponent {
   }
 
   displayName(): string {
-    return this.group().listName || ('Group #' + this.group().id);
+    const group = this.group();
+    return group.listName || ('Group #' + group.id);
   }
 
   openRename(): void {
