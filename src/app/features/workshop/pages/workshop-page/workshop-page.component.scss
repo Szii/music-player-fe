@@ -1,0 +1,31 @@
+
+.workshop-page__divider {
+  border: none;
+  border-top: var(--app-border);
+}
+
+.workshop-page,
+.workshop-page__body {
+  min-height: 0;
+}
+
+.workshop-page__mobile-action {
+  display: none;
+}
+
+.workshop-page__desktop-action {
+  display: inline-flex;
+}
+
+@media (max-width: 330px) {
+  .workshop-page__desktop-action {
+    display: none;
+  }
+
+  .workshop-page__mobile-action {
+    display: flex;
+    justify-content: flex-start;
+    margin-top: -6px;
+    margin-bottom: 18px;
+  }
+}

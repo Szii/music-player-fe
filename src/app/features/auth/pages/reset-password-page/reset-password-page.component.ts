@@ -30,86 +30,8 @@ type FormStatus = 'ready' | 'submitting' | 'invalid-token' | 'error';
     NormalButtonComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div class="app-page app-page--narrow">
-      <ui-card title="Reset password">
-        @if (!token()) {
-          <p class="reset-page__text reset-page__text--error">
-            This password reset link is missing a token. Please request a new one.
-          </p>
-          <div class="reset-page__link">
-            <a routerLink="/forgot-password">Request a new reset link</a>
-          </div>
-        } @else if (success()) {
-          <p class="reset-page__text">
-            Your password has been changed. You can now sign in with your new password.
-          </p>
-          <div class="reset-page__link">
-            <a routerLink="/login">Go to login</a>
-          </div>
-        } @else {
-          <p class="reset-page__text">
-            Choose a new password for your account.
-          </p>
-
-          <form class="app-form-stack" [formGroup]="form" (ngSubmit)="onSubmit()">
-            <ui-form-field
-              label="New password"
-              [error]="passwordError()"
-            >
-              <ui-text-input formControlName="password" type="password" [maxLength]="passwordMaxLength" />
-            </ui-form-field>
-
-            <ui-form-field
-              label="Confirm new password"
-              [error]="confirmError()"
-            >
-              <ui-text-input formControlName="confirm" type="password" [maxLength]="passwordMaxLength" />
-            </ui-form-field>
-
-            @switch (status()) {
-              @case ('invalid-token') {
-                <p class="reset-page__text reset-page__text--error">
-                  This reset link is invalid or has expired. Please request a new one.
-                </p>
-              }
-              @case ('error') {
-                <p class="reset-page__text reset-page__text--error">
-                  {{ formError() }}
-                </p>
-              }
-            }
-
-            <ui-form-actions>
-              <normal-button
-                type="submit"
-                [disabled]="form.invalid || status() === 'submitting'"
-                [loading]="status() === 'submitting'"
-              >
-                {{ status() === 'submitting' ? 'Saving...' : 'Change password' }}
-              </normal-button>
-            </ui-form-actions>
-          </form>
-
-          <div class="reset-page__link">
-            <a routerLink="/login">Back to login</a>
-          </div>
-        }
-      </ui-card>
-    </div>
-  `,
-  styles: [`
-    .reset-page__text {
-      margin: 0 0 1rem;
-      line-height: 1.5;
-    }
-    .reset-page__text--error {
-      color: var(--color-danger, #b00020);
-    }
-    .reset-page__link {
-      margin-top: 1rem;
-    }
-  `],
+  templateUrl: './reset-password-page.component.html',
+  styleUrl: './reset-password-page.component.scss',
 })
 export class ResetPasswordPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);

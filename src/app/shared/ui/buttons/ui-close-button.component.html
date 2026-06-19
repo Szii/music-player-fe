@@ -1,0 +1,11 @@
+
+<button
+  type="button"
+  [disabled]="disabled"
+  [attr.aria-label]="ariaLabel"
+  [class]="classes"
+  (mousedown)="$event.preventDefault()"
+  (click)="clicked.emit()"
+>
+  <span class="ui-close-button__icon" aria-hidden="true">✕</span>
+</button>

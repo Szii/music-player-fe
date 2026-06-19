@@ -1,0 +1,47 @@
+
+<div class="app-page workshop-page">
+  <ui-page-title title="Workshop">
+    <span class="workshop-page__desktop-action">
+      <normal-button type="button" (clicked)="openMyTracks()">
+        My tracks
+      </normal-button>
+    </span>
+  </ui-page-title>
+
+  <div class="workshop-page__mobile-action">
+    <normal-button type="button" (clicked)="openMyTracks()">
+      My tracks
+    </normal-button>
+  </div>
+
+  @if (errorMessage()) {
+    <ui-alert variant="danger">{{ errorMessage() }}</ui-alert>
+  }
+
+  @if (!hasLoaded()) {
+    <div class="app-muted">Loading...</div>
+  } @else {
+    <div class="workshop-page__body">
+      <app-track-catalog
+        [tracks]="catalogTracks()"
+        [subscribedIds]="subscribedIds()"
+        [busyTrackId]="busyTrackId()"
+        (subscribe)="subscribeFromCatalog($event)"
+        (unsubscribe)="unsubscribe($event)"
+      />
+
+      <hr class="workshop-page__divider" />
+    </div>
+  }
+
+  @if (myTracksOpen()) {
+    <app-my-tracks
+      [tracks]="myTracks()"
+      [busyTrackId]="busyTrackId()"
+      (publish)="publishTrack($event)"
+      (unpublish)="unpublishTrack($event)"
+      (close)="closeMyTracks()"
+      (addTrack)="goToAddTrack()"
+    />
+  }
+</div>

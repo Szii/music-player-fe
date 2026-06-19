@@ -1,0 +1,13 @@
+
+.track-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.track-form__hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--app-text-muted);
+}

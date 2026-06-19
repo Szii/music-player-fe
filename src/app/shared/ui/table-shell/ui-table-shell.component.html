@@ -1,0 +1,9 @@
+
+<div
+  class="app-table-wrap"
+  [class.app-table-wrap--fill]="fill"
+  [style.max-height]="maxHeight || null"
+  [style.overflow-y]="maxHeight ? 'auto' : null"
+>
+  <ng-content></ng-content>
+</div>

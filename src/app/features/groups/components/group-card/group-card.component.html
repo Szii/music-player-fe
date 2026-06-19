@@ -1,0 +1,64 @@
+
+<div class="group-card">
+  <div class="group-card__header">
+    <span class="group-card__title" [title]="displayName()">
+      {{ displayName() }}
+    </span>
+
+    <div class="group-card__header-actions">
+      <ui-chip
+        class="group-card__count"
+        [variant]="trackCount() > 0 ? 'success' : 'gold'"
+        size="sm"
+        shape="hex"
+        [dot]="true"
+      >
+        {{ trackCountLabel() }}
+      </ui-chip>
+
+      <ui-action-menu
+        [items]="menuItems()"
+        [disabled]="updating()"
+        [triggerLabel]="'Actions for ' + displayName()"
+        (select)="onMenuSelect($event)"
+      />
+    </div>
+  </div>
+</div>
+
+@if (renameOpen()) {
+  <ui-dialog-shell
+    title="Rename group"
+    [showFooter]="true"
+    (closed)="closeRename()"
+  >
+    <div class="rename-form">
+      <label class="app-form-label">Group name</label>
+      <input
+        class="app-input"
+        type="text"
+        [ngModel]="editingName()"
+        (ngModelChange)="editingName.set($event)"
+        [ngModelOptions]="{ standalone: true }"
+        placeholder="e.g. Combat Music"
+        [maxlength]="nameMaxLength"
+        (keydown.enter)="confirmRename()"
+        (keydown.escape)="closeRename()"
+      />
+      <ui-char-counter [current]="editingName().length" [max]="nameMaxLength" />
+    </div>
+
+    <normal-button dialog-footer type="button" variant="secondary" (clicked)="closeRename()">
+      Cancel
+    </normal-button>
+
+    <normal-button
+      dialog-footer
+      type="button"
+      [disabled]="!editingName().trim()"
+      (clicked)="confirmRename()"
+    >
+      Save
+    </normal-button>
+  </ui-dialog-shell>
+}

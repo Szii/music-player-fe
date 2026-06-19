@@ -4,11 +4,7 @@ import { Component } from '@angular/core';
   selector: 'ui-form-actions',
   standalone: true,
   imports: [],
-  template: `
-    <div class="app-form-actions">
-      <ng-content></ng-content>
-    </div>
-  `,
+  templateUrl: './ui-form-actions.component.html',
   styleUrls: ['./ui-form-actions.component.scss'],
 })
 export class UiFormActionsComponent {}

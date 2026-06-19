@@ -1,0 +1,71 @@
+
+:host {
+  display: block;
+  --track-table-max-height: min(52dvh, 680px);
+}
+
+.track-table {
+  display: block;
+  min-width: 0;
+}
+
+ui-list-toolbar {
+  margin-bottom: 12px;
+}
+
+.col-duration,
+.col-status {
+  white-space: nowrap;
+}
+
+/* Desktop data-table alignment, scoped to this table so other tables keep
+   their own conventions. Best practice for tabular data: text columns are
+   left-aligned, numeric columns right-aligned (digits line up and are
+   easy to compare); the header label matches its column's alignment.
+   Trimmed horizontal padding also stops narrow headers from clipping. */
+:host ::ng-deep .app-table--tracks th,
+:host ::ng-deep .app-table--tracks td {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+:host ::ng-deep .app-table--tracks th.col-name,
+:host ::ng-deep .app-table--tracks th.col-original,
+:host ::ng-deep .app-table--tracks th.col-owner,
+:host ::ng-deep .app-table--tracks td.col-owner {
+  text-align: left;
+}
+
+:host ::ng-deep .app-table--tracks th.col-duration,
+:host ::ng-deep .app-table--tracks td.col-duration {
+  text-align: right;
+}
+
+:host ::ng-deep .app-table--tracks th.col-actions,
+:host ::ng-deep .app-table--tracks td.col-actions {
+  text-align: center;
+}
+
+/* Mobile card: kebab menu sits in the top-right of the meta row. */
+.track-item__menu {
+  margin-left: auto;
+  align-self: center;
+}
+
+.track-row--subscribed td {
+  background: rgba(238, 198, 145, 0.12);
+}
+
+.track-row--subscribed .cell-text--strong {
+  color: var(--app-text-muted);
+}
+
+/* Mobile list shape lives in the shared .app-entity-list primitive;
+   only the subscribed-state tint is track-specific. */
+.app-entity-list__item.is-subscribed {
+  background: rgba(238, 198, 145, 0.12);
+}
+
+.app-entity-list__item.is-subscribed .app-entity-list__title {
+  color: var(--app-text-muted);
+}

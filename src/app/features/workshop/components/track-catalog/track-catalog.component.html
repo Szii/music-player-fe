@@ -1,0 +1,154 @@
+
+<div class="section">
+  @if (tracks().length > 0) {
+    <ui-list-toolbar
+      [(search)]="search"
+      searchPlaceholder="Search shared tracks"
+      [filterValue]="filterMode()"
+      [filterOptions]="filterOptions"
+      (filterValueChange)="setFilterMode($event)"
+      [sortValue]="sortMode()"
+      [sortOptions]="sortOptions"
+      (sortValueChange)="setSortMode($event)"
+      [filteredCount]="filteredTracks().length"
+      [totalCount]="tracks().length"
+      itemLabel="track"
+    />
+  }
+
+  @if (filteredTracks().length > 0) {
+    <ui-data-table
+      class="app-table-desktop-only"
+      [rows]="filteredTracks()"
+      [columns]="columns"
+      [trackBy]="trackById"
+      [maxHeight]="'min(52dvh, 620px)'"
+      [tableClass]="'app-table--workshop'"
+    >
+    <ng-template let-track>
+      <tr>
+        <td class="col-title">
+          <span
+            class="cell-text cell-text--strong cell-text--truncate"
+            [title]="displayName(track)"
+          >
+            {{ displayName(track) }}
+          </span>
+        </td>
+
+        <td class="col-owner">
+          <span class="cell-text cell-text--muted">
+            {{ track.owner?.name ?? '—' }}
+          </span>
+        </td>
+
+        <td class="col-duration col-num">
+          {{ formatDuration(track.duration) }}
+        </td>
+
+        <td class="col-subscribers">
+          <span
+            class="app-subscriber-stat"
+            [title]="subscriberTitle(track)"
+            [attr.aria-label]="subscriberTitle(track)"
+          >
+            <span class="app-subscriber-stat__star" aria-hidden="true">★</span>
+            <span class="app-subscriber-stat__count">{{
+              subscriberCount(track)
+            }}</span>
+          </span>
+        </td>
+
+        <td class="col-desc">
+          @if (track.trackShare?.description; as description) {
+            <button
+              type="button"
+              class="cell-text cell-text--muted cell-text--truncate app-text-button"
+              [title]="description"
+              (click)="openDescription(track)"
+            >
+              {{ description }}
+            </button>
+          } @else {
+            <span class="cell-text cell-text--muted">—</span>
+          }
+        </td>
+
+        <td class="col-status">
+          @if (isSubscribed(track)) {
+            <ui-chip variant="success" size="sm" shape="hex" [dot]="true">Inscribed</ui-chip>
+          } @else {
+            <ui-chip variant="gold" size="sm" shape="hex" [dot]="true">Available</ui-chip>
+          }
+        </td>
+
+        <td class="col-actions">
+          <ui-action-menu
+            [items]="menuItems(track)"
+            [triggerLabel]="'Actions for ' + displayName(track)"
+            (select)="onMenuSelect(track, $event)"
+          />
+        </td>
+      </tr>
+    </ng-template>
+    </ui-data-table>
+
+    <!-- Mobile (< md): condensed list mirroring the table columns. -->
+    <ul class="track-catalog-mobile-list app-entity-list" role="list">
+      @for (track of filteredTracks(); track trackById($index, track)) {
+        <li class="app-entity-list__item">
+          <div class="app-entity-list__head">
+            <span class="app-entity-list__title" [title]="displayName(track)">
+              {{ displayName(track) }}
+            </span>
+            @if (isSubscribed(track)) {
+              <ui-chip variant="success" size="sm" shape="hex" [dot]="true">Inscribed</ui-chip>
+            } @else {
+              <ui-chip variant="gold" size="sm" shape="hex" [dot]="true">Available</ui-chip>
+            }
+          </div>
+
+          @if (track.trackShare?.description; as description) {
+            <button
+              type="button"
+              class="app-entity-list__subtitle app-text-button"
+              [title]="description"
+              (click)="openDescription(track)"
+            >
+              {{ description }}
+            </button>
+          }
+
+          <div class="app-entity-list__meta track-catalog__mobile-meta">
+            <span class="track-catalog__owner">{{ track.owner?.name ?? '—' }}</span>
+
+            <div class="track-catalog__stats-row">
+              <span>{{ formatDuration(track.duration) }}</span>
+              <span
+                class="app-subscriber-stat"
+                [title]="subscriberTitle(track)"
+                [attr.aria-label]="subscriberTitle(track)"
+              >
+                <span class="app-subscriber-stat__star" aria-hidden="true">★</span>
+                <span class="app-subscriber-stat__count">{{
+                  subscriberCount(track)
+                }}</span>
+              </span>
+
+              <ui-action-menu
+                class="track-catalog__menu"
+                [items]="menuItems(track)"
+                [triggerLabel]="'Actions for ' + displayName(track)"
+                (select)="onMenuSelect(track, $event)"
+              />
+            </div>
+          </div>
+        </li>
+      }
+    </ul>
+  } @else if (tracks().length === 0) {
+    <p class="app-empty-note">Nothing is published right now.</p>
+  } @else {
+    <p class="app-empty-note">No tracks match the current search or filter.</p>
+  }
+</div>

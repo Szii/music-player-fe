@@ -1,0 +1,55 @@
+
+:host {
+  display: block;
+}
+
+.app-page > ui-card {
+  display: block;
+  margin-bottom: 1.5rem;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .profile-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.profile-grid__security {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.profile-identity {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.5rem 1rem;
+  margin: 0;
+}
+
+.profile-identity dt {
+  font-family: var(--app-font-heading);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--app-text-muted);
+  align-self: center;
+}
+
+.profile-identity dd {
+  margin: 0;
+  font-weight: 600;
+  color: var(--app-text);
+  word-break: break-all;
+}
+
+.profile-error {
+  color: var(--app-danger);
+}

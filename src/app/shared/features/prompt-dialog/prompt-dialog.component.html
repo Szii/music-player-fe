@@ -1,0 +1,51 @@
+
+@if (dialog(); as dlg) {
+  <ui-dialog-shell
+    [title]="dlg.title"
+    titleId="prompt-dialog-title"
+    [showFooter]="true"
+    (closed)="cancel()"
+  >
+    <form class="prompt-dialog__form" (ngSubmit)="submit()">
+      @if (dlg.label) {
+        <label class="prompt-dialog__label" for="prompt-dialog-input">
+          {{ dlg.label }}
+        </label>
+      }
+      <input
+        #inputEl
+        id="prompt-dialog-input"
+        class="app-input"
+        type="text"
+        [ngModel]="value()"
+        (ngModelChange)="value.set($event)"
+        name="promptDialogValue"
+        [placeholder]="dlg.placeholder"
+        [maxlength]="dlg.maxLength"
+        autocomplete="off"
+      />
+      <ui-char-counter [current]="value().length" [max]="dlg.maxLength" />
+    </form>
+
+    <ng-container dialog-footer>
+      <normal-button
+        type="button"
+        variant="secondary"
+        size="md"
+        (clicked)="cancel()"
+      >
+        {{ dlg.cancelText }}
+      </normal-button>
+
+      <normal-button
+        type="button"
+        variant="primary"
+        size="md"
+        [disabled]="!canSubmit()"
+        (clicked)="submit()"
+      >
+        {{ dlg.confirmText }}
+      </normal-button>
+    </ng-container>
+  </ui-dialog-shell>
+}

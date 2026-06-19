@@ -5,20 +5,7 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
   selector: 'ui-number-input',
   standalone: true,
   imports: [],
-  template: `
-    <input
-      class="app-input app-input--number"
-      type="number"
-      [attr.min]="min"
-      [attr.max]="max"
-      [attr.step]="step"
-      [placeholder]="placeholder"
-      [disabled]="disabled"
-      [value]="value ?? ''"
-      (input)="handleInput($event)"
-      (blur)="handleBlur()"
-    />
-  `,
+  templateUrl: './ui-number-input.component.html',
   styleUrls: ['./ui-number-input.component.scss'],
   providers: [
     {

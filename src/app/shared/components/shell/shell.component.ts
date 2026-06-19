@@ -11,29 +11,7 @@ import { filter, skip } from 'rxjs';
   selector: 'app-shell',
   standalone: true,
   imports: [RouterOutlet, NavbarComponent, BoardsPageComponent, BrowserWarningBannerComponent],
-  template: `
-    <div class="app-shell">
-      <app-navbar></app-navbar>
-
-      @for (warning of warnings.activeWarnings(); track warning.id) {
-        <app-browser-warning-banner
-          [open]="warning.open()"
-          [message]="warning.message"
-          (close)="warnings.closeBanner(warning.id)"
-        />
-      }
-
-      <main class="app-shell__main">
-        <!-- Always kept alive so audio continues across navigation -->
-        <app-boards-page [style.display]="isBoardsRoute() ? '' : 'none'"></app-boards-page>
-
-        <!-- All other pages render here; hidden while on /boards so the stub is invisible -->
-        <div [style.display]="isBoardsRoute() ? 'none' : ''">
-          <router-outlet></router-outlet>
-        </div>
-      </main>
-    </div>
-  `,
+  templateUrl: './shell.component.html',
   styleUrls: ['./shell.component.scss'],
 })
 export class ShellComponent {

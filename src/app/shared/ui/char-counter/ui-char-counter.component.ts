@@ -8,37 +8,8 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 @Component({
   selector: 'ui-char-counter',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <span
-      class="ui-char-counter"
-      [class.ui-char-counter--near]="state() === 'near'"
-      [class.ui-char-counter--at]="state() === 'at'"
-      aria-hidden="true"
-    >
-      {{ current() }}/{{ max() }}
-    </span>
-  `,
-  styles: [`
-    .ui-char-counter {
-      display: block;
-      margin-top: 4px;
-      font-size: 0.72rem;
-      line-height: 1;
-      text-align: right;
-      color: var(--app-text-soft);
-      font-variant-numeric: tabular-nums;
-      transition: color 0.15s ease;
-    }
-
-    .ui-char-counter--near {
-      color: var(--app-warning);
-    }
-
-    .ui-char-counter--at {
-      color: var(--app-danger);
-      font-weight: 600;
-    }
-  `],
+  templateUrl: './ui-char-counter.component.html',
+  styleUrl: './ui-char-counter.component.scss',
 })
 export class UiCharCounterComponent {
   readonly current = input.required<number>();

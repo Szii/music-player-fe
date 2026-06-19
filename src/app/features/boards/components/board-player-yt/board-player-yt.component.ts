@@ -53,42 +53,8 @@ interface PendingTrack {
   selector: 'app-board-player-yt',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [PlayerControlsComponent],
-  template: `
-    <app-player-controls
-      [title]="title()"
-      [hasTrack]="hasTrack()"
-      [status]="localStatus()"
-      [positionS]="displayPositionS()"
-      [durationS]="fullDurationS()"
-      [seekableMaxS]="seekableMaxS()"
-      [windowStartS]="hasSelectedWindow() ? windowStartS() : null"
-      [windowEndS]="hasSelectedWindow() ? windowEndS() : null"
-      [fadeOutS]="windowFadeOutMs() / 1000"
-      [showPrimaryButton]="showPrimaryButton()"
-      [disabled]="localStatus() === 'BUFFERING'"
-      (play)="onPlay()"
-      (stop)="onStop()"
-      (seekPreview)="onSeekPreview($event)"
-      (seekCommit)="onSeekCommit($event)"
-    />
-
-    <div class="yt-host" aria-hidden="true">
-      <div #mountA></div>
-      <div #mountB></div>
-    </div>
-  `,
-  styles: [
-    `
-      .yt-host {
-        position: fixed;
-        left: -10000px;
-        top: 0;
-        width: 320px;
-        height: 360px;
-        pointer-events: none;
-      }
-    `,
-  ],
+  templateUrl: './board-player-yt.component.html',
+  styleUrl: './board-player-yt.component.scss',
 })
 export class BoardPlayerYtComponent implements OnDestroy {
   /** Minimum near-end lead so the deck can start the incoming source even when

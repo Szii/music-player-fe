@@ -32,68 +32,8 @@ import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
     VerificationRequiredComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div class="app-page app-page--narrow">
-      <ui-card title="Register">
-        @if (registered()) {
-          <app-verification-required (cancel)="onGoToLogin()" />
-        } @else {
-          @if (formError()) {
-            <ui-alert variant="danger" role="alert">{{ formError() }}</ui-alert>
-          }
-
-          <form class="app-form-stack" [formGroup]="form" (ngSubmit)="onSubmit()">
-            <ui-form-field
-              label="Username"
-              [error]="nameError()"
-            >
-              <ui-text-input formControlName="name" [maxLength]="limits.name" />
-            </ui-form-field>
-
-            <ui-form-field
-              label="Email"
-              [error]="emailError()"
-            >
-              <ui-text-input formControlName="email" type="email" [maxLength]="limits.email" />
-            </ui-form-field>
-
-            <ui-form-field
-              label="Password"
-              [error]="passwordError()"
-            >
-              <ui-text-input formControlName="password" type="password" [maxLength]="limits.password" />
-            </ui-form-field>
-
-            <ui-form-field
-              label="Confirm password"
-              [error]="confirmError()"
-            >
-              <ui-text-input formControlName="confirm" type="password" [maxLength]="limits.password" />
-            </ui-form-field>
-
-            <ui-form-actions>
-              <normal-button
-                type="submit"
-                [disabled]="form.invalid || isSubmitting()"
-                [loading]="isSubmitting()"
-              >
-                {{ isSubmitting() ? 'Creating account...' : 'Create account' }}
-              </normal-button>
-            </ui-form-actions>
-          </form>
-
-          <div class="auth-page__link">
-            <a routerLink="/login">Already have an account? Login</a>
-          </div>
-        }
-      </ui-card>
-    </div>
-  `,
-  styles: [`
-    .auth-page__link {
-      margin-top: 1rem;
-    }
-  `],
+  templateUrl: './register-page.component.html',
+  styleUrl: './register-page.component.scss',
 })
 export class RegisterPageComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);

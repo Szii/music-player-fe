@@ -23,62 +23,8 @@ import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
     NormalButtonComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <p class="change-email__hint">
-      We will send a verification link to the new address.
-      The change becomes active once you click that link.
-    </p>
-
-    @if (!showEmailInputs) {
-      <p class="change-email__disabled-note">Email changes are currently unavailable.</p>
-    }
-
-    <form
-      class="app-form-stack"
-      [class.change-email__form--disabled]="!showEmailInputs"
-      [formGroup]="form"
-      (ngSubmit)="onSubmit()"
-    >
-      <ui-form-field
-        label="New email"
-        [error]="emailError()"
-      >
-        <ui-text-input formControlName="email" type="email" [maxLength]="limits.email" />
-      </ui-form-field>
-
-      <ui-form-field
-        label="Current password"
-        [error]="passwordError()"
-      >
-        <ui-text-input formControlName="password" type="password" [maxLength]="limits.password" />
-      </ui-form-field>
-
-      <ui-form-actions>
-        <normal-button
-          type="submit"
-          [disabled]="form.invalid || isSubmitting() || !showEmailInputs"
-          [loading]="isSubmitting()"
-        >
-          {{ isSubmitting() ? 'Sending...' : 'Send verification' }}
-        </normal-button>
-      </ui-form-actions>
-    </form>
-  `,
-  styles: [`
-    .change-email__hint {
-      margin: 0 0 1rem;
-      line-height: 1.5;
-      color: var(--app-text-muted);
-    }
-    .change-email__disabled-note {
-      margin: 0 0 1rem;
-      line-height: 1.5;
-      color: var(--app-text-muted);
-    }
-    .change-email__form--disabled {
-      opacity: 0.6;
-    }
-  `],
+  templateUrl: './change-email-form.component.html',
+  styleUrl: './change-email-form.component.scss',
 })
 export class ChangeEmailFormComponent {
   private readonly fb = inject(FormBuilder);

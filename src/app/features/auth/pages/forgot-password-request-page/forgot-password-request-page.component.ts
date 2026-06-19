@@ -25,58 +25,8 @@ import { httpErrorMessage } from '../../../../shared/utils/http-error';
     NormalButtonComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div class="app-page app-page--narrow">
-      <ui-card title="Forgot password">
-        @if (sent()) {
-          <p class="forgot-page__text">
-            If an account exists for that email, we have sent a password reset link.
-            Please check your inbox.
-          </p>
-          <div class="forgot-page__link">
-            <a routerLink="/login">Back to login</a>
-          </div>
-        } @else {
-          <p class="forgot-page__text">
-            Enter the email address associated with your account and we will send you
-            a link to reset your password.
-          </p>
-
-          <form class="app-form-stack" [formGroup]="form" (ngSubmit)="onSubmit()">
-            <ui-form-field
-              label="Email"
-              [error]="emailError()"
-            >
-              <ui-text-input formControlName="email" type="email" />
-            </ui-form-field>
-
-            <ui-form-actions>
-              <normal-button
-                type="submit"
-                [disabled]="form.invalid || isSubmitting()"
-                [loading]="isSubmitting()"
-              >
-                {{ isSubmitting() ? 'Sending...' : 'Send reset link' }}
-              </normal-button>
-            </ui-form-actions>
-          </form>
-
-          <div class="forgot-page__link">
-            <a routerLink="/login">Back to login</a>
-          </div>
-        }
-      </ui-card>
-    </div>
-  `,
-  styles: [`
-    .forgot-page__text {
-      margin: 0 0 1rem;
-      line-height: 1.5;
-    }
-    .forgot-page__link {
-      margin-top: 1rem;
-    }
-  `],
+  templateUrl: './forgot-password-request-page.component.html',
+  styleUrl: './forgot-password-request-page.component.scss',
 })
 export class ForgotPasswordRequestPageComponent {
   private readonly fb = inject(FormBuilder);

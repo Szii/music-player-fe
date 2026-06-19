@@ -15,47 +15,7 @@ export type UiDialogShellSize = 'default' | 'wide' | 'extra-wide';
   selector: 'ui-dialog-shell',
   imports: [UiCloseButtonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div class="ui-dialog-backdrop" (click)="onBackdropClick($event)">
-      <div
-        class="ui-dialog"
-        [class.ui-dialog--wide]="size() === 'wide'"
-        [class.ui-dialog--extra-wide]="size() === 'extra-wide'"
-        role="dialog"
-        aria-modal="true"
-        [attr.aria-labelledby]="titleId()"
-      >
-        <div class="ui-dialog__header">
-          <div class="ui-dialog__heading">
-            <h2 class="ui-dialog__title" [id]="titleId()">{{ title() }}</h2>
-            @if (subtitle()) {
-              <p class="ui-dialog__subtitle">{{ subtitle() }}</p>
-            }
-          </div>
-
-          <ui-close-button
-            ariaLabel="Close dialog"
-            size="md"
-            tone="danger"
-            (clicked)="closed.emit()"
-          />
-        </div>
-
-        <div
-          class="ui-dialog__body"
-          [class.ui-dialog__body--fill]="bodyFill()"
-        >
-          <ng-content />
-        </div>
-
-        @if (showFooter()) {
-          <div class="ui-dialog__footer">
-            <ng-content select="[dialog-footer]" />
-          </div>
-        }
-      </div>
-    </div>
-  `,
+  templateUrl: './ui-dialog-shell.component.html',
   styleUrls: ['./ui-dialog-shell.component.scss'],
 })
 export class UiDialogShellComponent {

@@ -15,12 +15,6 @@ import { InfoDialogComponent } from './shared/features/info-dialog/info-dialog.c
     PromptDialogComponent,
     InfoDialogComponent,
   ],
-  template: `
-    <router-outlet />
-    <app-toast-container />
-    <app-confirm-dialog />
-    <app-prompt-dialog />
-    <app-info-dialog />
-  `,
+  templateUrl: './app.component.html',
 })
 export class AppComponent {}

@@ -1,0 +1,196 @@
+
+<div class="we-root">
+  <app-waveform-canvas
+    [durationS]="durationS()"
+    [regionFromS]="regionFromS()"
+    [regionToS]="regionToS()"
+    [seekableMaxS]="durationS()"
+    [playheadS]="positionS()"
+    [waveformPeaks]="[]"
+    [audioReady]="durationS() > 0"
+    [waveformReady]="true"
+    [fadeInS]="fadeInMs() / 1000"
+    [fadeOutS]="fadeOutMs() / 1000"
+    [handlesDisabled]="durationS() <= 0 || lockRegion()"
+    (regionChange)="onRegionChange($event)"
+    (regionCommit)="onRegionCommit()"
+    (seekRequested)="onTimelineSeek($event)"
+  />
+
+  @if (durationS() > 0) {
+    <div class="we-ruler">
+      @for (mark of rulerMarks(); track mark.pct) {
+        <span class="we-ruler-mark" [style.left.%]="mark.pct">{{ mark.label }}</span>
+      }
+    </div>
+  }
+
+  @if (durationS() > 0) {
+    <div class="we-section we-info">
+      <div class="we-info__grid">
+        <div class="we-card">
+          <span class="we-card__label">From</span>
+          <div class="we-card__row">
+            <input
+              #fromInput
+              type="text"
+              class="we-card__time-input"
+              [value]="formatTime(regionFromS())"
+              [disabled]="lockRegion()"
+              (change)="onFromTextChange($any($event.target).value)"
+              aria-label="Selection start time"
+            />
+            <div class="we-card__nudge-group">
+              <button type="button" class="we-nudge" [disabled]="lockRegion()" (click)="nudgeFrom(-1)" aria-label="Decrease start by 1 second">−</button>
+              <button type="button" class="we-nudge" [disabled]="lockRegion()" (click)="nudgeFrom(1)" aria-label="Increase start by 1 second">+</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="we-card">
+          <span class="we-card__label">To</span>
+          <div class="we-card__row">
+            <input
+              #toInput
+              type="text"
+              class="we-card__time-input"
+              [value]="formatTime(regionToS())"
+              [disabled]="lockRegion()"
+              (change)="onToTextChange($any($event.target).value)"
+              aria-label="Selection end time"
+            />
+            <div class="we-card__nudge-group">
+              <button type="button" class="we-nudge" [disabled]="lockRegion()" (click)="nudgeTo(-1)" aria-label="Decrease end by 1 second">−</button>
+              <button type="button" class="we-nudge" [disabled]="lockRegion()" (click)="nudgeTo(1)" aria-label="Increase end by 1 second">+</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="we-card">
+          <span class="we-card__label">Length</span>
+          <div class="we-card__row">
+            <span class="we-card__time-display">{{ formatTime(regionToS() - regionFromS()) }}</span>
+          </div>
+        </div>
+
+        <ui-volume-slider
+          class="we-volume"
+          [value]="volumePercent()"
+          (preview)="onVolumeChange($event)"
+          (commit)="onVolumeChange($event)"
+        />
+      </div>
+    </div>
+  }
+
+  @if (durationS() > 0 && loopPreview()) {
+    <div class="we-section we-fades">
+      <div class="we-fade">
+        <div class="we-fade__head">
+          <span class="we-card__label">Crossfade strength (s)</span>
+          <span class="we-fade__value">{{ formatFade(crossfadeMs()) }}</span>
+        </div>
+        <div class="we-fade__controls">
+          <button type="button" class="we-nudge" [disabled]="crossfadeMs() <= 0" (click)="nudgeCrossfade(-1)" aria-label="Decrease crossfade">−</button>
+          <input
+            class="we-fade__range app-range"
+            type="range"
+            min="0"
+            [max]="maxCrossfadeMs()"
+            [step]="crossfadeStepMs"
+            [value]="crossfadeMs()"
+            (input)="onCrossfadeInput($any($event.target).value)"
+            aria-label="Crossfade length"
+          />
+          <button type="button" class="we-nudge" [disabled]="crossfadeMs() >= maxCrossfadeMs()" (click)="nudgeCrossfade(1)" aria-label="Increase crossfade">+</button>
+        </div>
+        <span class="we-fade__hint">
+          Fades in and out over {{ formatFade(crossfadeMs()) }} — the loop/seam overlap
+        </span>
+      </div>
+    </div>
+  }
+
+  @if (durationS() > 0) {
+    <div class="we-section we-preview">
+      <div class="we-preview__modes" role="group" aria-label="Preview mode">
+        <button
+          type="button"
+          class="we-pill"
+          [class.we-pill--active]="previewMode() === 'selection'"
+          (click)="setPreviewMode('selection')"
+        >
+          Selection
+        </button>
+        <button
+          type="button"
+          class="we-pill"
+          [class.we-pill--active]="previewMode() === 'full'"
+          (click)="setPreviewMode('full')"
+        >
+          Full track
+        </button>
+
+      </div>
+
+      <app-board-player-yt-deck
+        #deck
+        class="we-preview__deck"
+        [title]="windowName() || ''"
+        [hasTrack]="!!videoId()"
+        [trackId]="0"
+        [videoId]="videoId()"
+        [status]="status()"
+        [durationS]="durationS()"
+        [windowStartS]="previewMode() === 'selection' ? regionFromS() : null"
+        [windowEndS]="previewMode() === 'selection' ? regionToS() : null"
+        [hasSelectedWindow]="previewMode() === 'selection'"
+        [windowFadeInMs]="fadeInMs()"
+        [windowFadeOutMs]="fadeOutMs()"
+        [repeat]="loopPreview()"
+        [masterVolume]="masterVolume()"
+        [masterFadeRampMs]="fadeInMs()"
+        [showPrimaryButton]="true"
+        [preservePositionOnWindowChange]="true"
+        (playRequested)="onPlayRequested()"
+        (stopRequested)="onStopRequested()"
+        (ended)="onStopRequested()"
+        (positionChange)="onDeckPosition($event)"
+        (audioError)="onPreviewError()"
+      />
+    </div>
+  }
+
+  @if (durationS() > 0) {
+    <div class="we-section we-bottom">
+      <div class="we-bottom__name-block">
+        <label class="we-bottom__name-label" for="we-yt-window-name">Window name</label>
+        <div class="we-bottom__name-row">
+          @if (lockName()) {
+            <div class="we-bottom__name-input we-bottom__name-locked">
+              {{ windowName() }}
+            </div>
+          } @else {
+            <ui-text-input
+              id="we-yt-window-name"
+              class="we-bottom__name-input"
+              [ngModel]="windowName()"
+              (ngModelChange)="windowName.set($event)"
+              placeholder="e.g. Intro"
+              [maxLength]="windowNameMaxLength"
+            />
+          }
+          <normal-button
+            class="we-bottom__apply"
+            type="button"
+            variant="success"
+            [disabled]="!canApply()"
+            (clicked)="onApply()"
+          >
+            {{ applyLabel() }}
+          </normal-button>
+        </div>
+      </div>
+    </div>
+  }
+</div>

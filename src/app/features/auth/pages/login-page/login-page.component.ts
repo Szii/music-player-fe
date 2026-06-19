@@ -33,67 +33,8 @@ import { httpErrorMessage } from '../../../../shared/utils/http-error';
     VerificationRequiredComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div class="app-page app-page--narrow">
-      <ui-card title="Login">
-        @if (needsVerification()) {
-          <app-verification-required (cancel)="onBackToLogin()" />
-        } @else {
-          @if (formError()) {
-            <ui-alert variant="danger" role="alert">{{ formError() }}</ui-alert>
-          }
-
-          <form class="app-form-stack" [formGroup]="form" (ngSubmit)="onSubmit()">
-            <ui-form-field
-              label="Username"
-              [error]="nameError()"
-            >
-              <ui-text-input formControlName="name" />
-            </ui-form-field>
-
-            <ui-form-field
-              label="Password"
-              [error]="passwordError()"
-            >
-              <ui-text-input formControlName="password" type="password" />
-            </ui-form-field>
-
-            <ui-form-actions>
-              <normal-button
-                type="submit"
-                [disabled]="form.invalid || isSubmitting()"
-                [loading]="isSubmitting()"
-              >
-                {{ isSubmitting() ? 'Signing in...' : 'Sign in' }}
-              </normal-button>
-            </ui-form-actions>
-          </form>
-
-          <div class="auth-page__link">
-            @if (showEmailInputs) {
-              <a routerLink="/forgot-password">Forgot password?</a>
-            } @else {
-              <span class="auth-page__link--disabled" aria-disabled="true">Forgot password?</span>
-            }
-          </div>
-
-          <div class="auth-page__link">
-            <a routerLink="/register">Need an account? Register</a>
-          </div>
-        }
-      </ui-card>
-    </div>
-  `,
-  styles: [`
-    .auth-page__link {
-      margin-top: 1rem;
-    }
-    .auth-page__link--disabled {
-      color: var(--app-text-muted);
-      cursor: not-allowed;
-      opacity: 0.6;
-    }
-  `],
+  templateUrl: './login-page.component.html',
+  styleUrl: './login-page.component.scss',
 })
 export class LoginPageComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);

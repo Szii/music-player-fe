@@ -10,16 +10,7 @@ import {
   standalone: true,
   imports: [],
   encapsulation: ViewEncapsulation.None,
-  template: `
-    <div
-      class="app-table-wrap"
-      [class.app-table-wrap--fill]="fill"
-      [style.max-height]="maxHeight || null"
-      [style.overflow-y]="maxHeight ? 'auto' : null"
-    >
-      <ng-content></ng-content>
-    </div>
-  `,
+  templateUrl: './ui-table-shell.component.html',
   styleUrls: ['./ui-table-shell.component.scss'],
 })
 export class UiTableShellComponent {

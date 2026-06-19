@@ -1,0 +1,68 @@
+
+<div
+  class="wf-wrap"
+  #waveformWrap
+  [class.wf-wrap--locked]="handlesDisabled"
+  [attr.aria-disabled]="handlesDisabled"
+>
+  <canvas
+    #waveformCanvas
+    class="wf-canvas"
+    (mousedown)="onCanvasMouseDown($event)"
+    (touchstart)="onCanvasTouchStart($event)"
+  ></canvas>
+
+  <div
+    *ngIf="audioReady"
+    class="wf-handle wf-handle--left"
+    [class.wf-handle--locked]="handlesDisabled"
+    [attr.title]="handlesDisabled ? 'Whole-track window: bounds are locked' : null"
+    [style.left.px]="leftHandleBoxPx"
+    (mousedown)="onHandleMouseDown($event, 'left')"
+    (touchstart)="onHandleTouchStart($event, 'left')"
+  >
+    <div class="wf-handle__grip" [style.left.px]="leftGripPx"></div>
+  </div>
+
+  <div
+    *ngIf="audioReady"
+    class="wf-handle wf-handle--right"
+    [class.wf-handle--locked]="handlesDisabled"
+    [attr.title]="handlesDisabled ? 'Whole-track window: bounds are locked' : null"
+    [style.left.px]="rightHandleBoxPx"
+    (mousedown)="onHandleMouseDown($event, 'right')"
+    (touchstart)="onHandleTouchStart($event, 'right')"
+  >
+    <div class="wf-handle__grip" [style.left.px]="rightGripPx"></div>
+  </div>
+
+  <div class="wf-lock-shade" *ngIf="audioReady && handlesDisabled" aria-hidden="true"></div>
+
+  <div class="wf-lock-badge" *ngIf="audioReady && handlesDisabled" aria-hidden="true">
+    Bounds locked
+  </div>
+
+  <div class="wf-playhead" [style.left.px]="playheadPx" *ngIf="audioReady"></div>
+
+  <div class="wf-overlay" *ngIf="loadingStream && !audioReady && !streamError">
+    <div class="wf-overlay__stack">
+      <span>Loading audio preview…</span>
+      <small *ngIf="downloadProgress > 0">{{ downloadProgress }}%</small>
+    </div>
+  </div>
+
+  <div
+    class="wf-overlay"
+    *ngIf="!waveformReady && !waveformLoading && !waveformError && !streamError && !loadingStream && audioReady"
+  >
+    <span>Waveform not available yet…</span>
+  </div>
+
+  <div class="wf-overlay" *ngIf="waveformLoading && !waveformReady && !waveformError">
+    <span>Loading waveform…</span>
+  </div>
+
+  <div class="wf-overlay wf-overlay--error" *ngIf="streamError || waveformError">
+    <span>{{ streamError || waveformError }}</span>
+  </div>
+</div>
