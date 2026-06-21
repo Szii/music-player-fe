@@ -61,15 +61,16 @@ export class UiActionMenuComponent {
   readonly hasItems = computed(() => this.items().length > 0);
 
   constructor() {
-    // On phones the menu is a bottom sheet that owns the screen: lock background
-    // scroll (and hide the bottom nav via the shared body class) so the sheet
-    // can't drift on scroll. Ref-counted, mobile only.
+    // On phones the menu is a bottom sheet: lock background scroll so it can't
+    // drift. Keep the bottom nav visible (hideBottomNav: false) — the sheet is a
+    // body-level CDK overlay that already stacks above it, and hiding/showing the
+    // nav on open/close jolts the layout. Ref-counted, mobile only.
     effect((onCleanup) => {
       if (!this.open()) return;
       if (typeof window === 'undefined') return;
       if (!window.matchMedia('(max-width: 640px)').matches) return;
-      this.scrollLock.lock();
-      onCleanup(() => this.scrollLock.unlock());
+      this.scrollLock.lock(false);
+      onCleanup(() => this.scrollLock.unlock(false));
     });
   }
 
