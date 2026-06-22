@@ -498,15 +498,16 @@ export class BoardCardComponent implements OnInit {
       this.displayedVolumePercent.set(clampPct(pct));
     });
 
-    // On mobile the settings popover is a bottom sheet that owns the screen:
-    // lock background scroll and (via the shared body class) hide the bottom nav
-    // so it doesn't overlap the sheet. Ref-counted, mobile only.
+    // On mobile the settings popover is a bottom sheet: lock background scroll so
+    // it can't drift. Keep the bottom nav visible (hideBottomNav: false) — the
+    // sheet is a body-level CDK overlay that already stacks above it, and
+    // hiding/showing the nav on open/close jolts the layout. Mobile only.
     effect((onCleanup) => {
       if (!this.settingsOpen()) return;
       if (typeof window === 'undefined') return;
       if (!window.matchMedia('(max-width: 640px)').matches) return;
-      this.scrollLock.lock();
-      onCleanup(() => this.scrollLock.unlock());
+      this.scrollLock.lock(false);
+      onCleanup(() => this.scrollLock.unlock(false));
     });
   }
 
