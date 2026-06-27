@@ -172,6 +172,12 @@ html {
   }
 }
 
+@media (max-width: 640px) {
+  body.app-modal-open .app-navbar {
+    display: none;
+  }
+}
+
 *,
 *::before,
 *::after {
