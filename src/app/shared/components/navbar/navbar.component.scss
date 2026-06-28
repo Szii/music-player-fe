@@ -48,9 +48,13 @@
   color: #fff7eb;
   text-decoration: none;
   font-family: var(--app-font-heading);
-  font-size: 1.05rem;
+  /* Scale the brand down through the narrow band (~900–1100px) where the inline
+     links are still shown, instead of wrapping to a second line. Pinned to
+     1.05rem on wide screens and a 0.9rem floor when space is tight. */
+  font-size: clamp(0.9rem, 0.225rem + 1.2vw, 1.05rem);
   font-weight: 700;
   letter-spacing: 0.06em;
+  white-space: nowrap;
   text-shadow:
     0 1px 3px rgba(0, 0, 0, 0.4),
     0 0 12px rgba(201, 164, 76, 0.25);
