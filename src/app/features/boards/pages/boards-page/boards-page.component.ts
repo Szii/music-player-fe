@@ -1454,7 +1454,11 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     };
   }
 
-  private prepareBoards(boards: Board[], resetPersistedVolumes = false): void {
+  private prepareBoards(
+    boards: Board[],
+    resetPersistedVolumes = false,
+    preserveActiveSelection = false,
+  ): void {
     if (resetPersistedVolumes) {
       this.persistedVolumesByBoard.clear();
     }
@@ -1462,6 +1466,14 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     for (const board of boards) {
       this.ensureBoardStatus(board);
       this.syncPersistedVolume(board);
+
+      // A background refresh must not clobber the live window/sequence position of
+      // a playing board: sequence advances are intentionally not persisted, so the
+      // backend's selectedWindow is stale (pinned at the first window).
+      if (preserveActiveSelection && board.id != null && this.isBoardActive(board.id)) {
+        continue;
+      }
+
       this.syncSelectedWindow(board);
       this.syncSequenceMode(board);
     }
@@ -1602,7 +1614,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
         const mergedBoards = this.flattenSessionBoards(sessions.sessions ?? []);
 
-        this.prepareBoards(mergedBoards);
+        this.prepareBoards(mergedBoards, false, true);
 
         // Merge fresh board data but preserve selectedTrack for active boards
         // so that an in-progress stream is not torn down just because the track
