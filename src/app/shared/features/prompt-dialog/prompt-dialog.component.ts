@@ -16,6 +16,10 @@ import { NormalButtonComponent } from '../../ui/buttons/normal-button.component'
 import { UiDialogShellComponent } from '../../ui/dialog-shell/ui-dialog-shell.component';
 import { UiCharCounterComponent } from '../../ui/char-counter/ui-char-counter.component';
 import { PromptDialogService } from './prompt-dialog.service';
+import {
+  PROFANITY_ERROR,
+  hasProfanity,
+} from '../../validators/profanity.validator';
 
 @Component({
   selector: 'app-prompt-dialog',
@@ -31,7 +35,12 @@ export class PromptDialogComponent implements AfterViewChecked {
   readonly promptDialog = inject(PromptDialogService);
   readonly dialog = computed(() => this.promptDialog.dialog());
   readonly value = signal('');
-  readonly canSubmit = computed(() => this.value().trim().length > 0);
+  readonly profanityError = computed(() =>
+    hasProfanity(this.value()) ? PROFANITY_ERROR : '',
+  );
+  readonly canSubmit = computed(
+    () => this.value().trim().length > 0 && !this.profanityError(),
+  );
 
   private readonly inputRef = viewChild<ElementRef<HTMLInputElement>>('inputEl');
   private readonly device = inject(DeviceCapabilitiesService);
@@ -68,7 +77,7 @@ export class PromptDialogComponent implements AfterViewChecked {
 
   submit(): void {
     const trimmed = this.value().trim();
-    if (!trimmed) return;
+    if (!trimmed || this.profanityError()) return;
     this.promptDialog.submit(trimmed);
   }
 

@@ -17,7 +17,7 @@
     (closed)="close()"
   >
     <form [formGroup]="form" (ngSubmit)="onSubmit()" class="create-board-form">
-    <ui-form-field label="Board name">
+    <ui-form-field label="Board name" [error]="nameError()">
       <ui-text-input
         formControlName="name"
         placeholder="e.g. Tavern Ambience"

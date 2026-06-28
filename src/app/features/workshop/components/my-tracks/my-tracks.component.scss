@@ -191,6 +191,13 @@ ui-list-toolbar {
   gap: 6px;
 }
 
+.publish-form__error {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--app-danger);
+}
+
 .optional {
   font-weight: 400;
   color: var(--app-text-muted);

@@ -12,7 +12,9 @@
       "PowerShell(npm run build)",
       "WebFetch(domain:github.com)",
       "Bash(xargs wc -l)",
-      "Bash(node scripts/extract-templates.mjs)"
+      "Bash(node scripts/extract-templates.mjs)",
+      "Bash(npm install *)",
+      "Bash(npx ng *)"
     ]
   }
 }

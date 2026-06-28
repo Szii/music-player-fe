@@ -26,6 +26,10 @@ import {
   UiActionMenuComponent,
 } from '../../../../shared/ui/action-menu/ui-action-menu.component';
 import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
+import {
+  PROFANITY_ERROR,
+  hasProfanity,
+} from '../../../../shared/validators/profanity.validator';
 
 export interface PublishEvent {
   track: Track;
@@ -81,6 +85,9 @@ export class MyTracksComponent {
 
   readonly publishTrack = signal<Track | null>(null);
   readonly publishDesc = signal('');
+  readonly descriptionError = computed(() =>
+    hasProfanity(this.publishDesc()) ? PROFANITY_ERROR : '',
+  );
   readonly search = signal('');
   readonly filterMode = persistentSignal<PublishFilterMode>('mpf:workshop:mytracks:filter', 'all');
 
@@ -116,7 +123,7 @@ export class MyTracksComponent {
 
   async confirmPublish(): Promise<void> {
     const track = this.publishTrack();
-    if (!track) return;
+    if (!track || this.descriptionError()) return;
 
     const confirmed = await this.confirmDialog.confirm({
       title: 'Publish track',

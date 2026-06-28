@@ -190,6 +190,9 @@
             {{ applyLabel() }}
           </normal-button>
         </div>
+        @if (windowNameError()) {
+          <p class="we-bottom__name-error">{{ windowNameError() }}</p>
+        }
       </div>
     </div>
   }

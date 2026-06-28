@@ -25,6 +25,9 @@
         autocomplete="off"
       />
       <ui-char-counter [current]="value().length" [max]="dlg.maxLength" />
+      @if (profanityError()) {
+        <p class="prompt-dialog__error">{{ profanityError() }}</p>
+      }
     </form>
 
     <ng-container dialog-footer>
