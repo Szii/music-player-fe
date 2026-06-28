@@ -15,7 +15,7 @@
  */
 
 /** Smallest overlap applied even when crossfade is set to 0, to avoid clicks. */
-export const SAFETY_FADE_MS = 150;
+export const SAFETY_FADE_MS = 1000;
 
 /**
  * Fixed crossfade between consecutive tracks in playlist mode. Playlist tracks
