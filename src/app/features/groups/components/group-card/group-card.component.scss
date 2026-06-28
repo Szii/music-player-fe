@@ -63,6 +63,13 @@
   max-width: 100%;
 }
 
+.rename-form__error {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--app-danger);
+}
+
 /* Chip stays top-right with the title ellipsizing (same as the shared
    entity-list head), so the header needs no narrow-screen collapse. */
 @media (max-width: 640px) {

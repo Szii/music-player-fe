@@ -64,6 +64,9 @@
                   [current]="renameValue().length"
                   [max]="nameMaxLength"
                 />
+                @if (renameError()) {
+                  <p class="board-card__rename-error">{{ renameError() }}</p>
+                }
               </div>
             </ng-template>
           </div>

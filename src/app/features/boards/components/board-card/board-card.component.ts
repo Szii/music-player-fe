@@ -33,6 +33,10 @@ import { BoardShortcutsService } from '../../../../core/services/board-shortcuts
 import { ScrollLockService } from '../../../../core/services/scroll-lock.service';
 import { BottomSheetDragDirective } from '../../../../shared/ui/bottom-sheet/bottom-sheet-drag.directive';
 import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
+import {
+  PROFANITY_ERROR,
+  hasProfanity,
+} from '../../../../shared/validators/profanity.validator';
 import { UiCharCounterComponent } from '../../../../shared/ui/char-counter/ui-char-counter.component';
 
 export interface PlaylistOptions {
@@ -127,6 +131,9 @@ export class BoardCardComponent implements OnInit {
   readonly expanded = signal(false);
   readonly renaming = signal(false);
   readonly renameValue = signal('');
+  readonly renameError = computed(() =>
+    hasProfanity(this.renameValue()) ? PROFANITY_ERROR : '',
+  );
   readonly nameMaxLength = FIELD_LIMITS.board.name;
   readonly displayedVolumePercent = signal(100);
   readonly capturingShortcut = signal(false);
@@ -597,6 +604,9 @@ export class BoardCardComponent implements OnInit {
 
   commitRename(): void {
     if (!this.renaming()) return;
+    // Keep the editor open on profanity so the inline error stays visible.
+    // Escape still cancels via onRenameKeydown.
+    if (hasProfanity(this.renameValue())) return;
     this.renaming.set(false);
     const name = this.renameValue().trim();
     if (name && name !== this.board().name) {

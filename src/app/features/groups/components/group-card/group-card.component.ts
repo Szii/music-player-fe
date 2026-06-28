@@ -17,6 +17,10 @@ import {
   UiActionMenuComponent,
 } from '../../../../shared/ui/action-menu/ui-action-menu.component';
 import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
+import {
+  PROFANITY_ERROR,
+  hasProfanity,
+} from '../../../../shared/validators/profanity.validator';
 
 export interface RenameEvent {
   group: Group;
@@ -51,6 +55,9 @@ export class GroupCardComponent {
 
   readonly renameOpen = signal(false);
   readonly editingName = signal('');
+  readonly renameError = computed(() =>
+    hasProfanity(this.editingName()) ? PROFANITY_ERROR : '',
+  );
   readonly nameMaxLength = FIELD_LIMITS.group.name;
 
   readonly trackCount = computed(() => this.group().tracks?.length ?? 0);
@@ -100,7 +107,7 @@ export class GroupCardComponent {
 
   confirmRename(): void {
     const name = this.editingName().trim();
-    if (!name) return;
+    if (!name || hasProfanity(name)) return;
 
     this.renameRequested.emit({
       group: this.group(),

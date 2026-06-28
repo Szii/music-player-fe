@@ -46,6 +46,9 @@
         (keydown.escape)="closeRename()"
       />
       <ui-char-counter [current]="editingName().length" [max]="nameMaxLength" />
+      @if (renameError()) {
+        <p class="rename-form__error">{{ renameError() }}</p>
+      }
     </div>
 
     <normal-button dialog-footer type="button" variant="secondary" (clicked)="closeRename()">
@@ -55,7 +58,7 @@
     <normal-button
       dialog-footer
       type="button"
-      [disabled]="!editingName().trim()"
+      [disabled]="!editingName().trim() || !!renameError()"
       (clicked)="confirmRename()"
     >
       Save

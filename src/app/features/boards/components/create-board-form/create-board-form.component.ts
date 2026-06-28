@@ -8,6 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { Track } from '../../../../api/generated';
 import { UiFormFieldComponent } from '../../../../shared/ui/form-field/ui-form-field.component';
 import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-input.component';
@@ -18,6 +19,7 @@ import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-di
 import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 import {
   PROFANITY_ERROR,
+  hasProfanity,
   profanityValidator,
 } from '../../../../shared/validators/profanity.validator';
 
@@ -66,11 +68,12 @@ export class CreateBoardFormComponent {
     selectedTrackId: this.fb.control<number | null>(null),
   });
 
-  readonly nameError = computed(() => {
-    const control = this.form.controls.name;
-    if (!control.touched || !control.hasError('profanity')) return '';
-    return PROFANITY_ERROR;
+  private readonly nameValue = toSignal(this.form.controls.name.valueChanges, {
+    initialValue: '',
   });
+  readonly nameError = computed(() =>
+    hasProfanity(this.nameValue()) ? PROFANITY_ERROR : '',
+  );
 
   open(): void {
     this.isOpen.set(true);

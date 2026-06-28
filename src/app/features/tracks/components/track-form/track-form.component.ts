@@ -9,6 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiFormFieldComponent } from '../../../../shared/ui/form-field/ui-form-field.component';
 import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-input.component';
@@ -17,6 +18,7 @@ import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-di
 import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 import {
   PROFANITY_ERROR,
+  hasProfanity,
   profanityValidator,
 } from '../../../../shared/validators/profanity.validator';
 
@@ -69,11 +71,13 @@ export class TrackFormComponent {
     trackLink: this.fb.nonNullable.control('', [Validators.required]),
   });
 
-  readonly trackNameError = computed(() => {
-    const control = this.form.controls.trackName;
-    if (!control.touched || !control.hasError('profanity')) return '';
-    return PROFANITY_ERROR;
-  });
+  private readonly trackNameValue = toSignal(
+    this.form.controls.trackName.valueChanges,
+    { initialValue: '' },
+  );
+  readonly trackNameError = computed(() =>
+    hasProfanity(this.trackNameValue()) ? PROFANITY_ERROR : '',
+  );
 
   readonly trackLinkError = computed(() => {
     const control = this.form.controls.trackLink;
