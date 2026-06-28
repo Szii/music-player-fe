@@ -15,6 +15,10 @@ import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-i
 import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
 import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
+import {
+  PROFANITY_ERROR,
+  profanityValidator,
+} from '../../../../shared/validators/profanity.validator';
 
 export interface TrackFormEvent {
   trackName: string;
@@ -61,8 +65,14 @@ export class TrackFormComponent {
   );
 
   readonly form = this.fb.group({
-    trackName: this.fb.nonNullable.control(''),
+    trackName: this.fb.nonNullable.control('', [profanityValidator]),
     trackLink: this.fb.nonNullable.control('', [Validators.required]),
+  });
+
+  readonly trackNameError = computed(() => {
+    const control = this.form.controls.trackName;
+    if (!control.touched || !control.hasError('profanity')) return '';
+    return PROFANITY_ERROR;
   });
 
   readonly trackLinkError = computed(() => {

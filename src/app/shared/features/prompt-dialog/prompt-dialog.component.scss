@@ -13,6 +13,13 @@
   gap: 8px;
 }
 
+.prompt-dialog__error {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--app-danger);
+  font-weight: 600;
+}
+
 .prompt-dialog__label {
   font-family: var(--app-font-heading);
   font-weight: 600;

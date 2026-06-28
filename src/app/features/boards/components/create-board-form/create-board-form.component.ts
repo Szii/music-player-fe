@@ -16,6 +16,10 @@ import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-butto
 import { UiSelectComponent } from '../../../../shared/ui/select/ui-select.component';
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
 import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
+import {
+  PROFANITY_ERROR,
+  profanityValidator,
+} from '../../../../shared/validators/profanity.validator';
 
 export interface CreateBoardEvent {
   name: string;
@@ -58,8 +62,14 @@ export class CreateBoardFormComponent {
   );
 
   readonly form = this.fb.group({
-    name: this.fb.nonNullable.control(''),
+    name: this.fb.nonNullable.control('', [profanityValidator]),
     selectedTrackId: this.fb.control<number | null>(null),
+  });
+
+  readonly nameError = computed(() => {
+    const control = this.form.controls.name;
+    if (!control.touched || !control.hasError('profanity')) return '';
+    return PROFANITY_ERROR;
   });
 
   open(): void {
@@ -75,6 +85,9 @@ export class CreateBoardFormComponent {
   }
 
   onSubmit(): void {
+    this.form.markAllAsTouched();
+    if (this.form.invalid) return;
+
     const { name, selectedTrackId } = this.form.getRawValue();
 
     this.create.emit({

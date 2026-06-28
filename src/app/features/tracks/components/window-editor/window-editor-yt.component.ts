@@ -19,6 +19,10 @@ import {
 } from '../waveform-canvas/waveform-canvas.component';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-input.component';
+import {
+  PROFANITY_ERROR,
+  hasProfanity,
+} from '../../../../shared/validators/profanity.validator';
 import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 import { UiVolumeSliderComponent } from '../../../../shared/ui/volume-slider/ui-volume-slider.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
@@ -139,9 +143,14 @@ export class WindowEditorYtComponent {
     }
     return (
       this.regionFromS() < this.regionToS() &&
-      this.windowName().trim().length > 0
+      this.windowName().trim().length > 0 &&
+      !hasProfanity(this.windowName())
     );
   });
+
+  readonly windowNameError = computed(() =>
+    hasProfanity(this.windowName()) ? PROFANITY_ERROR : '',
+  );
 
   readonly rulerMarks = computed(() => {
     const duration = this.durationS();

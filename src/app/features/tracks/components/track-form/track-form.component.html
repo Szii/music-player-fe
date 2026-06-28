@@ -17,7 +17,7 @@
     (closed)="close()"
   >
     <form [formGroup]="form" (ngSubmit)="onSubmit()" class="track-form">
-      <ui-form-field label="Track name">
+      <ui-form-field label="Track name" [error]="trackNameError()">
         <ui-text-input
           formControlName="trackName"
           placeholder="e.g. Dark Forest Ambience"

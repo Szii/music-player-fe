@@ -17,7 +17,7 @@
     (closed)="close()"
   >
     <form [formGroup]="createForm" (ngSubmit)="submit()" class="create-group-form">
-      <ui-form-field label="Group name">
+      <ui-form-field label="Group name" [error]="nameError()">
         <ui-text-input
           formControlName="listName"
           placeholder="e.g. Combat Music"

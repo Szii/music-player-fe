@@ -198,6 +198,9 @@
           [current]="publishDesc().length"
           [max]="descriptionMaxLength"
         />
+        @if (descriptionError()) {
+          <p class="publish-form__error">{{ descriptionError() }}</p>
+        }
       </div>
     </div>
 
@@ -212,6 +215,7 @@
 
       <normal-button
         type="button"
+        [disabled]="!!descriptionError()"
         (clicked)="confirmPublish()"
       >
         Publish
