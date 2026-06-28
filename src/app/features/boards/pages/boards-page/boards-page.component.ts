@@ -12,7 +12,7 @@ import {
 } from 'rxjs/operators';
 
 import { environment } from '../../../../../environments/environment';
-import { effectiveCrossfadeMs, sourceCrossfadeMs } from '../../utils/crossfade';
+import { BOARD_CHANGE_CROSSFADE_MS, effectiveCrossfadeMs, sourceCrossfadeMs } from '../../utils/crossfade';
 
 import {
   MusicBoardsService,
@@ -902,16 +902,14 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // A board-to-board switch always respects the *longer* crossfade among the
-    // boards involved: every stopping board's crossfade and the incoming board's
-    // own crossfade. That one duration drives the ramp-up and all ramp-downs. When
+    // A board-to-board switch always uses a fixed crossfade so every board change
+    // feels the same regardless of the boards' own crossfade settings. When
     // starting from silence there are no stopping boards, so the incoming board's
-    // crossfade sizes the fade-up. A 0 setting is floored at a tiny safety fade.
+    // own crossfade sizes the fade-up (floored at a tiny safety fade for a 0 setting).
     const incomingBoard = this.findBoard(targetId);
-    const rampMs = effectiveCrossfadeMs(
-      incomingBoard ? this.boardCrossfadeMs(incomingBoard) : 0,
-      ...boardsToStop.map(item => this.boardCrossfadeMs(item)),
-    );
+    const rampMs = boardsToStop.length > 0
+      ? BOARD_CHANGE_CROSSFADE_MS
+      : effectiveCrossfadeMs(incomingBoard ? this.boardCrossfadeMs(incomingBoard) : 0);
 
     // Schedule audio-clock-driven master gain ramps in each affected
     // board-player. Setting the ramp before the target ensures the child reads

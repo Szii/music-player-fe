@@ -26,6 +26,13 @@ export const SAFETY_FADE_MS = 150;
 export const PLAYLIST_CROSSFADE_MS = 3000;
 
 /**
+ * Fixed crossfade used when switching from one board to another. A board change
+ * always overlaps over this length instead of deriving it from the boards' own
+ * crossfade settings, so every board-to-board swap feels the same.
+ */
+export const BOARD_CHANGE_CROSSFADE_MS = 3000;
+
+/**
  * Crossfade length of a single source: the longer of its fade-in and fade-out
  * (the editor keeps them equal). This is the value the editor's Crossfade slider
  * represents, so the audible overlap matches the number the user set — the window
