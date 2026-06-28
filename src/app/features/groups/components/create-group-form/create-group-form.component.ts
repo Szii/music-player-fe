@@ -8,10 +8,12 @@ import {
   signal,
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { GroupRequest } from '../../../../api/generated';
 import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 import {
   PROFANITY_ERROR,
+  hasProfanity,
   profanityValidator,
 } from '../../../../shared/validators/profanity.validator';
 import { UiFormFieldComponent } from '../../../../shared/ui/form-field/ui-form-field.component';
@@ -50,11 +52,13 @@ export class CreateGroupFormComponent {
     listName: ['', [profanityValidator]],
   });
 
-  readonly nameError = computed(() => {
-    const control = this.createForm.controls.listName;
-    if (!control.touched || !control.hasError('profanity')) return '';
-    return PROFANITY_ERROR;
-  });
+  private readonly nameValue = toSignal(
+    this.createForm.controls.listName.valueChanges,
+    { initialValue: '' },
+  );
+  readonly nameError = computed(() =>
+    hasProfanity(this.nameValue() ?? '') ? PROFANITY_ERROR : '',
+  );
 
   open(): void {
     this.isOpen.set(true);

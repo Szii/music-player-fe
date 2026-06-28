@@ -105,6 +105,13 @@
   gap: 2px;
 }
 
+.board-card__rename-error {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--app-danger);
+}
+
 .board-card__rename-input {
   width: 100%;
   min-width: 0;
