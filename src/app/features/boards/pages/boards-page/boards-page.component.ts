@@ -108,12 +108,22 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   @ViewChild('boardsTabs') boardsTabsRef?: ElementRef<HTMLElement>;
   @ViewChildren(BoardCardComponent) boardCards!: QueryList<BoardCardComponent>;
 
+  /** Target of an in-flight pill-initiated smooth scroll. While set, the boards
+      passed en route are ignored so the clicked pill stays highlighted instead
+      of flickering through each one. */
+  private scrollTargetIndex: number | null = null;
+  private scrollTargetTimer: ReturnType<typeof setTimeout> | null = null;
+
   /** Update the active carousel tab as the board strip is swiped. */
   onBoardsScroll(): void {
     const el = this.boardsListRef?.nativeElement;
     if (!el || el.clientWidth === 0) return;
     const max = this.sessionBoards().length - 1;
     const idx = Math.max(0, Math.min(Math.round(el.scrollLeft / el.clientWidth), max));
+    if (this.scrollTargetIndex !== null) {
+      if (idx === this.scrollTargetIndex) this.clearScrollTarget();
+      return;
+    }
     if (idx !== this.activeBoardIndex()) {
       this.activeBoardIndex.set(idx);
       this.scrollActiveTabIntoView(idx);
@@ -123,9 +133,22 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   scrollToBoard(index: number): void {
     const el = this.boardsListRef?.nativeElement;
     if (!el) return;
+    this.scrollTargetIndex = index;
+    // Fallback: release the lock even if the scroll never lands exactly on the
+    // target (interrupted swipe, sub-pixel rounding) so the tab can't freeze.
+    if (this.scrollTargetTimer) clearTimeout(this.scrollTargetTimer);
+    this.scrollTargetTimer = setTimeout(() => this.clearScrollTarget(), 700);
     el.scrollTo({ left: index * el.clientWidth, behavior: 'smooth' });
     this.activeBoardIndex.set(index);
     this.scrollActiveTabIntoView(index);
+  }
+
+  private clearScrollTarget(): void {
+    this.scrollTargetIndex = null;
+    if (this.scrollTargetTimer) {
+      clearTimeout(this.scrollTargetTimer);
+      this.scrollTargetTimer = null;
+    }
   }
 
   /** Slide the tab strip so the active board's name stays centred (a sliding
