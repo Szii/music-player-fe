@@ -140,10 +140,10 @@ export class SessionsStore {
   }
 
   private applyResponse(
-    response: SessionsResponse,
+    response: SessionsResponse | null,
     options: { preserveSelection?: boolean } = {},
   ): void {
-    const sessions = response.sessions ?? [];
+    const sessions = response?.sessions ?? [];
     this.sessions.set(sessions);
 
     const currentId = this.selectedSessionId();

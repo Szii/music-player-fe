@@ -13,14 +13,14 @@
           label="Username"
           [error]="nameError()"
         >
-          <ui-text-input formControlName="name" />
+          <ui-text-input formControlName="name" autocomplete="username" />
         </ui-form-field>
 
         <ui-form-field
           label="Password"
           [error]="passwordError()"
         >
-          <ui-text-input formControlName="password" type="password" />
+          <ui-text-input formControlName="password" type="password" autocomplete="current-password" />
         </ui-form-field>
 
         <ui-form-actions>
@@ -47,4 +47,6 @@
       </div>
     }
   </ui-card>
+
+  <app-footer />
 </div>

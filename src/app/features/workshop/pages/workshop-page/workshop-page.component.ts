@@ -20,6 +20,7 @@ import { TrackCatalogComponent } from '../../components/track-catalog/track-cata
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
+import { FooterComponent } from '../../../../shared/components/footer/footer.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { httpErrorMessage } from '../../../../shared/utils/http-error';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
@@ -33,6 +34,7 @@ import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog
     UiAlertComponent,
     NormalButtonComponent,
     UiPageTitleComponent,
+    FooterComponent,
   ],
   templateUrl: './workshop-page.component.html',
   styleUrl: './workshop-page.component.scss',

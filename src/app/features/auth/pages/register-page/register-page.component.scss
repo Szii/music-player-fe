@@ -2,3 +2,49 @@
 .auth-page__link {
   margin-top: 1rem;
 }
+
+.register-page__agree {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+}
+
+.register-page__agree-input {
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.2rem;
+  accent-color: var(--app-primary);
+  cursor: pointer;
+}
+
+.register-page__agree-text {
+  font-size: 0.9rem;
+  color: var(--app-text);
+}
+
+.register-page__agree-text label {
+  cursor: pointer;
+}
+
+/* Inline, link-styled button that opens the Terms dialog (no navigation, so the
+   half-filled form is preserved). */
+.register-page__terms-link {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: var(--app-primary);
+  cursor: pointer;
+}
+
+.register-page__terms-link:hover {
+  color: var(--app-primary-hover);
+  text-decoration: underline;
+}
+
+.register-page__terms-link:focus-visible {
+  outline: 2px solid var(--app-secondary);
+  outline-offset: 2px;
+  border-radius: var(--app-radius-xs);
+}

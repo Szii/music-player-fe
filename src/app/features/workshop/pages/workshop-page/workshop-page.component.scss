@@ -1,10 +1,7 @@
 
-.workshop-page__divider {
-  border: none;
-  border-top: var(--app-border);
-}
-
-.workshop-page,
+/* Only the inner body needs min-height: 0 (flex child shrink for its scroll
+   area). The page wrapper must NOT — it is the .app-page that owns the sticky
+   footer min-height, so overriding it here would unpin the footer. */
 .workshop-page__body {
   min-height: 0;
 }

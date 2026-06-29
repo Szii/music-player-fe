@@ -591,6 +591,9 @@ export class BoardPlayerYtComponent implements OnDestroy {
         (yt) =>
           new Promise<YT.Player | null>((resolve) => {
             const player = new yt.Player(mount, {
+              // Privacy-enhanced domain: skips the doubleclick ad-conversion
+              // pixel that www.youtube.com fires (CORS-blocked, noisy console).
+              host: 'https://www.youtube-nocookie.com',
               width: 320,
               height: 180,
               playerVars: {
@@ -621,7 +624,8 @@ export class BoardPlayerYtComponent implements OnDestroy {
                   });
                 },
               },
-            });
+              // `host` is a real runtime option but missing from @types/youtube.
+            } as YT.PlayerOptions & { host: string });
 
             slot.player = player;
           }),

@@ -18,12 +18,14 @@ import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component
 import { VerificationRequiredComponent } from '../../components/verification-required/verification-required.component';
 import { SHOW_EMAIL_INPUTS } from '../../../../core/config/feature-flags';
 import { httpErrorMessage } from '../../../../shared/utils/http-error';
+import { FooterComponent } from '../../../../shared/components/footer/footer.component';
 
 @Component({
   selector: 'app-login-page',
   imports: [
     ReactiveFormsModule,
     RouterLink,
+    FooterComponent,
     UiCardComponent,
     UiFormFieldComponent,
     UiTextInputComponent,

@@ -1,0 +1,25 @@
+
+<footer class="page-footer">
+  <div class="page-footer__inner">
+    <div class="page-footer__rule" aria-hidden="true"></div>
+
+    <div class="page-footer__bar">
+      <p class="page-footer__copy">
+        © {{ year }} Sound Master's Lair
+        <span class="page-footer__sep" aria-hidden="true">·</span>
+        <span class="page-footer__version">v{{ version }}</span>
+      </p>
+
+      <p class="page-footer__contact">
+        <button type="button" class="page-footer__link" (click)="legalDialog.open()">
+          Privacy &amp; Terms
+        </button>
+        <span class="page-footer__sep" aria-hidden="true">·</span>
+        <span class="page-footer__contact-email">
+          Contact:
+          <a href="mailto:bruneksemerek@seznam.cz">bruneksemerek&#64;seznam.cz</a>
+        </span>
+      </p>
+    </div>
+  </div>
+</footer>
