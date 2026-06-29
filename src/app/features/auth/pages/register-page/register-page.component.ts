@@ -17,12 +17,15 @@ import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { VerificationRequiredComponent } from '../../components/verification-required/verification-required.component';
 import { httpErrorMessage } from '../../../../shared/utils/http-error';
 import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
+import { FooterComponent } from '../../../../shared/components/footer/footer.component';
+import { LegalDialogService } from '../../../../shared/features/legal-dialog/legal-dialog.service';
 
 @Component({
   selector: 'app-register-page',
   imports: [
     ReactiveFormsModule,
     RouterLink,
+    FooterComponent,
     UiCardComponent,
     UiFormFieldComponent,
     UiTextInputComponent,
@@ -42,6 +45,7 @@ export class RegisterPageComponent implements OnDestroy {
   private readonly toast = inject(ToastService);
   private readonly credentialsStore = inject(AuthCredentialsStore);
   private readonly destroyRef = inject(DestroyRef);
+  readonly legalDialog = inject(LegalDialogService);
 
   readonly limits = FIELD_LIMITS.user;
 
@@ -56,6 +60,7 @@ export class RegisterPageComponent implements OnDestroy {
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required, Validators.minLength(6)]],
     confirm: ['', [Validators.required]],
+    agree: [false, [Validators.requiredTrue]],
   }, { validators: [matchPasswords()] });
 
   nameError(): string {

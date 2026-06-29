@@ -19,6 +19,7 @@ import { UiCharCounterComponent } from '../char-counter/ui-char-counter.componen
 export class UiTextInputComponent implements ControlValueAccessor {
   readonly type = input<'text' | 'email' | 'password' | 'url'>('text');
   readonly placeholder = input('');
+  readonly autocomplete = input<string | null>(null);
   /** Max character length. When set, enforces the limit and shows a counter. */
   readonly maxLength = input<number | null>(null);
 

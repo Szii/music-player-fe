@@ -4,6 +4,7 @@ import { ToastContainerComponent } from './shared/features/toast/toast-container
 import { ConfirmDialogComponent } from './shared/features/confirm-dialog/confirm-dialog.component';
 import { PromptDialogComponent } from './shared/features/prompt-dialog/prompt-dialog.component';
 import { InfoDialogComponent } from './shared/features/info-dialog/info-dialog.component';
+import { LegalDialogComponent } from './shared/features/legal-dialog/legal-dialog.component';
 
 @Component({
   selector: 'app-root',
@@ -14,6 +15,7 @@ import { InfoDialogComponent } from './shared/features/info-dialog/info-dialog.c
     ConfirmDialogComponent,
     PromptDialogComponent,
     InfoDialogComponent,
+    LegalDialogComponent,
   ],
   templateUrl: './app.component.html',
 })

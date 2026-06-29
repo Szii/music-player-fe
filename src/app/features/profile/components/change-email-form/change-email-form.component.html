@@ -14,18 +14,29 @@
   [formGroup]="form"
   (ngSubmit)="onSubmit()"
 >
+  <input
+    class="visually-hidden"
+    type="text"
+    name="username"
+    autocomplete="username"
+    aria-label="Username"
+    [value]="username()"
+    readonly
+    tabindex="-1"
+  />
+
   <ui-form-field
     label="New email"
     [error]="emailError()"
   >
-    <ui-text-input formControlName="email" type="email" [maxLength]="limits.email" />
+    <ui-text-input formControlName="email" type="email" autocomplete="email" [maxLength]="limits.email" />
   </ui-form-field>
 
   <ui-form-field
     label="Current password"
     [error]="passwordError()"
   >
-    <ui-text-input formControlName="password" type="password" [maxLength]="limits.password" />
+    <ui-text-input formControlName="password" type="password" autocomplete="current-password" [maxLength]="limits.password" />
   </ui-form-field>
 
   <ui-form-actions>

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -33,6 +33,7 @@ export class ChangePasswordFormComponent {
   readonly isSubmitting = signal(false);
   readonly submitted = signal(false);
   readonly passwordMaxLength = FIELD_LIMITS.user.password;
+  readonly username = computed(() => this.store.user()?.name ?? '');
 
   readonly form = this.fb.nonNullable.group({
     current: ['', [Validators.required]],

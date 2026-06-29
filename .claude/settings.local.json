@@ -14,7 +14,9 @@
       "Bash(xargs wc -l)",
       "Bash(node scripts/extract-templates.mjs)",
       "Bash(npm install *)",
-      "Bash(npx ng *)"
+      "Bash(npx ng *)",
+      "WebFetch(domain:www.gdpr.cz)",
+      "WebFetch(domain:iuntsevich.cz)"
     ]
   }
 }

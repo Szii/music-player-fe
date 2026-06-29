@@ -6,6 +6,7 @@ import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-t
 import { ChangePasswordFormComponent } from '../../components/change-password-form/change-password-form.component';
 import { ChangeEmailFormComponent } from '../../components/change-email-form/change-email-form.component';
 import { UserLimitsCardComponent } from '../../components/user-limits-card/user-limits-card.component';
+import { FooterComponent } from '../../../../shared/components/footer/footer.component';
 
 @Component({
   selector: 'app-profile-page',
@@ -15,6 +16,7 @@ import { UserLimitsCardComponent } from '../../components/user-limits-card/user-
     ChangePasswordFormComponent,
     ChangeEmailFormComponent,
     UserLimitsCardComponent,
+    FooterComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './profile-page.component.html',

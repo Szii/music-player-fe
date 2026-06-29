@@ -41,6 +41,7 @@ import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { UiCreateCtaComponent } from '../../../../shared/ui/create-cta/ui-create-cta.component';
 import { SessionsDropdownComponent } from '../../../../shared/components/sessions-dropdown/sessions-dropdown.component';
+import { FooterComponent } from '../../../../shared/components/footer/footer.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { httpErrorMessage } from '../../../../shared/utils/http-error';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
@@ -66,6 +67,7 @@ interface VolumeCommit {
     UiCreateCtaComponent,
     SessionsDropdownComponent,
     UiPageTitleComponent,
+    FooterComponent,
   ],
   host: {
     '(document:keydown)': 'onGlobalKeydown($event)',

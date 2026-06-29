@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -34,6 +34,7 @@ export class ChangeEmailFormComponent {
 
   readonly showEmailInputs = SHOW_EMAIL_INPUTS;
   readonly limits = FIELD_LIMITS.user;
+  readonly username = computed(() => this.store.user()?.name ?? '');
 
   readonly isSubmitting = signal(false);
   readonly submitted = signal(false);

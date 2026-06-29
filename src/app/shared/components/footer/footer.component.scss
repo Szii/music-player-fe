@@ -1,0 +1,111 @@
+:host {
+  display: block;
+  /* Pinned to the bottom of the flex-column page (sticky footer). */
+  margin-top: auto;
+  /* Full-bleed: break out of the page's centred, max-width content column so the
+     footer is the same width on every page (home 720, app 1200, auth 520)
+     instead of inheriting each page's column. Inner content is re-contained
+     below. Relies on html { overflow-x: clip } to absorb the scrollbar-width
+     difference between 100vw and the visible width. */
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+}
+
+.page-footer__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  /* Constant top gap so the footer keeps breathing room from content on tall
+     pages (where margin-top: auto collapses to 0), not just short ones. */
+  padding: var(--space-2xl) var(--app-page-padding) 0;
+}
+
+.page-footer__rule {
+  height: 2px;
+  background: var(--app-divider-decor);
+  opacity: 0.7;
+}
+
+.page-footer__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm) var(--space-lg);
+  padding: var(--space-lg) 0;
+}
+
+.page-footer__copy,
+.page-footer__contact {
+  margin: 0;
+  color: var(--app-text-soft);
+  font-size: 0.85rem;
+}
+
+.page-footer__sep {
+  margin: 0 var(--space-xs);
+  color: var(--app-text-soft);
+}
+
+.page-footer__contact a,
+.page-footer__link {
+  padding: var(--space-2xs) 0;
+  color: var(--app-text-muted);
+}
+
+/* Button styled as an inline link (opens the Privacy & Terms modal). */
+.page-footer__link {
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.page-footer__contact a:hover,
+.page-footer__link:hover {
+  color: var(--app-primary);
+}
+
+.page-footer__contact a:focus-visible,
+.page-footer__link:focus-visible {
+  outline: 2px solid var(--app-secondary);
+  outline-offset: 3px;
+  border-radius: var(--app-radius-xs);
+}
+
+/* Phones: a compact, centred footer. Tighter gaps and smaller text than
+   desktop, and a smaller top gap so it doesn't take much vertical space. */
+@media (max-width: 640px) {
+  .page-footer__inner {
+    padding-top: var(--space-lg);
+  }
+
+  .page-footer__bar {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--space-xs);
+    padding: var(--space-sm) 0;
+  }
+
+  .page-footer__copy,
+  .page-footer__contact {
+    font-size: 0.78rem;
+  }
+
+  /* Put the links and contact on their own lines instead of one wrapping run. */
+  .page-footer__contact {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2xs);
+  }
+
+  .page-footer__contact .page-footer__sep {
+    display: none;
+  }
+
+  /* Long email must never overflow a narrow screen. */
+  .page-footer__contact-email {
+    overflow-wrap: anywhere;
+  }
+}

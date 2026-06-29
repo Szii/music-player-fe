@@ -38,6 +38,7 @@ import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { httpErrorMessage } from '../../../../shared/utils/http-error';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 import { BoardPlaybackService } from '../../../../core/services/board-playback.service';
+import { FooterComponent } from '../../../../shared/components/footer/footer.component';
 
 @Component({
   selector: 'app-tracks-page',
@@ -49,6 +50,7 @@ import { BoardPlaybackService } from '../../../../core/services/board-playback.s
     UiAlertComponent,
     UiCreateCtaComponent,
     UiPageTitleComponent,
+    FooterComponent,
   ],
   template: `
     <div class="app-page tracks-page">
@@ -88,8 +90,6 @@ import { BoardPlaybackService } from '../../../../core/services/board-playback.s
               (windows)="onWindows($event)"
             />
           </div>
-
-          <hr class="tracks-page__divider" />
         </div>
       }
 
@@ -101,6 +101,8 @@ import { BoardPlaybackService } from '../../../../core/services/board-playback.s
         (saveTrackFades)="onSaveTrackFades($event)"
         (reorderWindows)="onReorderWindows($event)"
       />
+
+      <app-footer />
     </div>
   `,
   styles: [`
@@ -135,11 +137,6 @@ import { BoardPlaybackService } from '../../../../core/services/board-playback.s
     .tracks-page__table-wrap {
       --track-table-max-height: var(--track-table-max-height);
       min-height: 0;
-    }
-
-    .tracks-page__divider {
-      border: none;
-      border-top: var(--app-border);
     }
 
     @media (max-width: 900px) {

@@ -147,13 +147,19 @@ html {
      full-width bar on the wide expand/collapse buttons. Inherited everywhere;
      :hover/:active/:focus states provide the feedback instead. */
   -webkit-tap-highlight-color: transparent;
+  /* Absorb the scrollbar-width overflow from the full-bleed footer (width: 100vw)
+     so it never produces a horizontal scrollbar. `clip` (not `hidden`) avoids
+     creating a scroll container, so sticky/fixed positioning is unaffected. */
+  overflow-x: clip;
 }
 
 /* Reserve space for the fixed mobile bottom navigation so page content is
    never hidden behind it. Snapped to the canonical md breakpoint so the app
-   flips to its compact shape (cards + bottom nav) at one consistent line. */
+   flips to its compact shape (cards + bottom nav) at one consistent line.
+   Only on shell pages: auth pages render outside the shell (no bottom nav), so
+   reserving the space there would leave dead space below their footer. */
 @media (max-width: 900px) {
-  body {
+  body:has(.app-shell) {
     padding-bottom: calc(
       var(--app-bottom-nav-height) + env(safe-area-inset-bottom, 0px)
     );
@@ -514,12 +520,29 @@ input[type="range"].app-range--seek::-webkit-slider-thumb {
   max-width: 1200px;
   margin: 0 auto;
   padding: var(--app-page-padding);
+  /* Sticky footer: fill at least the area below the navbar so a short page's
+     <app-footer> (margin-top: auto) is pushed to the bottom of the viewport
+     instead of floating mid-screen. */
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - var(--app-navbar-height));
 }
 
+/* Below md the fixed bottom nav also eats vertical space (body reserves it via
+   padding-bottom), so shrink the page accordingly to keep the footer in view. */
+@media (max-width: 900px) {
+  .app-page {
+    min-height: calc(
+      100dvh - var(--app-navbar-height) - var(--app-bottom-nav-height)
+    );
+  }
+}
+
+/* Auth pages render outside the shell (no navbar / no bottom nav), so they get
+   the full viewport height. Defined after the media query so it wins there. */
 .app-page--narrow {
   max-width: 520px;
-  margin: 0 auto;
-  padding: var(--app-page-padding);
+  min-height: 100dvh;
 }
 
 /* Entity list — the mobile counterpart to a data table. A feature renders
@@ -978,5 +1001,18 @@ input[type="range"].app-range--seek::-webkit-slider-thumb {
   color: var(--app-text-muted);
   font-size: 13px;
   font-style: italic;
+}
+
+/* Visually hidden but available to screen readers and password managers. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
