@@ -43,7 +43,9 @@ interface WarningDefinition {
   readonly id: WarningId;
   /** Whether the warning's environment condition currently applies. */
   readonly applies: Signal<boolean>;
-  readonly message: string;
+  /** Signal so a warning can reword itself as the environment changes (e.g. the
+      mobile-background note flips once the browser is put in desktop mode). */
+  readonly message: Signal<string>;
 }
 
 /** Per-warning `localStorage` key remembering that the user dismissed it once. */
@@ -88,18 +90,34 @@ export class EnvironmentWarningsService {
 
   private readonly isChromium = detectChromium();
 
+  /**
+   * A touch device whose browser is in "Desktop site" mode: the pointer is still
+   * coarse (a phone/tablet) but the UA has lost its mobile token. In this mode
+   * the YouTube iframe behaves like desktop, so background playback works — at
+   * the cost of a shrunken desktop-width UI the page can't override.
+   */
+  private readonly isDesktopMode = computed(
+    () => this.device.isMobile() && !/Mobi/i.test(navigator.userAgent),
+  );
+
+  private readonly mobileBackgroundMessage = computed(() =>
+    this.isDesktopMode()
+      ? 'Background playback is active (desktop site mode). The interface is desktop-sized, so it may look small — pinch to zoom.'
+      : 'On mobile, boards stop playing once the app is in the background or the screen is off. Tip: turn on "Desktop mode" in your browser menu to keep audio playing in the background.',
+  );
+
   private readonly definitions: readonly WarningDefinition[] = [
     {
       id: 'browser',
       applies: signal(!this.isChromium).asReadonly(),
-      message:
-        'Currently, only Chromium browsers are supported. For the optimal audio experience, please use a Chromium-based browser.',
+      message: signal(
+        'Audio playback works best in Chromium-based browsers. You may hit occasional issues here — if you do, try a Chromium-based browser.',
+      ).asReadonly(),
     },
     {
       id: 'mobile-background',
       applies: this.device.isMobile,
-      message:
-        'On mobile devices, boards stop playing once the app is in the background or the screen is off. For uninterrupted background playback, use a desktop environment.',
+      message: this.mobileBackgroundMessage,
     },
   ];
 
@@ -112,7 +130,7 @@ export class EnvironmentWarningsService {
   readonly activeWarnings = computed<ActiveWarning[]>(() =>
     this.definitions
       .filter(def => def.applies())
-      .map(def => ({ id: def.id, message: def.message, open: this.openByWarning[def.id] })),
+      .map(def => ({ id: def.id, message: def.message(), open: this.openByWarning[def.id] })),
   );
 
   /** True when at least one warning applies — drives the navbar warning icon. */

@@ -18,6 +18,7 @@ import {
   YoutubeIframeApiService,
   YT_EMBED_HOST,
 } from '../../../../core/services/youtube-iframe-api.service';
+import { WorkerClockService } from '../../../../core/services/worker-clock.service';
 import { effectiveCrossfadeMs, sourceCrossfadeMs } from '../../utils/crossfade';
 
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
@@ -73,6 +74,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
   private readonly zone = inject(NgZone);
   private readonly destroyRef = inject(DestroyRef);
   private readonly api = inject(YoutubeIframeApiService);
+  private readonly clock = inject(WorkerClockService);
 
   readonly title = input('');
   readonly hasTrack = input(false);
@@ -159,8 +161,8 @@ export class BoardPlayerYtComponent implements OnDestroy {
   private lastMasterTarget: number | null = null;
   private masterRampId = 0;
   private gainRampId = 0;
-  private masterRampTimer: ReturnType<typeof setInterval> | null = null;
-  private gainRampTimer: ReturnType<typeof setInterval> | null = null;
+  private masterRampTimer: number | null = null;
+  private gainRampTimer: number | null = null;
   private switchSeq = 0;
   private crossfadeInProgress = false;
   /** While a window/track-switch crossfade runs, keep the UI pinned to the new
@@ -174,7 +176,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
       so the queued final target is heard immediately. */
   private finishCurrentCrossfadeRequested = false;
 
-  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private pollTimer: number | null = null;
   private emittedNearEnd = false;
   private isUserSeeking = false;
   private lastWindowKey: string | null = null;
@@ -676,17 +678,15 @@ export class BoardPlayerYtComponent implements OnDestroy {
 
   private startPolling(): void {
     this.stopPolling();
-    this.zone.runOutsideAngular(() => {
-      this.pollTimer = setInterval(
-        () => this.tick(),
-        BoardPlayerYtComponent.POLL_INTERVAL_MS,
-      );
-    });
+    this.pollTimer = this.clock.setInterval(
+      () => this.tick(),
+      BoardPlayerYtComponent.POLL_INTERVAL_MS,
+    );
   }
 
   private stopPolling(): void {
     if (this.pollTimer !== null) {
-      clearInterval(this.pollTimer);
+      this.clock.clearInterval(this.pollTimer);
       this.pollTimer = null;
     }
   }
@@ -855,29 +855,27 @@ export class BoardPlayerYtComponent implements OnDestroy {
     const startValue = this.currentMaster;
     const startTime = performance.now();
 
-    // Use a timer (not requestAnimationFrame, which freezes in hidden tabs) so
-    // the ramp still completes when the tab is backgrounded — throttled to
-    // ~1s/step there, but it reaches the target via elapsed-time math.
-    this.zone.runOutsideAngular(() => {
-      const step = () => {
-        if (id !== this.masterRampId) {
-          return;
-        }
-        const t = Math.min(1, (performance.now() - startTime) / durationMs);
-        this.currentMaster = startValue + (target - startValue) * t;
-        this.applyVolumes();
-        if (t >= 1) {
-          this.clearMasterRampTimer();
-        }
-      };
-      this.masterRampTimer = setInterval(step, 50);
-      step();
-    });
+    // Worker-clock timer (not requestAnimationFrame, which freezes in hidden
+    // tabs) so the ramp still progresses smoothly when the tab is backgrounded;
+    // elapsed-time math guarantees it reaches the target either way.
+    const step = () => {
+      if (id !== this.masterRampId) {
+        return;
+      }
+      const t = Math.min(1, (performance.now() - startTime) / durationMs);
+      this.currentMaster = startValue + (target - startValue) * t;
+      this.applyVolumes();
+      if (t >= 1) {
+        this.clearMasterRampTimer();
+      }
+    };
+    this.masterRampTimer = this.clock.setInterval(step, 50);
+    step();
   }
 
   private clearMasterRampTimer(): void {
     if (this.masterRampTimer !== null) {
-      clearInterval(this.masterRampTimer);
+      this.clock.clearInterval(this.masterRampTimer);
       this.masterRampTimer = null;
     }
   }
@@ -903,37 +901,36 @@ export class BoardPlayerYtComponent implements OnDestroy {
 
     const startTime = performance.now();
 
-    // Timer rather than requestAnimationFrame so the crossfade still progresses
-    // (and resolves) when the tab is hidden — rAF is frozen there, which would
-    // otherwise leave crossfadeInProgress stuck and break looping.
+    // Worker-clock timer rather than requestAnimationFrame so the crossfade
+    // still progresses (and resolves) when the tab is hidden — rAF is frozen
+    // there, which would otherwise leave crossfadeInProgress stuck and break
+    // looping.
     return new Promise<void>((resolve) => {
-      this.zone.runOutsideAngular(() => {
-        const step = () => {
-          if (id !== this.gainRampId) {
-            resolve();
-            return;
-          }
-          const t = this.finishCurrentCrossfadeRequested
-            ? 1
-            : Math.min(1, (performance.now() - startTime) / durationMs);
-          const angle = (t * Math.PI) / 2;
-          from.gain = Math.cos(angle);
-          to.gain = Math.sin(angle);
-          this.applyVolumes();
-          if (t >= 1) {
-            this.clearGainRampTimer();
-            resolve();
-          }
-        };
-        this.gainRampTimer = setInterval(step, 50);
-        step();
-      });
+      const step = () => {
+        if (id !== this.gainRampId) {
+          resolve();
+          return;
+        }
+        const t = this.finishCurrentCrossfadeRequested
+          ? 1
+          : Math.min(1, (performance.now() - startTime) / durationMs);
+        const angle = (t * Math.PI) / 2;
+        from.gain = Math.cos(angle);
+        to.gain = Math.sin(angle);
+        this.applyVolumes();
+        if (t >= 1) {
+          this.clearGainRampTimer();
+          resolve();
+        }
+      };
+      this.gainRampTimer = this.clock.setInterval(step, 50);
+      step();
     });
   }
 
   private clearGainRampTimer(): void {
     if (this.gainRampTimer !== null) {
-      clearInterval(this.gainRampTimer);
+      this.clock.clearInterval(this.gainRampTimer);
       this.gainRampTimer = null;
     }
   }
