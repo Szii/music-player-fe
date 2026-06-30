@@ -525,7 +525,10 @@ input[type="range"].app-range--seek::-webkit-slider-thumb {
      instead of floating mid-screen. */
   display: flex;
   flex-direction: column;
-  min-height: calc(100dvh - var(--app-navbar-height));
+  /* svh (stable, chrome-visible viewport), not dvh: dvh re-measures as the
+     mobile address bar shows/hides on scroll, which re-pushes the
+     margin-top:auto footer and makes the gap above it jump on swipe. */
+  min-height: calc(100svh - var(--app-navbar-height));
 }
 
 /* Below md the fixed bottom nav also eats vertical space (body reserves it via
@@ -533,7 +536,7 @@ input[type="range"].app-range--seek::-webkit-slider-thumb {
 @media (max-width: 900px) {
   .app-page {
     min-height: calc(
-      100dvh - var(--app-navbar-height) - var(--app-bottom-nav-height)
+      100svh - var(--app-navbar-height) - var(--app-bottom-nav-height)
     );
   }
 }
@@ -542,7 +545,7 @@ input[type="range"].app-range--seek::-webkit-slider-thumb {
    the full viewport height. Defined after the media query so it wins there. */
 .app-page--narrow {
   max-width: 520px;
-  min-height: 100dvh;
+  min-height: 100svh;
 }
 
 /* Entity list — the mobile counterpart to a data table. A feature renders
