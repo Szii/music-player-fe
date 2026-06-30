@@ -425,6 +425,16 @@ export class BoardCardComponent implements OnInit {
     () => !this.playlistMode() && this.sequentialWindows() && !this.canSequenceWindows(),
   );
 
+  /**
+   * True when a real window sequence is in effect (sequence mode on a track with
+   * at least two windows). The deck uses this to keep its shadow source alive and
+   * crossfade window advances through it — same mechanism as a loop seam — so
+   * sequence advances stay seamless in a backgrounded tab.
+   */
+  readonly sequenceActive = computed(
+    () => this.sequentialWindows() && this.canSequenceWindows(),
+  );
+
   readonly loopModeChoices = computed<{ value: LoopMode; label: string; disabled?: boolean }[]>(() => [
     { value: 'off', label: 'Off' },
     { value: 'whole', label: 'Whole playback' },

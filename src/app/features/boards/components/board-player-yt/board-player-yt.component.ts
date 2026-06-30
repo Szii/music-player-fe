@@ -180,6 +180,15 @@ export class BoardPlayerYtComponent implements OnDestroy {
   private emittedNearEnd = false;
   private isUserSeeking = false;
   private lastWindowKey: string | null = null;
+  /**
+   * Set when a window change (in host-managed `preservePositionOnWindowChange`
+   * mode) leaves the playhead outside the new window — i.e. this source is the
+   * outgoing one the deck is fading out and will swap away. While set, `tick`
+   * ignores the new window's end so it doesn't fire a premature `ended`/`nearEnd`
+   * (which would hard-cut the deck's sequence-advance crossfade). Cleared whenever
+   * the source is (re)positioned to a valid spot.
+   */
+  private ignoreWindowEnd = false;
 
   constructor() {
     // Drive the imperative YouTube players from the declarative inputs.
@@ -250,6 +259,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
     this.displayPositionS.set(target);
     this.isUserSeeking = false;
     this.emittedNearEnd = false;
+    this.ignoreWindowEnd = false;
 
     const videoId = this.hasTrack() ? this.videoId() : null;
     const trackId = this.hasTrack() ? this.trackId() : null;
@@ -275,15 +285,21 @@ export class BoardPlayerYtComponent implements OnDestroy {
    * Imperative restart used by the Firefox-safe deck wrapper.
    *
    * The wrapper keeps two independent YouTube player components alive. Near a
-   * loop seam it asks the silent component to jump back to the selected window
-   * start while it is already an active media pipeline, then fades into it.
+   * loop seam (or a sequence window advance) it asks the silent component to jump
+   * to a window start while it is already an active media pipeline, then fades
+   * into it. The deck passes the target explicitly so it doesn't depend on this
+   * child's window input having propagated yet (it may still hold the old window).
    */
-  restartFromWindowStart(): void {
-    const target = this.windowStartFloor();
+  restartFromWindowStart(explicitStartS?: number): void {
+    const target =
+      explicitStartS != null
+        ? Math.max(0, Math.floor(explicitStartS))
+        : this.windowStartFloor();
     this.displayPositionS.set(target);
     this.seekableMaxS.set(this.seekableWindowEnd());
     this.isUserSeeking = false;
     this.emittedNearEnd = false;
+    this.ignoreWindowEnd = false;
 
     const active = this.active();
     if (active.player && active.ready) {
@@ -396,6 +412,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
     active.gain = 1;
     this.idle().gain = 0;
     this.emittedNearEnd = false;
+    this.ignoreWindowEnd = false;
     this.captureActiveWindowFades();
     this.localStatus.set('BUFFERING');
 
@@ -718,6 +735,13 @@ export class BoardPlayerYtComponent implements OnDestroy {
         return;
       }
 
+      // Outgoing source of a host-managed (deck) crossfade whose window moved off
+      // the playhead: keep playing for the fade-out but don't act on the new
+      // window's end.
+      if (this.ignoreWindowEnd) {
+        return;
+      }
+
       const remainingS = endS - positionS;
 
       if (this.repeat()) {
@@ -798,6 +822,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
     this.pendingTrack = null;
     this.finishCurrentCrossfadeRequested = false;
     this.emittedNearEnd = false;
+    this.ignoreWindowEnd = false;
 
     for (const slot of [this.slotA, this.slotB]) {
       slot.loadedVideoId = null;
@@ -1000,6 +1025,9 @@ export class BoardPlayerYtComponent implements OnDestroy {
     const startS = this.windowStartFloor();
     const positionS = active.player.getCurrentTime();
 
+    // The window is committed: this source owns the new bounds again.
+    this.ignoreWindowEnd = false;
+
     // Still inside the new window — keep playing from where we are.
     if (positionS >= startS && positionS <= this.windowEndCeil()) {
       this.seekableMaxS.set(this.seekableWindowEnd());
@@ -1050,12 +1078,18 @@ export class BoardPlayerYtComponent implements OnDestroy {
 
     this.emittedNearEnd = false;
 
-    // Window editor: defer all repositioning to the boundary-drag release
-    // (commitWindowReposition). Repositioning on every intermediate frame would
-    // crossfade-spam and fight the user while they are still adjusting the bounds,
-    // so here we only keep the seek range current.
+    // Window editor / deck-managed sequence: defer all repositioning to the host
+    // (commitWindowReposition, or the deck's advance crossfade). Repositioning on
+    // every intermediate frame would crossfade-spam and fight the user while they
+    // are still adjusting the bounds, so here we only keep the seek range current.
     if (this.preservePositionOnWindowChange()) {
       this.seekableMaxS.set(this.seekableWindowEnd());
+      // If the new window no longer contains the playhead, this is the outgoing
+      // source of a deck sequence-advance crossfade: don't let its tick fire a
+      // premature end on the new window (that hard-cuts the crossfade).
+      const pos = active.player.getCurrentTime();
+      this.ignoreWindowEnd =
+        pos < this.windowStartFloor() || pos > this.windowEndCeil();
       return;
     }
 
