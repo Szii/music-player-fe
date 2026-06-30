@@ -76,19 +76,26 @@ export class TutorialDialogComponent {
   private animate(direction: 'next' | 'prev'): void {
     if (this.prefersReducedMotion()) return;
 
-    // Defer one frame so the new step's bindings are flushed to the DOM first.
-    requestAnimationFrame(() => {
-      const el = this.slide()?.nativeElement;
-      if (!el) return;
+    const el = this.slide()?.nativeElement;
+    if (!el) return;
 
+    // Hide synchronously, before the browser paints, so the new step's image
+    // swaps in while invisible — no flash of the previous image at full opacity.
+    el.style.opacity = '0';
+
+    // Defer one frame so the new content is in the DOM, then slide it in.
+    requestAnimationFrame(() => {
       const from = direction === 'next' ? '28px' : '-28px';
-      el.animate(
+      const anim = el.animate(
         [
           { opacity: 0, transform: `translateX(${from})` },
           { opacity: 1, transform: 'none' },
         ],
         { duration: 220, easing: 'ease' },
       );
+      anim.onfinish = () => {
+        el.style.opacity = '';
+      };
     });
   }
 
