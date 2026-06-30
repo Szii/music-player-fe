@@ -33,7 +33,7 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
   },
   {
     title: 'Groups',
-    body: 'Groups let you organise tracks by <strong>mood or scene</strong> — combat, ambient, tavern. Start by creating your first group.',
+    body: 'Groups let you organise tracks by <strong>mood or scene</strong> - combat, ambient, tavern. Start by creating your first group.',
     image: '/tutorial/group-create.png',
     alt: 'Empty Groups page with a "Create your first group" card',
   },
@@ -51,7 +51,7 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
   },
   {
     title: 'Sessions',
-    body: 'A <strong>session</strong> holds the boards for one game — think of it as your setup, where you control the flow of music. Create your first session to get started. You can of course have <strong>multiple sessions</strong> for different setups.',
+    body: 'A <strong>session</strong> holds the boards for one game - think of it as your setup, where you control the flow of music. You can of course have <strong>multiple sessions</strong> for different setups. Create your first session to get started.',
     image: '/tutorial/session-create.png',
     alt: 'Boards page with a "Create your first session" card',
   },
@@ -75,13 +75,13 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
   },
   {
     title: 'Playback settings',
-    body: 'Per-board options:<ul><li><strong>Loop mode</strong> — controls how track windows repeat: <em>Off</em> plays once, <em>Loop</em> repeats seamlessly, and <em>Sequence</em> cycles through all available windows in order.</li><li><strong>Overplay</strong> — lets this board play in parallel with others. Starting another board won’t mute this one.</li><li><strong>Keyboard shortcut</strong> — toggle the board without clicking.</li></ul>',
+    body: 'Per-board options:<ul><li><strong>Loop mode</strong> - controls how track windows repeat: <em>Off</em> plays once, <em>Loop</em> repeats seamlessly, and <em>Sequence</em> cycles through all available windows in order.</li><li><strong>Overplay</strong> - lets this board play in parallel with others. Starting another board won’t mute this one.</li><li><strong>Keyboard shortcut</strong> - toggle the board without clicking.</li></ul>',
     image: '/tutorial/boards-settings.png',
     alt: 'Playback settings popover with loop mode, overplay, and keyboard shortcut options',
   },
   {
     title: 'Workshop',
-    body: 'Have a track with nice windows, tight crossfades and want to share it? <strong>Publish</strong> your tracks so other Sound Masters can find and subscribe to them — and discover theirs.',
+    body: 'Have a track with nice windows, tight crossfades and want to share it? <strong>Publish</strong> your tracks so other Sound Masters can find and subscribe to them - and discover theirs.',
     image: '/tutorial/workshop-overview.png',
     alt: 'Workshop "My tracks" dialog listing tracks with publish status and subscribers',
   },
