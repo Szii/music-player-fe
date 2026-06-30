@@ -40,6 +40,13 @@ export class TutorialService {
     this.start();
   }
 
+  /** Jump straight to a step (e.g. tapping a pagination dot). */
+  goTo(index: number): void {
+    if (this._index() === null) return;
+    if (index < 0 || index >= this.steps.length) return;
+    this._index.set(index);
+  }
+
   next(): void {
     this._index.update((i) => (i === null ? i : Math.min(i + 1, this.steps.length - 1)));
   }
