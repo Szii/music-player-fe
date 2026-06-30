@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { CONTACT_EMAIL } from '../../constants/contact';
 
 /**
  * The Privacy & Terms prose. Presentational and self-contained so it can be
@@ -12,4 +13,6 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
   templateUrl: './legal-content.component.html',
   styleUrl: './legal-content.component.scss',
 })
-export class LegalContentComponent {}
+export class LegalContentComponent {
+  readonly contactEmail = CONTACT_EMAIL;
+}

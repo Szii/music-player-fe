@@ -14,7 +14,7 @@
     <p>
       <strong>Operator:</strong> Bruno Semerek<br />
       <strong>Contact:</strong>
-      <a href="mailto:sessionmusicia@seznam.cz"> sessionmusicia&#64;seznam.cz</a>
+      <a [href]="'mailto:' + contactEmail"> {{ contactEmail }}</a>
     </p>
 
     <h3>Your account</h3>
@@ -173,7 +173,7 @@
 
     <p>
       Contact:
-      <a href="mailto:sessionmusicia@seznam.cz">sessionmusicia&#64;seznam.cz</a>
+      <a [href]="'mailto:' + contactEmail">{{ contactEmail }}</a>
     </p>
 
     <h3>What we collect</h3>
@@ -301,7 +301,7 @@
 
     <p>
       To exercise your rights or request account deletion, contact us at:
-      <a href="mailto:sessionmusicia@seznam.cz">sessionmusicia&#64;seznam.cz</a>.
+      <a [href]="'mailto:' + contactEmail">{{ contactEmail }}</a>.
     </p>
 
     <p>
@@ -323,7 +323,7 @@
     <h2 id="contact-heading">Contact</h2>
     <p>
       Questions about these Terms or your data?
-      Email <a href="mailto:sessionmusicia@seznam.cz">sessionmusicia&#64;seznam.cz</a>.
+      Email <a [href]="'mailto:' + contactEmail">{{ contactEmail }}</a>.
     </p>
   </section>
 </article>
