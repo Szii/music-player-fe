@@ -1,4 +1,10 @@
 
+/* Clips the slide-in transform so it never spills past the dialog body and
+   shows a transient horizontal scrollbar mid-animation. */
+.tutorial-clip {
+  overflow: hidden;
+}
+
 .tutorial {
   display: grid;
   gap: var(--space-md);
