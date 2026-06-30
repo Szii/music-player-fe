@@ -12,8 +12,6 @@
       #slide
       class="tutorial"
       [class.tutorial--faq]="!step.image"
-      (touchstart)="onTouchStart($event)"
-      (touchend)="onTouchEnd($event)"
     >
       @if (step.image) {
         <picture class="tutorial__media">

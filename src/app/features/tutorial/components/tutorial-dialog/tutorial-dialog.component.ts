@@ -16,6 +16,8 @@ import { TutorialService } from '../../data-access/tutorial.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '(document:keydown.escape)': 'onEscape()',
+    '(document:touchstart)': 'onTouchStart($event)',
+    '(document:touchend)': 'onTouchEnd($event)',
   },
   templateUrl: './tutorial-dialog.component.html',
   styleUrl: './tutorial-dialog.component.scss',
@@ -47,12 +49,14 @@ export class TutorialDialogComponent {
   }
 
   onTouchStart(event: TouchEvent): void {
+    if (!this.tutorial.isOpen()) return;
     const touch = event.changedTouches[0];
     this.touchStartX = touch.clientX;
     this.touchStartY = touch.clientY;
   }
 
   onTouchEnd(event: TouchEvent): void {
+    if (!this.tutorial.isOpen()) return;
     const touch = event.changedTouches[0];
     const dx = touch.clientX - this.touchStartX;
     const dy = touch.clientY - this.touchStartY;
