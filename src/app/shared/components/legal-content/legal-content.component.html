@@ -14,7 +14,7 @@
     <p>
       <strong>Operator:</strong> Bruno Semerek<br />
       <strong>Contact:</strong>
-      <a href="mailto:bruneksemerek@seznam.cz">bruneksemerek&#64;seznam.cz</a><br />
+      <a [href]="'mailto:' + contactEmail"> {{ contactEmail }}</a>
     </p>
 
     <h3>Your account</h3>
@@ -32,20 +32,19 @@
 
     <h3>What the Service does</h3>
     <p>
-      The Service lets users organise YouTube track links, track names, track
-      durations, track windows, groups, boards, playback settings, and sessions
-      for tabletop or similar personal music playback use. The Service is
-      intended as a personal/session organisation tool, not as a music hosting
-      platform.
+      The Service lets users organise track links, track names, playback
+      sections, groups, boards, sessions, and playback-related settings for
+      tabletop or similar personal music playback use. The Service is intended
+      as a personal/session organisation tool, not as a music hosting platform.
     </p>
 
     <h3>User content</h3>
     <p>
       You keep ownership of the names, links, descriptions, sessions, boards,
-      groups, track windows, share descriptions, and other content you create
-      in the Service. You grant us a limited permission to store, process,
-      display, and transmit that content only as needed to operate, secure, and
-      maintain the Service.
+      groups, playback sections, sharing information, and other content you
+      create in the Service. You grant us a limited permission to store,
+      process, display, and transmit that content only as needed to operate,
+      secure, and maintain the Service.
     </p>
 
     <p>
@@ -56,16 +55,16 @@
 
     <h3>Sharing and subscriptions</h3>
     <p>
-      The Service allows tracks to be published and shared by share code. If
-      you publish a track, other users may be able to see information connected
-      with that shared track, such as the track name, original track name, track
-      URL, owner username, share description, and subscriber count.
+      The Service may allow tracks or related information to be published and
+      shared with other users. If you publish content, other users may be able
+      to see information connected with that shared content, such as its name,
+      link, description, owner username, and sharing/subscription information.
     </p>
 
     <p>
-      You may unpublish a track. When a track is unpublished, subscriptions to
-      that track may be removed and the track may be removed from other users'
-      groups or boards where needed for the Service to work correctly.
+      You may unpublish shared content. When content is unpublished, related
+      subscriptions or references may be removed where needed for the Service to
+      work correctly.
     </p>
 
     <h3>Acceptable use</h3>
@@ -79,34 +78,31 @@
 
     <h3>Content and YouTube</h3>
     <p>
-      The Service helps you organise YouTube track links, names, durations,
-      track windows, groups, boards, and sessions. Playback happens in your
-      browser through the YouTube IFrame Player API. The backend does not
-      download, host, stream, or process the underlying YouTube audio or video.
+      The Service helps you organise YouTube track links and related playback
+      settings. Playback happens in your browser through YouTube embedded
+      playback functionality. The Service does not host, own, or sell the
+      underlying YouTube audio or video content.
     </p>
 
     <p>
       When you play YouTube content, your browser communicates directly with
       YouTube/Google through the embedded YouTube player. YouTube/Google may
-      receive data such as the video you play, your playback interactions,
+      receive information such as the video being played, playback interactions,
       device/browser information, IP address, cookies or similar identifiers,
       and other technical request data, as described in the
       <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google Privacy Policy</a>.
     </p>
 
     <p>
-      The Service uses YouTube API Services and/or YouTube embedded playback
-      functionality. By using the Service, you also agree to the
+      By using YouTube playback through the Service, you also agree to the
       <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer">YouTube Terms of Service</a>.
     </p>
 
     <p>
-      The Service does not host, own, or sell the underlying YouTube audio or
-      video content. Rights in YouTube videos, audio, titles, thumbnails,
-      metadata, and other third-party content remain with their respective
-      owners. You must not use the Service to infringe copyright, bypass
-      YouTube restrictions, or access content in a way that violates YouTube's
-      rules or applicable law.
+      Rights in YouTube videos, audio, titles, thumbnails, metadata, and other
+      third-party content remain with their respective owners. You must not use
+      the Service to infringe copyright, bypass YouTube restrictions, or access
+      content in a way that violates YouTube's rules or applicable law.
     </p>
 
     <p>
@@ -177,82 +173,48 @@
 
     <p>
       Contact:
-      <a href="mailto:bruneksemerek@seznam.cz">bruneksemerek&#64;seznam.cz</a>
+      <a [href]="'mailto:' + contactEmail">{{ contactEmail }}</a>
     </p>
 
     <h3>What we collect</h3>
     <p>
-      To operate your account, we collect and store account data such as your
-      username, email address, password hash, account identifier,
-      email-verification status, pending email changes, account creation time,
-      user rank or limits, and authentication or verification tokens.
+      To operate your account, we collect and store account information such as
+      your username, email address, protected login credentials, account status,
+      and settings needed to provide the Service.
     </p>
 
     <p>
       To provide the Service, we store the content and settings you create,
-      including track URLs, track names, original track names, track durations,
-      fade settings, track windows and their positions/durations, groups,
-      boards, board volume and playback settings, sessions, session
-      descriptions, share codes, share descriptions, subscriptions, and
-      subscriber counts.
+      such as track links, track names, playback sections, groups, boards,
+      sessions, descriptions, sharing information, subscriptions, and
+      playback-related configuration.
     </p>
 
     <p>
-      The backend stores the information needed to organise and restore your
-      music setup. The backend does not download, host, stream, or process the
-      underlying YouTube audio or video. Playback happens in your browser
-      through the YouTube IFrame Player API.
+      The Service stores the information needed to organise and restore your
+      music setup. The Service does not host, own, or sell the underlying
+      YouTube audio or video content.
     </p>
 
     <p>
       We also process technical and security data such as IP address, request
-      information, user agent, timestamps, authentication events, rate-limit
-      data, error logs, and server metrics. This is used to run, secure,
-      troubleshoot, and protect the Service.
+      information, browser/device information, timestamps, authentication
+      events, rate-limit data, error logs, and server metrics. This is used to
+      run, secure, troubleshoot, and protect the Service.
     </p>
 
     <h3>Data stored on your device</h3>
     <p>
-      The frontend stores some data in your browser to make the Service work:
+      The Service uses necessary cookies and local browser storage to keep you
+      signed in, restore your session, remember your selected session, remember
+      keyboard shortcuts, and store basic interface preferences such as
+      dismissed warnings.
     </p>
 
-    <ul>
-      <li>
-        <strong>refreshToken cookie:</strong> an HttpOnly authentication cookie
-        used to refresh your login session. JavaScript cannot read this cookie.
-      </li>
-      <li>
-        <strong>has_session:</strong> a non-sensitive localStorage flag showing
-        that a login session may be restorable.
-      </li>
-      <li>
-        <strong>music-player.selected-session-id:</strong> the currently
-        selected session ID.
-      </li>
-      <li>
-        <strong>board-shortcuts:</strong> keyboard shortcuts you configure for
-        boards.
-      </li>
-      <li>
-        <strong>browser_warning_dismissed</strong> and
-        <strong>mobile_background_warning_dismissed:</strong> local preferences
-        remembering whether you dismissed environment warnings.
-      </li>
-    </ul>
-
     <p>
-      Access tokens are kept in memory only and are not intentionally stored in
-      localStorage or sessionStorage.
-    </p>
-
-    <h3>Cookies and similar storage</h3>
-    <p>
-      We use strictly necessary authentication cookies and local browser storage
-      required to keep you signed in, restore your session, remember your
-      selected session, remember keyboard shortcuts, and remember dismissed
-      warnings. We do not use analytics, advertising, or tracking cookies.
-      Because these cookies and storage items are necessary for the Service, no
-      cookie-consent banner is shown.
+      We do not use analytics, advertising, or tracking cookies. Because the
+      cookies and storage used by the Service are necessary for the Service to
+      work, no cookie-consent banner is shown.
     </p>
 
     <h3>How we use your data and legal basis</h3>
@@ -285,17 +247,13 @@
 
     <ul>
       <li>hosting, database, backup, and server infrastructure providers;</li>
-      <li>identity-management infrastructure used for authentication;</li>
-      <li>
-        email delivery / SMTP providers used for verification, email change,
-        and password reset emails;
-      </li>
+      <li>email delivery providers used for account-related emails;</li>
       <li>YouTube/Google for embedded YouTube playback in your browser;</li>
       <li>monitoring, logging, security, and metrics infrastructure.</li>
     </ul>
 
     <p>
-      YouTube playback is provided through the YouTube IFrame Player API in
+      YouTube playback is provided through embedded YouTube functionality in
       your browser. When you use playback, YouTube/Google may receive
       information directly from your browser, including the video being played
       and technical request data, as described in the
@@ -304,35 +262,32 @@
 
     <h3>International transfers</h3>
     <p>
-      Some providers, especially YouTube/Google or other infrastructure
-      providers, may process data outside the EU/EEA. Where this happens, the
-      relevant provider is responsible for using appropriate transfer safeguards
-      required by law.
+      Some providers, especially YouTube/Google or infrastructure providers,
+      may process data outside the EU/EEA. Where this happens, the relevant
+      provider is responsible for using appropriate transfer safeguards required
+      by law.
     </p>
 
     <h3>Security</h3>
     <p>
       We use reasonable technical and organisational measures to protect your
-      data. Passwords are stored as hashes. Refresh tokens are stored in an
-      HttpOnly cookie. Access tokens are kept in memory by the frontend. The
-      Service uses authentication, authorization checks, rate limits, and
-      security logging to help prevent misuse.
+      data, including protected password storage, access controls,
+      abuse-prevention measures, and security monitoring.
     </p>
 
     <h3>Retention</h3>
     <p>
       We keep account data and user-created content for as long as your account
       is active or as long as needed to provide the Service. If you request
-      account deletion, we will delete or anonymise personal data unless we need
-      to keep limited data for legal, security, abuse-prevention, backup, or
-      dispute reasons.
+      account deletion, we will delete or anonymise personal data unless we
+      need to keep limited data for legal, security, abuse-prevention, backup,
+      or dispute reasons.
     </p>
 
     <p>
-      Verification, email-change, password-reset, refresh, and security-related
-      records are kept only as long as needed for authentication, account
-      security, troubleshooting, or legal protection. Backups and server logs
-      may remain for a limited period before being automatically deleted.
+      Authentication, account-security, troubleshooting, and server records are
+      kept only as long as needed for their purpose. Backups and server logs may
+      remain for a limited period before being deleted or overwritten.
     </p>
 
     <h3>Your rights</h3>
@@ -346,7 +301,7 @@
 
     <p>
       To exercise your rights or request account deletion, contact us at:
-      <a href="mailto:bruneksemerek@seznam.cz">bruneksemerek&#64;seznam.cz</a>.
+      <a [href]="'mailto:' + contactEmail">{{ contactEmail }}</a>.
     </p>
 
     <p>
@@ -368,7 +323,7 @@
     <h2 id="contact-heading">Contact</h2>
     <p>
       Questions about these Terms or your data?
-      Email <a href="mailto:bruneksemerek@seznam.cz">bruneksemerek&#64;seznam.cz</a>.
+      Email <a [href]="'mailto:' + contactEmail">{{ contactEmail }}</a>.
     </p>
   </section>
 </article>

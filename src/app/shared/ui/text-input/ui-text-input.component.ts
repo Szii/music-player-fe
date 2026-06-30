@@ -20,6 +20,9 @@ export class UiTextInputComponent implements ControlValueAccessor {
   readonly type = input<'text' | 'email' | 'password' | 'url'>('text');
   readonly placeholder = input('');
   readonly autocomplete = input<string | null>(null);
+  /** Field identity (`name`/`id`) — helps browser autofill categorise the field
+      (e.g. a username field that would otherwise be guessed as email). */
+  readonly name = input<string | null>(null);
   /** Max character length. When set, enforces the limit and shows a counter. */
   readonly maxLength = input<number | null>(null);
 
