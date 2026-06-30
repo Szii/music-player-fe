@@ -454,6 +454,7 @@
             [windowFadeOutMs]="selectedWindowFadeOutMs()"
             [forcedCrossfadeMs]="playlistCrossfadeMs()"
             [repeat]="effectiveRepeat()"
+            [sequenceMode]="sequenceActive()"
             [masterVolume]="masterVolume()"
             [masterFadeRampMs]="masterFadeRampMs()"
             (playRequested)="play.emit()"

@@ -6,7 +6,7 @@
     <app-board-player-yt
       #sourceA
       [showPrimaryButton]="showPrimaryButton() && activeSource() === 'A'"
-      [preservePositionOnWindowChange]="preservePositionOnWindowChange()"
+      [preservePositionOnWindowChange]="preservePositionOnWindowChange() || sequenceMode()"
       [title]="title()"
       [hasTrack]="hasTrack()"
       [trackId]="trackId()"
@@ -38,7 +38,7 @@
     <app-board-player-yt
       #sourceB
       [showPrimaryButton]="showPrimaryButton() && activeSource() === 'B'"
-      [preservePositionOnWindowChange]="preservePositionOnWindowChange()"
+      [preservePositionOnWindowChange]="preservePositionOnWindowChange() || sequenceMode()"
       [title]="title()"
       [hasTrack]="hasTrack()"
       [trackId]="trackId()"

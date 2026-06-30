@@ -53,6 +53,13 @@ export class BoardPlayerYtDeckComponent {
   readonly windowFadeInMs = input(0);
   readonly windowFadeOutMs = input(0);
   readonly repeat = input(false);
+  /**
+   * Window-sequence mode (track with >= 2 windows stepping in order). Keeps the
+   * shadow source alive like {@link repeat} and crossfades each window advance
+   * through it, so sequence advances stay seamless in a backgrounded tab instead
+   * of cold-starting a second iframe the browser would defer.
+   */
+  readonly sequenceMode = input(false);
   readonly masterVolume = input(1);
   readonly masterFadeRampMs = input(0);
   readonly showPrimaryButton = input(true);
@@ -91,6 +98,10 @@ export class BoardPlayerYtDeckComponent {
     this.clamp01(this.masterVolume()) * this.sourceBGain(),
   );
 
+  /** Keep the shadow source a live (silent, playing) pipeline so a loop seam or a
+      sequence window advance can crossfade into it without cold-starting it. */
+  readonly keepShadowAlive = computed(() => this.repeat() || this.sequenceMode());
+
   /**
    * Symmetric loop crossfade length. A window loops into itself, so the overlap is
    * the looping window's own crossfade (fade-in + fade-out), floored at the safety
@@ -115,6 +126,9 @@ export class BoardPlayerYtDeckComponent {
   private syncSeq = 0;
   private lastVideoId: string | null = null;
   private lastTrackId: number | null = null;
+  private lastWindowStartS: number | null = null;
+  private lastWindowEndS: number | null = null;
+  private windowTracked = false;
 
   // Logical playhead clock. While looping, the audible position can't sweep
   // cleanly because the loop crossfade overlaps two sources (the incoming one is
@@ -137,8 +151,8 @@ export class BoardPlayerYtDeckComponent {
 
       // Touch these so source lifecycle is re-evaluated when the selected media
       // changes. The child components receive the actual values directly.
-      this.windowStartS();
-      this.windowEndS();
+      const winStart = this.windowStartS();
+      const winEnd = this.windowEndS();
       this.hasSelectedWindow();
       this.durationS();
 
@@ -152,7 +166,31 @@ export class BoardPlayerYtDeckComponent {
         this.abortLoopCrossfade();
       }
 
+      // Detect a window-only change (same video, the selected window moved). In
+      // sequence mode this is an auto-advance to the next window: crossfade into
+      // the already-alive shadow source at the new window start, exactly like a
+      // loop seam. Skip the first observed value and media changes (track
+      // switches), and reset tracking when media changes so the new track's first
+      // window doesn't read as an advance.
+      const windowChanged =
+        winStart !== this.lastWindowStartS || winEnd !== this.lastWindowEndS;
+      const hadWindow = this.windowTracked && !mediaChanged;
+      this.lastWindowStartS = winStart;
+      this.lastWindowEndS = winEnd;
+      this.windowTracked = !mediaChanged;
+
       this.syncSources(status, canPlay, repeat);
+
+      if (
+        this.sequenceMode() &&
+        status === 'PLAYING' &&
+        canPlay &&
+        hadWindow &&
+        windowChanged &&
+        !this.crossfadeInProgress
+      ) {
+        this.startWindowAdvanceCrossfade();
+      }
     });
 
     // Run the smooth loop playhead only while looping; otherwise the raw audible
@@ -350,7 +388,7 @@ export class BoardPlayerYtDeckComponent {
     const shadow = this.otherSource(active);
 
     this.setSourceStatus(active, 'PLAYING');
-    this.setSourceStatus(shadow, repeat ? 'PLAYING' : 'STOPPED');
+    this.setSourceStatus(shadow, this.keepShadowAlive() ? 'PLAYING' : 'STOPPED');
 
     if (!this.crossfadeInProgress) {
       // Keep the deck's source gain at 0 while the board is stopped, then let
@@ -362,7 +400,13 @@ export class BoardPlayerYtDeckComponent {
     }
   }
 
-  private startLoopCrossfade(): void {
+  /**
+   * Crossfade from the active source into the already-alive shadow source. Used
+   * for loop seams (shadow restarts the same window) and sequence window advances
+   * (shadow restarts at the new window start, passed explicitly so it doesn't
+   * depend on the child's window input having propagated yet).
+   */
+  private startLoopCrossfade(restartStartS?: number): void {
     if (this.crossfadeInProgress) {
       return;
     }
@@ -386,7 +430,7 @@ export class BoardPlayerYtDeckComponent {
     // The important Firefox workaround: the target source is already alive and
     // silent. We only seek/play it, then fade into it. We do not cold-load a new
     // iframe at the loop seam.
-    this.restartSource(to);
+    this.restartSource(to, restartStartS);
 
     this.setSourceGain(from, 0);
     this.setSourceGain(to, 1);
@@ -394,6 +438,12 @@ export class BoardPlayerYtDeckComponent {
     this.crossfadeTimer = setTimeout(() => {
       this.finishLoopCrossfade(seq);
     }, this.loopCrossfadeMs() + 80);
+  }
+
+  /** Sequence auto-advance: crossfade into the shadow source at the new window
+      start — the same seamless machinery as a loop seam. */
+  private startWindowAdvanceCrossfade(): void {
+    this.startLoopCrossfade(this.loopStartS());
   }
 
   /**
@@ -437,12 +487,12 @@ export class BoardPlayerYtDeckComponent {
     );
   }
 
-  private restartSource(source: SourceName): void {
-    this.getSourceComponent(source)?.restartFromWindowStart();
+  private restartSource(source: SourceName, startS?: number): void {
+    this.getSourceComponent(source)?.restartFromWindowStart(startS);
   }
 
   private restartSilentSource(source: SourceName): void {
-    if (!this.repeat() || this.status() !== 'PLAYING') {
+    if (!this.keepShadowAlive() || this.status() !== 'PLAYING') {
       return;
     }
 
@@ -452,7 +502,7 @@ export class BoardPlayerYtDeckComponent {
 
     this.setSourceStatus(source, 'PLAYING');
     this.setSourceGain(source, 0);
-    this.restartSource(source);
+    this.restartSource(source, this.loopStartS());
   }
 
   private stopAllSources(): void {
@@ -460,6 +510,11 @@ export class BoardPlayerYtDeckComponent {
     this.syncSeq++;
     this.crossfadeInProgress = false;
     this.loopFadeActive.set(false);
+    // Forget the tracked window so a stop→replay doesn't read the previous run's
+    // last window as an advance and fire a spurious crossfade on play.
+    this.windowTracked = false;
+    this.lastWindowStartS = null;
+    this.lastWindowEndS = null;
     this.activeSource.set('A');
     this.sourceAStatus.set('STOPPED');
     this.sourceBStatus.set('STOPPED');
