@@ -1,0 +1,111 @@
+
+.tutorial {
+  display: grid;
+  gap: var(--space-md);
+
+  /* Image steps share one fixed total height: the screenshot row flexes to
+     fill whatever the caption leaves, so a longer caption shrinks the image
+     instead of making the dialog taller. */
+  &:not(.tutorial--faq) {
+    grid-template-rows: minmax(0, 1fr) auto;
+    height: clamp(320px, 64vh, 640px);
+  }
+
+  &__media {
+    display: block;
+    margin: 0;
+    min-height: 0;
+  }
+
+  &__img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border: 1px solid var(--app-border-color);
+    border-radius: var(--app-radius-lg);
+  }
+
+  &__body {
+    margin: 0;
+    font-size: 0.96rem;
+    line-height: 1.5;
+    color: var(--app-text);
+    overflow-wrap: anywhere;
+
+    p {
+      margin: 0 0 var(--space-xs);
+    }
+
+    p:last-child {
+      margin-bottom: 0;
+    }
+
+    strong {
+      color: var(--app-heading);
+      font-weight: 600;
+    }
+
+    ul {
+      margin: var(--space-xs) 0 0;
+      padding-left: var(--space-lg);
+      display: grid;
+      gap: var(--space-2xs);
+    }
+  }
+
+  &__faq {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--space-xs);
+
+    details {
+      border: 1px solid var(--app-border-color);
+      border-radius: var(--app-radius-lg);
+      padding: var(--space-xs) var(--space-sm);
+    }
+
+    summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--app-heading);
+      list-style-position: inside;
+    }
+
+    summary:focus-visible {
+      outline: 2px solid var(--app-primary);
+      outline-offset: 2px;
+    }
+  }
+
+  &__faq-answer {
+    margin-top: var(--space-xs);
+    font-size: 0.94rem;
+    line-height: 1.5;
+    color: var(--app-text);
+  }
+
+  &__nav {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  /* No fixed total height on mobile: a long caption would otherwise crush the
+     flexed image row to nothing. Give the image its own height and let the
+     dialog body scroll instead. */
+  .tutorial:not(.tutorial--faq) {
+    height: auto;
+    grid-template-rows: none;
+  }
+
+  .tutorial__media {
+    height: clamp(160px, 30vh, 260px);
+  }
+}
+

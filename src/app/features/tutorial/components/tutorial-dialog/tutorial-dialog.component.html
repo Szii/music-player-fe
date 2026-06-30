@@ -1,0 +1,67 @@
+
+@if (tutorial.step(); as step) {
+  <ui-dialog-shell
+    [title]="step.title"
+    [subtitle]="(tutorial.index()! + 1) + ' / ' + tutorial.steps.length"
+    titleId="tutorial-dialog-title"
+    size="wide"
+    [showFooter]="true"
+    (closed)="tutorial.close()"
+  >
+    <div
+      #slide
+      class="tutorial"
+      [class.tutorial--faq]="!step.image"
+      (touchstart)="onTouchStart($event)"
+      (touchend)="onTouchEnd($event)"
+    >
+      @if (step.image) {
+        <picture class="tutorial__media">
+          @if (step.imageMobile) {
+            <source media="(max-width: 640px)" [srcset]="step.imageMobile" />
+          }
+          <img class="tutorial__img" [src]="step.image" [alt]="step.alt" />
+        </picture>
+      }
+
+      <div class="tutorial__body" [innerHTML]="step.body"></div>
+
+      @if (step.faq; as faq) {
+        <ul class="tutorial__faq">
+          @for (item of faq; track item.question) {
+            <li>
+              <details>
+                <summary>{{ item.question }}</summary>
+                <div class="tutorial__faq-answer" [innerHTML]="item.answer"></div>
+              </details>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+
+    <ng-container dialog-footer>
+      <div class="tutorial__nav">
+        <normal-button
+          type="button"
+          variant="secondary"
+          size="md"
+          [disabled]="tutorial.isFirst()"
+          (clicked)="goPrev()"
+        >
+          Back
+        </normal-button>
+
+        @if (tutorial.isLast()) {
+          <normal-button type="button" variant="primary" size="md" (clicked)="tutorial.close()">
+            Done
+          </normal-button>
+        } @else {
+          <normal-button type="button" variant="primary" size="md" (clicked)="goNext()">
+            Next
+          </normal-button>
+        }
+      </div>
+    </ng-container>
+  </ui-dialog-shell>
+}

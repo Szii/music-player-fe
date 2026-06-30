@@ -7,6 +7,7 @@ import { ChangePasswordFormComponent } from '../../components/change-password-fo
 import { ChangeEmailFormComponent } from '../../components/change-email-form/change-email-form.component';
 import { UserLimitsCardComponent } from '../../components/user-limits-card/user-limits-card.component';
 import { FooterComponent } from '../../../../shared/components/footer/footer.component';
+import { TutorialService } from '../../../tutorial/data-access/tutorial.service';
 
 @Component({
   selector: 'app-profile-page',
@@ -24,6 +25,7 @@ import { FooterComponent } from '../../../../shared/components/footer/footer.com
 })
 export class ProfilePageComponent implements OnInit {
   private readonly store = inject(ProfileStore);
+  readonly tutorial = inject(TutorialService);
 
   readonly status = this.store.status;
   readonly user = this.store.user;
