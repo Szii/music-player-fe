@@ -1,6 +1,16 @@
 
 <div class="app-page">
-  <ui-page-title title="User profile" />
+  <ui-page-title title="User profile">
+    <button
+      type="button"
+      class="profile-help"
+      aria-label="Show tutorial"
+      title="Show tutorial"
+      (click)="tutorial.start()"
+    >
+      ?
+    </button>
+  </ui-page-title>
 
   @switch (status()) {
     @case ('loading') {

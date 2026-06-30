@@ -51,7 +51,7 @@ export class TrackTableComponent {
   readonly windows = output<Track>();
 
   readonly search = signal('');
-  readonly filterMode = persistentSignal<TrackFilterMode>('mpf:tracks:filter', 'own');
+  readonly filterMode = persistentSignal<TrackFilterMode>('mpf:tracks:filter', 'all');
   readonly sortMode = persistentSignal<TrackSortMode>('mpf:tracks:sort', 'nameAsc');
 
   readonly filterOptions = [
