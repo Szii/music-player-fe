@@ -1,6 +1,13 @@
 import { Injectable } from '@angular/core';
 
 /**
+ * Privacy-enhanced embed host. Must stay in sync with the CSP `frame-src`
+ * directive in nginx.conf.template; both YT player call sites use it so the
+ * embed origin can't drift away from what the CSP allows.
+ */
+export const YT_EMBED_HOST = 'https://www.youtube-nocookie.com';
+
+/**
  * Loads the YouTube IFrame Player API script exactly once and resolves when the
  * global `YT` namespace is ready to construct players.
  *

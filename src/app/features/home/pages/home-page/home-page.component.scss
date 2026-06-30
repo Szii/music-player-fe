@@ -11,13 +11,15 @@
   display: flex;
   flex-direction: column;
   gap: 2.5rem;
-  min-height: calc(100dvh - var(--app-navbar-height));
+  /* svh (not dvh): keeps the margin-top:auto footer from jumping when the
+     mobile address bar shows/hides on scroll. Matches .app-page. */
+  min-height: calc(100svh - var(--app-navbar-height));
 }
 
 @media (max-width: 900px) {
   .home-page {
     min-height: calc(
-      100dvh - var(--app-navbar-height) - var(--app-bottom-nav-height)
+      100svh - var(--app-navbar-height) - var(--app-bottom-nav-height)
     );
   }
 }

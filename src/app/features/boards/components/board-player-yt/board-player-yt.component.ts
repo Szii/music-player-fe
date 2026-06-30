@@ -14,7 +14,10 @@ import {
   signal,
 } from '@angular/core';
 import { PlayerControlsComponent } from '../player-controls/player-controls.component';
-import { YoutubeIframeApiService } from '../../../../core/services/youtube-iframe-api.service';
+import {
+  YoutubeIframeApiService,
+  YT_EMBED_HOST,
+} from '../../../../core/services/youtube-iframe-api.service';
 import { effectiveCrossfadeMs, sourceCrossfadeMs } from '../../utils/crossfade';
 
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
@@ -593,7 +596,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
             const player = new yt.Player(mount, {
               // Privacy-enhanced domain: skips the doubleclick ad-conversion
               // pixel that www.youtube.com fires (CORS-blocked, noisy console).
-              host: 'https://www.youtube-nocookie.com',
+              host: YT_EMBED_HOST,
               width: 320,
               height: 180,
               playerVars: {
