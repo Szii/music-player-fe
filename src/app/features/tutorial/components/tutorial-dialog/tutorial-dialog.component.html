@@ -19,7 +19,14 @@
           @if (step.imageMobile) {
             <source media="(max-width: 640px)" [srcset]="step.imageMobile" />
           }
-          <img class="tutorial__img" [src]="step.image" [alt]="step.alt" />
+          <img
+            #image
+            class="tutorial__img"
+            [src]="step.image"
+            [alt]="step.alt"
+            decoding="async"
+            draggable="false"
+          />
         </picture>
       }
 
@@ -41,7 +48,21 @@
     </div>
 
     <ng-container dialog-footer>
-      <div class="tutorial__nav">
+      <div class="tutorial__footer">
+        <nav class="tutorial__dots" aria-label="Tutorial steps">
+          @for (s of tutorial.steps; track $index) {
+            <button
+              type="button"
+              class="tutorial__dot"
+              [class.tutorial__dot--active]="$index === tutorial.index()"
+              [attr.aria-label]="'Go to step ' + ($index + 1)"
+              [attr.aria-current]="$index === tutorial.index() ? 'step' : null"
+              (click)="goTo($index)"
+            ></button>
+          }
+        </nav>
+
+        <div class="tutorial__nav">
         <normal-button
           type="button"
           variant="secondary"
@@ -61,6 +82,7 @@
             Next
           </normal-button>
         }
+        </div>
       </div>
     </ng-container>
   </ui-dialog-shell>

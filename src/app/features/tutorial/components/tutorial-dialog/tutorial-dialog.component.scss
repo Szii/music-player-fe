@@ -8,6 +8,10 @@
 .tutorial {
   display: grid;
   gap: var(--space-md);
+  /* Swiping is horizontal; let the browser own vertical scroll. Don't let a
+     swipe select caption text. */
+  touch-action: pan-y;
+  user-select: none;
 
   /* Image steps share one fixed total height: the screenshot row flexes to
      fill whatever the caption leaves, so a longer caption shrinks the image
@@ -30,6 +34,8 @@
     object-fit: contain;
     border: 1px solid var(--app-border-color);
     border-radius: var(--app-radius-lg);
+    /* No drag-ghost when a swipe passes over the screenshot. */
+    -webkit-user-drag: none;
   }
 
   &__body {
@@ -93,11 +99,50 @@
     color: var(--app-text);
   }
 
+  &__footer {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    width: 100%;
+  }
+
   &__nav {
     display: flex;
     justify-content: space-between;
     gap: var(--space-sm);
     width: 100%;
+  }
+
+  &__dots {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-xs);
+  }
+
+  &__dot {
+    width: 0.6rem;
+    height: 0.6rem;
+    padding: 0;
+    border: none;
+    border-radius: 999px;
+    background: var(--app-border-color);
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.15s ease;
+
+    &:hover {
+      background: var(--app-text-muted);
+    }
+
+    &--active {
+      background: var(--app-primary);
+      transform: scale(1.25);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--app-primary);
+      outline-offset: 2px;
+    }
   }
 }
 

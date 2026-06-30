@@ -26,6 +26,7 @@ export class TutorialDialogComponent {
   readonly tutorial = inject(TutorialService);
 
   private readonly slide = viewChild<ElementRef<HTMLElement>>('slide');
+  private readonly image = viewChild<ElementRef<HTMLImageElement>>('image');
 
   private touchStartX = 0;
   private touchStartY = 0;
@@ -46,6 +47,14 @@ export class TutorialDialogComponent {
     if (this.tutorial.isFirst()) return;
     this.tutorial.prev();
     this.animate('prev');
+  }
+
+  goTo(index: number): void {
+    const current = this.tutorial.index();
+    if (current === null || index === current) return;
+    const direction = index > current ? 'next' : 'prev';
+    this.tutorial.goTo(index);
+    this.animate(direction);
   }
 
   onTouchStart(event: TouchEvent): void {
@@ -70,8 +79,10 @@ export class TutorialDialogComponent {
 
   /**
    * Slide the (stable) content element in from the side via the Web Animations
-   * API — no DOM recreation, so the image never reloads/flashes. The `src`
-   * binding updates in place; images are preloaded by the service.
+   * API — no DOM recreation, so the image never reloads. The element is kept
+   * hidden until the new step's image has finished decoding, so the previous
+   * image can't flash while the new one is still being decoded (the PNGs are
+   * large enough that decode is visible).
    */
   private animate(direction: 'next' | 'prev'): void {
     if (this.prefersReducedMotion()) return;
@@ -79,24 +90,36 @@ export class TutorialDialogComponent {
     const el = this.slide()?.nativeElement;
     if (!el) return;
 
-    // Hide synchronously, before the browser paints, so the new step's image
-    // swaps in while invisible — no flash of the previous image at full opacity.
+    // Hide synchronously so the in-place src swap happens while invisible.
     el.style.opacity = '0';
 
-    // Defer one frame so the new content is in the DOM, then slide it in.
+    // Defer one frame so the new step's bindings (image src, body) are in the
+    // DOM, then wait for the image to decode before revealing.
     requestAnimationFrame(() => {
-      const from = direction === 'next' ? '28px' : '-28px';
-      const anim = el.animate(
-        [
-          { opacity: 0, transform: `translateX(${from})` },
-          { opacity: 1, transform: 'none' },
-        ],
-        { duration: 220, easing: 'ease' },
-      );
-      anim.onfinish = () => {
-        el.style.opacity = '';
-      };
+      const img = this.image()?.nativeElement;
+      const reveal = () => this.playSlide(el, direction);
+
+      if (img) {
+        img.decode().then(reveal).catch(reveal);
+      } else {
+        // Q&A step has no image — nothing to wait for.
+        reveal();
+      }
     });
+  }
+
+  private playSlide(el: HTMLElement, direction: 'next' | 'prev'): void {
+    const from = direction === 'next' ? '28px' : '-28px';
+    const anim = el.animate(
+      [
+        { opacity: 0, transform: `translateX(${from})` },
+        { opacity: 1, transform: 'none' },
+      ],
+      { duration: 220, easing: 'ease' },
+    );
+    anim.onfinish = () => {
+      el.style.opacity = '';
+    };
   }
 
   private prefersReducedMotion(): boolean {
