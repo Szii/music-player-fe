@@ -855,7 +855,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
     const startValue = this.currentMaster;
     const startTime = performance.now();
 
-    // Worker-clock timer (not requestAnimationFrame, which freezes in hidden
+    // Worker-backed timer (not requestAnimationFrame, which freezes in hidden
     // tabs) so the ramp still progresses smoothly when the tab is backgrounded;
     // elapsed-time math guarantees it reaches the target either way.
     const step = () => {
@@ -901,7 +901,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
 
     const startTime = performance.now();
 
-    // Worker-clock timer rather than requestAnimationFrame so the crossfade
+    // Worker-backed timer rather than requestAnimationFrame so the crossfade
     // still progresses (and resolves) when the tab is hidden — rAF is frozen
     // there, which would otherwise leave crossfadeInProgress stuck and break
     // looping.

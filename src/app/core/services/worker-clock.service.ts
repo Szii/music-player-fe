@@ -1,76 +1,162 @@
 import { Injectable, NgZone, inject } from '@angular/core';
 
+interface ClockInterval {
+  callback: () => void;
+  ms: number;
+  workerBacked: boolean;
+}
+
 /**
- * Drop-in `setInterval`/`clearInterval` whose ticks come from a Web Worker.
+ * Drop-in setInterval/clearInterval service.
  *
- * Main-thread timers are clamped to ~1s in backgrounded tabs, which makes the
- * player's poll loop and volume ramps coarse and jumpy when the tab is hidden.
- * A worker's timers are not clamped (on desktop), so the clock stays smooth.
+ * Uses a same-origin Web Worker when available, but does not rely on it.
  *
- * Note: this does NOT keep audio alive on a *locked mobile screen* — the OS
- * suspends the whole page, worker included. It only fixes hidden-tab timing.
- *
- * Callbacks run outside the Angular zone, matching the call sites that used
- * `zone.runOutsideAngular(() => setInterval(...))` and zone.run() internally.
+ * Important:
+ * - Firefox and other browsers can still throttle timers in hidden tabs.
+ * - A Worker helps avoid main-thread blocking, but it is not a reliable
+ *   background timing guarantee.
+ * - Timers created before the worker is ready are migrated to the worker
+ *   once it becomes ready.
+ * - Mobile locked-screen playback is still controlled by the OS/browser.
  */
 @Injectable({ providedIn: 'root' })
 export class WorkerClockService {
   private readonly zone = inject(NgZone);
+
   private worker: Worker | null = null;
-  private readonly callbacks = new Map<number, () => void>();
+  private workerReady = false;
+
+  private readonly intervals = new Map<number, ClockInterval>();
+  private readonly fallbackTimers = new Map<number, ReturnType<typeof setInterval>>();
+
   private nextId = 1;
 
+  constructor() {
+    this.tryInitWorker();
+  }
+
   setInterval(callback: () => void, ms: number): number {
-    const worker = this.ensureWorker();
-    // ponytail: no worker (SSR/old browser) → plain timer fallback, still works.
-    if (!worker) {
-      return this.zone.runOutsideAngular(() =>
-        setInterval(() => this.zone.runOutsideAngular(callback), ms),
-      ) as unknown as number;
-    }
     const id = this.nextId++;
-    this.callbacks.set(id, callback);
-    worker.postMessage({ cmd: 'start', id, ms });
+
+    this.intervals.set(id, {
+      callback,
+      ms,
+      workerBacked: false,
+    });
+
+    if (this.workerReady && this.worker) {
+      this.startWorkerInterval(id, ms);
+    } else {
+      this.startFallbackInterval(id, ms);
+    }
+
     return id;
   }
 
   clearInterval(id: number): void {
-    if (!this.worker) {
-      clearInterval(id);
-      return;
+    this.intervals.delete(id);
+
+    this.worker?.postMessage({ cmd: 'stop', id });
+
+    const fallbackTimer = this.fallbackTimers.get(id);
+    if (fallbackTimer !== undefined) {
+      clearInterval(fallbackTimer);
+      this.fallbackTimers.delete(id);
     }
-    this.callbacks.delete(id);
-    this.worker.postMessage({ cmd: 'stop', id });
   }
 
-  private ensureWorker(): Worker | null {
-    if (this.worker) {
-      return this.worker;
+  private startFallbackInterval(id: number, ms: number): void {
+    this.clearFallbackInterval(id);
+
+    this.zone.runOutsideAngular(() => {
+      const timer = setInterval(() => this.fire(id), ms);
+      this.fallbackTimers.set(id, timer);
+    });
+  }
+
+  private startWorkerInterval(id: number, ms: number): void {
+    const interval = this.intervals.get(id);
+
+    if (!interval || !this.worker) {
+      return;
     }
-    if (typeof Worker === 'undefined' || typeof Blob === 'undefined') {
-      return null;
+
+    this.clearFallbackInterval(id);
+
+    interval.workerBacked = true;
+    this.worker.postMessage({ cmd: 'start', id, ms });
+  }
+
+  private clearFallbackInterval(id: number): void {
+    const fallbackTimer = this.fallbackTimers.get(id);
+
+    if (fallbackTimer !== undefined) {
+      clearInterval(fallbackTimer);
+      this.fallbackTimers.delete(id);
     }
-    const src = `
-      const timers = {};
-      onmessage = (e) => {
-        const { cmd, id, ms } = e.data;
-        if (cmd === 'start') {
-          clearInterval(timers[id]);
-          timers[id] = setInterval(() => postMessage(id), ms);
-        } else if (cmd === 'stop') {
-          clearInterval(timers[id]);
-          delete timers[id];
-        }
-      };
-    `;
-    const url = URL.createObjectURL(new Blob([src], { type: 'application/javascript' }));
-    this.worker = new Worker(url);
-    this.worker.onmessage = (e: MessageEvent<number>) => {
-      const cb = this.callbacks.get(e.data);
-      if (cb) {
-        this.zone.runOutsideAngular(cb);
+  }
+
+  private fire(id: number): void {
+    const interval = this.intervals.get(id);
+
+    if (!interval) {
+      return;
+    }
+
+    this.zone.runOutsideAngular(interval.callback);
+  }
+
+  private migrateFallbackIntervalsToWorker(): void {
+    if (!this.worker) {
+      return;
+    }
+
+    for (const [id, interval] of this.intervals) {
+      if (!interval.workerBacked) {
+        this.startWorkerInterval(id, interval.ms);
+      }
+    }
+  }
+
+  private tryInitWorker(): void {
+    if (typeof Worker === 'undefined') {
+      return;
+    }
+
+    let worker: Worker;
+
+    try {
+      worker = new Worker(new URL('./clock.worker', import.meta.url), {
+        type: 'module',
+      });
+    } catch {
+      return;
+    }
+
+    worker.onmessage = ({ data }: MessageEvent) => {
+      if (data === 'ready') {
+        this.worker = worker;
+        this.workerReady = true;
+        this.migrateFallbackIntervalsToWorker();
+        return;
+      }
+
+      if (typeof data === 'number') {
+        this.fire(data);
       }
     };
-    return this.worker;
+
+    worker.onerror = () => {
+      this.workerReady = false;
+      this.worker = null;
+
+      for (const [id, interval] of this.intervals) {
+        interval.workerBacked = false;
+
+        if (!this.fallbackTimers.has(id)) {
+          this.startFallbackInterval(id, interval.ms);
+        }
+      }
+    };
   }
 }
