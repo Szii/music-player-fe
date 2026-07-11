@@ -65,7 +65,7 @@ export class LoginPageComponent implements OnDestroy {
   nameError(): string {
     const control = this.form.controls.name;
     if (!this.shouldShowError(control)) return '';
-    return 'Username is required.';
+    return 'Identifier is required.';
   }
 
   passwordError(): string {
