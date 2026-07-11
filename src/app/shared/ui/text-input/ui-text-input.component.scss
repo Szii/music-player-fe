@@ -2,11 +2,18 @@
 
 :host {
   display: block;
+  position: relative;
 }
 
 .ui-text-input {
   position: relative;
   display: block;
+}
+
+ui-char-counter {
+  position: absolute;
+  top: 100%;
+  right: 0;
 }
 
 // Leave room for the reveal button so typed text never sits under it.

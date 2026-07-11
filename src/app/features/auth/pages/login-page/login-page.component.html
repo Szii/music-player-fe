@@ -10,7 +10,7 @@
 
       <form class="app-form-stack" [formGroup]="form" (ngSubmit)="onSubmit()">
         <ui-form-field
-          label="Username"
+          label="Username or email"
           [error]="nameError()"
         >
           <ui-text-input formControlName="name" name="username" autocomplete="username" />

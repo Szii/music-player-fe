@@ -14,4 +14,4 @@
  * When `false`, the related UI is grayed out / not clickable and the routes
  * redirect to /login.
  */
-export const SHOW_EMAIL_INPUTS = false;
+export const SHOW_EMAIL_INPUTS = true;
