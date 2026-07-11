@@ -362,12 +362,24 @@ export class UiSelectComponent implements ControlValueAccessor {
   onScrimDown(event: Event): void {
     event.preventDefault();
     event.stopPropagation();
-    // Slide the sheet out (same as drag/handle close) before removing it.
+    
+    if (this.blurSearchIfFocused()) return;
+
     if (this.sheetDrag) {
       this.sheetDrag.close();
     } else {
       this.dismissSheet();
     }
+  }
+
+  private blurSearchIfFocused(): boolean {
+    if (this.isHoverDevice()) return false;
+
+    const input = this.searchInputRef?.nativeElement;
+    if (!input || input !== document.activeElement) return false;
+
+    input.blur();
+    return true;
   }
 
   /** Close the sheet (scrim tap or handle drag/tap) without re-focusing. */
@@ -559,6 +571,12 @@ export class UiSelectComponent implements ControlValueAccessor {
     if (event.key === 'Enter') {
       event.preventDefault();
       event.stopPropagation();
+
+      // Touch: the keyboard's Enter/Done key means "finished typing". Committing
+      // the highlighted option here would close the sheet before the user ever
+      // sees the filtered list, so just drop the keyboard and let them tap.
+      if (this.blurSearchIfFocused()) return;
+
       if (this.commitHighlighted()) return;
       const opts = this.filteredOptions();
       if (opts.length === 1) {

@@ -143,44 +143,15 @@ body {
 
 html {
   color-scheme: light;
-  /* No default (blue) tap flash on mobile — it's off-brand and showed up as a
-     full-width bar on the wide expand/collapse buttons. Inherited everywhere;
-     :hover/:active/:focus states provide the feedback instead. */
   -webkit-tap-highlight-color: transparent;
-  /* Absorb the scrollbar-width overflow from the full-bleed footer (width: 100vw)
-     so it never produces a horizontal scrollbar. `clip` (not `hidden`) avoids
-     creating a scroll container, so sticky/fixed positioning is unaffected. */
   overflow-x: clip;
 }
 
-/* Reserve space for the fixed mobile bottom navigation so page content is
-   never hidden behind it. Snapped to the canonical md breakpoint so the app
-   flips to its compact shape (cards + bottom nav) at one consistent line.
-   Only on shell pages: auth pages render outside the shell (no bottom nav), so
-   reserving the space there would leave dead space below their footer. */
 @media (max-width: 900px) {
   body:has(.app-shell) {
     padding-bottom: calc(
       var(--app-bottom-nav-height) + env(safe-area-inset-bottom, 0px)
     );
-  }
-
-  /* While a modal/overlay is open it owns the screen — hide the bottom nav so
-     it can't cover the dialog's pinned footer or a select bottom sheet. The
-     dialog renders inside `.app-shell__main` (a stacking context), so it can't
-     be raised above the out-of-context bottom nav by z-index alone. */
-  body.app-modal-open .app-bottom-nav {
-    display: none;
-  }
-
-  body.app-modal-open {
-    padding-bottom: 0;
-  }
-}
-
-@media (max-width: 640px) {
-  body.app-modal-open .app-navbar {
-    display: none;
   }
 }
 

@@ -5,6 +5,12 @@
 .app-shell {
   min-height: 100vh;
   position: relative;
+  /* Own stacking context so the decorative pseudo layers below can sit at
+     z-index: -1 (behind the content, above the shell background) without
+     `.app-shell__main` needing a z-index of its own. Main must stay a
+     non-stacking-context so overlays inside it (dialogs, select sheets) can
+     paint above the navbar's z-index: 1000 instead of being capped under it. */
+  isolation: isolate;
   background:
     radial-gradient(
       ellipse at top center,
@@ -33,6 +39,7 @@
   content: '';
   position: fixed;
   inset: 0;
+  z-index: -1;
   pointer-events: none;
   opacity: 0.24;
   background-image:
@@ -57,6 +64,7 @@
   content: '';
   position: fixed;
   inset: 0;
+  z-index: -1;
   pointer-events: none;
   background:
     linear-gradient(
@@ -70,5 +78,4 @@
 .app-shell__main {
   min-height: calc(100vh - 74px);
   position: relative;
-  z-index: 1;
 }

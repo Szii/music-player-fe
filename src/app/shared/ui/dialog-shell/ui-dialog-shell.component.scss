@@ -240,7 +240,7 @@
 }
 
 @media (max-width: 640px) {
-  /* Phone: full-screen dialog below the navbar — the backdrop itself doesn't
+  /* Phone: full-screen dialog over the navbar — the backdrop itself doesn't
      scroll; the body does, so the header and footer stay pinned (Material /
      Carbon mobile dialog pattern). */
   .ui-dialog-backdrop {

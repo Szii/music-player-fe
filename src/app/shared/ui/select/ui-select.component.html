@@ -60,6 +60,7 @@
             class="sel__search"
             placeholder="Search…"
             autocomplete="off"
+            enterkeyhint="done"
             [value]="searchQuery()"
             (input)="searchQuery.set($any($event.target).value)"
             (click)="$event.stopPropagation()"
