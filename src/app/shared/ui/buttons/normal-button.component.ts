@@ -20,18 +20,7 @@ export type ButtonSize = 'sm' | 'md' | 'lg';
   selector: 'normal-button',
   standalone: true,
   imports: [CommonModule],
-  template: `
-    <button
-      [type]="type"
-      [disabled]="disabled || loading"
-      [class]="classes"
-      (mousedown)="$event.preventDefault()"
-      (click)="clicked.emit($event)"
-    >
-      <span *ngIf="loading" class="app-btn__spinner" aria-hidden="true"></span>
-      <ng-content></ng-content>
-    </button>
-  `,
+  templateUrl: './normal-button.component.html',
   styleUrls: ['./normal-button.component.scss'],
 })
 export class NormalButtonComponent {

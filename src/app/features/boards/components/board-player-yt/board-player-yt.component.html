@@ -1,0 +1,23 @@
+
+<app-player-controls
+  [title]="title()"
+  [hasTrack]="hasTrack()"
+  [status]="localStatus()"
+  [positionS]="displayPositionS()"
+  [durationS]="fullDurationS()"
+  [seekableMaxS]="seekableMaxS()"
+  [windowStartS]="hasSelectedWindow() ? windowStartS() : null"
+  [windowEndS]="hasSelectedWindow() ? windowEndS() : null"
+  [fadeOutS]="windowFadeOutMs() / 1000"
+  [showPrimaryButton]="showPrimaryButton()"
+  [disabled]="localStatus() === 'BUFFERING'"
+  (play)="onPlay()"
+  (stop)="onStop()"
+  (seekPreview)="onSeekPreview($event)"
+  (seekCommit)="onSeekCommit($event)"
+/>
+
+<div class="yt-host" aria-hidden="true">
+  <div #mountA></div>
+  <div #mountB></div>
+</div>

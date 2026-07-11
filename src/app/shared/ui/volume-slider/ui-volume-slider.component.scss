@@ -1,0 +1,69 @@
+
+:host {
+  display: block;
+}
+
+.ui-volume-slider {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: var(--app-radius-sm);
+  border: 1px solid var(--app-border-color-soft);
+  background: var(--app-surface-elevated);
+}
+
+.ui-volume-slider__icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--app-primary);
+}
+
+.ui-volume-slider__track-wrap {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.ui-volume-slider__range {
+  width: 100%;
+}
+
+.ui-volume-slider__value {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--app-primary);
+  font-variant-numeric: tabular-nums;
+  min-width: 36px;
+  text-align: right;
+}
+
+/* Vertical fader — the horizontal range is rotated so all the existing
+   track/thumb styling carries over unchanged. */
+.ui-volume-slider--vertical {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: auto;
+  width: 48px;
+  padding: 10px 4px;
+  gap: 8px;
+}
+
+.ui-volume-slider--vertical .ui-volume-slider__track-wrap {
+  width: 24px;
+  height: 93px;
+  justify-content: center;
+}
+
+.ui-volume-slider--vertical .ui-volume-slider__range {
+  width: 93px;
+  transform: rotate(-90deg);
+}
+
+.ui-volume-slider--vertical .ui-volume-slider__value {
+  min-width: 0;
+  text-align: center;
+}

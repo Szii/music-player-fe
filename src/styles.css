@@ -62,7 +62,7 @@
 
   /* navbar */
   --app-navbar-height: 68px;
-  /* mobile bottom navigation bar height (shown ≤768px) */
+  /* mobile bottom navigation bar height (shown ≤md / 900px) */
   --app-bottom-nav-height: 56px;
 
   /* spacing scale — use instead of ad-hoc rem values so rhythm shrinks
@@ -147,12 +147,19 @@ html {
      full-width bar on the wide expand/collapse buttons. Inherited everywhere;
      :hover/:active/:focus states provide the feedback instead. */
   -webkit-tap-highlight-color: transparent;
+  /* Absorb the scrollbar-width overflow from the full-bleed footer (width: 100vw)
+     so it never produces a horizontal scrollbar. `clip` (not `hidden`) avoids
+     creating a scroll container, so sticky/fixed positioning is unaffected. */
+  overflow-x: clip;
 }
 
 /* Reserve space for the fixed mobile bottom navigation so page content is
-   never hidden behind it. */
-@media (max-width: 768px) {
-  body {
+   never hidden behind it. Snapped to the canonical md breakpoint so the app
+   flips to its compact shape (cards + bottom nav) at one consistent line.
+   Only on shell pages: auth pages render outside the shell (no bottom nav), so
+   reserving the space there would leave dead space below their footer. */
+@media (max-width: 900px) {
+  body:has(.app-shell) {
     padding-bottom: calc(
       var(--app-bottom-nav-height) + env(safe-area-inset-bottom, 0px)
     );
@@ -168,6 +175,12 @@ html {
 
   body.app-modal-open {
     padding-bottom: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  body.app-modal-open .app-navbar {
+    display: none;
   }
 }
 
@@ -507,12 +520,32 @@ input[type="range"].app-range--seek::-webkit-slider-thumb {
   max-width: 1200px;
   margin: 0 auto;
   padding: var(--app-page-padding);
+  /* Sticky footer: fill at least the area below the navbar so a short page's
+     <app-footer> (margin-top: auto) is pushed to the bottom of the viewport
+     instead of floating mid-screen. */
+  display: flex;
+  flex-direction: column;
+  /* svh (stable, chrome-visible viewport), not dvh: dvh re-measures as the
+     mobile address bar shows/hides on scroll, which re-pushes the
+     margin-top:auto footer and makes the gap above it jump on swipe. */
+  min-height: calc(100svh - var(--app-navbar-height));
 }
 
+/* Below md the fixed bottom nav also eats vertical space (body reserves it via
+   padding-bottom), so shrink the page accordingly to keep the footer in view. */
+@media (max-width: 900px) {
+  .app-page {
+    min-height: calc(
+      100svh - var(--app-navbar-height) - var(--app-bottom-nav-height)
+    );
+  }
+}
+
+/* Auth pages render outside the shell (no navbar / no bottom nav), so they get
+   the full viewport height. Defined after the media query so it wins there. */
 .app-page--narrow {
   max-width: 520px;
-  margin: 0 auto;
-  padding: var(--app-page-padding);
+  min-height: 100svh;
 }
 
 /* Entity list — the mobile counterpart to a data table. A feature renders
@@ -819,6 +852,95 @@ input[type="range"].app-range--seek::-webkit-slider-thumb {
   to   { transform: translateY(100%); }
 }
 
+/* Kebab action menu (tracks / groups / workshop) → bottom sheet on phones,
+   matching the select and board-settings sheets (an anchored dropdown is cramped
+   and drifts on scroll on mobile). The CDK overlay pane + backdrop are body-level
+   wrappers, so they're styled globally; ui-action-menu tags them via
+   panelClass/backdropClass. Desktop is unchanged (transparent click-catcher
+   backdrop, anchored pane, no drag handle). */
+@media (max-width: 640px) {
+  .action-menu-backdrop {
+    background: rgba(15, 8, 3, 0.45);
+  }
+
+  .cdk-overlay-pane.action-menu-pane {
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    /* Neutralise the connected-position strategy's inline transform / clamped
+       max-height so the sheet sits flush at the bottom and spans full width. */
+    max-height: none !important;
+    transform: none !important;
+  }
+
+  .cdk-overlay-pane.action-menu-pane .action-menu__panel {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    max-height: 70vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    /* No side padding so the header band and row separators run edge-to-edge,
+       matching the app's other popovers. */
+    padding: 0 0 env(safe-area-inset-bottom);
+    border-radius: var(--app-radius-lg) var(--app-radius-lg) 0 0;
+    box-shadow: 0 -10px 30px rgba(15, 8, 3, 0.4);
+    animation: action-sheet-up 0.22s ease;
+  }
+
+  /* Slide back down on close (scrim tap / drag / select), mirroring the open. */
+  .cdk-overlay-pane.action-menu-pane .action-menu__panel--closing {
+    animation: action-sheet-down 0.2s ease forwards;
+  }
+
+  /* Drag/tap handle at the top of the sheet (drag down or tap to close). */
+  .cdk-overlay-pane.action-menu-pane .action-menu__handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 26px;
+    padding: 0;
+    margin-top: 2px;
+    border: none;
+    background: transparent;
+    cursor: grab;
+  }
+
+  .cdk-overlay-pane.action-menu-pane .action-menu__handle-bar {
+    width: 38px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--app-border-color);
+  }
+
+  /* Decorative gold-tipped header band (shared .app-popover-header), showing
+     which item the actions belong to — on brand with the other popovers. */
+  .cdk-overlay-pane.action-menu-pane .action-menu__heading {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  /* Roomier, thumb-friendly rows (dividers come from the component base). */
+  .cdk-overlay-pane.action-menu-pane .app-popover-item {
+    padding: 15px 18px;
+    font-size: 15px;
+  }
+}
+
+@keyframes action-sheet-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes action-sheet-down {
+  from { transform: translateY(0); }
+  to   { transform: translateY(100%); }
+}
+
 /* Navbar */
 .app-navbar {
   background:
@@ -828,5 +950,72 @@ input[type="range"].app-range--seek::-webkit-slider-thumb {
   box-shadow:
     0 8px 24px rgba(15, 5, 3, 0.38),
     inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Borderless button that looks like inline text but behaves like a link.
+   Used for truncated descriptions that open a dialog. */
+.app-text-button {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+  max-width: 100%;
+  cursor: pointer;
+  color: inherit;
+}
+
+.app-text-button:hover {
+  text-decoration: underline;
+}
+
+.app-text-button:focus-visible {
+  outline: 2px solid var(--app-secondary);
+  outline-offset: 2px;
+  border-radius: var(--app-radius-sm, 4px);
+}
+
+/* Compact star + count badge (e.g. subscriber counts in track lists). */
+.app-subscriber-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.app-subscriber-stat__star {
+  color: var(--app-secondary);
+  font-size: 1rem;
+}
+
+.app-subscriber-stat__count {
+  font-weight: 600;
+  color: var(--app-text);
+}
+
+/* One-line muted note shown in place of an empty list/section. */
+.app-empty-note {
+  margin: 0;
+  padding: 12px 0;
+  color: var(--app-text-muted);
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* Visually hidden but available to screen readers and password managers. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 

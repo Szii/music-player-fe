@@ -1,0 +1,74 @@
+
+:host {
+  display: inline-flex;
+}
+
+.action-menu__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: var(--app-radius-sm);
+  border: 1px solid var(--app-border-color-soft);
+  background: var(--app-surface-elevated);
+  color: var(--app-text-muted);
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.action-menu__trigger:hover:not(:disabled),
+.action-menu__trigger--open {
+  background: var(--app-surface);
+  color: var(--app-text);
+  border-color: var(--app-border-color);
+}
+
+.action-menu__trigger:focus-visible {
+  box-shadow: var(--app-focus-ring);
+}
+
+.action-menu__trigger:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+.action-menu__icon {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.action-menu__panel {
+  min-width: 180px;
+  /* No padding so rows run edge-to-edge and their hairline dividers read as
+     a clean list (the rounded panel clips the first/last row). */
+  padding: 0;
+}
+
+/* Drag handle + heading are phone-only; shown via the global bottom-sheet
+   rules. Desktop stays a compact anchored dropdown with no header. */
+.action-menu__handle,
+.action-menu__heading {
+  display: none;
+}
+
+/* Full-width rows separated by hairlines, on desktop and mobile alike. */
+.app-popover-item {
+  border-radius: 0;
+  border-bottom: 1px solid rgba(158, 98, 53, 0.12);
+}
+
+.app-popover-item:last-child {
+  border-bottom: none;
+}
+
+.app-popover-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

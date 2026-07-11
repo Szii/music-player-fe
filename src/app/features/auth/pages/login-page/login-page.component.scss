@@ -1,0 +1,9 @@
+
+.auth-page__link {
+  margin-top: 1rem;
+}
+.auth-page__link--disabled {
+  color: var(--app-text-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}

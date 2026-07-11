@@ -244,7 +244,7 @@
      scroll; the body does, so the header and footer stay pinned (Material /
      Carbon mobile dialog pattern). */
   .ui-dialog-backdrop {
-    padding: var(--app-navbar-height, 68px) 0 0;
+    padding: 0;
     align-items: stretch;
     justify-content: stretch;
     overflow: hidden;

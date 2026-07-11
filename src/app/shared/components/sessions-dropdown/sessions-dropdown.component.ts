@@ -4,8 +4,10 @@ import {
   DestroyRef,
   ElementRef,
   computed,
+  effect,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -16,95 +18,20 @@ import { httpErrorMessage } from '../../utils/http-error';
 import { ConfirmDialogService } from '../../features/confirm-dialog/confirm-dialog.service';
 import { PromptDialogService } from '../../features/prompt-dialog/prompt-dialog.service';
 import { BoardPlaybackService } from '../../../core/services/board-playback.service';
+import { ScrollLockService } from '../../../core/services/scroll-lock.service';
 import { IconButtonComponent } from '../../ui/buttons/ui-icon-button.component';
+import { BottomSheetDragDirective } from '../../ui/bottom-sheet/bottom-sheet-drag.directive';
+import { FIELD_LIMITS } from '../../constants/field-limits';
 
 @Component({
   selector: 'app-sessions-dropdown',
-  imports: [IconButtonComponent],
+  imports: [IconButtonComponent, BottomSheetDragDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '(document:click)': 'onDocumentClick($event)',
     '(document:keydown.escape)': 'onEscape()',
   },
-  template: `
-    @if (showTrigger()) {
-      <div class="sd" [class.sd--open]="isOpen()">
-        <button
-          type="button"
-          class="sd__trigger"
-          [attr.aria-expanded]="isOpen()"
-          aria-haspopup="menu"
-          (click)="toggle()"
-        >
-          <span class="sd__label">{{ triggerLabel() }}</span>
-          <span class="sd__arrow" aria-hidden="true">
-            <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
-              <path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.6"
-                stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </span>
-        </button>
-
-        @if (isOpen()) {
-          <div class="app-popover-surface sd__panel" role="menu">
-            <div class="app-popover-header">Sessions</div>
-
-            @if (sessions().length === 0) {
-              <div class="sd__empty">No sessions yet.</div>
-            } @else {
-              <ul class="sd__list">
-                @for (s of sessions(); track s.sessionId) {
-                  <li
-                    class="sd__item"
-                    [class.sd__item--selected]="s.sessionId === selectedId()"
-                  >
-                    <button
-                      type="button"
-                      class="app-popover-item sd__item-select"
-                      [class.app-popover-item--selected]="s.sessionId === selectedId()"
-                      (click)="select(s)"
-                      [attr.aria-current]="s.sessionId === selectedId() ? 'true' : null"
-                    >
-                      <span class="sd__item-name">{{ s.sessionName || 'Untitled session' }}</span>
-                      @if (s.sessionId === selectedId()) {
-                        <span class="sd__item-check" aria-hidden="true">✓</span>
-                      }
-                    </button>
-
-                    <div class="sd__item-actions">
-                      <app-icon-button
-                        icon="edit"
-                        size="xs"
-                        variant="ghost"
-                        label="Rename session"
-                        (clicked)="startRename(s)"
-                      />
-                      <app-icon-button
-                        icon="delete"
-                        size="xs"
-                        variant="ghost"
-                        label="Delete session"
-                        (clicked)="confirmDelete(s)"
-                      />
-                    </div>
-                  </li>
-                }
-              </ul>
-            }
-
-            <button
-              type="button"
-              class="sd__create"
-              (click)="startCreate()"
-            >
-              <span class="sd__create-plus" aria-hidden="true">＋</span>
-              <span>New session</span>
-            </button>
-          </div>
-        }
-      </div>
-    }
-  `,
+  templateUrl: './sessions-dropdown.component.html',
   styleUrls: ['./sessions-dropdown.component.scss'],
 })
 export class SessionsDropdownComponent {
@@ -115,8 +42,24 @@ export class SessionsDropdownComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly boardPlayback = inject(BoardPlaybackService);
+  private readonly scrollLock = inject(ScrollLockService);
+
+  private readonly sheetDrag = viewChild(BottomSheetDragDirective);
 
   readonly isOpen = signal(false);
+
+  constructor() {
+    // On phones the panel becomes a bottom sheet that owns the screen: lock the
+    // background scroll (and hide the bottom nav via the shared body class) while
+    // it's open, matching ui-select and the board-settings menu.
+    effect((onCleanup) => {
+      if (!this.isOpen()) return;
+      if (typeof window === 'undefined') return;
+      if (!window.matchMedia('(max-width: 640px)').matches) return;
+      this.scrollLock.lock();
+      onCleanup(() => this.scrollLock.unlock());
+    });
+  }
 
   readonly sessions = this.store.sessions;
   readonly selectedId = this.store.selectedSessionId;
@@ -147,6 +90,24 @@ export class SessionsDropdownComponent {
     this.isOpen.set(false);
   }
 
+  /** Tap the mobile bottom-sheet scrim to dismiss. pointerdown + preventDefault
+      avoids a ghost click reaching the trigger (which would re-open the menu). */
+  onScrimDown(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const drag = this.sheetDrag();
+    if (drag) {
+      drag.close();
+    } else {
+      this.dismissSheet();
+    }
+  }
+
+  /** Close the sheet after a scrim tap or handle drag/tap. */
+  dismissSheet(): void {
+    this.close();
+  }
+
   select(session: SessionResponse): void {
     if (session.sessionId == null) return;
       if (this.store.selectedSessionId() === session.sessionId) {
@@ -164,6 +125,7 @@ export class SessionsDropdownComponent {
       placeholder: 'Session name',
       confirmText: 'Create',
       cancelText: 'Cancel',
+      maxLength: FIELD_LIMITS.session.name,
     });
     if (!name) return;
 
@@ -196,6 +158,7 @@ export class SessionsDropdownComponent {
       initialValue: session.sessionName ?? '',
       confirmText: 'Save',
       cancelText: 'Cancel',
+      maxLength: FIELD_LIMITS.session.name,
     });
     if (!name) return;
 

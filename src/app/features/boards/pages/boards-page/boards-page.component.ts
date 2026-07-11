@@ -12,7 +12,7 @@ import {
 } from 'rxjs/operators';
 
 import { environment } from '../../../../../environments/environment';
-import { outgoingCrossfadeMs } from '../../utils/crossfade';
+import { BOARD_CHANGE_CROSSFADE_MS, effectiveCrossfadeMs, sourceCrossfadeMs } from '../../utils/crossfade';
 
 import {
   MusicBoardsService,
@@ -41,6 +41,7 @@ import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { UiCreateCtaComponent } from '../../../../shared/ui/create-cta/ui-create-cta.component';
 import { SessionsDropdownComponent } from '../../../../shared/components/sessions-dropdown/sessions-dropdown.component';
+import { FooterComponent } from '../../../../shared/components/footer/footer.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { httpErrorMessage } from '../../../../shared/utils/http-error';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
@@ -66,230 +67,13 @@ interface VolumeCommit {
     UiCreateCtaComponent,
     SessionsDropdownComponent,
     UiPageTitleComponent,
+    FooterComponent,
   ],
   host: {
     '(document:keydown)': 'onGlobalKeydown($event)',
   },
-  template: `
-    <div class="app-page board-page">
-      <ui-page-title title="Boards">
-        <app-sessions-dropdown
-          #sessionsDropdown
-          class="boards-page__sessions"
-        />
-      </ui-page-title>
-
-      @if (errorMessage()) {
-        <ui-alert variant="danger">
-          {{ errorMessage() }}
-        </ui-alert>
-      }
-
-      @if (loading()) {
-        <div class="app-muted boards-page__loading">
-          Loading boards…
-        </div>
-      } @else if (!hasSessions()) {
-        <ui-create-cta
-          label="Create your first session"
-          (clicked)="openCreateSession($event)"
-        />
-      } @else {
-        <app-create-board-form
-          #createBoardForm
-          class="boards-page__create-board-form"
-          [tracks]="tracks()"
-          [submitting]="createBoardSubmitting()"
-          [showTrigger]="sessionBoards().length > 0"
-          (create)="createBoard($event)"
-        />
-
-        @if (sessionBoards().length === 0) {
-          <ui-create-cta
-            label="Create your first music board in this session"
-            (clicked)="createBoardForm.open()"
-          />
-        } @else {
-          <div class="boards-tabs" role="tablist" #boardsTabs>
-            @for (board of sessionBoards(); track board.id; let i = $index) {
-              <button
-                type="button"
-                class="boards-tab"
-                [class.boards-tab--active]="activeBoardIndex() === i"
-                (click)="scrollToBoard(i)"
-              >{{ board.name || ('Board ' + (i + 1)) }}</button>
-            }
-          </div>
-
-          <div class="boards-list-wrap">
-            <div class="boards-list" #boardsList (scroll)="onBoardsScroll()">
-              @for (board of sessionBoards(); track board.id) {
-                <app-board-card
-                  [board]="board"
-                  [availableGroups]="getGroupsForBoard(board)"
-                  [status]="getBoardStatus(board)"
-                  [selectedWindowId]="getSelectedWindowId(board)"
-                  [masterVolume]="getMasterVolume(board)"
-                  [masterFadeRampMs]="getMasterFadeRampMs(board)"
-                  [volumePercent]="getBoardVolumePercent(board)"
-                  [playlistMode]="board.playlistMode ?? false"
-                  [sequentialWindows]="getSequentialWindows(board)"
-                  [playlistOptions]="getPlaylistOptions(board)"
-                  (delete)="deleteBoard(board)"
-                  (groupChange)="onGroupSelectionChange(board, $event)"
-                  (trackChange)="onTrackSelectionChange(board, $event)"
-                  (windowChange)="onWindowSelectionChange(board, $event)"
-                  (trackWithWindowChange)="onTrackWithWindowChange(board, $event)"
-                  (loopModeChange)="onLoopModeChange(board, $event)"
-                  (toggleOverplay)="toggleOverplay(board)"
-                  (play)="playBoardTrack(board)"
-                  (stop)="stopBoardTrack(board)"
-                  (nearEnd)="onBoardNearEnd(board)"
-                  (ended)="onAudioEnded(board)"
-                  (audioError)="onAudioError(board)"
-                  (modeChange)="onModeChange(board, $event)"
-                  (playlistOptionsChange)="onPlaylistOptionsChange(board, $event)"
-                  (skipNext)="onPlaylistSkip(board)"
-                  (volumePreviewChange)="onBoardVolumePreview(board, $event)"
-                  (volumeCommit)="onBoardVolumeCommit(board, $event)"
-                  (rename)="onBoardRename(board, $event)"
-                  (navigateBoardUp)="focusBoardByOffset(board, -1)"
-                  (navigateBoardDown)="focusBoardByOffset(board, 1)"
-                  (requestPlay)="onBoardRequestPlay(board)"
-                />
-              }
-            </div>
-          </div>
-        }
-      }
-    </div>
-  `,
-  styles: [`
-    :host {
-      display: block;
-      --boards-list-max-height: min(70dvh, 720px);
-    }
-
-    .boards-page__loading {
-      margin-top: 1rem;
-      color: var(--app-text-muted);
-    }
-
-    .boards-page__sessions {
-      flex-shrink: 0;
-      align-self: flex-start;
-      transform: translateY(0.50rem);
-      position: relative;
-      z-index: 50;
-    }
-
-    .boards-list-wrap {
-      margin-top: 1.25rem;
-      max-height: var(--boards-list-max-height);
-      overflow-y: auto;
-      overflow-x: hidden;
-      padding-right: 4px;
-    }
-
-    .boards-list {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    /* Board-name tabs — only shown for the phone carousel. */
-    .boards-tabs {
-      display: none;
-    }
-
-    @media (max-width: 560px) {
-      /* Phone: boards become a horizontal swipe carousel with a name-tab strip
-         on top; the active board lights up, the rest are greyed. */
-      .boards-tabs {
-        display: flex;
-        gap: 6px;
-        overflow-x: auto;
-        scrollbar-width: none;
-        margin-bottom: 10px;
-        padding-bottom: 2px;
-      }
-
-      .boards-tabs::-webkit-scrollbar {
-        display: none;
-      }
-
-      .boards-tab {
-        flex: 0 0 auto;
-        max-width: 46vw;
-        padding: 6px 14px;
-        border: 1px solid var(--app-border-color-soft);
-        border-radius: 999px;
-        background: var(--app-surface);
-        color: var(--app-text-muted);
-        font-family: var(--app-font-heading);
-        font-size: 12px;
-        font-weight: 600;
-        letter-spacing: 0.03em;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        opacity: 0.55;
-        cursor: pointer;
-        transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-      }
-
-      .boards-tab--active {
-        opacity: 1;
-        background: linear-gradient(180deg, #6a1e10 0%, #58180d 100%);
-        color: #fff8ee;
-        border-color: #3d1008;
-      }
-
-      .boards-list {
-        flex-direction: row;
-        flex-wrap: nowrap;
-        gap: 0;
-        overflow-x: auto;
-        overflow-y: visible;
-        scroll-snap-type: x mandatory;
-        scroll-behavior: smooth;
-        scrollbar-width: none;
-        align-items: flex-start;
-      }
-
-      .boards-list::-webkit-scrollbar {
-        display: none;
-      }
-
-      .boards-list app-board-card {
-        flex: 0 0 100%;
-        min-width: 0;
-        scroll-snap-align: start;
-      }
-    }
-
-    .boards-list-wrap,
-    .boards-list,
-    app-create-board-form,
-    ui-create-cta {
-      position: relative;
-    }
-
-    .boards-page__create-board-form {
-      display: block;
-      margin-bottom: 1rem;
-    }
-
-    @media (max-width: 900px) {
-      /* Mobile: natural full-page scroll (header scrolls away with the page),
-         matching the other pages — drop the desktop internal scroll area. */
-      .boards-list-wrap {
-        max-height: none;
-        overflow: visible;
-        padding-right: 0;
-      }
-    }
-  `],
+  templateUrl: './boards-page.component.html',
+  styleUrl: './boards-page.component.scss',
 })
 export class BoardsPageComponent implements OnInit, OnDestroy {
   private readonly boardsApi = inject(MusicBoardsService);
@@ -324,12 +108,22 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   @ViewChild('boardsTabs') boardsTabsRef?: ElementRef<HTMLElement>;
   @ViewChildren(BoardCardComponent) boardCards!: QueryList<BoardCardComponent>;
 
+  /** Target of an in-flight pill-initiated smooth scroll. While set, the boards
+      passed en route are ignored so the clicked pill stays highlighted instead
+      of flickering through each one. */
+  private scrollTargetIndex: number | null = null;
+  private scrollTargetTimer: ReturnType<typeof setTimeout> | null = null;
+
   /** Update the active carousel tab as the board strip is swiped. */
   onBoardsScroll(): void {
     const el = this.boardsListRef?.nativeElement;
     if (!el || el.clientWidth === 0) return;
     const max = this.sessionBoards().length - 1;
     const idx = Math.max(0, Math.min(Math.round(el.scrollLeft / el.clientWidth), max));
+    if (this.scrollTargetIndex !== null) {
+      if (idx === this.scrollTargetIndex) this.clearScrollTarget();
+      return;
+    }
     if (idx !== this.activeBoardIndex()) {
       this.activeBoardIndex.set(idx);
       this.scrollActiveTabIntoView(idx);
@@ -339,9 +133,22 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   scrollToBoard(index: number): void {
     const el = this.boardsListRef?.nativeElement;
     if (!el) return;
+    this.scrollTargetIndex = index;
+    // Fallback: release the lock even if the scroll never lands exactly on the
+    // target (interrupted swipe, sub-pixel rounding) so the tab can't freeze.
+    if (this.scrollTargetTimer) clearTimeout(this.scrollTargetTimer);
+    this.scrollTargetTimer = setTimeout(() => this.clearScrollTarget(), 700);
     el.scrollTo({ left: index * el.clientWidth, behavior: 'smooth' });
     this.activeBoardIndex.set(index);
     this.scrollActiveTabIntoView(index);
+  }
+
+  private clearScrollTarget(): void {
+    this.scrollTargetIndex = null;
+    if (this.scrollTargetTimer) {
+      clearTimeout(this.scrollTargetTimer);
+      this.scrollTargetTimer = null;
+    }
   }
 
   /** Slide the tab strip so the active board's name stays centred (a sliding
@@ -376,9 +183,6 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   private readonly pendingTrackUpdateBoardIds = new Set<number>();
   private readonly playPendingAfterUpdateBoardIds = new Set<number>();
   private readonly playlistAdvanceInFlightBoardIds = new Set<number>();
-
-  /** Fallback board-to-board crossfade when neither side has fades configured. */
-  private static readonly DEFAULT_CROSSFADE_MS = 2000;
 
   private readonly fadeStateVersion = signal(0);
   /** Bumped whenever the locally-selected window changes without a `boards()`
@@ -1123,25 +927,14 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // A board-to-board switch is governed by the outgoing board's fade-out (the
-    // same "outgoing source" rule used for window/track crossfades): one duration
-    // drives the ramp-up and all ramp-downs. When starting from silence there is
-    // no outgoing board, so the incoming board's fade-in sizes the fade-up.
-    let outgoingFadeMs: number;
-    if (boardsToStop.length > 0) {
-      outgoingFadeMs = boardsToStop.reduce(
-        (max, item) => Math.max(max, this.boardFadeOutMs(item)),
-        0,
-      );
-    } else {
-      // Fading in from silence: no outgoing board, so use the incoming fade-in.
-      const incomingBoard = this.findBoard(targetId);
-      outgoingFadeMs = incomingBoard ? this.boardFadeInMs(incomingBoard) : 0;
-    }
-    const rampMs = outgoingCrossfadeMs(
-      outgoingFadeMs,
-      BoardsPageComponent.DEFAULT_CROSSFADE_MS,
-    );
+    // A board-to-board switch always uses a fixed crossfade so every board change
+    // feels the same regardless of the boards' own crossfade settings. When
+    // starting from silence there are no stopping boards, so the incoming board's
+    // own crossfade sizes the fade-up (floored at a tiny safety fade for a 0 setting).
+    const incomingBoard = this.findBoard(targetId);
+    const rampMs = boardsToStop.length > 0
+      ? BOARD_CHANGE_CROSSFADE_MS
+      : effectiveCrossfadeMs(incomingBoard ? this.boardCrossfadeMs(incomingBoard) : 0);
 
     // Schedule audio-clock-driven master gain ramps in each affected
     // board-player. Setting the ramp before the target ensures the child reads
@@ -1309,19 +1102,15 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Fade lengths (ms) currently in effect for a board: the selected window's
-   * fades, or the track's own ("whole track") fades when no window is selected.
+   * Crossfade length (ms) currently in effect for a board: the fade-in + fade-out
+   * of the selected window, or the track's own ("whole track") fades when no
+   * window is selected.
    */
-  private boardFadeInMs(board: Board): number {
-    return this.selectedWindowFor(board)?.fadeInDurationMs
-      ?? board.selectedTrack?.fadeInDurationMs
-      ?? 0;
-  }
-
-  private boardFadeOutMs(board: Board): number {
-    return this.selectedWindowFor(board)?.fadeOutDurationMs
-      ?? board.selectedTrack?.fadeOutDurationMs
-      ?? 0;
+  private boardCrossfadeMs(board: Board): number {
+    const window = this.selectedWindowFor(board);
+    const fadeInMs = window?.fadeInDurationMs ?? board.selectedTrack?.fadeInDurationMs ?? 0;
+    const fadeOutMs = window?.fadeOutDurationMs ?? board.selectedTrack?.fadeOutDurationMs ?? 0;
+    return sourceCrossfadeMs(fadeInMs, fadeOutMs);
   }
 
   private selectedWindowFor(board: Board): TrackWindow | null {
@@ -1688,7 +1477,11 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     };
   }
 
-  private prepareBoards(boards: Board[], resetPersistedVolumes = false): void {
+  private prepareBoards(
+    boards: Board[],
+    resetPersistedVolumes = false,
+    preserveActiveSelection = false,
+  ): void {
     if (resetPersistedVolumes) {
       this.persistedVolumesByBoard.clear();
     }
@@ -1696,6 +1489,14 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     for (const board of boards) {
       this.ensureBoardStatus(board);
       this.syncPersistedVolume(board);
+
+      // A background refresh must not clobber the live window/sequence position of
+      // a playing board: sequence advances are intentionally not persisted, so the
+      // backend's selectedWindow is stale (pinned at the first window).
+      if (preserveActiveSelection && board.id != null && this.isBoardActive(board.id)) {
+        continue;
+      }
+
       this.syncSelectedWindow(board);
       this.syncSequenceMode(board);
     }
@@ -1836,7 +1637,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
         const mergedBoards = this.flattenSessionBoards(sessions.sessions ?? []);
 
-        this.prepareBoards(mergedBoards);
+        this.prepareBoards(mergedBoards, false, true);
 
         // Merge fresh board data but preserve selectedTrack for active boards
         // so that an in-progress stream is not torn down just because the track
@@ -1891,4 +1692,4 @@ function clampPct(value: number | null | undefined): number {
   return Number.isFinite(numeric)
     ? Math.max(0, Math.min(Math.round(numeric), 100))
     : 100;
-}
+} 

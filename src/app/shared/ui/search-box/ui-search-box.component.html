@@ -1,0 +1,21 @@
+
+<div class="ui-search-box">
+  <input
+    class="app-input ui-search-box__input"
+    type="text"
+    [placeholder]="placeholder"
+    [ngModel]="value"
+    (ngModelChange)="valueChange.emit($event)"
+  />
+
+  <button
+    *ngIf="value"
+    type="button"
+    class="ui-search-box__clear"
+    (click)="clear()"
+    aria-label="Clear search"
+    title="Clear"
+  >
+    ✕
+  </button>
+</div>

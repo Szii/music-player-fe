@@ -118,6 +118,8 @@ export class ResetPasswordPageComponent implements OnInit {
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
 
+  readonly passwordMaxLength = FIELD_LIMITS.user.password;
+
   readonly token = signal<string | null>(null);
   readonly status = signal<FormStatus>('ready');
   readonly success = signal(false);

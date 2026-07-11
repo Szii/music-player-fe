@@ -20,6 +20,7 @@ import { TrackCatalogComponent } from '../../components/track-catalog/track-cata
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
+import { FooterComponent } from '../../../../shared/components/footer/footer.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { httpErrorMessage } from '../../../../shared/utils/http-error';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
@@ -33,63 +34,10 @@ import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog
     UiAlertComponent,
     NormalButtonComponent,
     UiPageTitleComponent,
+    FooterComponent,
   ],
-  template: `
-    <div class="app-page workshop-page">
-      <ui-page-title
-        title="Workshop"
-
-      >
-        <normal-button type="button" (clicked)="openMyTracks()">
-          My tracks
-        </normal-button>
-      </ui-page-title>
-
-      @if (errorMessage()) {
-        <ui-alert variant="danger">{{ errorMessage() }}</ui-alert>
-      }
-
-      @if (!hasLoaded()) {
-        <div class="app-muted">Loading...</div>
-      } @else {
-        <div class="workshop-page__body">
-          <app-track-catalog
-            [tracks]="catalogTracks()"
-            [subscribedIds]="subscribedIds()"
-            [busyTrackId]="busyTrackId()"
-            (subscribe)="subscribeFromCatalog($event)"
-            (unsubscribe)="unsubscribe($event)"
-          />
-
-          <hr class="workshop-page__divider" />
-        </div>
-      }
-
-      @if (myTracksOpen()) {
-        <app-my-tracks
-          [tracks]="myTracks()"
-          [busyTrackId]="busyTrackId()"
-          (publish)="publishTrack($event)"
-          (unpublish)="unpublishTrack($event)"
-          (close)="closeMyTracks()"
-          (addTrack)="goToAddTrack()"
-        />
-      }
-    </div>
-  `,
-  styles: [`
-
-    .workshop-page__divider {
-      border: none;
-      border-top: var(--app-border);
-    }
-
-    .workshop-page,
-    .workshop-page__body {
-      min-height: 0;
-    }
-
-  `],
+  templateUrl: './workshop-page.component.html',
+  styleUrl: './workshop-page.component.scss',
 })
 export class WorkshopPageComponent implements OnInit {
   private readonly tracksApi = inject(MusicTracksService);

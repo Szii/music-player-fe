@@ -24,6 +24,7 @@ import { httpErrorMessage } from '../../../../shared/utils/http-error';
   imports: [
     ReactiveFormsModule,
     RouterLink,
+    FooterComponent,
     UiCardComponent,
     UiFormFieldComponent,
     UiTextInputComponent,
@@ -103,6 +104,7 @@ export class LoginPageComponent implements OnDestroy {
   private readonly router = inject(Router);
   private readonly credentialsStore = inject(AuthCredentialsStore);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly tutorial = inject(TutorialService);
 
   readonly showEmailInputs = SHOW_EMAIL_INPUTS;
 
@@ -120,7 +122,7 @@ export class LoginPageComponent implements OnDestroy {
   nameError(): string {
     const control = this.form.controls.name;
     if (!this.shouldShowError(control)) return '';
-    return 'Username is required.';
+    return 'Identifier is required.';
   }
 
   passwordError(): string {
@@ -165,7 +167,7 @@ export class LoginPageComponent implements OnDestroy {
             // Login set the refresh cookie; renew the access token off it.
             this.tokenRenewal.start();
           }
-          void this.router.navigateByUrl('/');
+          void this.router.navigateByUrl('/').then(() => this.tutorial.maybeAutoStart());
         },
         error: (err: unknown) => {
           console.error(err);

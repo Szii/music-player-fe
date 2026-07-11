@@ -22,6 +22,7 @@ import { httpErrorMessage } from '../../../../shared/utils/http-error';
   imports: [
     ReactiveFormsModule,
     RouterLink,
+    FooterComponent,
     UiCardComponent,
     UiFormFieldComponent,
     UiTextInputComponent,
@@ -101,6 +102,9 @@ export class RegisterPageComponent implements OnDestroy {
   private readonly toast = inject(ToastService);
   private readonly credentialsStore = inject(AuthCredentialsStore);
   private readonly destroyRef = inject(DestroyRef);
+  readonly legalDialog = inject(LegalDialogService);
+
+  readonly limits = FIELD_LIMITS.user;
 
   readonly isSubmitting = signal(false);
   readonly submitted = signal(false);
@@ -113,6 +117,7 @@ export class RegisterPageComponent implements OnDestroy {
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required, Validators.minLength(6)]],
     confirm: ['', [Validators.required]],
+    agree: [false, [Validators.requiredTrue]],
   }, { validators: [matchPasswords()] });
 
   nameError(): string {

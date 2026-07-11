@@ -1,0 +1,59 @@
+
+<div class="um" [class.um--open]="isOpen()">
+  <button
+    type="button"
+    class="um__trigger"
+    [attr.aria-expanded]="isOpen()"
+    aria-haspopup="menu"
+    aria-label="Open user menu"
+    (click)="toggle()"
+  >
+    <span class="um__avatar" aria-hidden="true">{{ initial() }}</span>
+    <span class="um__name">{{ displayName() }}</span>
+    <span class="um__arrow" aria-hidden="true">
+      <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
+        <path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.6"
+          stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </span>
+  </button>
+
+  @if (isOpen()) {
+    <div class="app-popover-surface um__panel" role="menu">
+      <a
+        routerLink="/profile"
+        class="app-popover-item"
+        role="menuitem"
+        (click)="onNavigate()"
+      >
+        <span class="um__item-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+            stroke="currentColor" stroke-width="1.9"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="8" r="4" />
+            <path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" />
+          </svg>
+        </span>
+        User profile
+      </a>
+
+      <button
+        type="button"
+        class="app-popover-item app-popover-item--danger"
+        role="menuitem"
+        (click)="onLogout()"
+      >
+        <span class="um__item-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+            stroke="currentColor" stroke-width="1.9"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4" />
+            <path d="M16 17l5-5-5-5" />
+            <path d="M21 12H9" />
+          </svg>
+        </span>
+        Log off
+      </button>
+    </div>
+  }
+</div>

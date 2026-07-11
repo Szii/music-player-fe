@@ -1,0 +1,22 @@
+
+@if (dialog(); as dlg) {
+  <ui-dialog-shell
+    [title]="dlg.title"
+    titleId="info-dialog-title"
+    [showFooter]="true"
+    (closed)="infoDialog.close()"
+  >
+    <p class="info-dialog__message">{{ dlg.message }}</p>
+
+    <ng-container dialog-footer>
+      <normal-button
+        type="button"
+        variant="secondary"
+        size="md"
+        (clicked)="infoDialog.close()"
+      >
+        {{ dlg.closeText }}
+      </normal-button>
+    </ng-container>
+  </ui-dialog-shell>
+}

@@ -1,0 +1,148 @@
+
+<div
+  class="sel"
+  [class.sel--open]="isOpen()"
+  [class.sel--disabled]="isDisabled()"
+>
+  <button
+    #trigger
+    type="button"
+    class="sel__trigger"
+    [disabled]="isDisabled()"
+    [attr.aria-expanded]="isOpen()"
+    aria-haspopup="listbox"
+    (click)="toggle()"
+  >
+    <span
+      class="sel__value"
+      [class.sel__value--placeholder]="isNullValue()"
+    >{{ selectedLabel() }}</span>
+
+    <span class="sel__arrow" aria-hidden="true">
+      <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
+        <path
+          d="M1 1L5 5L9 1"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    </span>
+  </button>
+
+  @if (isOpen() && panelRect(); as panel) {
+    <div class="sel__scrim" aria-hidden="true" (pointerdown)="onScrimDown($event)"></div>
+    <div
+      #sheetEl
+      class="app-popover-surface sel__panel"
+      [style.top]="panel.top != null ? panel.top + 'px' : 'auto'"
+      [style.bottom]="panel.bottom != null ? panel.bottom + 'px' : 'auto'"
+      [style.left.px]="panel.left"
+      [style.width.px]="panel.width"
+      [style.max-height.px]="panel.maxHeight"
+    >
+      <button
+        type="button"
+        class="sel__handle"
+        [appBottomSheetDrag]="sheetEl"
+        (dismiss)="dismissSheet()"
+        aria-label="Close"
+      >
+        <span class="sel__handle-bar" aria-hidden="true"></span>
+      </button>
+
+      @if (enableSearch()) {
+        <div class="sel__search-wrap">
+          <input
+            #searchInput
+            type="text"
+            class="sel__search"
+            placeholder="Search…"
+            autocomplete="off"
+            [value]="searchQuery()"
+            (input)="searchQuery.set($any($event.target).value)"
+            (click)="$event.stopPropagation()"
+            (keydown)="onSearchKeydown($event)"
+          />
+        </div>
+      }
+
+      <div #optionsList class="sel__options" role="listbox">
+        @for (opt of filteredOptions(); track opt.value; let i = $index) {
+          <div
+            class="sel__option-wrap"
+            [attr.data-option-index]="i"
+            (mouseenter)="onOptionHover(opt, i, $event)"
+            (mousemove)="onOptionMouseMove(opt, i)"
+            (mouseleave)="onOptionUnhover()"
+          >
+            <button
+              type="button"
+              class="app-popover-item sel__option"
+              [class.app-popover-item--selected]="currentValue() === opt.value"
+              [class.app-popover-item--highlighted]="highlightedIndex() === i"
+              [class.sel__option--has-sub]="(opt.subOptions?.length ?? 0) > 0"
+              [class.sel__option--disabled]="opt.disabled"
+              [disabled]="opt.disabled"
+              [attr.aria-disabled]="opt.disabled || null"
+              role="option"
+              [attr.aria-selected]="currentValue() === opt.value"
+              (click)="selectOption(opt)"
+            >
+              <span class="sel__option-label">{{ opt.label }}</span>
+
+              @if ((opt.subOptions?.length ?? 0) > 0) {
+                <span
+                  class="sel__option-subhint"
+                  [class.sel__option-subhint--open]="hoveredOptionValue() === opt.value"
+                  role="button"
+                  tabindex="-1"
+                  aria-label="Show windows for this track"
+                  (click)="onMoreTap(opt, i, $event)"
+                >
+                  <span class="sel__option-subhint-text">More</span>
+                  <span class="sel__option-subhint-icon">›</span>
+                </span>
+              }
+
+              <span class="sel__option-check-slot" aria-hidden="true">
+                @if (currentValue() === opt.value) {
+                  <span class="sel__option-check">✓</span>
+                }
+              </span>
+            </button>
+
+            @if (hoveredOptionValue() === opt.value && (opt.subOptions?.length ?? 0) > 0 && flyoutRect(); as fly) {
+              <div
+                class="app-popover-surface sel__flyout"
+                [style.top.px]="fly.top"
+                [style.left.px]="fly.left"
+                [style.max-height.px]="fly.maxHeight"
+                (mouseenter)="onFlyoutHover()"
+                (mouseleave)="onFlyoutUnhover()"
+              >
+                @for (sub of opt.subOptions; track sub.value; let si = $index) {
+                  <button
+                    type="button"
+                    class="app-popover-item sel__flyout-option"
+                    [class.app-popover-item--highlighted]="highlightedSubIndex() === si"
+                    [attr.data-sub-index]="si"
+                    (mousemove)="highlightedSubIndex.set(si)"
+                    (click)="selectSubOption(opt, sub)"
+                  >
+                    {{ sub.label }}
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        }
+
+        @if (filteredOptions().length === 0) {
+          <div class="sel__no-match">No matches</div>
+        }
+      </div>
+    </div>
+  }
+</div>

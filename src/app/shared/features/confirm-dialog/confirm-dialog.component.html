@@ -1,0 +1,31 @@
+
+@if (dialog(); as dlg) {
+  <ui-dialog-shell
+    [title]="dlg.title"
+    titleId="confirm-dialog-title"
+    [showFooter]="true"
+    (closed)="confirmDialog.cancel()"
+  >
+    <p class="confirm-dialog__message">{{ dlg.message }}</p>
+
+    <ng-container dialog-footer>
+      <normal-button
+        type="button"
+        variant="secondary"
+        size="md"
+        (clicked)="confirmDialog.cancel()"
+      >
+        {{ dlg.cancelText }}
+      </normal-button>
+
+      <normal-button
+        type="button"
+        [variant]="dlg.variant === 'danger' ? 'danger' : 'primary'"
+        size="md"
+        (clicked)="confirmDialog.accept()"
+      >
+        {{ dlg.confirmText }}
+      </normal-button>
+    </ng-container>
+  </ui-dialog-shell>
+}

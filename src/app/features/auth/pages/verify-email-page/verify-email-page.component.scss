@@ -1,0 +1,11 @@
+
+.verify-page__text {
+  margin: 0 0 1rem;
+  line-height: 1.5;
+}
+.verify-page__text--error {
+  color: var(--color-danger, #b00020);
+}
+.verify-page__link {
+  margin-top: 1rem;
+}

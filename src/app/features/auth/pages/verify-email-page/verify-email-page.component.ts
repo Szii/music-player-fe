@@ -16,48 +16,8 @@ type VerifyState =
   selector: 'app-verify-email-page',
   imports: [RouterLink, UiCardComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div class="app-page app-page--narrow">
-      <ui-card title="Verify email">
-        @switch (state().status) {
-          @case ('pending') {
-            <p class="verify-page__text">Preparing verification...</p>
-          }
-          @case ('verifying') {
-            <p class="verify-page__text">Verifying your email, please wait...</p>
-          }
-          @case ('success') {
-            <p class="verify-page__text">
-              Your email has been verified. You can now sign in.
-            </p>
-            <div class="verify-page__link">
-              <a routerLink="/login">Go to login</a>
-            </div>
-          }
-          @case ('error') {
-            <p class="verify-page__text verify-page__text--error">
-              {{ errorMessage() }}
-            </p>
-            <div class="verify-page__link">
-              <a routerLink="/login">Go to login</a>
-            </div>
-          }
-        }
-      </ui-card>
-    </div>
-  `,
-  styles: [`
-    .verify-page__text {
-      margin: 0 0 1rem;
-      line-height: 1.5;
-    }
-    .verify-page__text--error {
-      color: var(--color-danger, #b00020);
-    }
-    .verify-page__link {
-      margin-top: 1rem;
-    }
-  `],
+  templateUrl: './verify-email-page.component.html',
+  styleUrl: './verify-email-page.component.scss',
 })
 export class VerifyEmailPageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);

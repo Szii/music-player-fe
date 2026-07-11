@@ -1,13 +1,21 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
   input,
   output,
   signal,
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { GroupRequest } from '../../../../api/generated';
+import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
+import {
+  PROFANITY_ERROR,
+  hasProfanity,
+  profanityValidator,
+} from '../../../../shared/validators/profanity.validator';
 import { UiFormFieldComponent } from '../../../../shared/ui/form-field/ui-form-field.component';
 import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-input.component';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
@@ -26,56 +34,8 @@ import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-di
     IconButtonComponent,
     UiDialogShellComponent,
   ],
-  template: `
-    @if (showTrigger()) {
-      <app-icon-button
-        icon="plus"
-        label="Add group"
-        variant="primary"
-        size="lg"
-        (clicked)="open()"
-      />
-    }
-
-    @if (isOpen()) {
-      <ui-dialog-shell
-        title="Create group"
-        titleId="create-group-title"
-        [showFooter]="true"
-        (closed)="close()"
-      >
-        <form [formGroup]="createForm" (ngSubmit)="submit()" class="create-group-form">
-          <ui-form-field label="Group name">
-            <ui-text-input
-              formControlName="listName"
-              placeholder="e.g. Combat Music"
-            />
-          </ui-form-field>
-        </form>
-
-        <ng-container dialog-footer>
-          <normal-button type="button" variant="secondary" (clicked)="close()">
-            Cancel
-          </normal-button>
-          <normal-button
-            type="submit"
-            [disabled]="submitting() || !createForm.value.listName?.trim()"
-            [loading]="submitting()"
-            (clicked)="submit()"
-          >
-            Create group
-          </normal-button>
-        </ng-container>
-      </ui-dialog-shell>
-    }
-  `,
-  styles: [`
-    .create-group-form {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-  `],
+  templateUrl: './create-group-form.component.html',
+  styleUrl: './create-group-form.component.scss',
 })
 export class CreateGroupFormComponent {
   private readonly fb = inject(FormBuilder);
@@ -86,10 +46,19 @@ export class CreateGroupFormComponent {
 
   readonly isOpen = signal(false);
   readonly submitting = signal(false);
+  readonly nameMaxLength = FIELD_LIMITS.group.name;
 
   readonly createForm = this.fb.group({
-    listName: [''],
+    listName: ['', [profanityValidator]],
   });
+
+  private readonly nameValue = toSignal(
+    this.createForm.controls.listName.valueChanges,
+    { initialValue: '' },
+  );
+  readonly nameError = computed(() =>
+    hasProfanity(this.nameValue() ?? '') ? PROFANITY_ERROR : '',
+  );
 
   open(): void {
     this.isOpen.set(true);
@@ -102,6 +71,9 @@ export class CreateGroupFormComponent {
   }
 
   submit(): void {
+    this.createForm.markAllAsTouched();
+    if (this.createForm.invalid) return;
+
     const listName = this.createForm.value.listName?.trim();
     if (!listName) return;
     this.submitting.set(true);

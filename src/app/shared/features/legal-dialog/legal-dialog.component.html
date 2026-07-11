@@ -1,0 +1,11 @@
+
+@if (legalDialog.isOpen()) {
+  <ui-dialog-shell
+    title="Privacy & Terms"
+    titleId="legal-dialog-title"
+    size="wide"
+    (closed)="legalDialog.close()"
+  >
+    <app-legal-content />
+  </ui-dialog-shell>
+}

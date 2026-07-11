@@ -1,0 +1,20 @@
+
+.ui-char-counter {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.72rem;
+  line-height: 1;
+  text-align: right;
+  color: var(--app-text-soft);
+  font-variant-numeric: tabular-nums;
+  transition: color 0.15s ease;
+}
+
+.ui-char-counter--near {
+  color: var(--app-warning);
+}
+
+.ui-char-counter--at {
+  color: var(--app-danger);
+  font-weight: 600;
+}

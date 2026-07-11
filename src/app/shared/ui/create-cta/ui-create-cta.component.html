@@ -1,0 +1,24 @@
+<div class="ui-create-cta__wrap">
+  <button
+    type="button"
+    class="ui-create-cta"
+    [attr.aria-label]="ariaLabel() || label()"
+    (click)="clicked.emit($event)"
+  >
+    <span class="ui-create-cta__plus" aria-hidden="true">
+      <svg
+        viewBox="0 0 24 24"
+        width="36"
+        height="36"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.4"
+        stroke-linecap="round"
+      >
+        <path d="M12 5v14" />
+        <path d="M5 12h14" />
+      </svg>
+    </span>
+    <span class="ui-create-cta__label">{{ label() }}</span>
+  </button>
+</div>

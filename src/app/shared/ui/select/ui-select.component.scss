@@ -1,0 +1,331 @@
+
+:host {
+  display: block;
+}
+
+.sel {
+  position: relative;
+}
+
+.sel__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--app-border-color-soft);
+  border-radius: var(--app-radius-sm);
+  background: #faf4e4;
+  color: var(--app-text);
+  font-family: var(--app-font-body);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+@media (hover: hover) {
+  .sel__trigger:hover:not(:disabled) {
+    border-color: var(--app-border-color);
+    background: #f5edd8;
+  }
+}
+
+.sel__trigger:focus-visible {
+  outline: none;
+  border-color: var(--app-primary);
+  box-shadow: var(--app-focus-ring);
+}
+
+.sel--open .sel__trigger {
+  border-color: var(--app-primary);
+  box-shadow: var(--app-focus-ring);
+}
+
+.sel--disabled .sel__trigger {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: var(--app-bg-muted);
+}
+
+.sel__value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--app-text);
+}
+
+.sel__value--placeholder {
+  color: var(--app-text-muted);
+}
+
+.sel__arrow {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  color: var(--app-primary);
+  transition: transform 0.18s ease;
+}
+
+.sel--open .sel__arrow {
+  transform: rotate(180deg);
+}
+
+.sel__panel {
+  position: fixed;
+  z-index: 9999;
+}
+
+/* Scrim + drag handle are phone-only (see media query). */
+.sel__scrim,
+.sel__handle {
+  display: none;
+}
+
+.sel__search-wrap {
+  flex-shrink: 0;
+  padding: 12px 10px 6px;
+  border-bottom: 1px solid rgba(158, 98, 53, 0.15);
+  background:
+    linear-gradient(90deg,
+      transparent 0%,
+      rgba(201, 164, 76, 0.55) 12%,
+      #58180d 30%,
+      rgba(201, 164, 76, 0.9) 50%,
+      #58180d 70%,
+      rgba(201, 164, 76, 0.55) 88%,
+      transparent 100%
+    ) top / 100% 3px no-repeat,
+    #faf4e4;
+}
+
+.sel__search {
+  width: 100%;
+  padding: 5px 10px;
+  border: 1px solid var(--app-border-color-soft);
+  border-radius: var(--app-radius-sm);
+  background: #fff8ec;
+  color: var(--app-text);
+  font-family: var(--app-font-body);
+  font-size: 13px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.sel__search:focus {
+  border-color: var(--app-primary);
+  box-shadow: var(--app-focus-ring);
+}
+
+.sel__options {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.sel__option,
+.sel__flyout-option {
+  border-bottom: 1px solid rgba(158, 98, 53, 0.12);
+}
+
+.sel__option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 24px;
+  align-items: center;
+  column-gap: 10px;
+  width: 100%;
+}
+
+.sel__flyout-option {
+  display: flex;
+  justify-content: space-between;
+}
+
+.sel__option:last-child,
+.sel__flyout-option:last-child {
+  border-bottom: none;
+}
+
+.sel__option--disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sel__option-label {
+  grid-column: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sel__option-wrap {
+  position: relative;
+}
+
+.sel__option-subhint {
+  grid-column: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  gap: 6px;
+  padding: 3px 7px 3px 8px;
+  border: 1px solid rgba(88, 24, 13, 0.28);
+  border-radius: 999px;
+  background: rgba(201, 164, 76, 0.22);
+  color: #58180d;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 248, 236, 0.7),
+    0 1px 2px rgba(88, 24, 13, 0.12);
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.sel__option-subhint-icon {
+  font-size: 18px;
+  line-height: 0.8;
+  font-weight: 900;
+}
+
+.sel__option--has-sub:hover .sel__option-subhint,
+.sel__option--has-sub:focus-visible .sel__option-subhint,
+.sel__option--has-sub.app-popover-item--highlighted .sel__option-subhint {
+  border-color: var(--app-primary);
+  background: rgba(201, 164, 76, 0.38);
+  color: var(--app-primary);
+  transform: translateX(2px);
+}
+
+.sel__option-subhint--open {
+  border-color: var(--app-primary);
+  background: rgba(201, 164, 76, 0.5);
+  color: var(--app-primary);
+}
+
+.sel__option-check-slot {
+  grid-column: 3;
+  width: 24px;
+  min-width: 24px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.sel__option-check {
+  color: var(--app-primary);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.sel__flyout {
+  position: fixed;
+  z-index: 10000;
+  min-width: 200px;
+  width: 220px;
+  max-width: 320px;
+  overflow-y: auto;
+}
+
+.sel__no-match {
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--app-text-muted);
+  font-style: italic;
+}
+
+/* Mobile: render the menu as a bottom sheet — full-width, bottom-anchored,
+   large tap targets — instead of a narrow popover anchored to the trigger.
+   Best practice for selects on small screens (NN/g, Material). Overrides
+   the JS-computed inline position with !important. */
+@media (max-width: 640px) {
+  .sel__trigger {
+    min-height: 44px;
+  }
+
+  /* Dim everything behind the sheet (page or dialog) so it reads as one
+     clean layer on top, not stacked surfaces. */
+  .sel__scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    background: rgba(15, 8, 3, 0.45);
+    animation: sel-scrim-in 0.18s ease;
+  }
+
+  .sel__panel,
+  .sel__flyout {
+    position: fixed !important;
+    top: auto !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    /* Cap to a handful of rows so the list overflows and scrolls inside
+       the sheet, rather than filling the screen with no inner scroll. */
+    max-height: min(52vh, 416px) !important;
+    border-radius: var(--app-radius-lg) var(--app-radius-lg) 0 0 !important;
+    box-shadow: 0 -14px 36px rgba(15, 8, 3, 0.34) !important;
+    animation: sel-sheet-up 0.2s ease !important;
+  }
+
+  /* Drag/tap handle at the top of the sheet (drag down or tap to close). */
+  .sel__handle {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 26px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: grab;
+  }
+
+  .sel__handle-bar {
+    width: 38px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--app-border-color-soft);
+  }
+
+  /* Keep the scroll inside the sheet — don't chain to the page behind. */
+  .sel__options {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .sel__option {
+    min-height: 48px;
+  }
+
+  /* Bigger "More" tap target to open the windows sheet on touch. */
+  .sel__option-subhint {
+    padding: 8px 12px;
+  }
+}
+
+@keyframes sel-sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes sel-scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

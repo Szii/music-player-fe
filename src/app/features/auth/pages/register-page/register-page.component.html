@@ -1,0 +1,73 @@
+
+<div class="app-page app-page--narrow">
+  <ui-card title="Register">
+    @if (registered()) {
+      <app-verification-required (cancel)="onGoToLogin()" />
+    } @else {
+      @if (formError()) {
+        <ui-alert variant="danger" role="alert">{{ formError() }}</ui-alert>
+      }
+
+      <form class="app-form-stack" [formGroup]="form" (ngSubmit)="onSubmit()">
+        <ui-form-field
+          label="Username"
+          [error]="nameError()"
+        >
+          <ui-text-input formControlName="name" name="username" autocomplete="username" [maxLength]="limits.name" />
+        </ui-form-field>
+
+        <ui-form-field
+          label="Email"
+          [error]="emailError()"
+        >
+          <ui-text-input formControlName="email" type="email" autocomplete="email" [maxLength]="limits.email" />
+        </ui-form-field>
+
+        <ui-form-field
+          label="Password"
+          [error]="passwordError()"
+        >
+          <ui-text-input formControlName="password" type="password" autocomplete="new-password" [maxLength]="limits.password" />
+        </ui-form-field>
+
+        <ui-form-field
+          label="Confirm password"
+          [error]="confirmError()"
+        >
+          <ui-text-input formControlName="confirm" type="password" autocomplete="new-password" [maxLength]="limits.password" />
+        </ui-form-field>
+
+        <div class="register-page__agree">
+          <input
+            id="register-agree"
+            class="register-page__agree-input"
+            type="checkbox"
+            formControlName="agree"
+          />
+          <div class="register-page__agree-text">
+            <label for="register-agree">I agree to the </label>
+            <button type="button" class="register-page__terms-link" (click)="legalDialog.open()">
+              Privacy &amp; Terms
+            </button>
+          </div>
+        </div>
+
+        <ui-form-actions>
+          <normal-button
+            type="submit"
+            [disabled]="form.invalid || isSubmitting()"
+            [loading]="isSubmitting()"
+          >
+            {{ isSubmitting() ? 'Creating account...' : 'Create account' }}
+          </normal-button>
+        </ui-form-actions>
+      </form>
+
+      <div class="auth-page__link">
+        <a routerLink="/login">Already have an account? Login</a>
+      </div>
+    }
+  </ui-card>
+
+  <app-footer />
+</div>

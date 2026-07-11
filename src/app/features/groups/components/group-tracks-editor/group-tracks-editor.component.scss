@@ -1,0 +1,289 @@
+
+:host {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+ui-list-toolbar {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.editor__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 0.92rem;
+  color: var(--app-text-muted);
+}
+
+.editor__bulk-actions {
+  display: inline-flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.editor__link-btn {
+  border: none;
+  background: transparent;
+  color: var(--app-primary);
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+}
+
+.editor__link-btn:hover {
+  color: var(--app-primary-hover);
+  text-decoration: underline;
+}
+
+.editor__empty {
+  padding: 1rem;
+  border: var(--app-border);
+  border-radius: var(--app-radius-md);
+  color: var(--app-text-muted);
+  background: var(--app-bg);
+  font-style: italic;
+}
+
+.editor__no-tracks {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.75rem;
+  padding: 2rem 1.5rem;
+  border: 1px dashed var(--app-border-color);
+  border-radius: var(--app-radius-md);
+  background:
+    radial-gradient(ellipse at center, rgba(201, 164, 76, 0.06) 0, transparent 60%),
+    var(--app-surface);
+}
+
+.editor__no-tracks-title {
+  margin: 0;
+  font-family: var(--app-font-heading);
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  color: var(--app-heading);
+}
+
+.editor__no-tracks-msg {
+  margin: 0;
+  max-width: 42ch;
+  font-size: 0.92rem;
+  color: var(--app-text-muted);
+}
+
+.editor__no-tracks-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 0.5rem;
+}
+
+/*
+  Desktop behavior restored from the original:
+  toolbar/meta stay fixed in the modal body, only this list scrolls.
+*/
+.editor__list {
+  border: var(--app-border);
+  border-radius: var(--app-radius-md);
+  overflow: auto;
+  max-height: min(46vh, 380px);
+  background: var(--app-surface);
+}
+
+.editor-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  min-width: 0;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--app-border-color);
+  cursor: pointer;
+  transition: background 0.15s ease;
+  box-sizing: border-box;
+}
+
+.editor-row:last-child {
+  border-bottom: none;
+}
+
+.editor-row:hover {
+  background: var(--app-bg-soft);
+}
+
+.editor-row--checked {
+  background: rgba(241, 230, 210, 0.55);
+}
+
+.editor-row__check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.editor-row__check-input {
+  accent-color: var(--app-primary);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.editor-row__check-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.editor-row__main {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.editor-row__title {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--app-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-row__sub {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  margin-top: 3px;
+  font-size: 0.86rem;
+  color: var(--app-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-row__meta {
+  white-space: nowrap;
+  font-size: 0.9rem;
+  color: var(--app-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-mobile-row {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.editor-mobile-row--checked {
+  background:
+    radial-gradient(ellipse at top right, rgba(75, 124, 49, 0.12) 0, transparent 38%),
+    var(--app-surface);
+}
+
+.editor-mobile-row__label {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.editor-mobile-row__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.editor-mobile-row__title-wrap {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.editor-mobile-row__title {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-mobile-row__subtitle {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  margin-top: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-mobile-row__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.editor-mobile-row__meta span {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-mobile-row ui-chip {
+  justify-self: end;
+  max-width: 100%;
+}
+
+/* Desktop list ↔ mobile list switch is handled by the shared
+   .app-table-desktop-only / .app-entity-list utilities at md (900px),
+   matching every other table-like view in the app. */
+@media (max-width: 900px) {
+  .editor__meta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+/* Chip stays top-right at every width — the title (with its checkbox)
+   truncates rather than the chip dropping to its own line. */

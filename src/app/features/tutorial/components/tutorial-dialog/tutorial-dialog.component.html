@@ -1,0 +1,89 @@
+
+@if (tutorial.step(); as step) {
+  <ui-dialog-shell
+    [title]="step.title"
+    [subtitle]="(tutorial.index()! + 1) + ' / ' + tutorial.steps.length"
+    titleId="tutorial-dialog-title"
+    size="wide"
+    [showFooter]="true"
+    (closed)="tutorial.close()"
+  >
+    <div class="tutorial-clip">
+    <div
+      #slide
+      class="tutorial"
+      [class.tutorial--faq]="!step.image"
+    >
+      @if (step.image) {
+        <picture class="tutorial__media">
+          @if (step.imageMobile) {
+            <source media="(max-width: 640px)" [srcset]="step.imageMobile" />
+          }
+          <img
+            #image
+            class="tutorial__img"
+            [src]="step.image"
+            [alt]="step.alt"
+            decoding="async"
+            draggable="false"
+          />
+        </picture>
+      }
+
+      <div class="tutorial__body" [innerHTML]="step.body"></div>
+
+      @if (step.faq; as faq) {
+        <ul class="tutorial__faq">
+          @for (item of faq; track item.question) {
+            <li>
+              <details>
+                <summary>{{ item.question }}</summary>
+                <div class="tutorial__faq-answer" [innerHTML]="item.answer"></div>
+              </details>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+    </div>
+
+    <ng-container dialog-footer>
+      <div class="tutorial__footer">
+        <nav class="tutorial__dots" aria-label="Tutorial steps">
+          @for (s of tutorial.steps; track $index) {
+            <button
+              type="button"
+              class="tutorial__dot"
+              [class.tutorial__dot--active]="$index === tutorial.index()"
+              [attr.aria-label]="'Go to step ' + ($index + 1)"
+              [attr.aria-current]="$index === tutorial.index() ? 'step' : null"
+              (click)="goTo($index)"
+            ></button>
+          }
+        </nav>
+
+        <div class="tutorial__nav">
+        <normal-button
+          type="button"
+          variant="secondary"
+          size="md"
+          [disabled]="tutorial.isFirst()"
+          (clicked)="goPrev()"
+        >
+          Back
+        </normal-button>
+
+        @if (tutorial.isLast()) {
+          <normal-button type="button" variant="primary" size="md" (clicked)="tutorial.close()">
+            Done
+          </normal-button>
+        } @else {
+          <normal-button type="button" variant="primary" size="md" (clicked)="goNext()">
+            Next
+          </normal-button>
+        }
+        </div>
+      </div>
+    </ng-container>
+  </ui-dialog-shell>
+}

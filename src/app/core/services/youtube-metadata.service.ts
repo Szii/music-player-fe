@@ -1,5 +1,8 @@
 import { Injectable, NgZone, inject } from '@angular/core';
-import { YoutubeIframeApiService } from './youtube-iframe-api.service';
+import {
+  YoutubeIframeApiService,
+  YT_EMBED_HOST,
+} from './youtube-iframe-api.service';
 
 export interface YoutubeMetadata {
   /** The original YouTube video title. */
@@ -82,6 +85,8 @@ export class YoutubeMetadataService {
           );
 
           player = new yt.Player(host, {
+            // Privacy-enhanced domain — must match the CSP frame-src directive.
+            host: YT_EMBED_HOST,
             width: 320,
             height: 180,
             videoId,
@@ -106,7 +111,8 @@ export class YoutubeMetadataService {
               onStateChange: () => tryCapture(),
               onError: () => fail(new Error('YouTube could not load this video')),
             },
-          });
+            // `host` is a real runtime option but missing from @types/youtube.
+          } as YT.PlayerOptions & { host: string });
 
           pollTimer = setInterval(tryCapture, 250);
         }),

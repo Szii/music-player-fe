@@ -9,11 +9,18 @@ import {
   signal,
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiFormFieldComponent } from '../../../../shared/ui/form-field/ui-form-field.component';
 import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-input.component';
 import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
+import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
+import {
+  PROFANITY_ERROR,
+  hasProfanity,
+  profanityValidator,
+} from '../../../../shared/validators/profanity.validator';
 
 export interface TrackFormEvent {
   trackName: string;
@@ -32,81 +39,8 @@ export interface TrackFormEvent {
     IconButtonComponent,
     UiDialogShellComponent,
   ],
-  template: `
-    @if (showTrigger()) {
-      <app-icon-button
-        icon="plus"
-        label="Add track"
-        variant="primary"
-        size="lg"
-        (clicked)="open()"
-      />
-    }
-
-    @if (isOpen()) {
-      <ui-dialog-shell
-        [title]="isEditing() ? 'Edit track' : 'Add track'"
-        titleId="track-modal-title"
-        [showFooter]="true"
-        (closed)="close()"
-      >
-        <form [formGroup]="form" (ngSubmit)="onSubmit()" class="track-form">
-          <ui-form-field label="Track name">
-            <ui-text-input
-              formControlName="trackName"
-              placeholder="e.g. Dark Forest Ambience"
-            />
-          </ui-form-field>
-
-          <ui-form-field label="Track link" [error]="trackLinkError()">
-            <ui-text-input
-              formControlName="trackLink"
-              type="url"
-              placeholder="https://youtube.com/..."
-            />
-            @if (linkLocked()) {
-              <span class="track-form__hint">
-                The link can't be changed once a track has windows or is published.
-              </span>
-            }
-          </ui-form-field>
-        </form>
-
-        <ng-container dialog-footer>
-          <normal-button
-            type="button"
-            variant="secondary"
-            (clicked)="close()"
-          >
-            Cancel
-          </normal-button>
-
-          <normal-button
-            type="submit"
-            [disabled]="form.invalid || submitting()"
-            [loading]="submitting()"
-            (clicked)="onSubmit()"
-          >
-            {{ isEditing() ? 'Save changes' : 'Add track' }}
-          </normal-button>
-        </ng-container>
-      </ui-dialog-shell>
-    }
-  `,
-  styles: [`
-    .track-form {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .track-form__hint {
-      display: block;
-      margin-top: 4px;
-      font-size: 0.8rem;
-      color: var(--app-text-muted);
-    }
-  `],
+  templateUrl: './track-form.component.html',
+  styleUrl: './track-form.component.scss',
 })
 export class TrackFormComponent {
   private readonly fb = inject(FormBuilder);
@@ -124,13 +58,26 @@ export class TrackFormComponent {
 
   readonly isOpen = signal(false);
 
+  readonly limits = FIELD_LIMITS.track;
+
   readonly isEditing = computed(() => this.editingTrackId() != null);
   readonly linkLocked = computed(() => this.isEditing() && this.lockTrackLink());
+  readonly trackLinkMaxLength = computed(() =>
+    this.isEditing() ? this.limits.linkUpdate : this.limits.linkCreate,
+  );
 
   readonly form = this.fb.group({
-    trackName: this.fb.nonNullable.control(''),
+    trackName: this.fb.nonNullable.control('', [profanityValidator]),
     trackLink: this.fb.nonNullable.control('', [Validators.required]),
   });
+
+  private readonly trackNameValue = toSignal(
+    this.form.controls.trackName.valueChanges,
+    { initialValue: '' },
+  );
+  readonly trackNameError = computed(() =>
+    hasProfanity(this.trackNameValue()) ? PROFANITY_ERROR : '',
+  );
 
   readonly trackLinkError = computed(() => {
     const control = this.form.controls.trackLink;

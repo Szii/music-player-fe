@@ -1,0 +1,39 @@
+
+<div class="ui-list-toolbar">
+  <ui-search-box
+    class="ui-list-toolbar__search"
+    [value]="search()"
+    [placeholder]="searchPlaceholder()"
+    (valueChange)="search.set($event)"
+  />
+
+  @if (filterOptions(); as opts) {
+    <label class="ui-list-toolbar__field">
+      <span class="ui-list-toolbar__label">{{ filterLabel() }}</span>
+      <ui-select
+        [options]="opts"
+        [ngModel]="filterValue()"
+        [enableSearch]="false"
+        [ngModelOptions]="{ standalone: true }"
+        (ngModelChange)="filterValueChange.emit($event)"
+      />
+    </label>
+  }
+
+  @if (sortOptions(); as opts) {
+    <label class="ui-list-toolbar__field">
+      <span class="ui-list-toolbar__label">{{ sortLabel() }}</span>
+      <ui-select
+        [options]="opts"
+        [ngModel]="sortValue()"
+        [enableSearch]="false"
+        [ngModelOptions]="{ standalone: true }"
+        (ngModelChange)="sortValueChange.emit($event)"
+      />
+    </label>
+  }
+</div>
+
+@if (showCount()) {
+  <div class="ui-list-toolbar__count">{{ countText() }}</div>
+}

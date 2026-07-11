@@ -1,0 +1,27 @@
+
+.verify-required__notice {
+  margin: 0 0 1rem;
+  line-height: 1.5;
+}
+.verify-required__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.verify-required__status {
+  margin: 0.5rem 0;
+  line-height: 1.5;
+}
+.verify-required__status--success {
+  color: var(--color-success, #2e7d32);
+}
+.verify-required__status--error {
+  color: var(--color-danger, #b00020);
+}
+.verify-required__change-form {
+  margin-top: 1rem;
+}
+.verify-required__link {
+  margin-top: 1rem;
+}

@@ -3,11 +3,14 @@
  *
  * Fade durations are stored as milliseconds (matching the API DTOs
  * `fadeInDurationMs` / `fadeOutDurationMs`). The UI lets the user adjust them in
- * fixed 250 ms steps and displays them as seconds.
+ * fixed steps and displays them as seconds.
  */
 
-/** Step the fade-length controls move by. */
-export const FADE_STEP_MS = 250;
+/**
+ * Step the fade-length controls move by. The crossfade slider sets fade-in and
+ * fade-out together to this same length, so the crossfade moves in 0.1 s steps.
+ */
+export const FADE_STEP_MS = 100;
 
 /** Hard cap for a single fade edge regardless of window length. */
 export const MAX_FADE_MS = 10_000;

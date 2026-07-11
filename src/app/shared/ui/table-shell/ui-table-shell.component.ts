@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import {
   Component,
   HostBinding,
@@ -9,18 +8,9 @@ import {
 @Component({
   selector: 'ui-table-shell',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   encapsulation: ViewEncapsulation.None,
-  template: `
-    <div
-      class="app-table-wrap"
-      [class.app-table-wrap--fill]="fill"
-      [style.max-height]="maxHeight || null"
-      [style.overflow-y]="maxHeight ? 'auto' : null"
-    >
-      <ng-content></ng-content>
-    </div>
-  `,
+  templateUrl: './ui-table-shell.component.html',
   styleUrls: ['./ui-table-shell.component.scss'],
 })
 export class UiTableShellComponent {

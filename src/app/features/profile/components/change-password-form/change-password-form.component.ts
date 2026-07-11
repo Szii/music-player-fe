@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -21,33 +21,7 @@ import { httpErrorMessage } from '../../../../shared/utils/http-error';
     NormalButtonComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <form class="app-form-stack" [formGroup]="form" (ngSubmit)="onSubmit()">
-      <ui-form-field
-        label="Current password"
-        [error]="currentError()"
-      >
-        <ui-text-input formControlName="current" type="password" />
-      </ui-form-field>
-
-      <ui-form-field
-        label="New password"
-        [error]="newError()"
-      >
-        <ui-text-input formControlName="next" type="password" />
-      </ui-form-field>
-
-      <ui-form-actions>
-        <normal-button
-          type="submit"
-          [disabled]="form.invalid || isSubmitting()"
-          [loading]="isSubmitting()"
-        >
-          {{ isSubmitting() ? 'Saving...' : 'Change password' }}
-        </normal-button>
-      </ui-form-actions>
-    </form>
-  `,
+  templateUrl: './change-password-form.component.html',
 })
 export class ChangePasswordFormComponent {
   private readonly fb = inject(FormBuilder);
@@ -57,6 +31,8 @@ export class ChangePasswordFormComponent {
 
   readonly isSubmitting = signal(false);
   readonly submitted = signal(false);
+  readonly passwordMaxLength = FIELD_LIMITS.user.password;
+  readonly username = computed(() => this.store.user()?.name ?? '');
 
   readonly form = this.fb.nonNullable.group({
     current: ['', [Validators.required]],

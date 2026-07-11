@@ -1,0 +1,30 @@
+:host {
+  display: block;
+}
+
+.legal-prose {
+  max-width: 70ch;
+  color: var(--app-text);
+  line-height: 1.65;
+}
+
+.legal-prose section + section {
+  margin-top: var(--space-2xl);
+}
+
+.legal-prose h2 {
+  margin: 0 0 var(--space-sm);
+  font-family: var(--app-font-heading);
+  color: var(--app-heading);
+}
+
+.legal-prose h3 {
+  margin: var(--space-lg) 0 var(--space-2xs);
+  font-family: var(--app-font-heading);
+  font-size: 1.05rem;
+  color: var(--app-text);
+}
+
+.legal-prose p {
+  margin: 0 0 var(--space-md);
+}

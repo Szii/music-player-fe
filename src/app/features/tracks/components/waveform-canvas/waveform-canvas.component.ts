@@ -41,261 +41,8 @@ type DragMode = 'left' | 'right' | 'region';
   standalone: true,
   imports: [CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div
-      class="wf-wrap"
-      #waveformWrap
-      [class.wf-wrap--locked]="handlesDisabled"
-      [attr.aria-disabled]="handlesDisabled"
-    >
-      <canvas
-        #waveformCanvas
-        class="wf-canvas"
-        (mousedown)="onCanvasMouseDown($event)"
-        (touchstart)="onCanvasTouchStart($event)"
-      ></canvas>
-
-      <div
-        *ngIf="audioReady"
-        class="wf-handle wf-handle--left"
-        [class.wf-handle--locked]="handlesDisabled"
-        [attr.title]="handlesDisabled ? 'Whole-track window: bounds are locked' : null"
-        [style.left.px]="leftHandleBoxPx"
-        (mousedown)="onHandleMouseDown($event, 'left')"
-        (touchstart)="onHandleTouchStart($event, 'left')"
-      >
-        <div class="wf-handle__grip" [style.left.px]="leftGripPx"></div>
-      </div>
-
-      <div
-        *ngIf="audioReady"
-        class="wf-handle wf-handle--right"
-        [class.wf-handle--locked]="handlesDisabled"
-        [attr.title]="handlesDisabled ? 'Whole-track window: bounds are locked' : null"
-        [style.left.px]="rightHandleBoxPx"
-        (mousedown)="onHandleMouseDown($event, 'right')"
-        (touchstart)="onHandleTouchStart($event, 'right')"
-      >
-        <div class="wf-handle__grip" [style.left.px]="rightGripPx"></div>
-      </div>
-
-      <div class="wf-lock-shade" *ngIf="audioReady && handlesDisabled" aria-hidden="true"></div>
-
-      <div class="wf-lock-badge" *ngIf="audioReady && handlesDisabled" aria-hidden="true">
-        Bounds locked
-      </div>
-
-      <div class="wf-playhead" [style.left.px]="playheadPx" *ngIf="audioReady"></div>
-
-      <div class="wf-overlay" *ngIf="loadingStream && !audioReady && !streamError">
-        <div class="wf-overlay__stack">
-          <span>Loading audio preview…</span>
-          <small *ngIf="downloadProgress > 0">{{ downloadProgress }}%</small>
-        </div>
-      </div>
-
-      <div
-        class="wf-overlay"
-        *ngIf="!waveformReady && !waveformLoading && !waveformError && !streamError && !loadingStream && audioReady"
-      >
-        <span>Waveform not available yet…</span>
-      </div>
-
-      <div class="wf-overlay" *ngIf="waveformLoading && !waveformReady && !waveformError">
-        <span>Loading waveform…</span>
-      </div>
-
-      <div class="wf-overlay wf-overlay--error" *ngIf="streamError || waveformError">
-        <span>{{ streamError || waveformError }}</span>
-      </div>
-    </div>
-  `,
-  styles: [`
-    :host {
-      display: block;
-    }
-
-    .wf-wrap {
-      position: relative;
-      height: 126px;
-      background: var(--app-surface);
-      border: var(--app-border);
-      border-radius: 14px;
-      cursor: crosshair;
-      user-select: none;
-      -webkit-user-select: none;
-      touch-action: pan-y;
-      flex-shrink: 0;
-      overflow: hidden;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
-    }
-
-    .wf-canvas {
-      display: block;
-      width: 100%;
-      height: 100%;
-    }
-
-    .wf-handle {
-      position: absolute;
-      top: 0;
-      width: 34px;
-      height: 100%;
-      cursor: col-resize;
-      z-index: 5;
-      background: transparent;
-      transition: background 0.12s ease;
-      touch-action: pan-y;
-    }
-
-    .wf-handle:hover,
-    .wf-handle:active {
-      background: rgba(122, 92, 46, 0.08);
-    }
-
-    .wf-handle__grip {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 6px;
-      height: 44px;
-      background: var(--app-primary);
-      border-radius: 999px;
-      box-shadow:
-        0 1px 4px rgba(0, 0, 0, 0.18),
-        0 0 0 2px rgba(255, 255, 255, 0.9);
-    }
-
-    .wf-wrap--locked {
-      cursor: default;
-    }
-
-    .wf-wrap--locked .wf-canvas {
-      cursor: default;
-    }
-
-    .wf-wrap--locked .wf-handle {
-      cursor: not-allowed;
-      pointer-events: none;
-    }
-
-    .wf-wrap--locked .wf-handle:hover,
-    .wf-wrap--locked .wf-handle:active {
-      background: transparent;
-    }
-
-    .wf-wrap--locked .wf-handle__grip {
-      background: var(--app-text-muted);
-      opacity: 0.42;
-      box-shadow:
-        0 1px 3px rgba(0, 0, 0, 0.12),
-        0 0 0 2px rgba(255, 255, 255, 0.55);
-    }
-
-    .wf-lock-shade {
-      position: absolute;
-      inset: 0;
-      z-index: 2;
-      pointer-events: none;
-      background: repeating-linear-gradient(
-        135deg,
-        rgba(122, 92, 46, 0.045) 0,
-        rgba(122, 92, 46, 0.045) 8px,
-        transparent 8px,
-        transparent 16px
-      );
-    }
-
-    .wf-lock-badge {
-      position: absolute;
-      top: 8px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 6;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 4px 9px;
-      border: 1px solid var(--app-border-color-soft);
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.78);
-      color: var(--app-text-muted);
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      line-height: 1;
-      text-transform: uppercase;
-      pointer-events: none;
-      backdrop-filter: blur(2px);
-      box-shadow: 0 2px 7px rgba(0, 0, 0, 0.08);
-    }
-
-    .wf-playhead {
-      position: absolute;
-      top: 0;
-      width: 2px;
-      height: 100%;
-      background: var(--app-danger);
-      z-index: 4;
-      pointer-events: none;
-      box-shadow: 0 0 6px rgba(159, 47, 47, 0.35);
-    }
-
-    .wf-overlay {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      background: rgba(255, 255, 255, 0.76);
-      color: var(--app-text-muted);
-      font-size: 13px;
-      z-index: 10;
-      text-align: center;
-      backdrop-filter: blur(2px);
-      padding: 16px;
-    }
-
-    .wf-overlay__stack {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .wf-overlay__stack small {
-      font-size: 11px;
-      color: var(--app-text-muted);
-    }
-
-    .wf-overlay--error {
-      color: var(--app-danger);
-      background: rgba(255, 246, 246, 0.84);
-    }
-
-    @media (max-width: 700px) {
-      .wf-wrap {
-        height: 112px;
-        border-radius: 12px;
-      }
-
-      .wf-handle {
-        width: 44px;
-      }
-
-      .wf-handle__grip {
-        height: 38px;
-      }
-
-      .wf-lock-badge {
-        top: 6px;
-        padding: 4px 8px;
-        font-size: 9px;
-      }
-    }
-  `],
+  templateUrl: './waveform-canvas.component.html',
+  styleUrl: './waveform-canvas.component.scss',
 })
 export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDestroy {
   private readonly zone = inject(NgZone);
@@ -305,12 +52,14 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
   /** Half the grip's visible footprint (6px pill + ~2px ring), used to keep it
       fully on-screen at the transport edges. */
   private static readonly GRIP_HALF_PX = 6;
+  /** Smallest width a non-zero fade zone is drawn at, so short fades on long
+      tracks (a few seconds out of many minutes) stay visible. */
+  private static readonly MIN_FADE_PX = 10;
 
   @Input() durationS = 0;
   @Input() regionFromS = 0;
   @Input() regionToS = 0;
   @Input() seekableMaxS = 0;
-  @Input() playheadPx = 0;
   @Input() waveformPeaks: number[] = [];
   @Input() audioReady = false;
   @Input() loadingStream = false;
@@ -326,7 +75,15 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
   readonly fadeInS = input(0);
   readonly fadeOutS = input(0);
 
+  /** Current playback position, in seconds. Drives the playhead; the pixel
+      position is derived on each redraw so it tracks canvas resizes (the parent
+      no longer needs to read this component's pixel width). */
+  readonly playheadS = input(0);
+
   @Output() regionChange = new EventEmitter<RegionChangeEvent>();
+  /** Emitted once when a region drag is released, so listeners can react to the
+      committed bounds rather than every intermediate drag frame. */
+  @Output() regionCommit = new EventEmitter<void>();
   @Output() seekRequested = new EventEmitter<number>();
 
   @ViewChild('waveformCanvas') canvasRef!: ElementRef<HTMLCanvasElement>;
@@ -343,6 +100,8 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
       the true region edge regardless of the clamped box position. */
   leftGripPx = 0;
   rightGripPx = 0;
+  /** Playhead x-position, derived from {@link playheadS} on each redraw. */
+  playheadPx = 0;
   canvasWidth = 0;
   canvasHeight = 0;
 
@@ -366,6 +125,18 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
       this.fadeOutS();
       if (this.viewReady) {
         this.scheduleRedraw();
+      }
+    });
+
+    // The playhead is a DOM overlay, not part of the canvas drawing, so a moving
+    // position only needs its derived pixel recomputed and a CD pass — no full
+    // (and frequent) waveform redraw. Resizes/region changes refresh it via the
+    // redraw pipeline instead (see scheduleRedraw).
+    effect(() => {
+      this.playheadS();
+      if (this.viewReady) {
+        this.updatePlayheadPx();
+        this.cdr.markForCheck();
       }
     });
   }
@@ -580,16 +351,22 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
       return;
     }
 
-    const rect = wrap.getBoundingClientRect();
+    // Use the untransformed layout size (offsetWidth/Height) rather than
+    // getBoundingClientRect, whose width reflects an in-progress open/transition
+    // transform on an ancestor panel. That transient (scaled) width sized the
+    // canvas too narrow and left the right edge inset until the next redraw —
+    // visible only on the whole-track window, whose content sits flush right.
+    const width = wrap.offsetWidth;
+    const height = wrap.offsetHeight;
     const dpr = window.devicePixelRatio || 1;
 
-    this.canvasWidth = rect.width;
-    this.canvasHeight = rect.height;
+    this.canvasWidth = width;
+    this.canvasHeight = height;
 
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    canvas.style.width = `${rect.width}px`;
-    canvas.style.height = `${rect.height}px`;
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
 
     const ctx = canvas.getContext('2d');
     if (ctx) {
@@ -622,6 +399,23 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
 
     this.rightHandleBoxPx = this.clamp(this.regionRightPx - handleWidth / 2, 0, maxBoxLeft);
     this.rightGripPx = this.clamp(this.regionRightPx, gripHalf, maxGripCenter) - this.rightHandleBoxPx;
+
+    this.updatePlayheadPx();
+  }
+
+  /** Derive the playhead's x-position from the current time and canvas width, so
+      it stays aligned with the waveform/handles across resizes. */
+  private updatePlayheadPx(): void {
+    if (this.durationS <= 0 || this.canvasWidth <= 0) {
+      this.playheadPx = 0;
+      return;
+    }
+
+    this.playheadPx = this.clamp(
+      (this.playheadS() / this.durationS) * this.canvasWidth,
+      0,
+      this.canvasWidth,
+    );
   }
 
   /** Rendered handle hit-area width — wider on touch layouts (see the
@@ -641,6 +435,7 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       this.dragging = null;
+      this.zone.run(() => this.regionCommit.emit());
     };
 
     document.addEventListener('mousemove', onMove);
@@ -695,7 +490,11 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
     };
 
     onUp = () => {
+      const didDrag = this.touchGesture === 'horizontal';
       cleanup();
+      if (didDrag) {
+        this.zone.run(() => this.regionCommit.emit());
+      }
     };
 
     document.addEventListener('touchmove', onMove, { passive: false });
@@ -844,13 +643,70 @@ export class WaveformCanvasComponent implements OnChanges, AfterViewInit, OnDest
       return;
     }
 
-    // Only the end crossfade region is drawn — there is no ramp at the start.
+    // The crossfade is symmetric: a fade-in ramp at the region start and a
+    // fade-out ramp at the region end. Each half is capped at half the region so
+    // the two never overlap.
     const pxPerSecond = this.canvasWidth / this.durationS;
-    const fadeOutWidth = Math.min(this.fadeOutS() * pxPerSecond, regionWidth);
+    const halfRegion = regionWidth / 2;
+    const fadeInWidth = this.fadeZoneWidth(this.fadeInS(), pxPerSecond, halfRegion);
+    const fadeOutWidth = this.fadeZoneWidth(this.fadeOutS(), pxPerSecond, halfRegion);
 
+    if (fadeInWidth > 0) {
+      this.drawFadeInZone(ctx, fromPx, fadeInWidth, height, palette);
+    }
     if (fadeOutWidth > 0) {
       this.drawFadeOutZone(ctx, toPx, fadeOutWidth, height, palette);
     }
+  }
+
+  /**
+   * Pixel width to draw a fade zone at: the fade length scaled to the timeline,
+   * but floored at {@link MIN_FADE_PX} so a non-zero fade is always visible, and
+   * capped at `maxWidth` (half the region).
+   */
+  private fadeZoneWidth(
+    fadeS: number,
+    pxPerSecond: number,
+    maxWidth: number,
+  ): number {
+    if (fadeS <= 0 || maxWidth <= 0) {
+      return 0;
+    }
+    const scaled = Math.max(
+      fadeS * pxPerSecond,
+      WaveformCanvasComponent.MIN_FADE_PX,
+    );
+    return Math.min(scaled, maxWidth);
+  }
+
+  private drawFadeInZone(
+    ctx: CanvasRenderingContext2D,
+    fromPx: number,
+    fadeWidth: number,
+    height: number,
+    palette: WaveformPalette,
+  ): void {
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(fromPx, height);
+    ctx.lineTo(fromPx + fadeWidth, 0);
+    ctx.lineTo(fromPx, 0);
+    ctx.closePath();
+    ctx.clip();
+
+    const gradient = ctx.createLinearGradient(fromPx, 0, fromPx + fadeWidth, 0);
+    gradient.addColorStop(0, palette.primary);
+    gradient.addColorStop(1, palette.primarySoft);
+
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = gradient;
+    ctx.fillRect(fromPx, 0, fadeWidth, height);
+
+    this.drawDiagonalStripes(ctx, fromPx, fromPx + fadeWidth, height, palette.primary, 'rising');
+    ctx.restore();
+
+    // Bold envelope ramp: volume rising 0 -> 1 across the fade-in.
+    this.drawFadeRamp(ctx, fromPx, height, fromPx + fadeWidth, 0, palette.primary);
   }
 
   private drawFadeOutZone(

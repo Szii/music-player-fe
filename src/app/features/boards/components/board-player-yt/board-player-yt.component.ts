@@ -14,8 +14,12 @@ import {
   signal,
 } from '@angular/core';
 import { PlayerControlsComponent } from '../player-controls/player-controls.component';
-import { YoutubeIframeApiService } from '../../../../core/services/youtube-iframe-api.service';
-import { outgoingCrossfadeMs } from '../../utils/crossfade';
+import {
+  YoutubeIframeApiService,
+  YT_EMBED_HOST,
+} from '../../../../core/services/youtube-iframe-api.service';
+import { WorkerClockService } from '../../../../core/services/worker-clock.service';
+import { effectiveCrossfadeMs, sourceCrossfadeMs } from '../../utils/crossfade';
 
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 type SlotName = 'A' | 'B';
@@ -39,11 +43,7 @@ interface PendingTrack {
 }
 
 /**
- * YouTube IFrame-backed board player (experimental, behind
- * {@link USE_YT_IFRAME_PLAYER}).
- *
- * Reproduces the input/output contract of `BoardPlayerComponent` so it can be
- * swapped in at the `board-card` leaf without touching page orchestration.
+ * YouTube IFrame-backed board player.
  *
  * Uses two YouTube players (A/B slots), mirroring the original engine, so
  * loop-seam and track-switch crossfades overlap two streams and ramp their
@@ -57,51 +57,14 @@ interface PendingTrack {
   selector: 'app-board-player-yt',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [PlayerControlsComponent],
-  template: `
-    <app-player-controls
-      [title]="title()"
-      [hasTrack]="hasTrack()"
-      [status]="localStatus()"
-      [positionS]="displayPositionS()"
-      [durationS]="fullDurationS()"
-      [seekableMaxS]="seekableMaxS()"
-      [windowStartS]="hasSelectedWindow() ? windowStartS() : null"
-      [windowEndS]="hasSelectedWindow() ? windowEndS() : null"
-      [fadeOutS]="windowFadeOutMs() / 1000"
-      [showPrimaryButton]="showPrimaryButton()"
-      [disabled]="localStatus() === 'BUFFERING'"
-      (play)="onPlay()"
-      (stop)="onStop()"
-      (seekPreview)="onSeekPreview($event)"
-      (seekCommit)="onSeekCommit($event)"
-    />
-
-    <div class="yt-host" aria-hidden="true">
-      <div #mountA></div>
-      <div #mountB></div>
-    </div>
-  `,
-  styles: [
-    `
-      .yt-host {
-        position: fixed;
-        left: -10000px;
-        top: 0;
-        width: 320px;
-        height: 360px;
-        pointer-events: none;
-      }
-    `,
-  ],
+  templateUrl: './board-player-yt.component.html',
+  styleUrl: './board-player-yt.component.scss',
 })
 export class BoardPlayerYtComponent implements OnDestroy {
   /** Minimum near-end lead so the deck can start the incoming source even when
       the window has no (or a very short) fade-out. */
   private static readonly MIN_NEAR_END_LEAD_S = 0.25;
   private static readonly POLL_INTERVAL_MS = 50;
-  /** Fallback crossfades when the relevant window/track has no fades set. */
-  private static readonly DEFAULT_LOOP_CROSSFADE_MS = 2500;
-  private static readonly DEFAULT_SWITCH_CROSSFADE_MS = 2500;
   /** Used for the final target when the user skips several tracks mid-fade. */
   private static readonly RAPID_SWITCH_CROSSFADE_MS = 250;
   /** Extra head-start so the incoming slot can buffer before the fade starts. */
@@ -111,6 +74,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
   private readonly zone = inject(NgZone);
   private readonly destroyRef = inject(DestroyRef);
   private readonly api = inject(YoutubeIframeApiService);
+  private readonly clock = inject(WorkerClockService);
 
   readonly title = input('');
   readonly hasTrack = input(false);
@@ -127,6 +91,12 @@ export class BoardPlayerYtComponent implements OnDestroy {
   readonly masterVolume = input(1);
   readonly masterFadeRampMs = input(0);
   readonly showPrimaryButton = input(true);
+  /**
+   * When set (playlist mode), track switches use this fixed crossfade length
+   * instead of deriving it from the per-track fades, and near-end fires a
+   * crossfade-plus-buffer early so the async track advance can overlap it.
+   */
+  readonly forcedCrossfadeMs = input<number | null>(null);
   /**
    * When the selected window changes while playing, keep the playhead where it is
    * if it still falls inside the new window (used by the window editor while the
@@ -179,10 +149,10 @@ export class BoardPlayerYtComponent implements OnDestroy {
   };
 
   private activeSlot: SlotName = 'A';
-  /** Fade-out (ms) of the window currently committed to the active slot. At a
-      switch this is the *outgoing* value, combined with the new window's
-      incoming fade-in to size the crossfade. */
-  private activeFadeOutMs = 0;
+  /** Crossfade (ms) of the window/track currently committed to the active slot
+      (its fade-in + fade-out). At a switch this is the *outgoing* crossfade,
+      compared against the incoming window's crossfade so the longer one wins. */
+  private activeCrossfadeMs = 0;
   private currentMaster = 1;
   /**
    * Last requested master-volume target. Used so a ramp-duration-only input
@@ -191,8 +161,8 @@ export class BoardPlayerYtComponent implements OnDestroy {
   private lastMasterTarget: number | null = null;
   private masterRampId = 0;
   private gainRampId = 0;
-  private masterRampTimer: ReturnType<typeof setInterval> | null = null;
-  private gainRampTimer: ReturnType<typeof setInterval> | null = null;
+  private masterRampTimer: number | null = null;
+  private gainRampTimer: number | null = null;
   private switchSeq = 0;
   private crossfadeInProgress = false;
   /** While a window/track-switch crossfade runs, keep the UI pinned to the new
@@ -206,10 +176,19 @@ export class BoardPlayerYtComponent implements OnDestroy {
       so the queued final target is heard immediately. */
   private finishCurrentCrossfadeRequested = false;
 
-  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private pollTimer: number | null = null;
   private emittedNearEnd = false;
   private isUserSeeking = false;
   private lastWindowKey: string | null = null;
+  /**
+   * Set when a window change (in host-managed `preservePositionOnWindowChange`
+   * mode) leaves the playhead outside the new window — i.e. this source is the
+   * outgoing one the deck is fading out and will swap away. While set, `tick`
+   * ignores the new window's end so it doesn't fire a premature `ended`/`nearEnd`
+   * (which would hard-cut the deck's sequence-advance crossfade). Cleared whenever
+   * the source is (re)positioned to a valid spot.
+   */
+  private ignoreWindowEnd = false;
 
   constructor() {
     // Drive the imperative YouTube players from the declarative inputs.
@@ -280,6 +259,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
     this.displayPositionS.set(target);
     this.isUserSeeking = false;
     this.emittedNearEnd = false;
+    this.ignoreWindowEnd = false;
 
     const videoId = this.hasTrack() ? this.videoId() : null;
     const trackId = this.hasTrack() ? this.trackId() : null;
@@ -305,15 +285,21 @@ export class BoardPlayerYtComponent implements OnDestroy {
    * Imperative restart used by the Firefox-safe deck wrapper.
    *
    * The wrapper keeps two independent YouTube player components alive. Near a
-   * loop seam it asks the silent component to jump back to the selected window
-   * start while it is already an active media pipeline, then fades into it.
+   * loop seam (or a sequence window advance) it asks the silent component to jump
+   * to a window start while it is already an active media pipeline, then fades
+   * into it. The deck passes the target explicitly so it doesn't depend on this
+   * child's window input having propagated yet (it may still hold the old window).
    */
-  restartFromWindowStart(): void {
-    const target = this.windowStartFloor();
+  restartFromWindowStart(explicitStartS?: number): void {
+    const target =
+      explicitStartS != null
+        ? Math.max(0, Math.floor(explicitStartS))
+        : this.windowStartFloor();
     this.displayPositionS.set(target);
     this.seekableMaxS.set(this.seekableWindowEnd());
     this.isUserSeeking = false;
     this.emittedNearEnd = false;
+    this.ignoreWindowEnd = false;
 
     const active = this.active();
     if (active.player && active.ready) {
@@ -426,6 +412,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
     active.gain = 1;
     this.idle().gain = 0;
     this.emittedNearEnd = false;
+    this.ignoreWindowEnd = false;
     this.captureActiveWindowFades();
     this.localStatus.set('BUFFERING');
 
@@ -626,6 +613,9 @@ export class BoardPlayerYtComponent implements OnDestroy {
         (yt) =>
           new Promise<YT.Player | null>((resolve) => {
             const player = new yt.Player(mount, {
+              // Privacy-enhanced domain: skips the doubleclick ad-conversion
+              // pixel that www.youtube.com fires (CORS-blocked, noisy console).
+              host: YT_EMBED_HOST,
               width: 320,
               height: 180,
               playerVars: {
@@ -656,7 +646,8 @@ export class BoardPlayerYtComponent implements OnDestroy {
                   });
                 },
               },
-            });
+              // `host` is a real runtime option but missing from @types/youtube.
+            } as YT.PlayerOptions & { host: string });
 
             slot.player = player;
           }),
@@ -704,17 +695,15 @@ export class BoardPlayerYtComponent implements OnDestroy {
 
   private startPolling(): void {
     this.stopPolling();
-    this.zone.runOutsideAngular(() => {
-      this.pollTimer = setInterval(
-        () => this.tick(),
-        BoardPlayerYtComponent.POLL_INTERVAL_MS,
-      );
-    });
+    this.pollTimer = this.clock.setInterval(
+      () => this.tick(),
+      BoardPlayerYtComponent.POLL_INTERVAL_MS,
+    );
   }
 
   private stopPolling(): void {
     if (this.pollTimer !== null) {
-      clearInterval(this.pollTimer);
+      this.clock.clearInterval(this.pollTimer);
       this.pollTimer = null;
     }
   }
@@ -743,6 +732,13 @@ export class BoardPlayerYtComponent implements OnDestroy {
       this.seekableMaxS.set(this.seekableWindowEnd());
 
       if (this.crossfadeInProgress) {
+        return;
+      }
+
+      // Outgoing source of a host-managed (deck) crossfade whose window moved off
+      // the playhead: keep playing for the fade-out but don't act on the new
+      // window's end.
+      if (this.ignoreWindowEnd) {
         return;
       }
 
@@ -826,6 +822,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
     this.pendingTrack = null;
     this.finishCurrentCrossfadeRequested = false;
     this.emittedNearEnd = false;
+    this.ignoreWindowEnd = false;
 
     for (const slot of [this.slotA, this.slotB]) {
       slot.loadedVideoId = null;
@@ -883,29 +880,27 @@ export class BoardPlayerYtComponent implements OnDestroy {
     const startValue = this.currentMaster;
     const startTime = performance.now();
 
-    // Use a timer (not requestAnimationFrame, which freezes in hidden tabs) so
-    // the ramp still completes when the tab is backgrounded — throttled to
-    // ~1s/step there, but it reaches the target via elapsed-time math.
-    this.zone.runOutsideAngular(() => {
-      const step = () => {
-        if (id !== this.masterRampId) {
-          return;
-        }
-        const t = Math.min(1, (performance.now() - startTime) / durationMs);
-        this.currentMaster = startValue + (target - startValue) * t;
-        this.applyVolumes();
-        if (t >= 1) {
-          this.clearMasterRampTimer();
-        }
-      };
-      this.masterRampTimer = setInterval(step, 50);
-      step();
-    });
+    // Worker-backed timer (not requestAnimationFrame, which freezes in hidden
+    // tabs) so the ramp still progresses smoothly when the tab is backgrounded;
+    // elapsed-time math guarantees it reaches the target either way.
+    const step = () => {
+      if (id !== this.masterRampId) {
+        return;
+      }
+      const t = Math.min(1, (performance.now() - startTime) / durationMs);
+      this.currentMaster = startValue + (target - startValue) * t;
+      this.applyVolumes();
+      if (t >= 1) {
+        this.clearMasterRampTimer();
+      }
+    };
+    this.masterRampTimer = this.clock.setInterval(step, 50);
+    step();
   }
 
   private clearMasterRampTimer(): void {
     if (this.masterRampTimer !== null) {
-      clearInterval(this.masterRampTimer);
+      this.clock.clearInterval(this.masterRampTimer);
       this.masterRampTimer = null;
     }
   }
@@ -931,37 +926,36 @@ export class BoardPlayerYtComponent implements OnDestroy {
 
     const startTime = performance.now();
 
-    // Timer rather than requestAnimationFrame so the crossfade still progresses
-    // (and resolves) when the tab is hidden — rAF is frozen there, which would
-    // otherwise leave crossfadeInProgress stuck and break looping.
+    // Worker-backed timer rather than requestAnimationFrame so the crossfade
+    // still progresses (and resolves) when the tab is hidden — rAF is frozen
+    // there, which would otherwise leave crossfadeInProgress stuck and break
+    // looping.
     return new Promise<void>((resolve) => {
-      this.zone.runOutsideAngular(() => {
-        const step = () => {
-          if (id !== this.gainRampId) {
-            resolve();
-            return;
-          }
-          const t = this.finishCurrentCrossfadeRequested
-            ? 1
-            : Math.min(1, (performance.now() - startTime) / durationMs);
-          const angle = (t * Math.PI) / 2;
-          from.gain = Math.cos(angle);
-          to.gain = Math.sin(angle);
-          this.applyVolumes();
-          if (t >= 1) {
-            this.clearGainRampTimer();
-            resolve();
-          }
-        };
-        this.gainRampTimer = setInterval(step, 50);
-        step();
-      });
+      const step = () => {
+        if (id !== this.gainRampId) {
+          resolve();
+          return;
+        }
+        const t = this.finishCurrentCrossfadeRequested
+          ? 1
+          : Math.min(1, (performance.now() - startTime) / durationMs);
+        const angle = (t * Math.PI) / 2;
+        from.gain = Math.cos(angle);
+        to.gain = Math.sin(angle);
+        this.applyVolumes();
+        if (t >= 1) {
+          this.clearGainRampTimer();
+          resolve();
+        }
+      };
+      this.gainRampTimer = this.clock.setInterval(step, 50);
+      step();
     });
   }
 
   private clearGainRampTimer(): void {
     if (this.gainRampTimer !== null) {
-      clearInterval(this.gainRampTimer);
+      this.clock.clearInterval(this.gainRampTimer);
       this.gainRampTimer = null;
     }
   }
@@ -1006,6 +1000,59 @@ export class BoardPlayerYtComponent implements OnDestroy {
   }
 
   /**
+   * Apply a committed window change from the editor (boundary-drag released).
+   *
+   * If the playhead now sits outside the window it snaps to the new start and
+   * keeps playing; if it still lies inside, playback is left untouched. This is
+   * deferred to here — rather than running on every drag frame via
+   * {@link onWindowChanged} — so adjusting a boundary doesn't crossfade-spam.
+   */
+  commitWindowReposition(): void {
+    if (!this.hasSelectedWindow()) {
+      return;
+    }
+
+    const active = this.active();
+    if (
+      this.crossfadeInProgress ||
+      !active.loadedVideoId ||
+      !active.player ||
+      !active.ready
+    ) {
+      return;
+    }
+
+    const startS = this.windowStartFloor();
+    const positionS = active.player.getCurrentTime();
+
+    // The window is committed: this source owns the new bounds again.
+    this.ignoreWindowEnd = false;
+
+    // Still inside the new window — keep playing from where we are.
+    if (positionS >= startS && positionS <= this.windowEndCeil()) {
+      this.seekableMaxS.set(this.seekableWindowEnd());
+      return;
+    }
+
+    this.emittedNearEnd = false;
+
+    if (active.player.getPlayerState() === YT.PlayerState.PLAYING) {
+      void this.crossfadeInto(
+        active.loadedVideoId,
+        active.loadedTrackId,
+        startS,
+        this.switchCrossfadeMs(),
+        true,
+      );
+      return;
+    }
+
+    active.player.seekTo(startS, true);
+    this.displayPositionS.set(startS);
+    this.seekableMaxS.set(this.seekableWindowEnd());
+  }
+
+  /**
    * Handles a change to the selected window while a track is loaded. Seeks the
    * active player to the new window start; ignored on the first evaluation and
    * for whole-track playback (so duration metadata arriving doesn't jump).
@@ -1031,15 +1078,19 @@ export class BoardPlayerYtComponent implements OnDestroy {
 
     this.emittedNearEnd = false;
 
-    // Window editor: while the user drags a boundary, keep playing from the
-    // current position if it still lies inside the resized window. Only when the
-    // caret falls outside the new range do we fall through to repositioning.
+    // Window editor / deck-managed sequence: defer all repositioning to the host
+    // (commitWindowReposition, or the deck's advance crossfade). Repositioning on
+    // every intermediate frame would crossfade-spam and fight the user while they
+    // are still adjusting the bounds, so here we only keep the seek range current.
     if (this.preservePositionOnWindowChange()) {
-      const positionS = active.player.getCurrentTime();
-      if (positionS >= startS && positionS <= this.windowEndCeil()) {
-        this.seekableMaxS.set(this.seekableWindowEnd());
-        return;
-      }
+      this.seekableMaxS.set(this.seekableWindowEnd());
+      // If the new window no longer contains the playhead, this is the outgoing
+      // source of a deck sequence-advance crossfade: don't let its tick fire a
+      // premature end on the new window (that hard-cuts the crossfade).
+      const pos = active.player.getCurrentTime();
+      this.ignoreWindowEnd =
+        pos < this.windowStartFloor() || pos > this.windowEndCeil();
+      return;
     }
 
     // While playing, crossfade into the new window (same video, new start) using
@@ -1062,32 +1113,37 @@ export class BoardPlayerYtComponent implements OnDestroy {
   }
 
   /**
-   * Loop crossfade length: a window loops into itself, so the overlap is sized by
-   * that window's own fade-out (the outgoing edge), defaulting when unset.
+   * Loop crossfade length: a window loops into itself, so the overlap is that
+   * window's own crossfade (fade-in + fade-out), floored at the safety fade when
+   * crossfading is turned off.
    */
   private loopCrossfadeMs(): number {
-    return outgoingCrossfadeMs(
-      this.windowFadeOutMs(),
-      BoardPlayerYtComponent.DEFAULT_LOOP_CROSSFADE_MS,
-    );
+    return effectiveCrossfadeMs(this.incomingCrossfadeMs());
   }
 
   /**
-   * Window/track switch crossfade length: governed solely by the outgoing
-   * window/track's fade-out (captured on the active slot). The incoming side's
-   * fade-in does not extend the overlap.
+   * Window/track switch crossfade length: the *longer* of the outgoing window's
+   * crossfade (captured on the active slot) and the incoming window's crossfade,
+   * floored at the safety fade when both are off.
    */
   private switchCrossfadeMs(): number {
-    return outgoingCrossfadeMs(
-      this.activeFadeOutMs,
-      BoardPlayerYtComponent.DEFAULT_SWITCH_CROSSFADE_MS,
-    );
+    const forced = this.forcedCrossfadeMs();
+    if (forced != null) {
+      return forced;
+    }
+    return effectiveCrossfadeMs(this.activeCrossfadeMs, this.incomingCrossfadeMs());
   }
 
-  /** Record the now-active window's fades so a later switch can use them as the
-      outgoing fade-out. Called whenever a slot becomes the committed active one. */
+  /** Crossfade (fade-in + fade-out) of the window/track on the current inputs —
+      i.e. the incoming side at a switch, or the looping window itself. */
+  private incomingCrossfadeMs(): number {
+    return sourceCrossfadeMs(this.windowFadeInMs(), this.windowFadeOutMs());
+  }
+
+  /** Record the now-active window's crossfade so a later switch can use it as the
+      outgoing side. Called whenever a slot becomes the committed active one. */
   private captureActiveWindowFades(): void {
-    this.activeFadeOutMs = this.windowFadeOutMs();
+    this.activeCrossfadeMs = this.incomingCrossfadeMs();
   }
 
   /**
@@ -1097,6 +1153,16 @@ export class BoardPlayerYtComponent implements OnDestroy {
    * incoming source).
    */
   private nearEndLeadS(): number {
+    // Playlist track switches advance through an async backend call, so fire
+    // near-end a crossfade-plus-buffer early to give the next track time to load
+    // and overlap rather than gapping after the current one ends.
+    const forced = this.forcedCrossfadeMs();
+    if (forced != null) {
+      return Math.max(
+        BoardPlayerYtComponent.MIN_NEAR_END_LEAD_S,
+        forced / 1000 + BoardPlayerYtComponent.CROSSFADE_BUFFER_LEAD_S,
+      );
+    }
     return Math.max(
       BoardPlayerYtComponent.MIN_NEAR_END_LEAD_S,
       this.loopCrossfadeMs() / 1000,
@@ -1144,9 +1210,9 @@ export class BoardPlayerYtComponent implements OnDestroy {
   private seekableWindowEnd(): number {
     const startS = this.windowStartFloor();
     const endS = this.windowEndCeil();
-    // The crossfade tail (the window's fade-out) is not seekable — that ending
-    // section is where the crossfade runs.
-    const tailS = this.windowFadeOutMs() / 1000;
+    // The crossfade tail is not seekable — that ending section is where the loop
+    // crossfade runs.
+    const tailS = this.loopCrossfadeMs() / 1000;
     return Math.max(startS, endS - tailS);
   }
 

@@ -20,6 +20,7 @@ import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component
 import { UiCreateCtaComponent } from '../../../../shared/ui/create-cta/ui-create-cta.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { UiListToolbarComponent } from '../../../../shared/ui/list-toolbar/ui-list-toolbar.component';
+import { FooterComponent } from '../../../../shared/components/footer/footer.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 import { httpErrorMessage } from '../../../../shared/utils/http-error';
@@ -43,131 +44,10 @@ type GroupSortMode =
     UiCreateCtaComponent,
     UiPageTitleComponent,
     UiListToolbarComponent,
+    FooterComponent,
   ],
-  template: `
-    <div class="app-page group-page">
-      <ui-page-title title="Groups" />
-
-      <app-create-group-form
-        #createForm
-        [showTrigger]="groups.length > 0"
-        (groupCreateRequested)="createGroup($event)"
-      />
-
-      @if (errorMessage) {
-        <ui-alert variant="danger">
-          {{ errorMessage }}
-        </ui-alert>
-      }
-
-      @if (loading) {
-        <div class="app-muted groups-page__loading">Loading...</div>
-      } @else if (groups.length === 0) {
-        <ui-create-cta
-          label="Create your first group"
-          (clicked)="createForm.open()"
-        />
-      } @else {
-        <ui-list-toolbar
-          [(search)]="search"
-          searchPlaceholder="Search groups"
-          [filterValue]="filterMode()"
-          [filterOptions]="filterOptions"
-          filterLabel="Filter"
-          (filterValueChange)="setFilterMode($event)"
-          [sortValue]="sortMode()"
-          [sortOptions]="sortOptions"
-          (sortValueChange)="setSortMode($event)"
-          [filteredCount]="filteredGroups().length"
-          [totalCount]="groups.length"
-          itemLabel="group"
-        />
-
-        @if (filteredGroups().length > 0) {
-          <div class="groups-list" role="list">
-            @for (group of filteredGroups(); track group.id) {
-              <app-group-card
-                [group]="group"
-                [tracks]="tracks"
-                [updating]="updatingGroupId === group.id"
-                (deleteRequested)="deleteGroup($event)"
-                (renameRequested)="renameGroup($event)"
-                (editTracksRequested)="openTrackEditor($event)"
-              />
-            }
-          </div>
-        } @else {
-          <p class="empty">No groups match the current search or filter.</p>
-        }
-      }
-
-      @if (editingGroup; as group) {
-        <app-group-tracks-editor
-          [group]="group"
-          [tracks]="tracks"
-          [saving]="updatingGroupId === group.id"
-          (cancel)="closeTrackEditor()"
-          (save)="saveGroupTracks($event)"
-          (addTrack)="goToAddTrack()"
-          (browseWorkshop)="goToWorkshop()"
-        />
-      }
-    </div>
-  `,
-  styles: [`
-    :host {
-      display: block;
-    }
-
-    /* Match the tracks "+" trigger spacing; :has() keeps the gap off the
-       empty state where the create CTA renders instead. */
-    app-create-group-form:has(app-icon-button) {
-      display: block;
-      margin-bottom: var(--space-sm);
-    }
-
-    ui-list-toolbar {
-      display: block;
-      margin-bottom: 1rem;
-    }
-
-    .groups-page__loading {
-      margin-top: 1rem;
-    }
-
-    /* Desktop: fluid card grid that uses the horizontal space. Collapses to a
-       single column below md — the same breakpoint the tables switch at — so
-       the page doesn't read as a mobile layout above 900px. */
-    .groups-list {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-      gap: 14px;
-      margin: 0;
-      padding: 0;
-      /* Desktop: only the cards scroll; the title + create + toolbar stay
-         pinned — the same internal-scroll approach the tables use. */
-      max-height: calc(100dvh - 360px);
-      overflow-y: auto;
-      scrollbar-gutter: stable;
-    }
-
-    @media (max-width: 900px) {
-      .groups-list {
-        grid-template-columns: 1fr;
-        /* Mobile: natural full-page scroll instead of a nested scroll area. */
-        max-height: none;
-        overflow: visible;
-      }
-    }
-
-    .empty {
-      margin: 0;
-      padding: 12px 0;
-      color: var(--app-text-muted);
-      font-size: 13px;
-      font-style: italic;
-    }
-  `],
+  templateUrl: './groups-page.component.html',
+  styleUrl: './groups-page.component.scss',
 })
 export class GroupsPageComponent implements OnInit {
   @ViewChild('createForm') createFormRef?: CreateGroupFormComponent;

@@ -1,0 +1,13 @@
+
+<input
+  class="app-input app-input--number"
+  type="number"
+  [attr.min]="min"
+  [attr.max]="max"
+  [attr.step]="step"
+  [placeholder]="placeholder"
+  [disabled]="disabled"
+  [value]="value ?? ''"
+  (input)="handleInput($event)"
+  (blur)="handleBlur()"
+/>

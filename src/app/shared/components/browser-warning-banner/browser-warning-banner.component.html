@@ -1,0 +1,16 @@
+
+<div class="browser-warning" role="status">
+  <div class="browser-warning__inner">
+    <span class="browser-warning__icon" aria-hidden="true">!</span>
+    <p class="browser-warning__text">{{ message() }}</p>
+    <button
+      type="button"
+      class="browser-warning__close"
+      (click)="close.emit()"
+      aria-label="Dismiss notice"
+      title="Dismiss"
+    >
+      ×
+    </button>
+  </div>
+</div>

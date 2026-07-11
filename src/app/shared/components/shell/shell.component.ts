@@ -3,7 +3,7 @@ import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { NavbarComponent } from '../navbar/navbar.component';
 import { BrowserWarningBannerComponent } from '../browser-warning-banner/browser-warning-banner.component';
 import { BoardPlaybackService } from '../../../core/services/board-playback.service';
-import { BrowserSupportService } from '../../../core/services/browser-support.service';
+import { EnvironmentWarningsService } from '../../../core/services/environment-warnings.service';
 import { BoardsPageComponent } from '../../../features/boards/pages/boards-page/boards-page.component';
 import { filter, skip } from 'rxjs';
 
@@ -11,33 +11,12 @@ import { filter, skip } from 'rxjs';
   selector: 'app-shell',
   standalone: true,
   imports: [RouterOutlet, NavbarComponent, BoardsPageComponent, BrowserWarningBannerComponent],
-  template: `
-    <div class="app-shell">
-      <app-navbar></app-navbar>
-
-      @if (browserSupport.showWarning) {
-        <app-browser-warning-banner
-          [open]="browserSupport.bannerOpen()"
-          (close)="browserSupport.closeBanner()"
-        />
-      }
-
-      <main class="app-shell__main">
-        <!-- Always kept alive so audio continues across navigation -->
-        <app-boards-page [style.display]="isBoardsRoute() ? '' : 'none'"></app-boards-page>
-
-        <!-- All other pages render here; hidden while on /boards so the stub is invisible -->
-        <div [style.display]="isBoardsRoute() ? 'none' : ''">
-          <router-outlet></router-outlet>
-        </div>
-      </main>
-    </div>
-  `,
+  templateUrl: './shell.component.html',
   styleUrls: ['./shell.component.scss'],
 })
 export class ShellComponent {
   private readonly boardPlayback = inject(BoardPlaybackService);
-  readonly browserSupport = inject(BrowserSupportService);
+  readonly warnings = inject(EnvironmentWarningsService);
   readonly isBoardsRoute = signal(false);
 
   constructor() {
