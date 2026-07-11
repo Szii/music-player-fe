@@ -104,21 +104,21 @@ export class WorkshopPageComponent implements OnInit {
       ownTracks: this.tracksApi.getUserTracks().pipe(
         catchError((err: unknown) => {
           console.error(err);
-          this.appendError('Loading your tracks failed.');
+          this.appendError(httpErrorMessage(err, { fallback: 'Loading your tracks failed.' }));
           return of([] as Track[]);
         }),
       ),
       publishedTracks: this.tracksApi.getPublishedTracks().pipe(
         catchError((err: unknown) => {
           console.error(err);
-          this.appendError('Loading published tracks failed.');
+          this.appendError(httpErrorMessage(err, { fallback: 'Loading published tracks failed.' }));
           return of([] as Track[]);
         }),
       ),
       subscribedTracks: this.tracksApi.getUserSubscribedTracks().pipe(
         catchError((err: unknown) => {
           console.error(err);
-          this.appendError('Loading subscribed tracks failed.');
+          this.appendError(httpErrorMessage(err, { fallback: 'Loading subscribed tracks failed.' }));
           return of([] as Track[]);
         }),
       ),
@@ -136,7 +136,7 @@ export class WorkshopPageComponent implements OnInit {
         },
         error: (err: unknown) => {
           console.error(err);
-          this.appendError('Loading workshop data failed.');
+          this.appendError(httpErrorMessage(err, { fallback: 'Loading workshop data failed.' }));
         },
       });
   }
