@@ -256,14 +256,14 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       sessions: this.sessionsStore.load().pipe(
         catchError((err: unknown) => {
           console.error(err);
-          this.appendError('Loading sessions failed.');
+          this.appendError(httpErrorMessage(err, { fallback: 'Loading sessions failed.' }));
           return of({ sessions: [] });
         }),
       ),
       ownTracks: this.tracksApi.getUserTracks().pipe(
         catchError((err: unknown) => {
           console.error(err);
-          this.appendError('Loading tracks failed.');
+          this.appendError(httpErrorMessage(err, { fallback: 'Loading tracks failed.' }));
           return of([] as Track[]);
         }),
       ),
@@ -273,7 +273,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       groups: this.groupsApi.getUserGroups().pipe(
         catchError((err: unknown) => {
           console.error(err);
-          this.appendError('Loading groups failed.');
+          this.appendError(httpErrorMessage(err, { fallback: 'Loading groups failed.' }));
           return of([] as Group[]);
         }),
       ),
@@ -294,7 +294,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         },
         error: (err: unknown) => {
           console.error(err);
-          this.appendError('Loading data failed.');
+          this.appendError(httpErrorMessage(err, { fallback: 'Loading data failed.' }));
         },
       });
   }

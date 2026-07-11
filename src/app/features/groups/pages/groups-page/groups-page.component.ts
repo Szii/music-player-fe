@@ -141,9 +141,9 @@ export class GroupsPageComponent implements OnInit {
       next: (data) => {
         this.groups = this.sortGroups(data ?? []);
       },
-      error: (err) => {
+      error: (err: unknown) => {
         console.error(err);
-        this.errorMessage = 'Loading groups failed.';
+        this.errorMessage = httpErrorMessage(err, { fallback: 'Loading groups failed.' });
         groupsDone = true;
         done();
       },
@@ -158,9 +158,9 @@ export class GroupsPageComponent implements OnInit {
         this.ownTracks = data ?? [];
         this.mergeTracks();
       },
-      error: (err) => {
+      error: (err: unknown) => {
         console.error(err);
-        this.errorMessage ||= 'Loading tracks failed.';
+        this.errorMessage ||= httpErrorMessage(err, { fallback: 'Loading tracks failed.' });
         tracksDone = true;
         done();
       },
