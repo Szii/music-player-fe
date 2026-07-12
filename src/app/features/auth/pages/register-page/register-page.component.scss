@@ -1,6 +1,29 @@
 
-.auth-page__link {
-  margin-top: 1rem;
+.register-page__divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.25rem 0;
+}
+.register-page__divider::before,
+.register-page__divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--app-border-color-soft);
+  opacity: 0.45;
+}
+.register-page__divider-label {
+  font-family: var(--app-font-heading);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--app-text-muted);
+}
+
+.register-page__links {
+  margin-top: 1.5rem;
+  text-align: center;
 }
 
 .register-page__agree {

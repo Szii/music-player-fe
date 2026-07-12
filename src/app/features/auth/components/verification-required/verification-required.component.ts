@@ -54,7 +54,7 @@ export class VerificationRequiredComponent {
     this.resendStatus.set('sending');
 
     this.usersApi.resendVerificationEmail({
-      userLoginRequest: { name: credentials.name, password: credentials.password },
+      userLoginRequest: { email: credentials.email, password: credentials.password },
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({

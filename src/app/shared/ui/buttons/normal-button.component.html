@@ -1,11 +1,13 @@
 
 <button
-  [type]="type"
-  [disabled]="disabled || loading"
-  [class]="classes"
+  [type]="type()"
+  [disabled]="disabled() || loading()"
+  [class]="classes()"
   (mousedown)="$event.preventDefault()"
   (click)="clicked.emit($event)"
 >
-  <span *ngIf="loading" class="app-btn__spinner" aria-hidden="true"></span>
+  @if (loading()) {
+    <span class="app-btn__spinner" aria-hidden="true"></span>
+  }
   <ng-content></ng-content>
 </button>

@@ -2,6 +2,15 @@
   display: inline-block;
 }
 
+:host(.normal-button--full) {
+  display: block;
+  width: 100%;
+}
+
+.app-btn--full {
+  width: 100%;
+}
+
 .app-btn {
   display: inline-flex;
   align-items: center;

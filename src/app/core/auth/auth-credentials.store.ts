@@ -1,9 +1,8 @@
 import { Injectable, computed, signal } from '@angular/core';
 
 export interface PendingCredentials {
-  readonly name: string;
-  readonly password: string;
   readonly email: string;
+  readonly password: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -15,12 +14,6 @@ export class AuthCredentialsStore {
 
   set(credentials: PendingCredentials): void {
     this._credentials.set(credentials);
-  }
-
-  updateEmail(email: string): void {
-    const current = this._credentials();
-    if (!current) return;
-    this._credentials.set({ ...current, email });
   }
 
   clear(): void {

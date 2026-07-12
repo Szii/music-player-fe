@@ -1,10 +1,4 @@
-import {
-  Component,
-  EventEmitter,
-  Input,
-  Output,
-} from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
 export type ButtonVariant =
   | 'primary'
@@ -18,21 +12,26 @@ export type ButtonSize = 'sm' | 'md' | 'lg';
 
 @Component({
   selector: 'normal-button',
-  standalone: true,
-  imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './normal-button.component.html',
   styleUrls: ['./normal-button.component.scss'],
+  host: {
+    '[class.normal-button--full]': 'fullWidth()',
+  },
 })
 export class NormalButtonComponent {
-  @Input() variant: ButtonVariant = 'primary';
-  @Input() size: ButtonSize = 'md';
-  @Input() disabled = false;
-  @Input() loading = false;
-  @Input() type: 'button' | 'submit' | 'reset' = 'button';
+  readonly variant = input<ButtonVariant>('primary');
+  readonly size = input<ButtonSize>('md');
+  readonly disabled = input(false);
+  readonly loading = input(false);
+  readonly type = input<'button' | 'submit' | 'reset'>('button');
+  /** Stretch to the container's width, for stacked full-bleed actions. */
+  readonly fullWidth = input(false);
 
-  @Output() clicked = new EventEmitter<MouseEvent>();
+  readonly clicked = output<MouseEvent>();
 
-  get classes(): string {
-    return `app-btn app-btn--${this.variant} app-btn--${this.size}`;
-  }
+  readonly classes = computed(() => {
+    const base = `app-btn app-btn--${this.variant()} app-btn--${this.size()}`;
+    return this.fullWidth() ? `${base} app-btn--full` : base;
+  });
 }

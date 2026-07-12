@@ -14,10 +14,10 @@
 
       <form class="app-form-stack" [formGroup]="form" (ngSubmit)="onSubmit()">
         <ui-form-field
-          label="Username or email"
-          [error]="nameError()"
+          label="Email"
+          [error]="emailError()"
         >
-          <ui-text-input formControlName="name" name="username" autocomplete="username" />
+          <ui-text-input formControlName="email" type="email" autocomplete="email" />
         </ui-form-field>
 
         <ui-form-field
@@ -27,28 +27,31 @@
           <ui-text-input formControlName="password" type="password" autocomplete="current-password" />
         </ui-form-field>
 
-        <ui-form-actions>
-          <normal-button
-            type="submit"
-            [disabled]="form.invalid || isSubmitting()"
-            [loading]="isSubmitting()"
-          >
-            {{ isSubmitting() ? 'Signing in...' : 'Sign in' }}
-          </normal-button>
-        </ui-form-actions>
+        <normal-button
+          type="submit"
+          size="lg"
+          [fullWidth]="true"
+          [disabled]="form.invalid || isSubmitting()"
+          [loading]="isSubmitting()"
+        >
+          {{ isSubmitting() ? 'Signing in...' : 'Sign in' }}
+        </normal-button>
       </form>
 
-      <div class="auth-page__link">
+      <div class="login-page__divider">
+        <span class="login-page__divider-label">or</span>
+      </div>
+
+      <app-google-sign-in-button label="Sign in with Google" />
+
+      <nav class="login-page__links">
         @if (showEmailInputs) {
           <a routerLink="/forgot-password">Forgot password?</a>
         } @else {
           <span class="auth-page__link--disabled" aria-disabled="true">Forgot password?</span>
         }
-      </div>
-
-      <div class="auth-page__link">
         <a routerLink="/register">Need an account? Register</a>
-      </div>
+      </nav>
     }
   </ui-card>
 

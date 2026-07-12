@@ -2,6 +2,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, forkJoin, map, tap } from 'rxjs';
 
 import {
+  ChangeEmailRequest,
   MusicTracksService,
   SessionsResponse,
   SessionsService,
@@ -9,7 +10,6 @@ import {
   User,
   UserBoardsLimits,
   UserChangePasswordRequest,
-  UserRegisterRequest,
   UsersService,
 } from '../../../api/generated';
 import { SessionService } from '../../../core/auth/session.service';
@@ -147,10 +147,7 @@ export class ProfileStore {
   }
 
   changePassword(currentPassword: string, newPassword: string): Observable<unknown> {
-    const user = this.requireUser('changePassword');
-
     const body: UserChangePasswordRequest = {
-      name: user.name ?? '',
       password: currentPassword,
       newPassword,
     };
@@ -159,30 +156,21 @@ export class ProfileStore {
   }
 
   changeEmail(currentPassword: string, newEmail: string): Observable<unknown> {
-    const user = this.requireUser('changeEmail');
-
-    const body: UserRegisterRequest = {
-      name: user.name ?? '',
+    const body: ChangeEmailRequest = {
       email: newEmail,
       password: currentPassword,
     };
 
-    return this.usersApi.changeVerifiedEmail({ userRegisterRequest: body })
-      .pipe(tap(() => {
-        this.state.update(s => s.status === 'loaded'
-          ? { ...s, user: { ...s.user, email: newEmail } }
-          : s);
-      }));
+    // The new address is only staged as `pendingEmail` until the user confirms
+    // the link, so the profile keeps showing the current one.
+    return this.usersApi.changeVerifiedEmail({ changeEmailRequest: body });
   }
 
-  private requireUser(operation: string): User {
-    const user = this.user();
-
-    if (!user) {
-      throw new Error(`Cannot run ${operation} before profile is loaded.`);
-    }
-
-    return user;
+  changeUsername(name: string): Observable<User> {
+    return this.usersApi.changeUsername({ changeUsernameRequest: { name } })
+      .pipe(tap(user => {
+        this.state.update(s => s.status === 'loaded' ? { ...s, user } : s);
+      }));
   }
 }
 

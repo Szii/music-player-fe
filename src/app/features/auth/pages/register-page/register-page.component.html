@@ -55,18 +55,24 @@
           </div>
         </div>
 
-        <ui-form-actions>
-          <normal-button
-            type="submit"
-            [disabled]="form.invalid || isSubmitting()"
-            [loading]="isSubmitting()"
-          >
-            {{ isSubmitting() ? 'Creating account...' : 'Create account' }}
-          </normal-button>
-        </ui-form-actions>
+        <normal-button
+          type="submit"
+          size="lg"
+          [fullWidth]="true"
+          [disabled]="form.invalid || isSubmitting()"
+          [loading]="isSubmitting()"
+        >
+          {{ isSubmitting() ? 'Creating account...' : 'Create account' }}
+        </normal-button>
       </form>
 
-      <div class="auth-page__link">
+      <div class="register-page__divider">
+        <span class="register-page__divider-label">or</span>
+      </div>
+
+      <app-google-sign-in-button label="Sign up with Google" />
+
+      <div class="register-page__links">
         <a routerLink="/login">Already have an account? Login</a>
       </div>
     }

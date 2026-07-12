@@ -34,13 +34,25 @@
 
       <div class="profile-grid">
         <div class="profile-grid__security">
-          <ui-card title="Change password">
-            <app-change-password-form />
+          <ui-card title="Change username">
+            <app-change-username-form />
           </ui-card>
 
-          <ui-card title="Change email">
-            <app-change-email-form />
-          </ui-card>
+          @if (managedByGoogle()) {
+            <ui-card title="Password &amp; email">
+              <p class="app-muted">
+                This account signs in with Google, so your password and email are managed there.
+              </p>
+            </ui-card>
+          } @else {
+            <ui-card title="Change password">
+              <app-change-password-form />
+            </ui-card>
+
+            <ui-card title="Change email">
+              <app-change-email-form />
+            </ui-card>
+          }
         </div>
 
         <ui-card title="Rank & limits">
