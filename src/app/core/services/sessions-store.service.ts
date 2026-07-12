@@ -1,6 +1,6 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { Observable, of, tap } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { catchError, map } from 'rxjs/operators';
 import {
   SessionResponse,
   SessionsResponse,
@@ -49,6 +49,7 @@ export class SessionsStore {
   load(): Observable<SessionsResponse> {
     this.loading.set(true);
     return this.api.getSessions().pipe(
+      map(response => response ?? { sessions: [] }),
       tap(response => this.applyResponse(response)),
       tap({
         next: () => {
