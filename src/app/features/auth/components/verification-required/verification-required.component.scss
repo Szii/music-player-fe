@@ -19,8 +19,22 @@
 .verify-required__status--error {
   color: var(--color-danger, #b00020);
 }
-.verify-required__change-form {
-  margin-top: 1rem;
+.verify-required__hint {
+  margin: 1rem 0 0;
+  line-height: 1.5;
+}
+.verify-required__inline-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--color-primary, #1a73e8);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.verify-required__inline-link:focus-visible {
+  outline: 2px solid var(--color-focus, currentColor);
+  outline-offset: 2px;
 }
 .verify-required__link {
   margin-top: 1rem;

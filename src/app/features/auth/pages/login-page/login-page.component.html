@@ -2,7 +2,11 @@
 <div class="app-page app-page--narrow">
   <ui-card title="Login">
     @if (needsVerification()) {
-      <app-verification-required (cancel)="onBackToLogin()" />
+      <app-verification-required
+        mode="unverified"
+        (cancel)="onBackToLogin()"
+        (registerAgain)="onRegisterAgain()"
+      />
     } @else {
       @if (formError()) {
         <ui-alert variant="danger" role="alert">{{ formError() }}</ui-alert>

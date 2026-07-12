@@ -103,6 +103,12 @@ export class RegisterPageComponent implements OnDestroy {
     void this.router.navigateByUrl('/login');
   }
 
+  onRegisterAgain(): void {
+    this.registered.set(false);
+    this.formError.set('');
+    this.credentialsStore.clear();
+  }
+
   onSubmit(): void {
     this.submitted.set(true);
     this.formError.set('');

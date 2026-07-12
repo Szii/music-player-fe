@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { UsersService } from '../../../../api/generated';
 import { UiCardComponent } from '../../../../shared/ui/card/ui-card.component';
+import { httpErrorMessage } from '../../../../shared/utils/http-error';
 
 type VerifyState =
   | { status: 'pending' }
@@ -52,10 +52,11 @@ export class VerifyEmailPageComponent implements OnInit {
   }
 
   private mapError(err: unknown): string {
-    if (err instanceof HttpErrorResponse) {
-      if (err.status === 401) return 'This verification link is invalid or has expired.';
-      if (err.status === 404) return 'We could not find an account for this link.';
-    }
-    return 'Verification failed. Please try again.';
+    return httpErrorMessage(err, {
+      overrides: {
+        403: 'This verification link is invalid or has expired. Please request a new one.',
+      },
+      fallback: 'Verification failed. Please try again.',
+    });
   }
 }

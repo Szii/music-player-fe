@@ -18,6 +18,10 @@ function limitError(message?: string): HttpErrorResponse {
   return httpError(403, undefined, { code: 'LIMIT_EXCEEDED', message });
 }
 
+function badRequest(message?: string): HttpErrorResponse {
+  return httpError(400, undefined, { code: 'BAD_REQUEST', message });
+}
+
 describe('httpErrorMessage', () => {
   it('returns the fallback for non-HTTP errors', () => {
     expect(httpErrorMessage(new Error('boom'), { fallback: 'Nope.' })).toBe('Nope.');
@@ -87,6 +91,25 @@ describe('httpErrorMessage', () => {
       overrides: { 403: 'Current password is incorrect.' },
     });
     expect(msg).toBe('Current password is incorrect.');
+  });
+
+  it('surfaces the password-policy reason from a BAD_REQUEST', () => {
+    const msg = httpErrorMessage(badRequest('Invalid password: minimum length 6.'), {
+      fallback: 'Registration failed. Please try again.',
+    });
+    expect(msg).toBe('Invalid password: minimum length 6.');
+  });
+
+  it('prefers the BAD_REQUEST message over a same-status override', () => {
+    const msg = httpErrorMessage(badRequest('Invalid password: must not be the username.'), {
+      overrides: { 400: 'Check your input.' },
+    });
+    expect(msg).toBe('Invalid password: must not be the username.');
+  });
+
+  it('falls back when a BAD_REQUEST carries no message', () => {
+    expect(httpErrorMessage(badRequest('  '), { fallback: 'Registration failed.' }))
+      .toBe('Registration failed.');
   });
 });
 
