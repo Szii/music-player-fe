@@ -1,4 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { translate } from '@jsverse/transloco';
 
 /** Friendly, user-facing messages keyed by HTTP status code. */
 export type HttpErrorOverrides = Partial<Record<number, string>>;
@@ -13,7 +14,7 @@ export interface HttpErrorMessageOptions {
   fallback?: string;
 }
 
-const DEFAULT_FALLBACK = 'Something went wrong. Please try again.';
+
 
 /** Backend error codes (mirror of the server `ErrorCode` enum) the UI branches on. */
 export const ERROR_CODE = {
@@ -52,7 +53,7 @@ export function httpErrorMessage(
   error: unknown,
   options: HttpErrorMessageOptions = {},
 ): string {
-  const fallback = options.fallback ?? DEFAULT_FALLBACK;
+  const fallback = options.fallback ?? translate<string>('errors.generic');
 
   if (!(error instanceof HttpErrorResponse)) {
     return fallback;
@@ -62,7 +63,7 @@ export function httpErrorMessage(
   // the specific limit, so prefer it over any per-status override or fallback.
   const body = apiErrorBody(error);
   if (body?.code === ERROR_CODE.LIMIT_EXCEEDED) {
-    return body.message?.trim() || 'You’ve reached your plan limit for this action.';
+    return body.message?.trim() || translate<string>('errors.limitReached');
   }
 
   if (body?.code === ERROR_CODE.BAD_REQUEST) {
@@ -79,18 +80,18 @@ export function httpErrorMessage(
 
   // status 0: the request never reached the server (offline, DNS, CORS, timeout).
   if (error.status === 0) {
-    return 'Can’t reach the server. Check your connection and try again.';
+    return translate('errors.offline');
   }
 
   if (error.status === 429) {
     const wait = retryAfterText(error);
     return wait
-      ? `Too many attempts. Please wait ${wait} and try again.`
-      : 'Too many attempts. Please slow down and try again.';
+      ? translate('errors.tooManyAttemptsWait', { wait })
+      : translate('errors.tooManyAttempts');
   }
 
   if (error.status >= 500) {
-    return 'Something went wrong on our end. Please try again in a moment.';
+    return translate('errors.server');
   }
 
   return fallback;
@@ -127,13 +128,12 @@ export function retryAfterText(error: HttpErrorResponse): string | null {
     return null;
   }
 
+  // ponytail: unit abbreviations dodge plural rules (cs needs 3 forms).
   if (waitSeconds < 60) {
-    const rounded = Math.ceil(waitSeconds);
-    return `${rounded} second${rounded === 1 ? '' : 's'}`;
+    return `${Math.ceil(waitSeconds)} s`;
   }
 
-  const minutes = Math.ceil(waitSeconds / 60);
-  return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+  return `${Math.ceil(waitSeconds / 60)} min`;
 }
 
 /**

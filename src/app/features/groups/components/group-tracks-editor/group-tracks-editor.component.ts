@@ -1,12 +1,15 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  inject,
   computed,
   effect,
   input,
   output,
   signal,
 } from '@angular/core';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { Group, Track } from '../../../../api/generated';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
@@ -29,11 +32,24 @@ type TrackFilterMode = 'all' | 'selected';
     UiDialogShellComponent,
     UiListToolbarComponent,
     UiChipComponent,
+    TranslocoPipe,
   ],
   templateUrl: './group-tracks-editor.component.html',
   styleUrl: './group-tracks-editor.component.scss',
 })
 export class GroupTracksEditorComponent {
+  private readonly transloco = inject(TranslocoService);
+
+  /** Read by t() so labels recompute when the language changes. */
+  private readonly activeLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    this.activeLang();
+    return this.transloco.translate<string>(key, params);
+  }
+
   readonly group = input.required<Group>();
   readonly tracks = input<Track[]>([]);
   readonly saving = input(false);
@@ -48,16 +64,16 @@ export class GroupTracksEditorComponent {
   readonly selectedIds = signal<ReadonlySet<number>>(new Set<number>());
 
   readonly filterOptions = [
-    { label: 'All', value: 'all' },
-    { label: 'Selected only', value: 'selected' },
+    { label: this.t('common.all'), value: 'all' },
+    { label: this.t('groups.selectedOnly'), value: 'selected' },
   ];
 
   readonly selectedCount = computed(() => this.selectedIds().size);
 
   readonly dialogSubtitle = computed(() => {
     const g = this.group();
-    const name = g.listName || `Group #${g.id}`;
-    return `${name} · ${this.selectedCount()} selected`;
+    const name = g.listName || this.t('common.groupNum', { id: g.id });
+    return this.t('groups.editorSubtitle', { name, count: this.selectedCount() });
   });
 
   readonly filteredTracks = computed(() => {
@@ -149,7 +165,7 @@ export class GroupTracksEditorComponent {
   }
 
   displayName(track: Track): string {
-    return track.trackName || track.trackOriginalName || `Track #${track.id}`;
+    return track.trackName || track.trackOriginalName || this.t('common.trackNum', { id: track.id });
   }
 
   formatDuration(seconds?: number): string {

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { finalize } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -21,6 +22,7 @@ import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
     UiTextInputComponent,
     UiFormActionsComponent,
     NormalButtonComponent,
+    TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './change-email-form.component.html',
@@ -30,6 +32,7 @@ export class ChangeEmailFormComponent {
   private readonly fb = inject(FormBuilder);
   private readonly store = inject(ProfileStore);
   private readonly toast = inject(ToastService);
+  private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly showEmailInputs = SHOW_EMAIL_INPUTS;
@@ -53,15 +56,19 @@ export class ChangeEmailFormComponent {
   emailError(): string {
     const control = this.form.controls.email;
     if (!this.shouldShow(control)) return '';
-    if (control.hasError('required')) return 'Email is required.';
-    if (control.hasError('email')) return 'Enter a valid email address.';
+    if (control.hasError('required')) {
+      return this.transloco.translate('profile.emailForm.emailRequired');
+    }
+    if (control.hasError('email')) {
+      return this.transloco.translate('profile.emailForm.emailInvalid');
+    }
     return '';
   }
 
   passwordError(): string {
     const control = this.form.controls.password;
     if (!this.shouldShow(control)) return '';
-    return 'Current password is required.';
+    return this.transloco.translate('profile.emailForm.passwordRequired');
   }
 
   private shouldShow(control: { invalid: boolean; touched: boolean; dirty: boolean }): boolean {
@@ -88,7 +95,7 @@ export class ChangeEmailFormComponent {
       )
       .subscribe({
         next: () => {
-          this.toast.success('Verification email sent. Click the link to confirm the change.');
+          this.toast.success(this.transloco.translate('profile.emailForm.success'));
           this.form.reset({ email: '', password: '' });
           this.submitted.set(false);
         },
@@ -96,10 +103,10 @@ export class ChangeEmailFormComponent {
           console.error(err);
           this.toast.error(httpErrorMessage(err, {
             overrides: {
-              403: 'Current password is incorrect.',
-              409: 'That email is already registered.',
+              403: this.transloco.translate('profile.emailForm.incorrect'),
+              409: this.transloco.translate('profile.emailForm.taken'),
             },
-            fallback: 'Could not change email. Please try again.',
+            fallback: this.transloco.translate('profile.emailForm.failed'),
           }));
         },
       });

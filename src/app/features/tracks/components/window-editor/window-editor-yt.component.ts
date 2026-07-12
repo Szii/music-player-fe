@@ -12,6 +12,8 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import {
   WaveformCanvasComponent,
@@ -20,7 +22,7 @@ import {
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-input.component';
 import {
-  PROFANITY_ERROR,
+  profanityErrorMessage,
   hasProfanity,
 } from '../../../../shared/validators/profanity.validator';
 import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
@@ -77,11 +79,24 @@ const CROSSFADE_STEP_MS = FADE_STEP_MS;
     NormalButtonComponent,
     UiVolumeSliderComponent,
     BoardPlayerYtDeckComponent,
+    TranslocoPipe,
   ],
   templateUrl: './window-editor-yt.component.html',
   styleUrl: './window-editor-yt.component.scss',
 })
 export class WindowEditorYtComponent {
+  private readonly transloco = inject(TranslocoService);
+
+  /** Read by t() so labels recompute when the language changes. */
+  private readonly activeLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    this.activeLang();
+    return this.transloco.translate<string>(key, params);
+  }
+
   private readonly toast = inject(ToastService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly zone = inject(NgZone);
@@ -102,7 +117,8 @@ export class WindowEditorYtComponent {
   readonly lockRegion = input(false);
   /** Lock the window name (whole-track window uses a fixed name). */
   readonly lockName = input(false);
-  readonly applyLabel = input('Apply window');
+  /** Empty falls back to the translated default. */
+  readonly applyLabel = input('');
   /** Whether the preview loops with crossfade. Owned by the parent editor so it
       applies across all windows, not per-window. */
   readonly loopPreview = input(true);
@@ -149,7 +165,7 @@ export class WindowEditorYtComponent {
   });
 
   readonly windowNameError = computed(() =>
-    hasProfanity(this.windowName()) ? PROFANITY_ERROR : '',
+    hasProfanity(this.windowName()) ? profanityErrorMessage() : '',
   );
 
   readonly rulerMarks = computed(() => {
@@ -290,14 +306,14 @@ export class WindowEditorYtComponent {
 
   onPreviewError(): void {
     this.status.set('STOPPED');
-    this.toast.error('YouTube preview failed to load.');
+    this.toast.error(this.t('windows.previewFailed'));
   }
 
   onApply(): void {
     this.commitPendingTimeInputs();
 
     if (!this.canApply()) {
-      this.toast.warning('Pick a name and a valid selection first.');
+      this.toast.warning(this.t('windows.pickNameFirst'));
       return;
     }
 
@@ -316,10 +332,10 @@ export class WindowEditorYtComponent {
     }
 
     return this.confirmDialog.confirm({
-      title: 'Discard changes?',
-      message: 'You have unsaved window changes. They will be lost if you continue.',
-      confirmText: 'Discard',
-      cancelText: 'Keep editing',
+      title: this.t('windows.discardTitle'),
+      message: this.t('windows.discardMessage'),
+      confirmText: this.t('windows.discard'),
+      cancelText: this.t('windows.keepEditing'),
       variant: 'danger',
     });
   }

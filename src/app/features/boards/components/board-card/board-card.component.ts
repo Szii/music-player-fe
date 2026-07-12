@@ -12,8 +12,9 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { ConnectedPosition, OverlayModule } from '@angular/cdk/overlay';
 import { Board, Group, Track } from '../../../../api/generated';
 import { BoardPlayerYtDeckComponent } from '../board-player-yt-deck/board-player-yt-deck.component';
@@ -34,7 +35,7 @@ import { ScrollLockService } from '../../../../core/services/scroll-lock.service
 import { BottomSheetDragDirective } from '../../../../shared/ui/bottom-sheet/bottom-sheet-drag.directive';
 import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 import {
-  PROFANITY_ERROR,
+  profanityErrorMessage,
   hasProfanity,
 } from '../../../../shared/validators/profanity.validator';
 import { UiCharCounterComponent } from '../../../../shared/ui/char-counter/ui-char-counter.component';
@@ -57,7 +58,6 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     FormsModule,
     OverlayModule,
     BoardPlayerYtDeckComponent,
@@ -71,6 +71,7 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
     UiAlertComponent,
     BottomSheetDragDirective,
     UiCharCounterComponent,
+    TranslocoPipe,
   ],
   host: {
     '(document:click)': 'onDocumentClick($event)',
@@ -79,6 +80,18 @@ export type LoopMode = 'off' | 'whole' | 'sequence';
   styleUrl: './board-card.component.scss',
 })
 export class BoardCardComponent implements OnInit {
+  private readonly transloco = inject(TranslocoService);
+
+  /** Read by t() so every label recomputes when the language changes. */
+  private readonly activeLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    this.activeLang();
+    return this.transloco.translate(key, params);
+  }
+
   readonly board = input.required<Board>();
   readonly availableGroups = input<Group[]>([]);
   readonly status = input<'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR'>('STOPPED');
@@ -132,7 +145,7 @@ export class BoardCardComponent implements OnInit {
   readonly renaming = signal(false);
   readonly renameValue = signal('');
   readonly renameError = computed(() =>
-    hasProfanity(this.renameValue()) ? PROFANITY_ERROR : '',
+    hasProfanity(this.renameValue()) ? profanityErrorMessage() : '',
   );
   readonly nameMaxLength = FIELD_LIMITS.board.name;
   readonly displayedVolumePercent = signal(100);
@@ -307,8 +320,8 @@ export class BoardCardComponent implements OnInit {
 
   readonly playlistButtonTitle = computed(() =>
     this.canUsePlaylist()
-      ? 'Play through the selected group'
-      : 'This group has no tracks to play',
+      ? this.t('stages.card.playlistTitle')
+      : this.t('stages.card.playlistEmpty'),
   );
 
   /**
@@ -318,13 +331,11 @@ export class BoardCardComponent implements OnInit {
    */
   readonly warningMessage = computed<string | null>(() => {
     if (this.playlistMode()) {
-      return this.canUsePlaylist()
-        ? null
-        : 'This group has no tracks to play. Pick a group that has tracks.';
+      return this.canUsePlaylist() ? null : this.t('stages.warn.emptyGroup');
     }
 
     if (this.board().selectedTrack && this.sequenceUnavailable()) {
-      return 'Window sequence needs at least two windows on this track — playing the whole track on loop instead.';
+      return this.t('stages.warn.sequenceNeedsWindows');
     }
 
     return null;
@@ -333,7 +344,7 @@ export class BoardCardComponent implements OnInit {
   // The board state is only Single or Playlist; sequence is surfaced through the
   // loop ribbon, not as a board state.
   readonly modeChipLabel = computed(() =>
-    this.playlistMode() ? 'Playlist' : 'Single',
+    this.t(this.playlistMode() ? 'stages.mode.playlist' : 'stages.mode.single'),
   );
 
   readonly modeIconName = computed<UiIconName>(() =>
@@ -341,38 +352,38 @@ export class BoardCardComponent implements OnInit {
   );
 
   readonly modeChipTooltip = computed(() =>
-    this.playlistMode() ? 'Playlist mode' : 'Single-track mode',
+    this.t(this.playlistMode() ? 'stages.mode.playlistTip' : 'stages.mode.singleTip'),
   );
 
   // Always-present loop ribbon. In playlist mode each track plays to its end, so
   // looping is fixed to "whole track".
   readonly loopRibbonLabel = computed(() => {
-    if (this.playlistMode()) return 'Whole';
+    if (this.playlistMode()) return this.t('stages.loop.whole');
     switch (this.loopMode()) {
       case 'whole':
-        return 'Whole';
+        return this.t('stages.loop.whole');
       case 'sequence':
-        return 'Sequence';
+        return this.t('stages.loop.sequence');
       default:
-        return 'Off';
+        return this.t('stages.loop.off');
     }
   });
 
   /** Full loop wording for the chip tooltip — the visible label is iconified. */
   readonly loopRibbonTooltip = computed(() => {
-    if (this.playlistMode()) return 'Loop: whole playback';
+    if (this.playlistMode()) return this.t('stages.loop.wholeTip');
     switch (this.loopMode()) {
       case 'whole':
-        return 'Loop: whole playback';
+        return this.t('stages.loop.wholeTip');
       case 'sequence':
-        return 'Loop: window sequence';
+        return this.t('stages.loop.sequenceTip');
       default:
-        return 'Loop: off';
+        return this.t('stages.loop.offTip');
     }
   });
 
   readonly randomRibbonLabel = computed(() =>
-    this.playlistOptions().random ? 'Shuffle' : 'In order',
+    this.t(this.playlistOptions().random ? 'stages.random.shuffle' : 'stages.random.inOrder'),
   );
 
   readonly randomIconName = computed<UiIconName>(() =>
@@ -380,9 +391,9 @@ export class BoardCardComponent implements OnInit {
   );
 
   readonly randomRibbonTooltip = computed(() =>
-    this.playlistOptions().random
-      ? 'Shuffle the group'
-      : 'Play the group in order',
+    this.t(
+      this.playlistOptions().random ? 'stages.random.shuffleTip' : 'stages.random.inOrderTip',
+    ),
   );
 
   readonly canStartPlayback = computed(() => {
@@ -394,19 +405,24 @@ export class BoardCardComponent implements OnInit {
   });
 
   readonly currentTrackLabel = computed(() => {
-    const t = this.board().selectedTrack;
-    return t ? (t.trackName || t.trackOriginalName || ('Track #' + t.id)) : '—';
+    const track = this.board().selectedTrack;
+    if (!track) return '—';
+    return (
+      track.trackName ||
+      track.trackOriginalName ||
+      this.t('common.trackNum', { id: track.id })
+    );
   });
 
   readonly currentGroupLabel = computed(() =>
-    this.board().selectedGroup?.listName || 'All tracks',
+    this.board().selectedGroup?.listName || this.t('stages.card.allTracks'),
   );
 
   readonly currentWindowLabel = computed(() => {
-    if (this.playlistMode()) return 'Auto';
+    if (this.playlistMode()) return this.t('stages.card.auto');
     const w = this.selectedWindow() as any;
-    if (!w) return 'Whole playback';
-    return w.name || 'Window';
+    if (!w) return this.t('stages.card.wholePlayback');
+    return w.name || this.t('common.window');
   });
 
   /** Windows belonging to the selected track; sequencing needs at least two. */
@@ -436,10 +452,14 @@ export class BoardCardComponent implements OnInit {
   );
 
   readonly loopModeChoices = computed<{ value: LoopMode; label: string; disabled?: boolean }[]>(() => [
-    { value: 'off', label: 'Off' },
-    { value: 'whole', label: 'Whole playback' },
+    { value: 'off', label: this.t('stages.loop.off') },
+    { value: 'whole', label: this.t('stages.card.wholePlayback') },
     // Disable sequencing when the track lacks the windows to step through.
-    { value: 'sequence', label: 'Window sequence', disabled: !this.canSequenceWindows() },
+    {
+      value: 'sequence',
+      label: this.t('stages.loop.windowSequence'),
+      disabled: !this.canSequenceWindows(),
+    },
   ]);
 
   /** Current single-track loop behaviour, derived from the board flags. */
@@ -451,18 +471,18 @@ export class BoardCardComponent implements OnInit {
   readonly loopModeHint = computed(() => {
     switch (this.loopMode()) {
       case 'whole':
-        return 'Loops the track or selected window';
+        return this.t('stages.loop.hintWhole');
       case 'sequence':
-        return 'Steps through every window, looping the sequence';
+        return this.t('stages.loop.hintSequence');
       default:
-        return 'Plays once, then stops';
+        return this.t('stages.loop.hintOff');
     }
   });
 
   readonly groupOptions = computed(() =>
     // A group with no tracks has nothing to select or play, so disable it.
     this.availableGroups().map(g => ({
-      label: g.listName || ('Group #' + g.id),
+      label: g.listName || this.t('common.groupNum', { id: g.id }),
       value: g.id,
       disabled: (g.tracks?.length ?? 0) === 0,
     })),
@@ -480,18 +500,19 @@ export class BoardCardComponent implements OnInit {
       const subOptions = !sequencing && trackWindows.length > 0
         ? [
             {
-              label: 'Whole playback',
+              label: this.t('stages.card.wholePlayback'),
               value: { trackId: t.id ?? null, windowId: null },
             },
             ...trackWindows.map(w => ({
-              label: (w as any).name || 'Window',
+              label: (w as any).name || this.t('common.window'),
               value: { trackId: t.id ?? null, windowId: (w as any).id ?? null },
             })),
           ]
         : undefined;
 
       return {
-        label: t.trackName || t.trackOriginalName || ('Track #' + t.id),
+        label:
+          t.trackName || t.trackOriginalName || this.t('common.trackNum', { id: t.id }),
         value: t.id,
         subOptions,
         disabled: sequencing && trackWindows.length < 2,
@@ -501,7 +522,7 @@ export class BoardCardComponent implements OnInit {
 
   readonly windowOptions = computed(() =>
     this.windows().map(w => ({
-      label: (w as any).name || 'Window #' + (w as any).id,
+      label: (w as any).name || this.t('common.windowNum', { id: (w as any).id }),
       value: (w as any).id,
     })),
   );

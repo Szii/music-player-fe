@@ -12,6 +12,8 @@ import {
   signal,
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 
 import { DeviceCapabilitiesService } from '../../../core/services/device-capabilities.service';
 import { ScrollLockService } from '../../../core/services/scroll-lock.service';
@@ -23,6 +25,8 @@ export interface UiSelectOption {
   subOptions?: UiSelectOption[];
   /** When true the option is shown greyed out and cannot be selected. */
   disabled?: boolean;
+  /** Optional decorative image (e.g. a flag) shown before the label. */
+  icon?: string;
 }
 
 export interface UiSelectSubOptionEvent {
@@ -41,7 +45,7 @@ interface PanelRect {
 @Component({
   selector: 'ui-select',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BottomSheetDragDirective],
+  imports: [BottomSheetDragDirective, TranslocoPipe],
   providers: [
     {
       provide: NG_VALUE_ACCESSOR,
@@ -61,7 +65,8 @@ interface PanelRect {
 export class UiSelectComponent implements ControlValueAccessor {
   readonly options = input<UiSelectOption[]>([]);
   readonly nullOption = input<string | undefined>(undefined);
-  readonly placeholder = input('Select…');
+
+  readonly placeholder = input('');
   readonly enableSearch = input(true);
   readonly navigateUpWhenClosed = input(false);
 
@@ -95,6 +100,7 @@ export class UiSelectComponent implements ControlValueAccessor {
 
   private readonly scrollLock = inject(ScrollLockService);
   private readonly device = inject(DeviceCapabilitiesService);
+  private readonly transloco = inject(TranslocoService);
 
   constructor(private readonly el: ElementRef) {
     effect(() => {
@@ -152,13 +158,26 @@ export class UiSelectComponent implements ControlValueAccessor {
     };
   });
 
+  private readonly activeLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
+
+  private readonly placeholderText = computed(() => {
+    this.activeLang();
+    return this.placeholder() || this.transloco.translate<string>('common.selectEllipsis');
+  });
+
   readonly selectedLabel = computed(() => {
     const v = this.currentValue();
     if (v === null || v === undefined) {
-      return this.nullOption() ?? this.placeholder();
+      return this.nullOption() ?? this.placeholderText();
     }
-    return this.options().find(o => o.value === v)?.label ?? this.placeholder();
+    return this.options().find(o => o.value === v)?.label ?? this.placeholderText();
   });
+
+  readonly selectedIcon = computed(
+    () => this.options().find(o => o.value === this.currentValue())?.icon ?? null,
+  );
 
   writeValue(val: any): void {
     this.currentValue.set(val ?? null);
@@ -185,11 +204,6 @@ export class UiSelectComponent implements ControlValueAccessor {
       this.isOpen.set(true);
       this.resetHighlightFromCurrent();
 
-      // Auto-focus the search on precise-pointer devices (mouse/trackpad) only.
-      // On touch devices — phones *and* tablets — focusing would immediately pop
-      // the soft keyboard over the options, so let the user tap the field to
-      // start searching. Keyed on input modality, not viewport width, so a wide
-      // tablet doesn't get desktop behaviour.
       if (this.enableSearch() && this.device.prefersAutoFocus()) {
         setTimeout(() => this.searchInputRef?.nativeElement.focus(), 0);
       }

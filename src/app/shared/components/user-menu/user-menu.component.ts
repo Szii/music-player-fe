@@ -8,12 +8,13 @@ import {
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 
 import { ProfileStore } from '../../../features/profile/data-access/profile-store.service';
 
 @Component({
   selector: 'app-user-menu',
-  imports: [RouterLink],
+  imports: [RouterLink, TranslocoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '(document:click)': 'onDocumentClick($event)',
@@ -25,6 +26,7 @@ import { ProfileStore } from '../../../features/profile/data-access/profile-stor
 export class UserMenuComponent {
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly store = inject(ProfileStore);
+  private readonly transloco = inject(TranslocoService);
 
   readonly logout = output<void>();
   /** Emitted when a menu item navigates, so the parent nav can collapse. */
@@ -32,7 +34,9 @@ export class UserMenuComponent {
 
   readonly isOpen = signal(false);
 
-  readonly displayName = computed(() => this.store.user()?.name ?? 'Account');
+  readonly displayName = computed(
+    () => this.store.user()?.name ?? this.transloco.translate<string>('nav.account'),
+  );
 
   readonly initial = computed(() => {
     const name = this.store.user()?.name;

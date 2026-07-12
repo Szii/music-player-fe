@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject } from '@angular/core';
+import { TranslocoPipe } from '@jsverse/transloco';
 
 import { ProfileStore } from '../../data-access/profile-store.service';
+import { LanguageSelectComponent } from '../../../../shared/components/language-select/language-select.component';
 import { UiCardComponent } from '../../../../shared/ui/card/ui-card.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { ChangePasswordFormComponent } from '../../components/change-password-form/change-password-form.component';
@@ -20,6 +22,8 @@ import { TutorialService } from '../../../tutorial/data-access/tutorial.service'
     ChangeUsernameFormComponent,
     UserLimitsCardComponent,
     FooterComponent,
+    LanguageSelectComponent,
+    TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './profile-page.component.html',

@@ -19,7 +19,7 @@
       <ui-action-menu
         [items]="menuItems()"
         [disabled]="updating()"
-        [triggerLabel]="'Actions for ' + displayName()"
+        [triggerLabel]="'groups.actionsFor' | transloco: { name: displayName() }"
         (select)="onMenuSelect($event)"
       />
     </div>
@@ -28,19 +28,19 @@
 
 @if (renameOpen()) {
   <ui-dialog-shell
-    title="Rename group"
+    [title]="'groups.rename' | transloco"
     [showFooter]="true"
     (closed)="closeRename()"
   >
     <div class="rename-form">
-      <label class="app-form-label">Group name</label>
+      <label class="app-form-label">{{ 'groups.name' | transloco }}</label>
       <input
         class="app-input"
         type="text"
         [ngModel]="editingName()"
         (ngModelChange)="editingName.set($event)"
         [ngModelOptions]="{ standalone: true }"
-        placeholder="e.g. Combat Music"
+        [placeholder]="'groups.namePlaceholder' | transloco"
         [maxlength]="nameMaxLength"
         (keydown.enter)="confirmRename()"
         (keydown.escape)="closeRename()"
@@ -52,7 +52,7 @@
     </div>
 
     <normal-button dialog-footer type="button" variant="secondary" (clicked)="closeRename()">
-      Cancel
+      {{ 'common.cancel' | transloco }}
     </normal-button>
 
     <normal-button
@@ -61,7 +61,7 @@
       [disabled]="!editingName().trim() || !!renameError()"
       (clicked)="confirmRename()"
     >
-      Save
+      {{ 'common.save' | transloco }}
     </normal-button>
   </ui-dialog-shell>
 }

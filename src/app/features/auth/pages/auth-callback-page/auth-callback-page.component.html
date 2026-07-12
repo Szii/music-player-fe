@@ -1,16 +1,16 @@
 
 <div class="app-page app-page--narrow">
-  <ui-card title="Signing in">
+  <ui-card [title]="'auth.signingInTitle' | transloco">
     @switch (state()) {
       @case ('signing-in') {
-        <p class="callback-page__text" role="status">Completing sign-in, please wait...</p>
+        <p class="callback-page__text" role="status">{{ 'auth.completingSignIn' | transloco }}</p>
       }
       @case ('failed') {
         <p class="callback-page__text callback-page__text--error" role="alert">
-          Google sign-in failed. Please try again.
+          {{ 'auth.err.googleFailed' | transloco }}
         </p>
         <div class="callback-page__link">
-          <a routerLink="/login">Back to login</a>
+          <a routerLink="/login">{{ 'auth.backToLogin' | transloco }}</a>
         </div>
       }
     }

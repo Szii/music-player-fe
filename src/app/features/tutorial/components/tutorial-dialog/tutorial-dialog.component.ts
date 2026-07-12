@@ -5,6 +5,7 @@ import {
   inject,
   viewChild,
 } from '@angular/core';
+import { TranslocoPipe } from '@jsverse/transloco';
 
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
@@ -12,7 +13,9 @@ import { TutorialService } from '../../data-access/tutorial.service';
 
 @Component({
   selector: 'app-tutorial-dialog',
-  imports: [NormalButtonComponent, UiDialogShellComponent],
+  imports: [NormalButtonComponent, UiDialogShellComponent,
+    TranslocoPipe,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '(document:keydown.escape)': 'onEscape()',

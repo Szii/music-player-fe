@@ -21,10 +21,24 @@
   }
 }
 
-.profile-grid__security {
+.profile-grid__security,
+.profile-grid__side {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
+
+.profile-language {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 20rem;
+}
+
+.profile-language__label {
+  font-family: var(--app-font-heading);
+  font-size: 0.875rem;
+  color: var(--app-text-muted);
 }
 
 .profile-identity {

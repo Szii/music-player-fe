@@ -33,7 +33,7 @@
           [style.--stripe-left]="stripeLeftCss()"
           [style.--stripe-width]="stripeWidthCss()"
           [style.--stripe-gap]="stripeGapCss()"
-          title="Crossfade region — not seekable"
+          [title]="'stages.crossfadeRegion' | transloco"
         ></span>
       }
     </div>
@@ -46,7 +46,7 @@
          <!-- <span class="player__window-label">{{ label }}</span>  -->
         }
         @if (status() === 'BUFFERING') {
-          <span class="player__buffering">buffering…</span>
+          <span class="player__buffering">{{ 'stages.buffering' | transloco }}</span>
         }
       </div>
 

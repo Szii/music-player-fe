@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { finalize } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -11,7 +12,11 @@ import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-butt
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { httpErrorMessage } from '../../../../shared/utils/http-error';
 import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
-import { usernameErrorMessage, usernameValidators } from '../../../auth/utils/username.validator';
+import {
+  USERNAME_ERROR_PARAMS,
+  usernameErrorKey,
+  usernameValidators,
+} from '../../../auth/utils/username.validator';
 
 @Component({
   selector: 'app-change-username-form',
@@ -21,6 +26,7 @@ import { usernameErrorMessage, usernameValidators } from '../../../auth/utils/us
     UiTextInputComponent,
     UiFormActionsComponent,
     NormalButtonComponent,
+    TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './change-username-form.component.html',
@@ -29,6 +35,7 @@ export class ChangeUsernameFormComponent {
   private readonly fb = inject(FormBuilder);
   private readonly store = inject(ProfileStore);
   private readonly toast = inject(ToastService);
+  private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly nameMaxLength = FIELD_LIMITS.user.name;
@@ -45,7 +52,9 @@ export class ChangeUsernameFormComponent {
     const control = this.form.controls.name;
     if (!control.invalid) return '';
     if (!(this.submitted() || (control.touched && control.dirty))) return '';
-    return usernameErrorMessage(control);
+
+    const key = usernameErrorKey(control);
+    return key ? this.transloco.translate(key, USERNAME_ERROR_PARAMS) : '';
   }
 
   onSubmit(): void {
@@ -62,15 +71,17 @@ export class ChangeUsernameFormComponent {
       )
       .subscribe({
         next: user => {
-          this.toast.success(`Username changed to ${user.name}.`);
+          this.toast.success(
+            this.transloco.translate('profile.usernameForm.success', { name: user.name }),
+          );
           this.form.reset({ name: '' });
           this.submitted.set(false);
         },
         error: (err: unknown) => {
           console.error(err);
           this.toast.error(httpErrorMessage(err, {
-            overrides: { 409: 'That username is already taken.' },
-            fallback: 'Could not change username. Please try again.',
+            overrides: { 409: this.transloco.translate('profile.usernameForm.taken') },
+            fallback: this.transloco.translate('profile.usernameForm.failed'),
           }));
         },
       });

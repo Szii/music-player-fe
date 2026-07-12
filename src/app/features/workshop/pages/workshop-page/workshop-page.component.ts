@@ -1,5 +1,6 @@
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
@@ -35,11 +36,24 @@ import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog
     NormalButtonComponent,
     UiPageTitleComponent,
     FooterComponent,
+    TranslocoPipe,
   ],
   templateUrl: './workshop-page.component.html',
   styleUrl: './workshop-page.component.scss',
 })
 export class WorkshopPageComponent implements OnInit {
+  private readonly transloco = inject(TranslocoService);
+
+  /** Read by t() so labels recompute when the language changes. */
+  private readonly activeLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    this.activeLang();
+    return this.transloco.translate<string>(key, params);
+  }
+
   private readonly tracksApi = inject(MusicTracksService);
   private readonly shareApi = inject(ShareService);
   private readonly toast = inject(ToastService);
@@ -104,21 +118,21 @@ export class WorkshopPageComponent implements OnInit {
       ownTracks: this.tracksApi.getUserTracks().pipe(
         catchError((err: unknown) => {
           console.error(err);
-          this.appendError(httpErrorMessage(err, { fallback: 'Loading your tracks failed.' }));
+          this.appendError(httpErrorMessage(err, { fallback: this.t('tracks.err.loadOwn') }));
           return of([] as Track[]);
         }),
       ),
       publishedTracks: this.tracksApi.getPublishedTracks().pipe(
         catchError((err: unknown) => {
           console.error(err);
-          this.appendError(httpErrorMessage(err, { fallback: 'Loading published tracks failed.' }));
+          this.appendError(httpErrorMessage(err, { fallback: this.t('workshop.err.loadPublished') }));
           return of([] as Track[]);
         }),
       ),
       subscribedTracks: this.tracksApi.getUserSubscribedTracks().pipe(
         catchError((err: unknown) => {
           console.error(err);
-          this.appendError(httpErrorMessage(err, { fallback: 'Loading subscribed tracks failed.' }));
+          this.appendError(httpErrorMessage(err, { fallback: this.t('tracks.err.loadSubscribed') }));
           return of([] as Track[]);
         }),
       ),
@@ -136,7 +150,7 @@ export class WorkshopPageComponent implements OnInit {
         },
         error: (err: unknown) => {
           console.error(err);
-          this.appendError(httpErrorMessage(err, { fallback: 'Loading workshop data failed.' }));
+          this.appendError(httpErrorMessage(err, { fallback: this.t('workshop.err.loadData') }));
         },
       });
   }
@@ -158,19 +172,19 @@ export class WorkshopPageComponent implements OnInit {
       )
       .subscribe({
         next: () => {
-          this.toast.success('Track published.');
+          this.toast.success(this.t('workshop.msg.published'));
           this.loadAll();
         },
         error: (err: any) => {
           console.error(err);
 
           if (err?.status === 409) {
-            this.toast.warning('Track is already published.');
+            this.toast.warning(this.t('workshop.msg.alreadyPublished'));
             this.loadAll();
             return;
           }
 
-          this.toast.error(httpErrorMessage(err, { fallback: 'Publishing failed.' }));
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('workshop.err.publish') }));
         },
       });
   }
@@ -188,12 +202,12 @@ export class WorkshopPageComponent implements OnInit {
       )
       .subscribe({
         next: () => {
-          this.toast.success('Track unpublished.');
+          this.toast.success(this.t('workshop.msg.unpublished'));
           this.loadAll();
         },
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error(httpErrorMessage(err, { fallback: 'Unpublishing failed.' }));
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('workshop.err.unpublish') }));
         },
       });
   }
@@ -201,7 +215,7 @@ export class WorkshopPageComponent implements OnInit {
   subscribeFromCatalog(track: Track): void {
     const shareCode = track.trackShare?.shareCode;
     if (!shareCode) {
-      this.toast.error('No share code available.');
+      this.toast.error(this.t('workshop.err.noShareCode'));
       return;
     }
 
@@ -216,19 +230,19 @@ export class WorkshopPageComponent implements OnInit {
       )
       .subscribe({
         next: () => {
-          this.toast.success('Subscribed to track.');
+          this.toast.success(this.t('workshop.msg.subscribed'));
           this.loadAll();
         },
         error: (err: any) => {
           console.error(err);
 
           if (err?.status === 409 || err?.status === 400) {
-            this.toast.warning('Already subscribed or invalid code.');
+            this.toast.warning(this.t('workshop.msg.alreadySubscribed'));
             this.loadAll();
             return;
           }
 
-          this.toast.error(httpErrorMessage(err, { fallback: 'Subscribe failed.' }));
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('workshop.err.subscribe') }));
         },
       });
   }
@@ -237,10 +251,12 @@ export class WorkshopPageComponent implements OnInit {
     if (track.id == null) return;
 
     const confirmed = await this.confirmDialog.confirm({
-      title: 'Unsubscribe from track',
-      message: `Unsubscribe from "${track.trackName || track.trackOriginalName || track.id}"?`,
-      confirmText: 'Unsubscribe',
-      cancelText: 'Cancel',
+      title: this.t('workshop.unsubscribeTitle'),
+      message: this.t('workshop.unsubscribeConfirm', {
+        name: track.trackName || track.trackOriginalName || track.id,
+      }),
+      confirmText: this.t('workshop.unsubscribe'),
+      cancelText: this.t('common.cancel'),
       variant: 'danger',
     });
 
@@ -256,12 +272,12 @@ export class WorkshopPageComponent implements OnInit {
       )
       .subscribe({
         next: () => {
-          this.toast.success('Unsubscribed from track.');
+          this.toast.success(this.t('workshop.msg.unsubscribed'));
           this.loadAll();
         },
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error(httpErrorMessage(err, { fallback: 'Unsubscribing failed.' }));
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('workshop.err.unsubscribe') }));
         },
       });
   }

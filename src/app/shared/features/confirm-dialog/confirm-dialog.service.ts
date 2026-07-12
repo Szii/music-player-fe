@@ -1,4 +1,5 @@
 import { Injectable, signal } from '@angular/core';
+import { translate } from '@jsverse/transloco';
 
 export type ConfirmDialogVariant = 'default' | 'danger';
 
@@ -37,8 +38,8 @@ export class ConfirmDialogService {
       open: true,
       title: options.title,
       message: options.message,
-      confirmText: options.confirmText ?? 'Confirm',
-      cancelText: options.cancelText ?? 'Cancel',
+      confirmText: options.confirmText ?? translate<string>('common.confirm'),
+      cancelText: options.cancelText ?? translate<string>('common.cancel'),
       variant: options.variant ?? 'default',
     });
 

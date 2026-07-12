@@ -1,13 +1,18 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnDestroy, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { finalize } from 'rxjs/operators';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 
 import { UsersService, UserRegisterRequest } from '../../../../api/generated';
 import { AuthCredentialsStore } from '../../../../core/auth/auth-credentials.store';
 import { matchPasswords } from '../../utils/match-passwords.validator';
-import { usernameErrorMessage, usernameValidators } from '../../utils/username.validator';
+import {
+  USERNAME_ERROR_PARAMS,
+  usernameErrorKey,
+  usernameValidators,
+} from '../../utils/username.validator';
 import { UiCardComponent } from '../../../../shared/ui/card/ui-card.component';
 import { UiFormFieldComponent } from '../../../../shared/ui/form-field/ui-form-field.component';
 import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-input.component';
@@ -16,10 +21,10 @@ import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { VerificationRequiredComponent } from '../../components/verification-required/verification-required.component';
 import { GoogleSignInButtonComponent } from '../../components/google-sign-in-button/google-sign-in-button.component';
+import { AuthToolbarComponent } from '../../components/auth-toolbar/auth-toolbar.component';
 import { httpErrorMessage } from '../../../../shared/utils/http-error';
 import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 import { FooterComponent } from '../../../../shared/components/footer/footer.component';
-import { LegalDialogService } from '../../../../shared/features/legal-dialog/legal-dialog.service';
 
 @Component({
   selector: 'app-register-page',
@@ -34,19 +39,32 @@ import { LegalDialogService } from '../../../../shared/features/legal-dialog/leg
     UiAlertComponent,
     VerificationRequiredComponent,
     GoogleSignInButtonComponent,
+    AuthToolbarComponent,
+    TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './register-page.component.html',
   styleUrl: './register-page.component.scss',
 })
 export class RegisterPageComponent implements OnDestroy {
+  private readonly transloco = inject(TranslocoService);
+
+  /** Read by t() so labels recompute when the language changes. */
+  private readonly activeLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    this.activeLang();
+    return this.transloco.translate<string>(key, params);
+  }
+
   private readonly fb = inject(FormBuilder);
   private readonly usersApi = inject(UsersService);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
   private readonly credentialsStore = inject(AuthCredentialsStore);
   private readonly destroyRef = inject(DestroyRef);
-  readonly legalDialog = inject(LegalDialogService);
 
   readonly limits = FIELD_LIMITS.user;
 
@@ -67,31 +85,33 @@ export class RegisterPageComponent implements OnDestroy {
   nameError(): string {
     const control = this.form.controls.name;
     if (!this.shouldShowError(control)) return '';
-    return usernameErrorMessage(control);
+
+    const key = usernameErrorKey(control);
+    return key ? this.transloco.translate(key, USERNAME_ERROR_PARAMS) : '';
   }
 
   emailError(): string {
     const control = this.form.controls.email;
     if (!this.shouldShowError(control)) return '';
-    if (control.hasError('required')) return 'Email is required.';
-    if (control.hasError('email')) return 'Enter a valid email address.';
+    if (control.hasError('required')) return this.t('profile.emailForm.emailRequired');
+    if (control.hasError('email')) return this.t('profile.emailForm.emailInvalid');
     return '';
   }
 
   passwordError(): string {
     const control = this.form.controls.password;
     if (!this.shouldShowError(control)) return '';
-    return 'Password must be at least 6 characters.';
+    return this.t('auth.passwordMinLength');
   }
 
   confirmError(): string {
     const control = this.form.controls.confirm;
     const showControlError = this.shouldShowError(control);
-    if (showControlError && control.hasError('required')) return 'Please confirm your password.';
+    if (showControlError && control.hasError('required')) return this.t('auth.confirmRequired');
 
     const showMismatch = this.form.hasError('passwordMismatch')
       && (this.submitted() || (control.touched && control.dirty));
-    if (showMismatch) return 'Passwords do not match.';
+    if (showMismatch) return this.t('auth.passwordsMismatch');
     return '';
   }
 
@@ -135,14 +155,14 @@ export class RegisterPageComponent implements OnDestroy {
             email: body.email,
             password: body.password,
           });
-          this.toast.success('Account created. Check your email to verify.');
+          this.toast.success(this.t('auth.msg.accountCreated'));
           this.registered.set(true);
         },
         error: (err: unknown) => {
           console.error(err);
           this.formError.set(httpErrorMessage(err, {
-            overrides: { 409: 'Username or email already exists.' },
-            fallback: 'Registration failed. Please try again.',
+            overrides: { 409: this.t('auth.err.userExists') },
+            fallback: this.t('auth.err.registerFailed'),
           }));
         },
       });

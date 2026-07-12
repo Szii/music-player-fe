@@ -1,4 +1,5 @@
 import { Injectable, signal } from '@angular/core';
+import { translate } from '@jsverse/transloco';
 
 export interface PromptDialogOptions {
   title: string;
@@ -39,8 +40,8 @@ export class PromptDialogService {
       label: options.label ?? '',
       placeholder: options.placeholder ?? '',
       initialValue: options.initialValue ?? '',
-      confirmText: options.confirmText ?? 'OK',
-      cancelText: options.cancelText ?? 'Cancel',
+      confirmText: options.confirmText ?? translate<string>('common.ok'),
+      cancelText: options.cancelText ?? translate<string>('common.cancel'),
       maxLength: options.maxLength ?? 120,
     });
 

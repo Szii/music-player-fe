@@ -16,7 +16,7 @@
             size="md"
             [playing]="isPlaying()"
             [disabled]="!canStartPlayback()"
-            [ariaLabel]="isPlaying() ? 'Stop playback' : 'Play board'"
+            [ariaLabel]="(isPlaying() ? 'stages.card.stop' : 'stages.card.play') | transloco"
             (clicked)="onPrimaryAction()"
           />
         </div>
@@ -24,7 +24,7 @@
         <ui-volume-slider
           class="board-card__volume board-card__volume--fader"
           [vertical]="true"
-          ariaLabel="Board volume"
+          [ariaLabel]="'stages.card.volume' | transloco"
           [value]="displayedVolumePercent()"
           (preview)="onVolumePreview($event)"
           (commit)="onVolumeCommit($event)"
@@ -34,21 +34,20 @@
       <div class="board-card__summary-content">
         <div class="board-card__summary-top">
           <div class="board-card__title-wrap">
-            <ng-container *ngIf="!renaming(); else renameTpl">
+            @if (!renaming()) {
               <span
                 class="board-card__title"
-                title="Double-click to rename"
+                [title]="'stages.card.renameHint' | transloco"
                 (dblclick)="startRename()"
-              >{{ board().name || 'Unnamed board' }}</span>
+              >{{ board().name || ('stages.card.unnamed' | transloco) }}</span>
               <button
                 type="button"
                 class="board-card__rename-btn"
-                aria-label="Rename board"
+                [attr.aria-label]="'stages.card.rename' | transloco"
                 (mousedown)="$event.preventDefault()"
                 (click)="startRename()"
               >✎</button>
-            </ng-container>
-            <ng-template #renameTpl>
+            } @else {
               <div class="board-card__rename">
                 <input
                   #renameInput
@@ -68,7 +67,7 @@
                   <p class="board-card__rename-error">{{ renameError() }}</p>
                 }
               </div>
-            </ng-template>
+            }
           </div>
 
           <div class="board-card__feature-chips">
@@ -109,21 +108,21 @@
                 variant="gold"
                 size="sm"
                 shape="hex"
-                tooltip="Overplay — overlap with other boards"
+                [tooltip]="'stages.card.overplayTip' | transloco"
               >
                 <ui-icon class="ribbon-ico" name="overlap" />
-                Overplay
+                {{ 'stages.card.overplay' | transloco }}
               </ui-chip>
             }
 
-            @if (shortcut()) {
+            @if (shortcut(); as key) {
               <ui-chip
                 variant="neutral"
                 size="sm"
-                [attr.title]="'Keyboard shortcut: ' + shortcut()"
+                [attr.title]="'stages.card.shortcutTip' | transloco: { key: key }"
               >
                 <ui-icon class="ribbon-ico" name="keyboard" />
-                {{ shortcut() }}
+                {{ key }}
               </ui-chip>
             }
           </div>
@@ -133,20 +132,20 @@
           <div class="board-card__meta-line">
             <ui-chip
               variant="neutral"
-              keyLabel="Group"
+              [keyLabel]="'stages.card.group' | transloco"
               [tooltip]="currentGroupLabel()"
             >{{ currentGroupLabel() }}</ui-chip>
 
             <ui-chip
               variant="neutral"
-              [keyLabel]="playlistMode() ? 'Now playing' : 'Track'"
+              [keyLabel]="(playlistMode() ? 'stages.card.nowPlaying' : 'stages.card.track') | transloco"
               [tooltip]="currentTrackLabel()"
             >{{ currentTrackLabel() }}</ui-chip>
 
             @if (!playlistMode()) {
               <ui-chip
                 variant="neutral"
-                keyLabel="Window"
+                [keyLabel]="'stages.card.window' | transloco"
                 [tooltip]="currentWindowLabel()"
               >{{ currentWindowLabel() }}</ui-chip>
             }
@@ -154,7 +153,7 @@
 
           <ui-volume-slider
             class="board-card__volume board-card__volume--bar"
-            ariaLabel="Board volume"
+            [ariaLabel]="'stages.card.volume' | transloco"
             [value]="displayedVolumePercent()"
             (preview)="onVolumePreview($event)"
             (commit)="onVolumeCommit($event)"
@@ -166,7 +165,7 @@
     <div class="board-card__summary-actions">
       <app-icon-button
         icon="delete"
-        label="Delete board"
+        [label]="'stages.card.delete' | transloco"
         variant="danger"
         size="md"
         (clicked)="delete.emit()"
@@ -179,7 +178,7 @@
         [class.board-card__chevron--open]="expanded()"
         (click)="toggleExpanded()"
         (keydown)="onChevronKeydown($event)"
-        [attr.aria-label]="expanded() ? 'Collapse board' : 'Expand board'">
+        [attr.aria-label]="(expanded() ? 'stages.card.collapse' : 'stages.card.expand') | transloco">
         ▾
       </button>
     </div>
@@ -197,15 +196,19 @@
     <div class="board-card__details-inner">
       <div class="board-card__main">
         <div class="board-card__header">
-          <div class="board-mode-switch" role="group" aria-label="Playback mode">
+          <div
+            class="board-mode-switch"
+            role="group"
+            [attr.aria-label]="'stages.card.playbackMode' | transloco"
+          >
             <button
               type="button"
               class="board-mode-switch__btn"
               [class.board-mode-switch__btn--active]="!playlistMode()"
-              title="Play one track — choose its loop mode in playback settings"
+              [title]="'stages.mode.singleTitle' | transloco"
               (mousedown)="$event.preventDefault()"
               (click)="setPlaylistTab(false)">
-              ♫ Single
+              ♫ {{ 'stages.mode.single' | transloco }}
             </button>
             <button
               type="button"
@@ -215,7 +218,7 @@
               [attr.title]="playlistButtonTitle()"
               (mousedown)="$event.preventDefault()"
               (click)="setPlaylistTab(true)">
-              ♫ Playlist
+              ♫ {{ 'stages.mode.playlist' | transloco }}
             </button>
           </div>
 
@@ -229,8 +232,8 @@
                 [class.board-icon-btn--active]="settingsOpen()"
                 (mousedown)="$event.preventDefault()"
                 (click)="toggleSettingsMenu($event)"
-                title="Board settings"
-                aria-label="Board settings">
+                [title]="'stages.settings.trigger' | transloco"
+                [attr.aria-label]="'stages.settings.trigger' | transloco">
                 ⚙
               </button>
 
@@ -257,18 +260,22 @@
                     class="board-settings-menu__handle"
                     [appBottomSheetDrag]="settingsSheet"
                     (dismiss)="closeSettingsMenu()"
-                    aria-label="Close settings">
+                    [attr.aria-label]="'stages.settings.close' | transloco">
                     <span class="board-settings-menu__handle-bar" aria-hidden="true"></span>
                   </button>
-                  <div class="board-settings-menu__title">Playback settings</div>
+                  <div class="board-settings-menu__title">
+                    {{ 'stages.settings.title' | transloco }}
+                  </div>
 
                   <div class="board-settings-menu__items">
                     @if (playlistMode()) {
                       <label class="board-settings-item">
                         <div class="board-settings-item__copy">
-                          <span class="board-settings-item__label">Random</span>
+                          <span class="board-settings-item__label">
+                            {{ 'stages.settings.random' | transloco }}
+                          </span>
                           <span class="board-settings-item__hint">
-                            Shuffle the group instead of playing it in order
+                            {{ 'stages.settings.randomHint' | transloco }}
                           </span>
                         </div>
                         <input
@@ -279,12 +286,14 @@
                     } @else {
                       <div class="board-settings-item board-settings-item--loop-mode">
                         <div class="board-settings-item__copy">
-                          <span class="board-settings-item__label">Loop mode</span>
+                          <span class="board-settings-item__label">
+                            {{ 'stages.settings.loopMode' | transloco }}
+                          </span>
                           <span class="board-settings-item__hint">{{ loopModeHint() }}</span>
                         </div>
                         <ui-inline-select
                           class="board-loop-select"
-                          ariaLabel="Loop mode"
+                          [ariaLabel]="'stages.settings.loopMode' | transloco"
                           [options]="loopModeChoices()"
                           [value]="loopMode()"
                           (valueChange)="onLoopModeSelected($event)" />
@@ -293,8 +302,12 @@
 
                     <label class="board-settings-item">
                       <div class="board-settings-item__copy">
-                        <span class="board-settings-item__label">Overplay</span>
-                        <span class="board-settings-item__hint">Allow overlap with other boards</span>
+                        <span class="board-settings-item__label">
+                          {{ 'stages.card.overplay' | transloco }}
+                        </span>
+                        <span class="board-settings-item__hint">
+                          {{ 'stages.settings.overplayHint' | transloco }}
+                        </span>
                       </div>
                       <input
                         type="checkbox"
@@ -304,45 +317,55 @@
 
                     <div class="board-settings-item board-settings-item--shortcut">
                       <div class="board-settings-item__copy">
-                        <span class="board-settings-item__label">Keyboard shortcut</span>
+                        <span class="board-settings-item__label">
+                          {{ 'stages.settings.shortcut' | transloco }}
+                        </span>
                         <span class="board-settings-item__hint">
-                          {{ capturingShortcut()
-                            ? 'Press a key combination (Esc to cancel)'
-                            : 'Toggle play/stop from the keyboard' }}
+                          {{
+                            (capturingShortcut()
+                              ? 'stages.settings.shortcutCapturing'
+                              : 'stages.settings.shortcutHint'
+                            ) | transloco
+                          }}
                         </span>
                       </div>
                       <div class="board-shortcut">
-                        <span
-                          *ngIf="capturingShortcut()"
-                          class="board-shortcut__chip board-shortcut__chip--listening">
-                          Listening…
-                        </span>
-                        <span
-                          *ngIf="!capturingShortcut() && shortcut()"
-                          class="board-shortcut__chip">
-                          {{ shortcut() }}
-                        </span>
-                        <span
-                          *ngIf="!capturingShortcut() && !shortcut()"
-                          class="board-shortcut__chip board-shortcut__chip--empty">
-                          None
-                        </span>
+                        @if (capturingShortcut()) {
+                          <span class="board-shortcut__chip board-shortcut__chip--listening">
+                            {{ 'stages.settings.listening' | transloco }}
+                          </span>
+                        } @else if (shortcut()) {
+                          <span class="board-shortcut__chip">{{ shortcut() }}</span>
+                        } @else {
+                          <span class="board-shortcut__chip board-shortcut__chip--empty">
+                            {{ 'stages.settings.noShortcut' | transloco }}
+                          </span>
+                        }
 
                         <button
                           type="button"
                           class="board-shortcut__btn"
                           (mousedown)="$event.preventDefault()"
                           (click)="toggleCaptureShortcut()">
-                          {{ capturingShortcut() ? 'Cancel' : (shortcut() ? 'Change' : 'Set') }}
+                          {{
+                            (capturingShortcut()
+                              ? 'common.cancel'
+                              : shortcut()
+                                ? 'common.change'
+                                : 'common.set'
+                            ) | transloco
+                          }}
                         </button>
-                        <button
-                          type="button"
-                          class="board-shortcut__btn board-shortcut__btn--danger"
-                          *ngIf="shortcut() && !capturingShortcut()"
-                          (mousedown)="$event.preventDefault()"
-                          (click)="clearShortcut()">
-                          Clear
-                        </button>
+
+                        @if (shortcut() && !capturingShortcut()) {
+                          <button
+                            type="button"
+                            class="board-shortcut__btn board-shortcut__btn--danger"
+                            (mousedown)="$event.preventDefault()"
+                            (click)="clearShortcut()">
+                            {{ 'common.clear' | transloco }}
+                          </button>
+                        }
                       </div>
                     </div>
                   </div>
@@ -355,13 +378,13 @@
         <div class="board-card__controls">
           <div class="board-field">
             <span class="board-field__label">
-              Group
+              {{ 'stages.card.group' | transloco }}
               @if (groupDesynced()) {
                 <span
                   class="board-field__desync"
                   role="img"
-                  title="Selected group does not match the playing track — pick a track to switch"
-                  aria-label="Group out of sync with playing track"
+                  [title]="'stages.card.groupDesyncTip' | transloco"
+                  [attr.aria-label]="'stages.card.groupDesync' | transloco"
                 >⚠</span>
               }
             </span>
@@ -371,7 +394,7 @@
               [class.board-control--desynced]="groupDesynced()"
               [navigateUpWhenClosed]="true"
               [options]="groupOptions()"
-              nullOption="All tracks"
+              [nullOption]="'stages.card.allTracks' | transloco"
               [ngModel]="board().selectedGroup?.id ?? null"
               [ngModelOptions]="{ standalone: true }"
               (ngModelChange)="groupChange.emit($event)"
@@ -382,14 +405,17 @@
           </div>
 
           <div class="board-field">
-            <span class="board-field__label">{{ playlistMode() ? 'Now playing' : 'Track' }}</span>
-            <ng-container *ngIf="!playlistMode(); else nowPlayingTpl">
+            <span class="board-field__label">
+              {{ (playlistMode() ? 'stages.card.nowPlaying' : 'stages.card.track') | transloco }}
+            </span>
+
+            @if (!playlistMode()) {
               <ui-select
                 #trackSelectRef
                 class="board-control"
                 [navigateUpWhenClosed]="true"
                 [options]="trackOptions()"
-                nullOption="No track"
+                [nullOption]="'stages.card.noTrack' | transloco"
                 [ngModel]="displayedTrack()?.id ?? null"
                 [ngModelOptions]="{ standalone: true }"
                 (ngModelChange)="trackChange.emit($event)"
@@ -400,8 +426,7 @@
                 (navigateUp)="focusChevron()"
                 (escape)="focusChevron()"
               />
-            </ng-container>
-            <ng-template #nowPlayingTpl>
+            } @else {
               <div class="board-now-playing">
                 <div class="board-control board-field__readonly">{{ currentTrackLabel() }}</div>
                 <button
@@ -409,39 +434,40 @@
                   class="board-skip-btn"
                   [disabled]="!isPlaying()"
                   (click)="skipNext.emit()"
-                  aria-label="Skip to next track"
-                  title="Skip to next track">⏭</button>
+                  [attr.aria-label]="'stages.card.skipNext' | transloco"
+                  [title]="'stages.card.skipNext' | transloco">⏭</button>
               </div>
-            </ng-template>
+            }
           </div>
 
-          <div
-            class="board-field"
-            *ngIf="showWindowSelector()"
-            [attr.title]="sequentialWindows() ? 'Sequence mode steps through every window automatically' : null">
-            <span class="board-field__label">Window</span>
-            <ui-select
-              #windowSelectRef
-              class="board-control"
-              [navigateUpWhenClosed]="true"
-              [options]="windowOptions()"
-              nullOption="Whole playback"
-              [disabled]="sequentialWindows()"
-              [ngModel]="selectedWindowId()"
-              [ngModelOptions]="{ standalone: true }"
-              (ngModelChange)="windowChange.emit($event)"
-              (enterCommitted)="requestPlay.emit()"
-              (navigatePrev)="focusTrack()"
-              (navigateUp)="focusChevron()"
-              (escape)="focusChevron()"
-            />
-          </div>
+          @if (showWindowSelector()) {
+            <div
+              class="board-field"
+              [attr.title]="sequentialWindows() ? ('stages.card.sequenceLocked' | transloco) : null">
+              <span class="board-field__label">{{ 'stages.card.window' | transloco }}</span>
+              <ui-select
+                #windowSelectRef
+                class="board-control"
+                [navigateUpWhenClosed]="true"
+                [options]="windowOptions()"
+                [nullOption]="'stages.card.wholePlayback' | transloco"
+                [disabled]="sequentialWindows()"
+                [ngModel]="selectedWindowId()"
+                [ngModelOptions]="{ standalone: true }"
+                (ngModelChange)="windowChange.emit($event)"
+                (enterCommitted)="requestPlay.emit()"
+                (navigatePrev)="focusTrack()"
+                (navigateUp)="focusChevron()"
+                (escape)="focusChevron()"
+              />
+            </div>
+          }
         </div>
 
         <div class="board-card__player">
           <app-board-player-yt-deck
             [showPrimaryButton]="false"
-            [title]="board().name || ('Board #' + board().id)"
+            [title]="board().name || ('common.stageNum' | transloco: { id: board().id })"
             [hasTrack]="!!board().selectedTrack"
             [trackId]="board().selectedTrack?.id ?? null"
             [videoId]="selectedVideoId()"
@@ -472,7 +498,7 @@
     type="button"
     class="board-card__expand-hint"
     (click)="toggleExpanded()"
-    [attr.aria-label]="expanded() ? 'Collapse board' : 'Expand board'"
+    [attr.aria-label]="(expanded() ? 'stages.card.collapse' : 'stages.card.expand') | transloco"
     tabindex="-1"
   >
     <span class="board-card__expand-hint-icon" aria-hidden="true">⌄</span>

@@ -25,15 +25,15 @@
           class="sd__handle"
           [appBottomSheetDrag]="sheetEl"
           (dismiss)="dismissSheet()"
-          aria-label="Close"
+          [attr.aria-label]="'common.close' | transloco"
         >
           <span class="sd__handle-bar" aria-hidden="true"></span>
         </button>
 
-        <div class="app-popover-header">Sessions</div>
+        <div class="app-popover-header">{{ 'sessions.title' | transloco }}</div>
 
         @if (sessions().length === 0) {
-          <div class="sd__empty">No sessions yet.</div>
+          <div class="sd__empty">{{ 'sessions.empty' | transloco }}</div>
         } @else {
           <ul class="sd__list">
             @for (s of sessions(); track s.sessionId) {
@@ -48,7 +48,7 @@
                   (click)="select(s)"
                   [attr.aria-current]="s.sessionId === selectedId() ? 'true' : null"
                 >
-                  <span class="sd__item-name">{{ s.sessionName || 'Untitled session' }}</span>
+                  <span class="sd__item-name">{{ s.sessionName || ('sessions.untitled' | transloco) }}</span>
                   @if (s.sessionId === selectedId()) {
                     <span class="sd__item-check" aria-hidden="true">✓</span>
                   }
@@ -59,14 +59,14 @@
                     icon="edit"
                     size="xs"
                     variant="ghost"
-                    label="Rename session"
+                    [label]="'sessions.rename' | transloco"
                     (clicked)="startRename(s)"
                   />
                   <app-icon-button
                     icon="delete"
                     size="xs"
                     variant="ghost"
-                    label="Delete session"
+                    [label]="'sessions.delete' | transloco"
                     (clicked)="confirmDelete(s)"
                   />
                 </div>
@@ -81,7 +81,7 @@
           (click)="startCreate()"
         >
           <span class="sd__create-plus" aria-hidden="true">＋</span>
-          <span>New session</span>
+          <span>{{ 'sessions.new' | transloco }}</span>
         </button>
       </div>
     }

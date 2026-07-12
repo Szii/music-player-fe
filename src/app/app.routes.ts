@@ -4,6 +4,12 @@ import { emailInputsGuard } from './core/config/email-inputs.guard';
 
 export const routes: Routes = [
   {
+    path: 'legal',
+    loadComponent: () =>
+      import('./features/legal/pages/legal-page/legal-page.component')
+        .then(m => m.LegalPageComponent),
+  },
+  {
     path: 'login',
     loadComponent: () =>
       import('./features/auth/pages/login-page/login-page.component')

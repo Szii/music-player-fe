@@ -9,7 +9,9 @@
 
   @if (filterOptions(); as opts) {
     <label class="ui-list-toolbar__field">
-      <span class="ui-list-toolbar__label">{{ filterLabel() }}</span>
+      <span class="ui-list-toolbar__label">
+        {{ filterLabel() || ('common.filter' | transloco) }}
+      </span>
       <ui-select
         [options]="opts"
         [ngModel]="filterValue()"
@@ -22,7 +24,9 @@
 
   @if (sortOptions(); as opts) {
     <label class="ui-list-toolbar__field">
-      <span class="ui-list-toolbar__label">{{ sortLabel() }}</span>
+      <span class="ui-list-toolbar__label">
+        {{ sortLabel() || ('common.sort' | transloco) }}
+      </span>
       <ui-select
         [options]="opts"
         [ngModel]="sortValue()"
@@ -35,5 +39,9 @@
 </div>
 
 @if (showCount()) {
-  <div class="ui-list-toolbar__count">{{ countText() }}</div>
+  <!-- ponytail: count-only phrasing dodges plural rules (cs has 3 forms).
+       Add @jsverse/transloco-messageformat if the item noun must come back. -->
+  <div class="ui-list-toolbar__count">
+    {{ 'common.showingCount' | transloco: { filtered: filteredCount(), total: totalCount() } }}
+  </div>
 }

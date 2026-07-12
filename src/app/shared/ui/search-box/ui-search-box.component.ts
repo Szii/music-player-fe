@@ -1,19 +1,19 @@
-import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, Output } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { TranslocoPipe } from '@jsverse/transloco';
 
 @Component({
   selector: 'ui-search-box',
-  standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [TranslocoPipe],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './ui-search-box.component.html',
   styleUrl: './ui-search-box.component.scss',
 })
 export class UiSearchBoxComponent {
-  @Input() value = '';
-  @Input() placeholder = 'Search';
+  readonly value = input('');
+  /** Empty falls back to the translated default. */
+  readonly placeholder = input('');
 
-  @Output() valueChange = new EventEmitter<string>();
+  readonly valueChange = output<string>();
 
   clear(): void {
     this.valueChange.emit('');

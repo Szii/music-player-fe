@@ -22,7 +22,12 @@
     var(--app-shadow),
     inset 0 0 0 3px rgba(201, 164, 76, 0.1);
   color: var(--app-text);
-  isolation: isolate;
+  /* Nothing in this card may create a stacking context (no `isolation`, no
+     `z-index` on the card, header or body): overlays opened from inside it —
+     select sheets, popovers — must paint above the navbar's z-index: 1000
+     instead of being capped under it. Same rule as `.app-shell__main`.
+     The header/body still cover the decorative ::before without a z-index,
+     because positioned siblings paint in DOM order and ::before comes first. */
 }
 
 /* inner gold frame via box-shadow overlay */
@@ -41,7 +46,6 @@
 
 .app-card__header {
   position: relative;
-  z-index: 1;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -112,7 +116,6 @@
 
 .app-card__body {
   position: relative;
-  z-index: 1;
   padding: 1.25rem;
   background: transparent;
 }

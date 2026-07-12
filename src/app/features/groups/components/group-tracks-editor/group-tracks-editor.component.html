@@ -1,6 +1,6 @@
 
 <ui-dialog-shell
-  title="Edit tracks"
+  [title]="'groups.editTracks' | transloco"
   [subtitle]="dialogSubtitle()"
   size="wide"
   [showFooter]="true"
@@ -9,50 +9,46 @@
   <div class="editor">
     @if (tracks().length === 0) {
       <div class="editor__no-tracks">
-        <p class="editor__no-tracks-title">No tracks available yet</p>
-        <p class="editor__no-tracks-msg">
-          Add a track of your own, or subscribe to one shared by another user,
-          then come back to add it to this group.
-        </p>
+        <p class="editor__no-tracks-title">{{ 'groups.noTracksTitle' | transloco }}</p>
+        <p class="editor__no-tracks-msg">{{ 'groups.noTracksMsg' | transloco }}</p>
 
         <div class="editor__no-tracks-actions">
           <normal-button type="button" (clicked)="addTrack.emit()">
-            Add a track
+            {{ 'groups.addTrack' | transloco }}
           </normal-button>
 
           <normal-button type="button" variant="secondary" (clicked)="browseWorkshop.emit()">
-            Browse the workshop
+            {{ 'groups.browseWorkshop' | transloco }}
           </normal-button>
         </div>
       </div>
     } @else {
       <ui-list-toolbar
         [(search)]="search"
-        searchPlaceholder="Search by name, original name, or owner"
+        [searchPlaceholder]="'groups.searchTracksPlaceholder' | transloco"
         [filterValue]="filterMode()"
         [filterOptions]="filterOptions"
         (filterValueChange)="setFilterMode($event)"
         [filteredCount]="filteredTracks().length"
         [totalCount]="tracks().length"
-        itemLabel="track"
       />
 
       <div class="editor__meta">
-        <span>{{ selectedCount() }} selected</span>
+        <span>{{ 'common.selectedCount' | transloco: { count: selectedCount() } }}</span>
 
         <div class="editor__bulk-actions">
           <button type="button" class="editor__link-btn" (click)="selectAllFiltered()">
-            Select filtered
+            {{ 'groups.selectFiltered' | transloco }}
           </button>
 
           <button type="button" class="editor__link-btn" (click)="clearAll()">
-            Clear all
+            {{ 'groups.clearAll' | transloco }}
           </button>
         </div>
       </div>
 
       @if (filteredTracks().length === 0) {
-        <div class="editor__empty">No matching tracks.</div>
+        <div class="editor__empty">{{ 'groups.noMatchingTracks' | transloco }}</div>
       } @else {
         <!-- Desktop: scrollable checkbox list (hidden < md) -->
         <div class="editor__list app-table-desktop-only" role="list">
@@ -80,14 +76,14 @@
                 <div class="editor-row__sub">
                   @if (track.trackOriginalName && track.trackOriginalName !== displayName(track)) {
                     <span [title]="track.trackOriginalName">
-                      Original: {{ track.trackOriginalName }}
+                      {{ 'tracks.original' | transloco }}: {{ track.trackOriginalName }}
                     </span>
                   }
 
                   @if (track.owner?.name) {
                     <span [title]="track.owner?.name">
                       {{ track.trackOriginalName && track.trackOriginalName !== displayName(track) ? ' · ' : '' }}
-                      Owner: {{ track.owner?.name }}
+                      {{ 'tracks.owner' | transloco }}: {{ track.owner?.name }}
                     </span>
                   }
                 </div>
@@ -129,13 +125,13 @@
                     shape="hex"
                     [dot]="true"
                   >
-                    {{ isSelected(track) ? 'Selected' : 'Available' }}
+                    {{ (isSelected(track) ? 'groups.selected' : 'groups.available') | transloco }}
                   </ui-chip>
                 </div>
 
                 @if (track.trackOriginalName && track.trackOriginalName !== displayName(track)) {
                   <span class="app-entity-list__subtitle editor-mobile-row__subtitle" [title]="track.trackOriginalName">
-                    Original: {{ track.trackOriginalName }}
+                    {{ 'tracks.original' | transloco }}: {{ track.trackOriginalName }}
                   </span>
                 }
 
@@ -161,7 +157,7 @@
     variant="secondary"
     (clicked)="cancel.emit()"
   >
-    Cancel
+    {{ 'common.cancel' | transloco }}
   </normal-button>
 
   @if (tracks().length > 0) {
@@ -171,7 +167,7 @@
       [disabled]="saving()"
       (clicked)="onSave()"
     >
-      {{ saving() ? 'Saving…' : 'Save tracks' }}
+      {{ (saving() ? 'common.saving' : 'groups.saveTracks') | transloco }}
     </normal-button>
   }
 </ui-dialog-shell>

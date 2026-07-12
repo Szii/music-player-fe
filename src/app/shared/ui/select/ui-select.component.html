@@ -13,6 +13,10 @@
     aria-haspopup="listbox"
     (click)="toggle()"
   >
+    @if (selectedIcon(); as icon) {
+      <img class="sel__icon" [src]="icon" alt="" aria-hidden="true" />
+    }
+
     <span
       class="sel__value"
       [class.sel__value--placeholder]="isNullValue()"
@@ -47,7 +51,7 @@
         class="sel__handle"
         [appBottomSheetDrag]="sheetEl"
         (dismiss)="dismissSheet()"
-        aria-label="Close"
+        [attr.aria-label]="'common.close' | transloco"
       >
         <span class="sel__handle-bar" aria-hidden="true"></span>
       </button>
@@ -58,7 +62,7 @@
             #searchInput
             type="text"
             class="sel__search"
-            placeholder="Search…"
+            [placeholder]="'common.searchEllipsis' | transloco"
             autocomplete="off"
             enterkeyhint="done"
             [value]="searchQuery()"
@@ -91,7 +95,12 @@
               [attr.aria-selected]="currentValue() === opt.value"
               (click)="selectOption(opt)"
             >
-              <span class="sel__option-label">{{ opt.label }}</span>
+              <span class="sel__option-label">
+                @if (opt.icon; as icon) {
+                  <img class="sel__icon" [src]="icon" alt="" aria-hidden="true" />
+                }
+                <span class="sel__option-text">{{ opt.label }}</span>
+              </span>
 
               @if ((opt.subOptions?.length ?? 0) > 0) {
                 <span
@@ -99,10 +108,10 @@
                   [class.sel__option-subhint--open]="hoveredOptionValue() === opt.value"
                   role="button"
                   tabindex="-1"
-                  aria-label="Show windows for this track"
+                  [attr.aria-label]="'common.showWindows' | transloco"
                   (click)="onMoreTap(opt, i, $event)"
                 >
-                  <span class="sel__option-subhint-text">More</span>
+                  <span class="sel__option-subhint-text">{{ 'common.more' | transloco }}</span>
                   <span class="sel__option-subhint-icon">›</span>
                 </span>
               }
@@ -141,7 +150,7 @@
         }
 
         @if (filteredOptions().length === 0) {
-          <div class="sel__no-match">No matches</div>
+          <div class="sel__no-match">{{ 'common.noMatches' | transloco }}</div>
         }
       </div>
     </div>

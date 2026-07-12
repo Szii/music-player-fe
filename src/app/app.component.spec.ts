@@ -1,10 +1,12 @@
 import { TestBed } from '@angular/core/testing';
 import { AppComponent } from './app.component';
+import { provideTranslocoTesting } from '../testing/transloco-testing';
 
 describe('AppComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [AppComponent],
+      providers: [provideTranslocoTesting()],
     }).compileComponents();
   });
 
@@ -14,4 +16,3 @@ describe('AppComponent', () => {
     expect(app).toBeTruthy();
   });
 });
-

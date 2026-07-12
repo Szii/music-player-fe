@@ -7,6 +7,8 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Track } from '../../../../api/generated';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
@@ -27,7 +29,7 @@ import {
 } from '../../../../shared/ui/action-menu/ui-action-menu.component';
 import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 import {
-  PROFANITY_ERROR,
+  profanityErrorMessage,
   hasProfanity,
 } from '../../../../shared/validators/profanity.validator';
 
@@ -51,11 +53,24 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
     UiDataTableComponent,
     UiCharCounterComponent,
     UiActionMenuComponent,
+    TranslocoPipe,
   ],
   templateUrl: './my-tracks.component.html',
   styleUrl: './my-tracks.component.scss',
 })
 export class MyTracksComponent {
+  private readonly transloco = inject(TranslocoService);
+
+  /** Read by t() so labels recompute when the language changes. */
+  private readonly activeLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    this.activeLang();
+    return this.transloco.translate<string>(key, params);
+  }
+
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly infoDialog = inject(InfoDialogService);
 
@@ -68,16 +83,16 @@ export class MyTracksComponent {
   readonly addTrack = output<void>();
 
   readonly filterOptions = [
-    { label: 'All tracks', value: 'all' },
-    { label: 'Published', value: 'published' },
-    { label: 'Unpublished', value: 'unpublished' },
+    { label: this.t('tracks.filter.all'), value: 'all' },
+    { label: this.t('workshop.published'), value: 'published' },
+    { label: this.t('workshop.unpublished'), value: 'unpublished' },
   ];
 
   readonly columns: UiDataTableColumn[] = [
-    { label: 'Track', className: 'col-title' },
-    { label: 'Duration', className: 'col-duration', width: '100px' },
-    { label: 'Subscribers', className: 'col-subscribers', width: '120px' },
-    { label: 'Status', className: 'col-status', width: '150px' },
+    { label: this.t('tracks.col.track'), className: 'col-title' },
+    { label: this.t('tracks.col.duration'), className: 'col-duration', width: '100px' },
+    { label: this.t('workshop.subscribers'), className: 'col-subscribers', width: '120px' },
+    { label: this.t('tracks.col.status'), className: 'col-status', width: '150px' },
     { label: '', className: 'col-actions', width: '72px' },
   ];
 
@@ -86,7 +101,7 @@ export class MyTracksComponent {
   readonly publishTrack = signal<Track | null>(null);
   readonly publishDesc = signal('');
   readonly descriptionError = computed(() =>
-    hasProfanity(this.publishDesc()) ? PROFANITY_ERROR : '',
+    hasProfanity(this.publishDesc()) ? profanityErrorMessage() : '',
   );
   readonly search = signal('');
   readonly filterMode = persistentSignal<PublishFilterMode>('mpf:workshop:mytracks:filter', 'all');
@@ -126,10 +141,10 @@ export class MyTracksComponent {
     if (!track || this.descriptionError()) return;
 
     const confirmed = await this.confirmDialog.confirm({
-      title: 'Publish track',
-      message: `Publish "${this.displayName(track)}"?`,
-      confirmText: 'Publish',
-      cancelText: 'Cancel',
+      title: this.t('workshop.publishTitle'),
+      message: this.t('workshop.publishConfirm', { name: this.displayName(track) }),
+      confirmText: this.t('workshop.publish'),
+      cancelText: this.t('common.cancel'),
     });
 
     if (!confirmed) return;
@@ -144,10 +159,10 @@ export class MyTracksComponent {
 
   async requestUnpublish(track: Track): Promise<void> {
     const confirmed = await this.confirmDialog.confirm({
-      title: 'Unpublish track',
-      message: `Unpublish "${this.displayName(track)}"?`,
-      confirmText: 'Unpublish',
-      cancelText: 'Cancel',
+      title: this.t('workshop.unpublishTitle'),
+      message: this.t('workshop.unpublishConfirm', { name: this.displayName(track) }),
+      confirmText: this.t('workshop.unpublish'),
+      cancelText: this.t('common.cancel'),
       variant: 'danger',
     });
 
@@ -164,10 +179,10 @@ export class MyTracksComponent {
     const busy = this.busyTrackId() === track.id;
 
     if (track.trackShare) {
-      return [{ id: 'unpublish', label: 'Unpublish', variant: 'danger', disabled: busy }];
+      return [{ id: 'unpublish', label: this.t('workshop.unpublish'), variant: 'danger', disabled: busy }];
     }
 
-    return [{ id: 'publish', label: 'Publish', disabled: busy }];
+    return [{ id: 'publish', label: this.t('workshop.publish'), disabled: busy }];
   }
 
   onMenuSelect(track: Track, id: string): void {
@@ -194,11 +209,11 @@ export class MyTracksComponent {
 
   subscriberTitle(track: Track): string {
     const count = this.subscriberCount(track);
-    return `${count} ${count === 1 ? 'subscriber' : 'subscribers'}`;
+    return this.t('workshop.subscriberCount', { count });
   }
 
   displayName(track: Track): string {
-    return track.trackName || track.trackOriginalName || ('Track #' + track.id);
+    return track.trackName || track.trackOriginalName || this.t('common.trackNum', { id: track.id });
   }
 
   formatDuration(seconds?: number): string {

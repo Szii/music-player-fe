@@ -1,5 +1,5 @@
 
-<div class="toast-stack" role="region" aria-label="Notifications">
+<div class="toast-stack" role="region" [attr.aria-label]="'toast.region' | transloco">
   @for (toast of toastService.toasts(); track toast.id) {
     <div
       class="toast"
@@ -20,7 +20,7 @@
         <div class="toast__icon" aria-hidden="true">{{ icon(toast) }}</div>
 
         <div class="toast__content">
-          <div class="toast__title">{{ title(toast) }}</div>
+          <div class="toast__title">{{ title(toast) | transloco }}</div>
           <div class="toast__message">{{ toast.message }}</div>
         </div>
 
@@ -28,7 +28,7 @@
           type="button"
           class="toast__close"
           (click)="toastService.dismiss(toast.id)"
-          aria-label="Dismiss notification"
+          [attr.aria-label]="'toast.dismiss' | transloco"
         >
           ✕
         </button>

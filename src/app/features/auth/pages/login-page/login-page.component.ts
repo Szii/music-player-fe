@@ -1,9 +1,10 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnDestroy, inject, signal } from '@angular/core';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { finalize } from 'rxjs/operators';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 
 import { SessionService } from '../../../../core/auth/session.service';
 import { TokenRenewalService } from '../../../../core/auth/token-renewal.service';
@@ -16,6 +17,7 @@ import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-butt
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { VerificationRequiredComponent } from '../../components/verification-required/verification-required.component';
 import { GoogleSignInButtonComponent } from '../../components/google-sign-in-button/google-sign-in-button.component';
+import { AuthToolbarComponent } from '../../components/auth-toolbar/auth-toolbar.component';
 import { SHOW_EMAIL_INPUTS } from '../../../../core/config/feature-flags';
 import { httpErrorMessage } from '../../../../shared/utils/http-error';
 import { FooterComponent } from '../../../../shared/components/footer/footer.component';
@@ -34,12 +36,26 @@ import { TutorialService } from '../../../tutorial/data-access/tutorial.service'
     UiAlertComponent,
     VerificationRequiredComponent,
     GoogleSignInButtonComponent,
+    TranslocoPipe,
+    AuthToolbarComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './login-page.component.html',
   styleUrl: './login-page.component.scss',
 })
 export class LoginPageComponent implements OnDestroy {
+  private readonly transloco = inject(TranslocoService);
+
+  /** Read by t() so labels recompute when the language changes. */
+  private readonly activeLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    this.activeLang();
+    return this.transloco.translate<string>(key, params);
+  }
+
   private readonly fb = inject(FormBuilder);
   private readonly usersApi = inject(UsersService);
   private readonly session = inject(SessionService);
@@ -65,14 +81,14 @@ export class LoginPageComponent implements OnDestroy {
   emailError(): string {
     const control = this.form.controls.email;
     if (!this.shouldShowError(control)) return '';
-    if (control.hasError('required')) return 'Email is required.';
-    return 'Enter a valid email address.';
+    if (control.hasError('required')) return this.t('profile.emailForm.emailRequired');
+    return this.t('profile.emailForm.emailInvalid');
   }
 
   passwordError(): string {
     const control = this.form.controls.password;
     if (!this.shouldShowError(control)) return '';
-    return 'Password is required.';
+    return this.t('auth.passwordRequired');
   }
 
   private shouldShowError(control: { invalid: boolean; touched: boolean; dirty: boolean }): boolean {
@@ -126,8 +142,8 @@ export class LoginPageComponent implements OnDestroy {
             return;
           }
           this.formError.set(httpErrorMessage(err, {
-            overrides: { 401: 'Invalid email or password.' },
-            fallback: 'Login failed. Please try again.',
+            overrides: { 401: this.t('auth.err.invalidCredentials') },
+            fallback: this.t('auth.err.loginFailed'),
           }));
         },
       });

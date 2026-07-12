@@ -7,6 +7,8 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { Track } from '../../../../api/generated';
 import { InfoDialogService } from '../../../../shared/features/info-dialog/info-dialog.service';
 import {
@@ -42,11 +44,24 @@ type TrackCatalogSortMode =
     UiListToolbarComponent,
     UiChipComponent,
     UiActionMenuComponent,
+    TranslocoPipe,
   ],
   templateUrl: './track-catalog.component.html',
   styleUrl: './track-catalog.component.scss',
 })
 export class TrackCatalogComponent {
+  private readonly transloco = inject(TranslocoService);
+
+  /** Read by t() so labels recompute when the language changes. */
+  private readonly activeLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    this.activeLang();
+    return this.transloco.translate<string>(key, params);
+  }
+
   readonly tracks = input<Track[]>([]);
   readonly subscribedIds = input<ReadonlySet<number>>(new Set<number>());
   readonly busyTrackId = input<number | null>(null);
@@ -59,29 +74,29 @@ export class TrackCatalogComponent {
   readonly sortMode = persistentSignal<TrackCatalogSortMode>('mpf:workshop:catalog:sort', 'nameAsc');
 
   readonly filterOptions = [
-    { label: 'All tracks', value: 'all' },
-    { label: 'Available', value: 'available' },
-    { label: 'Subscribed', value: 'subscribed' },
+    { label: this.t('tracks.filter.all'), value: 'all' },
+    { label: this.t('groups.available'), value: 'available' },
+    { label: this.t('tracks.subscribed'), value: 'subscribed' },
   ];
 
   readonly sortOptions = [
-    { label: 'Name A–Z', value: 'nameAsc' },
-    { label: 'Name Z–A', value: 'nameDesc' },
-    { label: 'Owner A–Z', value: 'ownerAsc' },
-    { label: 'Owner Z–A', value: 'ownerDesc' },
-    { label: 'Duration shortest', value: 'durationAsc' },
-    { label: 'Duration longest', value: 'durationDesc' },
-    { label: 'Most subscribed', value: 'subscribersDesc' },
-    { label: 'Least subscribed', value: 'subscribersAsc' },
+    { label: this.t('sort.nameAsc'), value: 'nameAsc' },
+    { label: this.t('sort.nameDesc'), value: 'nameDesc' },
+    { label: this.t('sort.ownerAsc'), value: 'ownerAsc' },
+    { label: this.t('sort.ownerDesc'), value: 'ownerDesc' },
+    { label: this.t('sort.durationAsc'), value: 'durationAsc' },
+    { label: this.t('sort.durationDesc'), value: 'durationDesc' },
+    { label: this.t('sort.subscribersDesc'), value: 'subscribersDesc' },
+    { label: this.t('sort.subscribersAsc'), value: 'subscribersAsc' },
   ];
 
   readonly columns: UiDataTableColumn[] = [
-    { label: 'Track', className: 'col-title' },
-    { label: 'Owner', className: 'col-owner', width: '16%' },
-    { label: 'Duration', className: 'col-duration', width: '100px' },
-    { label: 'Subscribers', className: 'col-subscribers', width: '110px' },
-    { label: 'Description', className: 'col-desc' },
-    { label: 'Status', className: 'col-status', width: '140px' },
+    { label: this.t('tracks.col.track'), className: 'col-title' },
+    { label: this.t('tracks.owner'), className: 'col-owner', width: '16%' },
+    { label: this.t('tracks.col.duration'), className: 'col-duration', width: '100px' },
+    { label: this.t('workshop.subscribers'), className: 'col-subscribers', width: '110px' },
+    { label: this.t('workshop.description'), className: 'col-desc' },
+    { label: this.t('tracks.col.status'), className: 'col-status', width: '140px' },
     { label: '', className: 'col-actions', width: '72px' },
   ];
 
@@ -123,10 +138,10 @@ export class TrackCatalogComponent {
     const busy = this.busyTrackId() === track.id;
 
     if (this.isSubscribed(track)) {
-      return [{ id: 'unsubscribe', label: 'Unsubscribe', variant: 'danger', disabled: busy }];
+      return [{ id: 'unsubscribe', label: this.t('workshop.unsubscribe'), variant: 'danger', disabled: busy }];
     }
 
-    return [{ id: 'subscribe', label: 'Subscribe', disabled: busy }];
+    return [{ id: 'subscribe', label: this.t('workshop.subscribe'), disabled: busy }];
   }
 
   onMenuSelect(track: Track, id: string): void {
@@ -153,13 +168,13 @@ export class TrackCatalogComponent {
 
   subscriberTitle(track: Track): string {
     const count = this.subscriberCount(track);
-    return `${count} ${count === 1 ? 'subscriber' : 'subscribers'}`;
+    return this.t('workshop.subscriberCount', { count });
   }
 
   trackById = (index: number, track: Track): number => track.id ?? index;
 
   displayName(track: Track): string {
-    return track.trackName || track.trackOriginalName || ('Track #' + track.id);
+    return track.trackName || track.trackOriginalName || this.t('common.trackNum', { id: track.id });
   }
 
   formatDuration(seconds?: number): string {

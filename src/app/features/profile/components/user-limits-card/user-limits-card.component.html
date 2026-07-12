@@ -1,7 +1,7 @@
 
 <div class="limits">
   <div class="limits__rank">
-    <span class="limits__rank-label">Rank</span>
+    <span class="limits__rank-label">{{ 'profile.limits.rank' | transloco }}</span>
     <span class="limits__rank-value" [class.limits__rank-value--elite]="isUnrestricted()">
       {{ rankLabel() }}
     </span>
@@ -21,7 +21,7 @@
   @if (limits()) {
     <details class="limits__details">
       <summary class="limits__summary">
-        Per-session board quotas ({{ perSessionBoards().length }})
+        {{ 'profile.limits.perSessionBoards' | transloco: { count: perSessionBoards().length } }}
       </summary>
       @if (perSessionBoards().length > 0) {
         <ul class="limits__list limits__list--scroll">
@@ -33,13 +33,13 @@
           }
         </ul>
       } @else {
-        <p class="limits__empty">No active sessions yet.</p>
+        <p class="limits__empty">{{ 'profile.limits.noSessions' | transloco }}</p>
       }
     </details>
 
     <details class="limits__details">
       <summary class="limits__summary">
-        Per-track window quotas ({{ perTrackWindows().length }})
+        {{ 'profile.limits.perTrackWindows' | transloco: { count: perTrackWindows().length } }}
       </summary>
       @if (perTrackWindows().length > 0) {
         <ul class="limits__list limits__list--scroll">
@@ -51,7 +51,7 @@
           }
         </ul>
       } @else {
-        <p class="limits__empty">No tracks of your own yet.</p>
+        <p class="limits__empty">{{ 'profile.limits.noTracks' | transloco }}</p>
       }
     </details>
   }

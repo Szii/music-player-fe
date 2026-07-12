@@ -1,6 +1,8 @@
 
 <div class="app-page app-page--narrow">
-  <ui-card title="Register">
+  <app-auth-toolbar />
+
+  <ui-card [title]="'auth.register' | transloco">
     @if (registered()) {
       <app-verification-required
         (cancel)="onGoToLogin()"
@@ -13,28 +15,28 @@
 
       <form class="app-form-stack" [formGroup]="form" (ngSubmit)="onSubmit()">
         <ui-form-field
-          label="Username"
+          [label]="'profile.username' | transloco"
           [error]="nameError()"
         >
           <ui-text-input formControlName="name" name="username" autocomplete="username" [maxLength]="limits.name" />
         </ui-form-field>
 
         <ui-form-field
-          label="Email"
+          [label]="'profile.email' | transloco"
           [error]="emailError()"
         >
           <ui-text-input formControlName="email" type="email" autocomplete="email" [maxLength]="limits.email" />
         </ui-form-field>
 
         <ui-form-field
-          label="Password"
+          [label]="'auth.password' | transloco"
           [error]="passwordError()"
         >
           <ui-text-input formControlName="password" type="password" autocomplete="new-password" [maxLength]="limits.password" />
         </ui-form-field>
 
         <ui-form-field
-          label="Confirm password"
+          [label]="'auth.confirmPassword' | transloco"
           [error]="confirmError()"
         >
           <ui-text-input formControlName="confirm" type="password" autocomplete="new-password" [maxLength]="limits.password" />
@@ -48,10 +50,10 @@
             formControlName="agree"
           />
           <div class="register-page__agree-text">
-            <label for="register-agree">I agree to the </label>
-            <button type="button" class="register-page__terms-link" (click)="legalDialog.open()">
-              Privacy &amp; Terms
-            </button>
+            <label for="register-agree">{{ 'auth.agreeTo' | transloco }}</label>
+            <a class="register-page__terms-link" routerLink="/legal" target="_blank">
+              {{ 'legal.title' | transloco }}
+            </a>
           </div>
         </div>
 
@@ -62,18 +64,18 @@
           [disabled]="form.invalid || isSubmitting()"
           [loading]="isSubmitting()"
         >
-          {{ isSubmitting() ? 'Creating account...' : 'Create account' }}
+          {{ (isSubmitting() ? 'auth.creatingAccount' : 'auth.createAccount') | transloco }}
         </normal-button>
       </form>
 
       <div class="register-page__divider">
-        <span class="register-page__divider-label">or</span>
+        <span class="register-page__divider-label">{{ 'auth.or' | transloco }}</span>
       </div>
 
-      <app-google-sign-in-button label="Sign up with Google" />
+      <app-google-sign-in-button [label]="'auth.googleSignUp' | transloco" />
 
       <div class="register-page__links">
-        <a routerLink="/login">Already have an account? Login</a>
+        <a routerLink="/login">{{ 'auth.haveAccount' | transloco }}</a>
       </div>
     }
   </ui-card>

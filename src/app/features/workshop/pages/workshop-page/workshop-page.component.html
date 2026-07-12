@@ -1,16 +1,16 @@
 
 <div class="app-page workshop-page">
-  <ui-page-title title="Workshop">
+  <ui-page-title [title]="'workshop.title' | transloco">
     <span class="workshop-page__desktop-action">
       <normal-button type="button" (clicked)="openMyTracks()">
-        My tracks
+        {{ 'workshop.myTracks' | transloco }}
       </normal-button>
     </span>
   </ui-page-title>
 
   <div class="workshop-page__mobile-action">
     <normal-button type="button" (clicked)="openMyTracks()">
-      My tracks
+      {{ 'workshop.myTracks' | transloco }}
     </normal-button>
   </div>
 
@@ -19,7 +19,7 @@
   }
 
   @if (!hasLoaded()) {
-    <div class="app-muted">Loading...</div>
+    <div class="app-muted">{{ 'workshop.loading' | transloco }}</div>
   } @else {
     <div class="workshop-page__body">
       <app-track-catalog

@@ -35,6 +35,7 @@ export type WarningId = 'browser' | 'mobile-background';
 /** An applicable warning with its current open/closed state, for the template. */
 export interface ActiveWarning {
   readonly id: WarningId;
+  /** Translation key, not literal text. */
   readonly message: string;
   readonly open: Signal<boolean>;
 }
@@ -43,8 +44,8 @@ interface WarningDefinition {
   readonly id: WarningId;
   /** Whether the warning's environment condition currently applies. */
   readonly applies: Signal<boolean>;
-  /** Signal so a warning can reword itself as the environment changes (e.g. the
-      mobile-background note flips once the browser is put in desktop mode). */
+  /** Translation key. A signal so a warning can reword itself as the environment
+      changes (e.g. the mobile-background note flips in desktop-site mode). */
   readonly message: Signal<string>;
 }
 
@@ -100,19 +101,18 @@ export class EnvironmentWarningsService {
     () => this.device.isMobile() && !/Mobi/i.test(navigator.userAgent),
   );
 
+  /** Messages are translation keys; the banner translates them. */
   private readonly mobileBackgroundMessage = computed(() =>
     this.isDesktopMode()
-      ? 'Background playback is active (desktop site mode). The interface is desktop-sized, so it may look small — pinch to zoom.'
-      : 'On mobile, boards stop playing once the app is in the background or the screen is off. Tip: turn on "Desktop mode" in your browser menu to keep audio playing in the background.',
+      ? 'warnings.mobileBackgroundDesktopMode'
+      : 'warnings.mobileBackground',
   );
 
   private readonly definitions: readonly WarningDefinition[] = [
     {
       id: 'browser',
       applies: signal(!this.isChromium).asReadonly(),
-      message: signal(
-        'Audio playback works best in Chromium-based browsers. You may hit occasional issues here — if you do, try a Chromium-based browser.',
-      ).asReadonly(),
+      message: signal('warnings.browser').asReadonly(),
     },
     {
       id: 'mobile-background',

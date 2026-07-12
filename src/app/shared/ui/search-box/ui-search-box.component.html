@@ -3,19 +3,20 @@
   <input
     class="app-input ui-search-box__input"
     type="text"
-    [placeholder]="placeholder"
-    [ngModel]="value"
-    (ngModelChange)="valueChange.emit($event)"
+    [placeholder]="placeholder() || ('common.search' | transloco)"
+    [value]="value()"
+    (input)="valueChange.emit($any($event.target).value)"
   />
 
-  <button
-    *ngIf="value"
-    type="button"
-    class="ui-search-box__clear"
-    (click)="clear()"
-    aria-label="Clear search"
-    title="Clear"
-  >
-    ✕
-  </button>
+  @if (value()) {
+    <button
+      type="button"
+      class="ui-search-box__clear"
+      (click)="clear()"
+      [attr.aria-label]="'common.clearSearch' | transloco"
+      [title]="'common.clear' | transloco"
+    >
+      ✕
+    </button>
+  }
 </div>

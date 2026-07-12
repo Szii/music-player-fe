@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { ToastItem, ToastService } from './toast.service';
 
 @Component({
   selector: 'app-toast-container',
+  imports: [TranslocoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './toast-container.component.html',
   styleUrl: './toast-container.component.scss',
@@ -26,16 +28,17 @@ export class ToastContainerComponent {
     }
   }
 
+  /** Returns a translation key; the template resolves it. */
   title(toast: ToastItem): string {
     switch (toast.type) {
       case 'success':
-        return 'Success';
+        return 'toast.success';
       case 'error':
-        return 'Error';
+        return 'toast.error';
       case 'warning':
-        return 'Warning';
+        return 'toast.warning';
       default:
-        return 'Info';
+        return 'toast.info';
     }
   }
 }

@@ -5,8 +5,8 @@
   type="button"
   class="action-menu__trigger"
   [class.action-menu__trigger--open]="open()"
-  [attr.aria-label]="triggerLabel()"
-  [attr.title]="triggerLabel()"
+  [attr.aria-label]="triggerLabel() || ('common.moreActions' | transloco)"
+  [attr.title]="triggerLabel() || ('common.moreActions' | transloco)"
   aria-haspopup="menu"
   [attr.aria-expanded]="open()"
   [disabled]="disabled()"
@@ -43,7 +43,7 @@
       class="action-menu__handle"
       [appBottomSheetDrag]="sheetEl"
       (dismiss)="close()"
-      aria-label="Close menu"
+      [attr.aria-label]="'common.closeMenu' | transloco"
     >
       <span class="action-menu__handle-bar" aria-hidden="true"></span>
     </button>

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, input, output, signal } from '@angular/core';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { HttpErrorResponse } from '@angular/common/http';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 
 import { UsersService } from '../../../../api/generated';
 import { AuthCredentialsStore } from '../../../../core/auth/auth-credentials.store';
@@ -12,12 +13,26 @@ export type VerificationMode = 'registered' | 'unverified';
 
 @Component({
   selector: 'app-verification-required',
-  imports: [NormalButtonComponent],
+  imports: [NormalButtonComponent,
+    TranslocoPipe,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './verification-required.component.html',
   styleUrl: './verification-required.component.scss',
 })
 export class VerificationRequiredComponent {
+  private readonly transloco = inject(TranslocoService);
+
+  /** Read by t() so labels recompute when the language changes. */
+  private readonly activeLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    this.activeLang();
+    return this.transloco.translate<string>(key, params);
+  }
+
   private readonly usersApi = inject(UsersService);
   private readonly credentialsStore = inject(AuthCredentialsStore);
   private readonly destroyRef = inject(DestroyRef);
@@ -34,12 +49,12 @@ export class VerificationRequiredComponent {
   );
 
   readonly leadText = computed(() => this.mode() === 'registered'
-    ? 'Registration successful.'
-    : 'This account is not verified yet.');
+    ? this.t('auth.verify.registered')
+    : this.t('auth.verify.notVerified'));
 
   readonly cancelText = computed(() => this.mode() === 'registered'
-    ? 'Go to login'
-    : 'Back to login');
+    ? this.t('auth.goToLogin')
+    : this.t('auth.backToLogin'));
 
   readonly resendStatus = signal<ResendStatus>('idle');
 

@@ -1,7 +1,7 @@
 
 <ui-dialog-shell
-  title="My tracks"
-  subtitle="Publish your tracks so other users can find and subscribe to them."
+  [title]="'workshop.myTracks' | transloco"
+  [subtitle]="'workshop.myTracksSubtitle' | transloco"
   titleId="my-tracks-title"
   size="wide"
   (closed)="close.emit()"
@@ -9,14 +9,13 @@
   @if (tracks().length > 0) {
     <ui-list-toolbar
       [(search)]="search"
-      searchPlaceholder="Search tracks by name"
+      [searchPlaceholder]="'workshop.searchMyTracks' | transloco"
       [filterValue]="filterMode()"
       [filterOptions]="filterOptions"
-      filterLabel="Status"
+      [filterLabel]="'tracks.col.status' | transloco"
       (filterValueChange)="setFilterMode($event)"
       [filteredCount]="filteredTracks().length"
       [totalCount]="tracks().length"
-      itemLabel="track"
     />
   }
 
@@ -79,14 +78,14 @@
               shape="hex"
               [dot]="true"
             >
-              {{ track.trackShare ? 'Published' : 'Unpublished' }}
+              {{ (track.trackShare ? 'workshop.published' : 'workshop.unpublished') | transloco }}
             </ui-chip>
           </td>
 
           <td class="col-actions">
             <ui-action-menu
               [items]="menuItems(track)"
-              [triggerLabel]="'Actions for ' + displayName(track)"
+              [triggerLabel]="'common.actionsFor' | transloco: { name: displayName(track) }"
               (select)="onMenuSelect(track, $event)"
             />
           </td>
@@ -108,7 +107,7 @@
               shape="hex"
               [dot]="true"
             >
-              {{ track.trackShare ? 'Published' : 'Unpublished' }}
+              {{ (track.trackShare ? 'workshop.published' : 'workshop.unpublished') | transloco }}
             </ui-chip>
           </div>
 
@@ -142,7 +141,7 @@
             <ui-action-menu
               class="my-tracks__menu"
               [items]="menuItems(track)"
-              [triggerLabel]="'Actions for ' + displayName(track)"
+              [triggerLabel]="'common.actionsFor' | transloco: { name: displayName(track) }"
               (select)="onMenuSelect(track, $event)"
             />
           </div>
@@ -151,26 +150,23 @@
     </ul>
   } @else if (tracks().length === 0) {
     <div class="my-tracks__empty">
-      <p class="my-tracks__empty-title">No tracks yet</p>
-      <p class="my-tracks__empty-msg">
-        Add a track first, then you can publish it here for other users to
-        find and subscribe to.
-      </p>
+      <p class="my-tracks__empty-title">{{ 'tracks.empty' | transloco }}</p>
+      <p class="my-tracks__empty-msg">{{ 'workshop.emptyMsg' | transloco }}</p>
 
       <div class="my-tracks__empty-actions">
         <normal-button type="button" (clicked)="addTrack.emit()">
-          Add a track
+          {{ 'groups.addTrack' | transloco }}
         </normal-button>
       </div>
     </div>
   } @else {
-    <p class="app-empty-note">No tracks match the current search or filter.</p>
+    <p class="app-empty-note">{{ 'tracks.noMatches' | transloco }}</p>
   }
 </ui-dialog-shell>
 
 @if (publishTrack()) {
   <ui-dialog-shell
-    title="Publish track"
+    [title]="'workshop.publishTitle' | transloco"
     titleId="publish-track-title"
     [showFooter]="true"
     (closed)="closePublish()"
@@ -182,7 +178,8 @@
 
       <div class="publish-form__field">
         <label class="app-form-label">
-          Description <span class="optional">(optional)</span>
+          {{ 'workshop.description' | transloco }}
+          <span class="optional">{{ 'workshop.optional' | transloco }}</span>
         </label>
 
         <input
@@ -191,7 +188,7 @@
           [ngModel]="publishDesc()"
           [ngModelOptions]="{ standalone: true }"
           (ngModelChange)="publishDesc.set($event)"
-          placeholder="What is this track for?"
+          [placeholder]="'workshop.descriptionPlaceholder' | transloco"
           [maxlength]="descriptionMaxLength"
         />
         <ui-char-counter
@@ -210,7 +207,7 @@
         variant="secondary"
         (clicked)="closePublish()"
       >
-        Cancel
+        {{ 'common.cancel' | transloco }}
       </normal-button>
 
       <normal-button
@@ -218,7 +215,7 @@
         [disabled]="!!descriptionError()"
         (clicked)="confirmPublish()"
       >
-        Publish
+        {{ 'workshop.publish' | transloco }}
       </normal-button>
     </ng-container>
   </ui-dialog-shell>

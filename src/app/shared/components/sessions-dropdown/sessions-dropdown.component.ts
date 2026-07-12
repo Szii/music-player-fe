@@ -9,7 +9,8 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 
 import { SessionResponse } from '../../../api/generated';
 import { SessionsStore } from '../../../core/services/sessions-store.service';
@@ -25,7 +26,7 @@ import { FIELD_LIMITS } from '../../constants/field-limits';
 
 @Component({
   selector: 'app-sessions-dropdown',
-  imports: [IconButtonComponent, BottomSheetDragDirective],
+  imports: [IconButtonComponent, BottomSheetDragDirective, TranslocoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '(document:click)': 'onDocumentClick($event)',
@@ -37,6 +38,7 @@ import { FIELD_LIMITS } from '../../constants/field-limits';
 export class SessionsDropdownComponent {
   private readonly store = inject(SessionsStore);
   private readonly toast = inject(ToastService);
+  private readonly transloco = inject(TranslocoService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly promptDialog = inject(PromptDialogService);
   private readonly destroyRef = inject(DestroyRef);
@@ -67,11 +69,21 @@ export class SessionsDropdownComponent {
 
   readonly showTrigger = computed(() => this.sessions().length > 0);
 
+  /** Read by `t()` so labels recompute when the language changes. */
+  private readonly activeLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    this.activeLang();
+    return this.transloco.translate(key, params);
+  }
+
   readonly triggerLabel = computed(() => {
     const current = this.selected();
-    if (current) return current.sessionName || 'Untitled session';
-    if (this.sessions().length === 0) return 'No sessions';
-    return 'Select session';
+    if (current) return current.sessionName || this.t('sessions.untitled');
+    if (this.sessions().length === 0) return this.t('sessions.none');
+    return this.t('sessions.select');
   });
 
   toggle(): void {
@@ -121,10 +133,10 @@ export class SessionsDropdownComponent {
   async startCreate(): Promise<void> {
     this.close();
     const name = await this.promptDialog.prompt({
-      title: 'New session',
-      placeholder: 'Session name',
-      confirmText: 'Create',
-      cancelText: 'Cancel',
+      title: this.t('sessions.new'),
+      placeholder: this.t('sessions.namePlaceholder'),
+      confirmText: this.t('common.create'),
+      cancelText: this.t('common.cancel'),
       maxLength: FIELD_LIMITS.session.name,
     });
     if (!name) return;
@@ -133,11 +145,11 @@ export class SessionsDropdownComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.toast.success('Session created.');
+          this.toast.success(this.t('sessions.created'));
         },
         error: err => {
           console.error(err);
-          this.toast.error(httpErrorMessage(err, { fallback: 'Creating session failed.' }));
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('sessions.createFailed') }));
         },
       });
   }
@@ -153,11 +165,11 @@ export class SessionsDropdownComponent {
 
     this.close();
     const name = await this.promptDialog.prompt({
-      title: 'Rename session',
-      placeholder: 'Session name',
+      title: this.t('sessions.rename'),
+      placeholder: this.t('sessions.namePlaceholder'),
       initialValue: session.sessionName ?? '',
-      confirmText: 'Save',
-      cancelText: 'Cancel',
+      confirmText: this.t('common.save'),
+      cancelText: this.t('common.cancel'),
       maxLength: FIELD_LIMITS.session.name,
     });
     if (!name) return;
@@ -166,11 +178,11 @@ export class SessionsDropdownComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.toast.success('Session renamed.');
+          this.toast.success(this.t('sessions.renamed'));
         },
         error: err => {
           console.error(err);
-          this.toast.error(httpErrorMessage(err, { fallback: 'Renaming session failed.' }));
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('sessions.renameFailed') }));
         },
       });
   }
@@ -179,14 +191,14 @@ export class SessionsDropdownComponent {
     if (session.sessionId == null) return;
 
     const sessionId = session.sessionId;
-    const label = session.sessionName || 'this session';
+    const label = session.sessionName || this.t('sessions.thisSession');
 
     this.close();
     const confirmed = await this.confirmDialog.confirm({
-      title: 'Delete session',
-      message: `Delete "${label}" and all its boards? This cannot be undone.`,
-      confirmText: 'Delete',
-      cancelText: 'Cancel',
+      title: this.t('sessions.delete'),
+      message: this.t('sessions.deleteConfirm', { name: label }),
+      confirmText: this.t('common.delete'),
+      cancelText: this.t('common.cancel'),
       variant: 'danger',
     });
 
@@ -196,11 +208,11 @@ export class SessionsDropdownComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.toast.success('Session deleted.');
+          this.toast.success(this.t('sessions.deleted'));
         },
         error: err => {
           console.error(err);
-          this.toast.error(httpErrorMessage(err, { fallback: 'Deleting session failed.' }));
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('sessions.deleteFailed') }));
         },
       });
   }

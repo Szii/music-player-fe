@@ -1,0 +1,9 @@
+:host {
+  display: block;
+}
+
+.legal-page__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-md, 1rem);
+}

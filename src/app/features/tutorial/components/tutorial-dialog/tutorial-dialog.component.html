@@ -1,7 +1,7 @@
 
 @if (tutorial.step(); as step) {
   <ui-dialog-shell
-    [title]="step.title"
+    [title]="step.title | transloco"
     [subtitle]="(tutorial.index()! + 1) + ' / ' + tutorial.steps.length"
     titleId="tutorial-dialog-title"
     size="wide"
@@ -23,22 +23,22 @@
             #image
             class="tutorial__img"
             [src]="step.image"
-            [alt]="step.alt"
+            [alt]="(step.alt || '') | transloco"
             decoding="async"
             draggable="false"
           />
         </picture>
       }
 
-      <div class="tutorial__body" [innerHTML]="step.body"></div>
+      <div class="tutorial__body" [innerHTML]="step.body | transloco"></div>
 
       @if (step.faq; as faq) {
         <ul class="tutorial__faq">
           @for (item of faq; track item.question) {
             <li>
               <details>
-                <summary>{{ item.question }}</summary>
-                <div class="tutorial__faq-answer" [innerHTML]="item.answer"></div>
+                <summary>{{ item.question | transloco }}</summary>
+                <div class="tutorial__faq-answer" [innerHTML]="item.answer | transloco"></div>
               </details>
             </li>
           }
@@ -49,13 +49,13 @@
 
     <ng-container dialog-footer>
       <div class="tutorial__footer">
-        <nav class="tutorial__dots" aria-label="Tutorial steps">
+        <nav class="tutorial__dots" [attr.aria-label]="'tutorial.steps' | transloco">
           @for (s of tutorial.steps; track $index) {
             <button
               type="button"
               class="tutorial__dot"
               [class.tutorial__dot--active]="$index === tutorial.index()"
-              [attr.aria-label]="'Go to step ' + ($index + 1)"
+              [attr.aria-label]="'tutorial.goToStep' | transloco: { index: $index + 1 }"
               [attr.aria-current]="$index === tutorial.index() ? 'step' : null"
               (click)="goTo($index)"
             ></button>
@@ -70,16 +70,16 @@
           [disabled]="tutorial.isFirst()"
           (clicked)="goPrev()"
         >
-          Back
+          {{ 'tutorial.back' | transloco }}
         </normal-button>
 
         @if (tutorial.isLast()) {
           <normal-button type="button" variant="primary" size="md" (clicked)="tutorial.close()">
-            Done
+            {{ 'common.done' | transloco }}
           </normal-button>
         } @else {
           <normal-button type="button" variant="primary" size="md" (clicked)="goNext()">
-            Next
+            {{ 'tutorial.next' | transloco }}
           </normal-button>
         }
         </div>

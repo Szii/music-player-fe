@@ -1,11 +1,8 @@
 
-<p class="change-email__hint">
-  We will send a verification link to the new address.
-  The change becomes active once you click that link.
-</p>
+<p class="change-email__hint">{{ 'profile.emailForm.hint' | transloco }}</p>
 
 @if (!showEmailInputs) {
-  <p class="change-email__disabled-note">Email changes are currently unavailable.</p>
+  <p class="change-email__disabled-note">{{ 'profile.emailForm.unavailable' | transloco }}</p>
 }
 
 <form
@@ -19,21 +16,21 @@
     type="text"
     name="username"
     autocomplete="username"
-    aria-label="Username"
+    [attr.aria-label]="'profile.username' | transloco"
     [value]="username()"
     readonly
     tabindex="-1"
   />
 
   <ui-form-field
-    label="New email"
+    [label]="'profile.emailForm.newEmail' | transloco"
     [error]="emailError()"
   >
     <ui-text-input formControlName="email" type="email" autocomplete="email" [maxLength]="limits.email" />
   </ui-form-field>
 
   <ui-form-field
-    label="Current password"
+    [label]="'profile.emailForm.currentPassword' | transloco"
     [error]="passwordError()"
   >
     <ui-text-input formControlName="password" type="password" autocomplete="current-password" [maxLength]="limits.password" />
@@ -45,7 +42,7 @@
       [disabled]="form.invalid || isSubmitting() || !showEmailInputs"
       [loading]="isSubmitting()"
     >
-      {{ isSubmitting() ? 'Sending...' : 'Send verification' }}
+      {{ (isSubmitting() ? 'profile.emailForm.sending' : 'profile.emailForm.submit') | transloco }}
     </normal-button>
   </ui-form-actions>
 </form>

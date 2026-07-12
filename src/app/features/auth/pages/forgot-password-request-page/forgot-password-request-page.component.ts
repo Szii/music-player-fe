@@ -1,8 +1,9 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { finalize } from 'rxjs/operators';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 
 import { UsersService, ForgotPasswordRequest } from '../../../../api/generated';
 import { UiCardComponent } from '../../../../shared/ui/card/ui-card.component';
@@ -23,12 +24,25 @@ import { httpErrorMessage } from '../../../../shared/utils/http-error';
     UiTextInputComponent,
     UiFormActionsComponent,
     NormalButtonComponent,
+    TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './forgot-password-request-page.component.html',
   styleUrl: './forgot-password-request-page.component.scss',
 })
 export class ForgotPasswordRequestPageComponent {
+  private readonly transloco = inject(TranslocoService);
+
+  /** Read by t() so labels recompute when the language changes. */
+  private readonly activeLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    this.activeLang();
+    return this.transloco.translate<string>(key, params);
+  }
+
   private readonly fb = inject(FormBuilder);
   private readonly usersApi = inject(UsersService);
   private readonly toast = inject(ToastService);
@@ -46,8 +60,8 @@ export class ForgotPasswordRequestPageComponent {
     const control = this.form.controls.email;
     if (!control.invalid) return '';
     if (!(this.submitted() || (control.touched && control.dirty))) return '';
-    if (control.hasError('required')) return 'Email is required.';
-    if (control.hasError('email')) return 'Enter a valid email address.';
+    if (control.hasError('required')) return this.t('profile.emailForm.emailRequired');
+    if (control.hasError('email')) return this.t('profile.emailForm.emailInvalid');
     return '';
   }
 
@@ -72,8 +86,8 @@ export class ForgotPasswordRequestPageComponent {
         error: (err: unknown) => {
           console.error(err);
           this.toast.error(httpErrorMessage(err, {
-            overrides: { 400: 'Please enter a valid email address.' },
-            fallback: 'Could not send password reset email. Please try again.',
+            overrides: { 400: this.t('profile.emailForm.emailInvalid') },
+            fallback: this.t('auth.err.resetEmailFailed'),
           }));
         },
       });

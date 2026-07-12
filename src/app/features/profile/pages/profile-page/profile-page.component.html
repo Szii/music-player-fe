@@ -1,11 +1,11 @@
 
 <div class="app-page">
-  <ui-page-title title="User profile">
+  <ui-page-title [title]="'profile.title' | transloco">
     <button
       type="button"
       class="profile-help"
-      aria-label="Show tutorial"
-      title="Show tutorial"
+      [attr.aria-label]="'profile.showTutorial' | transloco"
+      [title]="'profile.showTutorial' | transloco"
       (click)="tutorial.start()"
     >
       ?
@@ -14,7 +14,7 @@
 
   @switch (status()) {
     @case ('loading') {
-      <p class="app-muted">Loading your profile...</p>
+      <p class="app-muted">{{ 'profile.loading' | transloco }}</p>
     }
 
     @case ('error') {
@@ -22,46 +22,55 @@
     }
 
     @case ('loaded') {
-      <ui-card title="Account">
+      <ui-card [title]="'profile.account' | transloco">
         <dl class="profile-identity">
-          <dt>Username</dt>
+          <dt>{{ 'profile.username' | transloco }}</dt>
           <dd>{{ user()?.name || '—' }}</dd>
 
-          <dt>Email</dt>
+          <dt>{{ 'profile.email' | transloco }}</dt>
           <dd>{{ user()?.email || '—' }}</dd>
         </dl>
       </ui-card>
 
       <div class="profile-grid">
         <div class="profile-grid__security">
-          <ui-card title="Change username">
+          <ui-card [title]="'profile.changeUsername' | transloco">
             <app-change-username-form />
           </ui-card>
 
           @if (managedByGoogle()) {
-            <ui-card title="Password &amp; email">
-              <p class="app-muted">
-                This account signs in with Google, so your password and email are managed there.
-              </p>
+            <ui-card [title]="'profile.passwordAndEmail' | transloco">
+              <p class="app-muted">{{ 'profile.googleManaged' | transloco }}</p>
             </ui-card>
           } @else {
-            <ui-card title="Change password">
+            <ui-card [title]="'profile.changePassword' | transloco">
               <app-change-password-form />
             </ui-card>
 
-            <ui-card title="Change email">
+            <ui-card [title]="'profile.changeEmail' | transloco">
               <app-change-email-form />
             </ui-card>
           }
         </div>
 
-        <ui-card title="Rank & limits">
-          <app-user-limits-card
-            [limits]="user()?.limits ?? null"
-            [trackNames]="trackNames()"
-            [sessionNames]="sessionNames()"
-          />
-        </ui-card>
+        <div class="profile-grid__side">
+          <ui-card [title]="'profile.rankAndLimits' | transloco">
+            <app-user-limits-card
+              [limits]="user()?.limits ?? null"
+              [trackNames]="trackNames()"
+              [sessionNames]="sessionNames()"
+            />
+          </ui-card>
+
+          <ui-card [title]="'profile.language' | transloco">
+            <label class="profile-language">
+              <span class="profile-language__label">
+                {{ 'profile.interfaceLanguage' | transloco }}
+              </span>
+              <app-language-select />
+            </label>
+          </ui-card>
+        </div>
       </div>
     }
   }
