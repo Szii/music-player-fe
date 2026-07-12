@@ -18,6 +18,7 @@ const DEFAULT_FALLBACK = 'Something went wrong. Please try again.';
 /** Backend error codes (mirror of the server `ErrorCode` enum) the UI branches on. */
 export const ERROR_CODE = {
   LIMIT_EXCEEDED: 'LIMIT_EXCEEDED',
+  BAD_REQUEST: 'BAD_REQUEST',
 } as const;
 
 /** Shape of the backend `ErrorResponse` body carried on `HttpErrorResponse.error`. */
@@ -33,12 +34,15 @@ interface ApiErrorBody {
  *  1. A reached-limit (`LIMIT_EXCEEDED`) — the server sends a specific,
  *     human-readable message (which limit, current usage), so we surface it
  *     verbatim regardless of the caller's fallback.
- *  2. A caller override for the exact status (domain copy like "Invalid
+ *  2. A rejected input (`BAD_REQUEST`) — likewise: the server names the exact
+ *     reason (e.g. a password that fails Keycloak's policy), which no generic
+ *     client-side copy can reproduce.
+ *  3. A caller override for the exact status (domain copy like "Invalid
  *     username or password.").
- *  3. Sensible defaults for the cases every request shares — network/offline
+ *  4. Sensible defaults for the cases every request shares — network/offline
  *     (status 0), rate limiting (429, with `Retry-After` when the server
  *     exposes it) and server errors (5xx).
- *  4. The fallback.
+ *  5. The fallback.
  *
  * This keeps per-feature handlers focused on the statuses that carry domain
  * meaning while guaranteeing the cross-cutting cases are never shown as a
@@ -59,6 +63,13 @@ export function httpErrorMessage(
   const body = apiErrorBody(error);
   if (body?.code === ERROR_CODE.LIMIT_EXCEEDED) {
     return body.message?.trim() || 'You’ve reached your plan limit for this action.';
+  }
+
+  if (body?.code === ERROR_CODE.BAD_REQUEST) {
+    const message = body.message?.trim();
+    if (message) {
+      return message;
+    }
   }
 
   const override = options.overrides?.[error.status];

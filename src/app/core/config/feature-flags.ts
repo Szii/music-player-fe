@@ -9,7 +9,7 @@
  * - "Forgot password?" link on the login screen.
  * - The /forgot-password, /reset-password and /verify-email routes.
  * - The "Change email" form on the profile page.
- * - The resend-verification / change-unverified-email actions shown after login.
+ * - The resend-verification action shown after login.
  *
  * When `false`, the related UI is grayed out / not clickable and the routes
  * redirect to /login.

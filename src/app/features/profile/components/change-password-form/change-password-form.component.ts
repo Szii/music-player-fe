@@ -3,6 +3,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
+import { SessionService } from '../../../../core/auth/session.service';
 import { ProfileStore } from '../../data-access/profile-store.service';
 import { UiFormFieldComponent } from '../../../../shared/ui/form-field/ui-form-field.component';
 import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-input.component';
@@ -27,6 +28,7 @@ import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 export class ChangePasswordFormComponent {
   private readonly fb = inject(FormBuilder);
   private readonly store = inject(ProfileStore);
+  private readonly session = inject(SessionService);
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -74,9 +76,8 @@ export class ChangePasswordFormComponent {
       )
       .subscribe({
         next: () => {
-          this.toast.success('Password changed.');
-          this.form.reset({ current: '', next: '' });
-          this.submitted.set(false);
+          this.toast.success('Password changed. Please sign in again.');
+          this.session.logout();
         },
         error: (err: unknown) => {
           console.error(err);

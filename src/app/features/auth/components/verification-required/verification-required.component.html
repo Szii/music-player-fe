@@ -1,7 +1,7 @@
 
 @if (showEmailInputs) {
   <p class="verify-required__notice">
-    Registration successful. Please check
+    {{ leadText() }} Please check
     @if (currentEmail(); as email) {
       <strong>{{ email }}</strong>
     } @else {
@@ -19,88 +19,50 @@
     >
       {{ resendStatus() === 'sending' ? 'Sending...' : 'Resend verification email' }}
     </normal-button>
-
-    <normal-button
-      variant="secondary"
-      (clicked)="toggleChangeEmail()"
-    >
-      {{ showChangeEmail() ? 'Cancel change' : 'Change email address' }}
-    </normal-button>
   </div>
 
   @switch (resendStatus()) {
     @case ('sent') {
-      <p class="verify-required__status verify-required__status--success">
+      <p class="verify-required__status verify-required__status--success" role="status">
         A new verification email has been sent.
       </p>
     }
     @case ('rate-limited') {
-      <p class="verify-required__status verify-required__status--error">
+      <p class="verify-required__status verify-required__status--error" role="alert">
         Too many requests. Please wait a moment and try again.
       </p>
     }
     @case ('wrong-credentials') {
-      <p class="verify-required__status verify-required__status--error">
+      <p class="verify-required__status verify-required__status--error" role="alert">
         We could not resend. Please log in again to retry.
       </p>
     }
     @case ('error') {
-      <p class="verify-required__status verify-required__status--error">
+      <p class="verify-required__status verify-required__status--error" role="alert">
         Could not resend the verification email. Please try again.
       </p>
     }
   }
 
-  @if (showChangeEmail()) {
-    <form
-      class="verify-required__change-form app-form-stack"
-      [formGroup]="changeForm"
-      (ngSubmit)="onChangeEmail()"
-    >
-      <ui-form-field
-        label="New email"
-        [error]="newEmailError()"
-      >
-        <ui-text-input formControlName="newEmail" type="email" />
-      </ui-form-field>
-
-      @switch (changeStatus()) {
-        @case ('already-registered') {
-          <p class="verify-required__status verify-required__status--error">
-            That email is already registered.
-          </p>
-        }
-        @case ('wrong-credentials') {
-          <p class="verify-required__status verify-required__status--error">
-            We could not change the email. Please log in again to retry.
-          </p>
-        }
-        @case ('error') {
-          <p class="verify-required__status verify-required__status--error">
-            Could not change the email. Please try again.
-          </p>
-        }
-      }
-
-      <ui-form-actions>
-        <normal-button
-          type="submit"
-          [disabled]="changeForm.invalid || changeStatus() === 'submitting'"
-          [loading]="changeStatus() === 'submitting'"
-        >
-          {{ changeStatus() === 'submitting' ? 'Saving...' : 'Save new email' }}
-        </normal-button>
-      </ui-form-actions>
-    </form>
-  }
+  <p class="verify-required__hint">
+    Wrong email address? Just
+    <button type="button" class="verify-required__inline-link" (click)="registerAgain.emit()">
+      register again
+    </button>
+    with the correct one — your unverified account will be replaced.
+  </p>
 } @else {
   <p class="verify-required__notice">
-    Registration successful. You can now proceed to login.
+    @if (mode() === 'registered') {
+      Registration successful. You can now proceed to login.
+    } @else {
+      This account is not verified yet.
+    }
   </p>
 }
 
 <div class="verify-required__link">
   <normal-button variant="ghost" (clicked)="cancel.emit()">
-    Go to login
+    {{ cancelText() }}
   </normal-button>
 </div>

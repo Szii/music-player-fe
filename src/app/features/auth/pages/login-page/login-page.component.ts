@@ -85,6 +85,11 @@ export class LoginPageComponent implements OnDestroy {
     this.form.controls.password.setValue('');
   }
 
+  onRegisterAgain(): void {
+    this.credentialsStore.clear();
+    void this.router.navigateByUrl('/register');
+  }
+
   onSubmit(): void {
     this.submitted.set(true);
     this.formError.set('');
