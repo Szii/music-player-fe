@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { Track } from '../../../../api/generated';
 import { UiFormFieldComponent } from '../../../../shared/ui/form-field/ui-form-field.component';
 import { UiTextInputComponent } from '../../../../shared/ui/text-input/ui-text-input.component';
@@ -18,7 +19,7 @@ import { UiSelectComponent } from '../../../../shared/ui/select/ui-select.compon
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
 import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 import {
-  PROFANITY_ERROR,
+  profanityErrorMessage,
   hasProfanity,
   profanityValidator,
 } from '../../../../shared/validators/profanity.validator';
@@ -40,12 +41,19 @@ export interface CreateBoardEvent {
     IconButtonComponent,
     UiSelectComponent,
     UiDialogShellComponent,
+    TranslocoPipe,
   ],
   templateUrl: './create-board-form.component.html',
   styleUrl: './create-board-form.component.scss',
 })
 export class CreateBoardFormComponent {
   private readonly fb = inject(FormBuilder);
+  private readonly transloco = inject(TranslocoService);
+
+  /** Read by the option labels so they recompute on a language change. */
+  private readonly activeLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
 
   readonly tracks = input<Track[]>([]);
   readonly submitting = input(false);
@@ -56,12 +64,16 @@ export class CreateBoardFormComponent {
   readonly isOpen = signal(false);
   readonly nameMaxLength = FIELD_LIMITS.board.name;
 
-  readonly trackOptions = computed(() =>
-    this.tracks().map(t => ({
-      label: t.trackName || t.trackOriginalName || ('Track #' + t.id),
+  readonly trackOptions = computed(() => {
+    this.activeLang();
+    return this.tracks().map(t => ({
+      label:
+        t.trackName ||
+        t.trackOriginalName ||
+        this.transloco.translate<string>('common.trackNum', { id: t.id }),
       value: t.id,
-    })),
-  );
+    }));
+  });
 
   readonly form = this.fb.group({
     name: this.fb.nonNullable.control('', [profanityValidator]),
@@ -72,7 +84,7 @@ export class CreateBoardFormComponent {
     initialValue: '',
   });
   readonly nameError = computed(() =>
-    hasProfanity(this.nameValue()) ? PROFANITY_ERROR : '',
+    hasProfanity(this.nameValue()) ? profanityErrorMessage() : '',
   );
 
   open(): void {

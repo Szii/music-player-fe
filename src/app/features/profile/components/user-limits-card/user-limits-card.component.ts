@@ -1,4 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+
 import { UserLimits, UserRankLevel } from '../../../../api/generated';
 
 interface Quota {
@@ -26,20 +29,33 @@ interface WindowRow {
 
 @Component({
   selector: 'app-user-limits-card',
+  imports: [TranslocoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './user-limits-card.component.html',
   styleUrl: './user-limits-card.component.scss',
 })
 export class UserLimitsCardComponent {
+  private readonly transloco = inject(TranslocoService);
+
+  /** Read by `t()` so every label recomputes when the language changes. */
+  private readonly activeLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
+
   readonly limits = input<UserLimits | null>(null);
   readonly trackNames = input<ReadonlyMap<number, string>>(new Map());
   readonly sessionNames = input<ReadonlyMap<number, string>>(new Map());
 
+  private t(key: string, params?: Record<string, unknown>): string {
+    this.activeLang();
+    return this.transloco.translate(key, params);
+  }
+
   readonly rankLabel = computed(() => {
     const level = this.limits()?.level;
-    if (level === UserRankLevel.Unrestricted) return 'Unrestricted';
-    if (level === UserRankLevel.Normal) return 'Normal';
-    return 'Unknown';
+    if (level === UserRankLevel.Unrestricted) return this.t('profile.limits.rankUnrestricted');
+    if (level === UserRankLevel.Normal) return this.t('profile.limits.rankNormal');
+    return this.t('profile.limits.rankUnknown');
   });
 
   readonly isUnrestricted = computed(() => this.limits()?.level === UserRankLevel.Unrestricted);
@@ -52,7 +68,7 @@ export class UserLimitsCardComponent {
 
     if (l.groups) {
       out.push({
-        label: 'Groups',
+        label: this.t('profile.limits.groups'),
         used: l.groups.actualGroups ?? 0,
         max: l.groups.maxGroups ?? 0,
         reached: l.groups.groupLimitReached ?? false,
@@ -61,7 +77,7 @@ export class UserLimitsCardComponent {
 
     if (l.tracks) {
       out.push({
-        label: 'Tracks',
+        label: this.t('profile.limits.tracks'),
         used: l.tracks.actualTracks ?? 0,
         max: l.tracks.maxTracks ?? 0,
         reached: l.tracks.trackLimitReached ?? false,
@@ -70,7 +86,7 @@ export class UserLimitsCardComponent {
 
     if (l.sessions) {
       out.push({
-        label: 'Sessions',
+        label: this.t('profile.limits.sessions'),
         used: l.sessions.actualSessions ?? 0,
         max: l.sessions.maxSessions ?? 0,
         reached: l.sessions.sessionLimitReached ?? false,
@@ -79,7 +95,7 @@ export class UserLimitsCardComponent {
 
     if (l.subscribes) {
       out.push({
-        label: 'Subscribed tracks',
+        label: this.t('profile.limits.subscribedTracks'),
         used: l.subscribes.actualSubscribes ?? 0,
         max: l.subscribes.maxSubscribes ?? 0,
         reached: l.subscribes.subscribeLimitReached ?? false,
@@ -101,7 +117,7 @@ export class UserLimitsCardComponent {
 
         return {
           key: `session:${sessionId}`,
-          label: sessionName ?? `Session #${sessionId}`,
+          label: sessionName ?? this.t('profile.limits.sessionFallback', { id: sessionId }),
           used: b.actualBoards ?? 0,
           max: b.maxBoards ?? 0,
           reached: b.boardLimitReached ?? false,
@@ -120,7 +136,7 @@ export class UserLimitsCardComponent {
 
         return {
           key: `id:${trackId}`,
-          label: names.get(trackId) ?? `Track #${trackId}`,
+          label: names.get(trackId) ?? this.t('profile.limits.trackFallback', { id: trackId }),
           used: w.actualTrackWindows ?? 0,
           max: w.maxTrackWindows ?? 0,
           reached: w.trackWindowsLimitReached ?? false,

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { finalize } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -21,6 +22,7 @@ import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
     UiTextInputComponent,
     UiFormActionsComponent,
     NormalButtonComponent,
+    TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './change-password-form.component.html',
@@ -30,6 +32,7 @@ export class ChangePasswordFormComponent {
   private readonly store = inject(ProfileStore);
   private readonly session = inject(SessionService);
   private readonly toast = inject(ToastService);
+  private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly isSubmitting = signal(false);
@@ -45,13 +48,13 @@ export class ChangePasswordFormComponent {
   currentError(): string {
     const control = this.form.controls.current;
     if (!this.shouldShow(control)) return '';
-    return 'Current password is required.';
+    return this.transloco.translate('profile.passwordForm.currentRequired');
   }
 
   newError(): string {
     const control = this.form.controls.next;
     if (!this.shouldShow(control)) return '';
-    return 'New password must be at least 6 characters.';
+    return this.transloco.translate('profile.passwordForm.newMinLength');
   }
 
   private shouldShow(control: { invalid: boolean; touched: boolean; dirty: boolean }): boolean {
@@ -76,14 +79,14 @@ export class ChangePasswordFormComponent {
       )
       .subscribe({
         next: () => {
-          this.toast.success('Password changed. Please sign in again.');
+          this.toast.success(this.transloco.translate('profile.passwordForm.success'));
           this.session.logout();
         },
         error: (err: unknown) => {
           console.error(err);
           this.toast.error(httpErrorMessage(err, {
-            overrides: { 403: 'Current password is incorrect.' },
-            fallback: 'Could not change password. Please try again.',
+            overrides: { 403: this.transloco.translate('profile.passwordForm.incorrect') },
+            fallback: this.transloco.translate('profile.passwordForm.failed'),
           }));
         },
       });

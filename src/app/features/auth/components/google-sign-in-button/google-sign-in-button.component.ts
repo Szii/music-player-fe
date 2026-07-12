@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
+import { TranslocoPipe } from '@jsverse/transloco';
 
 import { BASE_PATH } from '../../../../api/generated';
 
 @Component({
+  imports: [TranslocoPipe],
   selector: 'app-google-sign-in-button',
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './google-sign-in-button.component.html',
@@ -11,7 +13,8 @@ import { BASE_PATH } from '../../../../api/generated';
 export class GoogleSignInButtonComponent {
   private readonly basePath = inject(BASE_PATH);
 
-  readonly label = input('Sign in with Google');
+  /** Empty falls back to the translated default. */
+  readonly label = input('');
 
   /**
    * A full-page navigation, not an XHR: the backend redirects to Google and

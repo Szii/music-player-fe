@@ -3,7 +3,7 @@
   @if (tracks().length > 0) {
     <ui-list-toolbar
       [(search)]="search"
-      searchPlaceholder="Search shared tracks"
+      [searchPlaceholder]="'workshop.searchShared' | transloco"
       [filterValue]="filterMode()"
       [filterOptions]="filterOptions"
       (filterValueChange)="setFilterMode($event)"
@@ -12,7 +12,6 @@
       (sortValueChange)="setSortMode($event)"
       [filteredCount]="filteredTracks().length"
       [totalCount]="tracks().length"
-      itemLabel="track"
     />
   }
 
@@ -76,16 +75,16 @@
 
         <td class="col-status">
           @if (isSubscribed(track)) {
-            <ui-chip variant="success" size="sm" shape="hex" [dot]="true">Inscribed</ui-chip>
+            <ui-chip variant="success" size="sm" shape="hex" [dot]="true">{{ 'workshop.inscribed' | transloco }}</ui-chip>
           } @else {
-            <ui-chip variant="gold" size="sm" shape="hex" [dot]="true">Available</ui-chip>
+            <ui-chip variant="gold" size="sm" shape="hex" [dot]="true">{{ 'groups.available' | transloco }}</ui-chip>
           }
         </td>
 
         <td class="col-actions">
           <ui-action-menu
             [items]="menuItems(track)"
-            [triggerLabel]="'Actions for ' + displayName(track)"
+            [triggerLabel]="'common.actionsFor' | transloco: { name: displayName(track) }"
             (select)="onMenuSelect(track, $event)"
           />
         </td>
@@ -102,9 +101,9 @@
               {{ displayName(track) }}
             </span>
             @if (isSubscribed(track)) {
-              <ui-chip variant="success" size="sm" shape="hex" [dot]="true">Inscribed</ui-chip>
+              <ui-chip variant="success" size="sm" shape="hex" [dot]="true">{{ 'workshop.inscribed' | transloco }}</ui-chip>
             } @else {
-              <ui-chip variant="gold" size="sm" shape="hex" [dot]="true">Available</ui-chip>
+              <ui-chip variant="gold" size="sm" shape="hex" [dot]="true">{{ 'groups.available' | transloco }}</ui-chip>
             }
           </div>
 
@@ -138,7 +137,7 @@
               <ui-action-menu
                 class="track-catalog__menu"
                 [items]="menuItems(track)"
-                [triggerLabel]="'Actions for ' + displayName(track)"
+                [triggerLabel]="'common.actionsFor' | transloco: { name: displayName(track) }"
                 (select)="onMenuSelect(track, $event)"
               />
             </div>
@@ -147,8 +146,8 @@
       }
     </ul>
   } @else if (tracks().length === 0) {
-    <p class="app-empty-note">Nothing is published right now.</p>
+    <p class="app-empty-note">{{ 'workshop.nothingPublished' | transloco }}</p>
   } @else {
-    <p class="app-empty-note">No tracks match the current search or filter.</p>
+    <p class="app-empty-note">{{ 'tracks.noMatches' | transloco }}</p>
   }
 </div>

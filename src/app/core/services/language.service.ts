@@ -1,4 +1,5 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
+import { TranslocoService } from '@jsverse/transloco';
 
 export type AppLanguage = 'en' | 'cs';
 
@@ -20,8 +21,11 @@ function isAppLanguage(value: string | null): value is AppLanguage {
   return value === 'en' || value === 'cs';
 }
 
+/** Owns the language preference and keeps Transloco's active language in sync. */
 @Injectable({ providedIn: 'root' })
 export class LanguageService {
+  private readonly transloco = inject(TranslocoService);
+
   private readonly stored = localStorage.getItem(STORAGE_KEY);
   private readonly _language = signal<AppLanguage>(
     isAppLanguage(this.stored) ? this.stored : DEFAULT_LANGUAGE,
@@ -29,8 +33,13 @@ export class LanguageService {
 
   readonly language = this._language.asReadonly();
 
+  constructor() {
+    this.transloco.setActiveLang(this._language());
+  }
+
   setLanguage(language: AppLanguage): void {
     this._language.set(language);
     localStorage.setItem(STORAGE_KEY, language);
+    this.transloco.setActiveLang(language);
   }
 }

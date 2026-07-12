@@ -1,6 +1,8 @@
 
 <div class="app-page app-page--narrow">
-  <ui-card title="Login">
+  <app-auth-toolbar />
+
+  <ui-card [title]="'auth.login' | transloco">
     @if (needsVerification()) {
       <app-verification-required
         mode="unverified"
@@ -14,14 +16,14 @@
 
       <form class="app-form-stack" [formGroup]="form" (ngSubmit)="onSubmit()">
         <ui-form-field
-          label="Email"
+          [label]="'profile.email' | transloco"
           [error]="emailError()"
         >
           <ui-text-input formControlName="email" type="email" autocomplete="email" />
         </ui-form-field>
 
         <ui-form-field
-          label="Password"
+          [label]="'auth.password' | transloco"
           [error]="passwordError()"
         >
           <ui-text-input formControlName="password" type="password" autocomplete="current-password" />
@@ -34,23 +36,25 @@
           [disabled]="form.invalid || isSubmitting()"
           [loading]="isSubmitting()"
         >
-          {{ isSubmitting() ? 'Signing in...' : 'Sign in' }}
+          {{ (isSubmitting() ? 'auth.signingIn' : 'auth.signIn') | transloco }}
         </normal-button>
       </form>
 
       <div class="login-page__divider">
-        <span class="login-page__divider-label">or</span>
+        <span class="login-page__divider-label">{{ 'auth.or' | transloco }}</span>
       </div>
 
-      <app-google-sign-in-button label="Sign in with Google" />
+      <app-google-sign-in-button [label]="'auth.googleSignIn' | transloco" />
 
       <nav class="login-page__links">
         @if (showEmailInputs) {
-          <a routerLink="/forgot-password">Forgot password?</a>
+          <a routerLink="/forgot-password">{{ 'auth.forgotPassword' | transloco }}</a>
         } @else {
-          <span class="auth-page__link--disabled" aria-disabled="true">Forgot password?</span>
+          <span class="auth-page__link--disabled" aria-disabled="true">
+            {{ 'auth.forgotPassword' | transloco }}
+          </span>
         }
-        <a routerLink="/register">Need an account? Register</a>
+        <a routerLink="/register">{{ 'auth.needAccount' | transloco }}</a>
       </nav>
     }
   </ui-card>

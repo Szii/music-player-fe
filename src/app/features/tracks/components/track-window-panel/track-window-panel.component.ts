@@ -12,6 +12,8 @@ import {
   signal,
   untracked,
 } from '@angular/core';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { toSignal } from '@angular/core/rxjs-interop';
 
 import {
   Track,
@@ -78,11 +80,24 @@ type PanelSelection =
     UiEmptyStateComponent,
     UiChipComponent,
     UiDialogShellComponent,
+    TranslocoPipe,
   ],
   templateUrl: './track-window-panel.component.html',
   styleUrl: './track-window-panel.component.scss',
 })
 export class TrackWindowsPanelComponent implements OnDestroy {
+  private readonly transloco = inject(TranslocoService);
+
+  /** Read by t() so labels recompute when the language changes. */
+  private readonly activeLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    this.activeLang();
+    return this.transloco.translate<string>(key, params);
+  }
+
   private readonly zone = inject(NgZone);
   private readonly confirmDialog = inject(ConfirmDialogService);
 
@@ -213,22 +228,22 @@ export class TrackWindowsPanelComponent implements OnDestroy {
   get editorHeading(): string {
     switch (this.selection.kind) {
       case 'whole-track':
-        return 'Whole track fades';
+        return this.t('windows.wholeTrackFades');
       case 'window':
-        return this.editorName.trim() || 'Untitled window';
+        return this.editorName.trim() || this.t('windows.untitled');
       default:
-        return 'Create new window';
+        return this.t('windows.createNew');
     }
   }
 
   get editorApplyLabel(): string {
     switch (this.selection.kind) {
       case 'whole-track':
-        return 'Save track fades';
+        return this.t('windows.saveTrackFades');
       case 'window':
-        return 'Save changes';
+        return this.t('common.saveChanges');
       default:
-        return 'Create window';
+        return this.t('windows.create');
     }
   }
 
@@ -378,7 +393,7 @@ export class TrackWindowsPanelComponent implements OnDestroy {
     this.selection = { kind: 'whole-track' };
     this.editorFromS = 0;
     this.editorToS = this.wholeTrackDurationS();
-    this.editorName = 'Whole track';
+    this.editorName = this.t('windows.wholeTrack');
     this.editorFadeInMs = track?.fadeInDurationMs ?? 0;
     this.editorFadeOutMs = track?.fadeOutDurationMs ?? 0;
     this.editorLockRegion = true;
@@ -455,10 +470,12 @@ export class TrackWindowsPanelComponent implements OnDestroy {
 
     const name = win.name?.trim();
     const confirmed = await this.confirmDialog.confirm({
-      title: 'Delete window',
-      message: name ? `Delete window "${name}"?` : 'Delete this window?',
-      confirmText: 'Delete',
-      cancelText: 'Cancel',
+      title: this.t('windows.delete'),
+      message: name
+        ? this.t('windows.deleteConfirm', { name })
+        : this.t('windows.deleteConfirmUnnamed'),
+      confirmText: this.t('common.delete'),
+      cancelText: this.t('common.cancel'),
       variant: 'danger',
     });
     if (!confirmed) return;
@@ -504,7 +521,7 @@ export class TrackWindowsPanelComponent implements OnDestroy {
     this.resolvedDurationS = durationS;
     this.streamError = this.ytVideoId
       ? null
-      : 'This track is not a YouTube link and cannot be previewed.';
+      : this.t('windows.notYoutube');
   }
 
   private loadEditorFromWindow(win: TrackWindow): void {

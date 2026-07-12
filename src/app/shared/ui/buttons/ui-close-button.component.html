@@ -1,9 +1,9 @@
 
 <button
   type="button"
-  [disabled]="disabled"
-  [attr.aria-label]="ariaLabel"
-  [class]="classes"
+  [disabled]="disabled()"
+  [attr.aria-label]="ariaLabel() || ('common.close' | transloco)"
+  [class]="classes()"
   (mousedown)="$event.preventDefault()"
   (click)="clicked.emit()"
 >

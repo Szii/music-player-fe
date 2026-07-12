@@ -1,11 +1,14 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  inject,
   computed,
   input,
   output,
   signal,
 } from '@angular/core';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Group, Track } from '../../../../api/generated';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
@@ -18,7 +21,7 @@ import {
 } from '../../../../shared/ui/action-menu/ui-action-menu.component';
 import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 import {
-  PROFANITY_ERROR,
+  profanityErrorMessage,
   hasProfanity,
 } from '../../../../shared/validators/profanity.validator';
 
@@ -37,6 +40,7 @@ export interface RenameEvent {
     UiChipComponent,
     UiCharCounterComponent,
     UiActionMenuComponent,
+    TranslocoPipe,
   ],
   host: {
     role: 'listitem',
@@ -45,6 +49,18 @@ export interface RenameEvent {
   styleUrl: './group-card.component.scss',
 })
 export class GroupCardComponent {
+  private readonly transloco = inject(TranslocoService);
+
+  /** Read by t() so labels recompute when the language changes. */
+  private readonly activeLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    this.activeLang();
+    return this.transloco.translate<string>(key, params);
+  }
+
   readonly group = input.required<Group>();
   readonly tracks = input<Track[]>([]);
   readonly updating = input(false);
@@ -56,7 +72,7 @@ export class GroupCardComponent {
   readonly renameOpen = signal(false);
   readonly editingName = signal('');
   readonly renameError = computed(() =>
-    hasProfanity(this.editingName()) ? PROFANITY_ERROR : '',
+    hasProfanity(this.editingName()) ? profanityErrorMessage() : '',
   );
   readonly nameMaxLength = FIELD_LIMITS.group.name;
 
@@ -64,15 +80,15 @@ export class GroupCardComponent {
 
   readonly trackCountLabel = computed(() => {
     const count = this.trackCount();
-    return `${count} track${count === 1 ? '' : 's'}`;
+    return this.t('groups.trackCount', { count });
   });
 
   menuItems(): ActionMenuItem[] {
     const busy = this.updating();
     return [
-      { id: 'tracks', label: 'Edit tracks', disabled: busy },
-      { id: 'rename', label: 'Rename group', disabled: busy },
-      { id: 'delete', label: 'Delete group', variant: 'danger', disabled: busy },
+      { id: 'tracks', label: this.t('groups.editTracks'), disabled: busy },
+      { id: 'rename', label: this.t('groups.rename'), disabled: busy },
+      { id: 'delete', label: this.t('groups.delete'), variant: 'danger', disabled: busy },
     ];
   }
 
@@ -92,7 +108,7 @@ export class GroupCardComponent {
 
   displayName(): string {
     const group = this.group();
-    return group.listName || ('Group #' + group.id);
+    return group.listName || this.t('common.groupNum', { id: group.id });
   }
 
   openRename(): void {

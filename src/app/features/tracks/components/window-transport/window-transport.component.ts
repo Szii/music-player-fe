@@ -5,8 +5,10 @@ import {
   input,
   output,
 } from '@angular/core';
+import { TranslocoPipe } from '@jsverse/transloco';
 
 @Component({
+  imports: [TranslocoPipe],
   selector: 'app-window-transport',
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './window-transport.component.html',

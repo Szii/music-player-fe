@@ -1,4 +1,5 @@
 import { AbstractControl, ValidationErrors } from '@angular/forms';
+import { translate } from '@jsverse/transloco';
 import {
   RegExpMatcher,
   englishDataset,
@@ -24,4 +25,7 @@ export function profanityValidator(
   return hasProfanity(value) ? { profanity: true } : null;
 }
 
-export const PROFANITY_ERROR = 'Please remove inappropriate language.';
+/** Translated on call, so it follows the active language. */
+export function profanityErrorMessage(): string {
+  return translate('validation.profanity');
+}

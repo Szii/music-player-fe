@@ -1,24 +1,26 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { TranslocoPipe } from '@jsverse/transloco';
 
 export type CloseButtonSize = 'sm' | 'md';
 export type CloseButtonTone = 'default' | 'danger' | 'muted';
 
 @Component({
   selector: 'ui-close-button',
-  standalone: true,
-  imports: [],
+  imports: [TranslocoPipe],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './ui-close-button.component.html',
   styleUrls: ['./ui-close-button.component.scss'],
 })
 export class UiCloseButtonComponent {
-  @Input() ariaLabel = 'Close';
-  @Input() size: CloseButtonSize = 'md';
-  @Input() tone: CloseButtonTone = 'default';
-  @Input() disabled = false;
+  /** Empty falls back to the translated default. */
+  readonly ariaLabel = input('');
+  readonly size = input<CloseButtonSize>('md');
+  readonly tone = input<CloseButtonTone>('default');
+  readonly disabled = input(false);
 
-  @Output() clicked = new EventEmitter<void>();
+  readonly clicked = output<void>();
 
-  get classes(): string {
-    return `ui-close-button ui-close-button--${this.size} ui-close-button--${this.tone}`;
-  }
+  readonly classes = computed(
+    () => `ui-close-button ui-close-button--${this.size()} ui-close-button--${this.tone()}`,
+  );
 }

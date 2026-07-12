@@ -5,18 +5,16 @@
 
     <div class="page-footer__bar">
       <p class="page-footer__copy">
-        © {{ year }} Sound Master's Lair
+        © {{ year }} {{ 'app.brand' | transloco }}
         <span class="page-footer__sep" aria-hidden="true">·</span>
         <span class="page-footer__version">v{{ version }}</span>
       </p>
 
       <p class="page-footer__contact">
-        <button type="button" class="page-footer__link" (click)="legalDialog.open()">
-          Privacy &amp; Terms
-        </button>
+        <a class="page-footer__link" routerLink="/legal">{{ 'legal.title' | transloco }}</a>
         <span class="page-footer__sep" aria-hidden="true">·</span>
         <span class="page-footer__contact-email">
-          Contact:
+          {{ 'footer.contact' | transloco }}
           <a [href]="'mailto:' + contactEmail">{{ contactEmail }}</a>
         </span>
       </p>

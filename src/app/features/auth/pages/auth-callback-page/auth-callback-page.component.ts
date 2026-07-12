@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -11,7 +12,9 @@ type CallbackState = 'signing-in' | 'failed';
 
 @Component({
   selector: 'app-auth-callback-page',
-  imports: [RouterLink, UiCardComponent],
+  imports: [RouterLink, UiCardComponent,
+    TranslocoPipe,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './auth-callback-page.component.html',
   styleUrl: './auth-callback-page.component.scss',

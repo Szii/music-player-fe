@@ -1,6 +1,6 @@
 
 <div class="app-page board-page">
-  <ui-page-title title="Boards">
+  <ui-page-title [title]="'stages.title' | transloco">
     <app-sessions-dropdown
       #sessionsDropdown
       class="boards-page__sessions"
@@ -14,12 +14,10 @@
   }
 
   @if (loading()) {
-    <div class="app-muted boards-page__loading">
-      Loading boards…
-    </div>
+    <div class="app-muted boards-page__loading">{{ 'stages.loading' | transloco }}</div>
   } @else if (!hasSessions()) {
     <ui-create-cta
-      label="Create your first session"
+      [label]="'sessions.createFirst' | transloco"
       (clicked)="openCreateSession($event)"
     />
   } @else {
@@ -34,7 +32,7 @@
 
     @if (sessionBoards().length === 0) {
       <ui-create-cta
-        label="Create your first music board in this session"
+        [label]="'stages.createFirst' | transloco"
         (clicked)="createBoardForm.open()"
       />
     } @else {
@@ -45,7 +43,7 @@
             class="boards-tab"
             [class.boards-tab--active]="activeBoardIndex() === i"
             (click)="scrollToBoard(i)"
-          >{{ board.name || ('Board ' + (i + 1)) }}</button>
+          >{{ board.name || ('common.stageIndex' | transloco: { index: i + 1 }) }}</button>
         }
       </div>
 

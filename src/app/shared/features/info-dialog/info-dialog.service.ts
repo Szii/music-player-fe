@@ -1,4 +1,5 @@
 import { Injectable, signal } from '@angular/core';
+import { translate } from '@jsverse/transloco';
 
 export interface InfoDialogOptions {
   title: string;
@@ -26,7 +27,7 @@ export class InfoDialogService {
     this.dialog.set({
       title: options.title,
       message: options.message,
-      closeText: options.closeText ?? 'Close',
+      closeText: options.closeText ?? translate<string>('common.close'),
     });
   }
 

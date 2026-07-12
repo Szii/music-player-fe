@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { RouterLink, RouterLinkActive } from '@angular/router';
+import { TranslocoPipe } from '@jsverse/transloco';
 
 import { SessionService } from '../../../core/auth/session.service';
 import { BoardPlaybackService } from '../../../core/services/board-playback.service';
@@ -8,7 +10,7 @@ import { UserMenuComponent } from '../user-menu/user-menu.component';
 
 @Component({
   selector: 'app-navbar',
-  imports: [RouterLink, RouterLinkActive, UserMenuComponent],
+  imports: [NgTemplateOutlet, RouterLink, RouterLinkActive, UserMenuComponent, TranslocoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './navbar.component.html',
   styleUrls: ['./navbar.component.scss'],

@@ -1,7 +1,7 @@
 
 <form class="app-form-stack" [formGroup]="form" (ngSubmit)="onSubmit()">
   <ui-form-field
-    label="New username"
+    [label]="'profile.usernameForm.label' | transloco"
     [error]="nameError()"
   >
     <ui-text-input formControlName="name" autocomplete="username" [maxLength]="nameMaxLength" />
@@ -13,7 +13,9 @@
       [disabled]="form.invalid || isSubmitting()"
       [loading]="isSubmitting()"
     >
-      {{ isSubmitting() ? 'Saving...' : 'Change username' }}
+      {{
+        (isSubmitting() ? 'profile.usernameForm.saving' : 'profile.usernameForm.submit') | transloco
+      }}
     </normal-button>
   </ui-form-actions>
 </form>

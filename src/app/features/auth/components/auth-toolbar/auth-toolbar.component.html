@@ -1,0 +1,14 @@
+
+<div class="auth-toolbar">
+  <button
+    type="button"
+    class="auth-toolbar__help"
+    [attr.aria-label]="'profile.showTutorial' | transloco"
+    [title]="'profile.showTutorial' | transloco"
+    (click)="tutorial.start()"
+  >
+    ?
+  </button>
+
+  <app-language-select class="auth-toolbar__language" />
+</div>

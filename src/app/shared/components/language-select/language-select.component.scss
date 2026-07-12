@@ -1,0 +1,6 @@
+:host {
+  display: block;
+  /* The option row reserves a flag column and a 24px check column, so the panel
+     needs room for those plus the longest native language name. */
+  min-width: 11.5rem;
+}

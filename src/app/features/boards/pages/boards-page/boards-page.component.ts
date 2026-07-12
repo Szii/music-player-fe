@@ -1,5 +1,6 @@
 import { Component, DestroyRef, ElementRef, OnDestroy, OnInit, QueryList, ViewChild, ViewChildren, computed, effect, inject, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { Subject, forkJoin, of } from 'rxjs';
 import {
   catchError,
@@ -68,6 +69,7 @@ interface VolumeCommit {
     SessionsDropdownComponent,
     UiPageTitleComponent,
     FooterComponent,
+    TranslocoPipe,
   ],
   host: {
     '(document:keydown)': 'onGlobalKeydown($event)',
@@ -76,6 +78,18 @@ interface VolumeCommit {
   styleUrl: './boards-page.component.scss',
 })
 export class BoardsPageComponent implements OnInit, OnDestroy {
+  private readonly transloco = inject(TranslocoService);
+
+  /** Read by t() so labels recompute when the language changes. */
+  private readonly activeLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    this.activeLang();
+    return this.transloco.translate(key, params);
+  }
+
   private readonly boardsApi = inject(MusicBoardsService);
   private readonly groupsApi = inject(MusicGroupsService);
   private readonly tracksApi = inject(MusicTracksService);
@@ -256,14 +270,14 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       sessions: this.sessionsStore.load().pipe(
         catchError((err: unknown) => {
           console.error(err);
-          this.appendError(httpErrorMessage(err, { fallback: 'Loading sessions failed.' }));
+          this.appendError(httpErrorMessage(err, { fallback: this.t('stages.err.loadSessions') }));
           return of({ sessions: [] });
         }),
       ),
       ownTracks: this.tracksApi.getUserTracks().pipe(
         catchError((err: unknown) => {
           console.error(err);
-          this.appendError(httpErrorMessage(err, { fallback: 'Loading tracks failed.' }));
+          this.appendError(httpErrorMessage(err, { fallback: this.t('stages.err.loadTracks') }));
           return of([] as Track[]);
         }),
       ),
@@ -273,7 +287,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       groups: this.groupsApi.getUserGroups().pipe(
         catchError((err: unknown) => {
           console.error(err);
-          this.appendError(httpErrorMessage(err, { fallback: 'Loading groups failed.' }));
+          this.appendError(httpErrorMessage(err, { fallback: this.t('stages.err.loadGroups') }));
           return of([] as Group[]);
         }),
       ),
@@ -294,7 +308,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         },
         error: (err: unknown) => {
           console.error(err);
-          this.appendError(httpErrorMessage(err, { fallback: 'Loading data failed.' }));
+          this.appendError(httpErrorMessage(err, { fallback: this.t('stages.err.loadData') }));
         },
       });
   }
@@ -302,7 +316,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   createBoard(event: CreateBoardEvent): void {
     const sessionId = this.sessionsStore.selectedSessionId();
     if (sessionId == null) {
-      this.toast.error('Select a session before creating a board.');
+      this.toast.error(this.t('stages.err.noSessionSelected'));
       return;
     }
 
@@ -330,12 +344,12 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
           if (newBoards.length > 0) {
             this.boards.update(current => this.sortBoards([...current, ...newBoards]));
-            this.toast.success('Board created.');
+            this.toast.success(this.t('stages.msg.created'));
           }
         },
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error(httpErrorMessage(err, { fallback: 'Creating board failed.' }));
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('stages.err.create') }));
         },
       });
   }
@@ -349,10 +363,10 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     if (board.id == null) return;
 
     const confirmed = await this.confirmDialog.confirm({
-      title: 'Delete board',
-      message: `Delete board "${board.name || board.id}"?`,
-      confirmText: 'Delete',
-      cancelText: 'Cancel',
+      title: this.t('stages.card.delete'),
+      message: this.t('stages.msg.deleteConfirm', { name: board.name || board.id }),
+      confirmText: this.t('common.delete'),
+      cancelText: this.t('common.cancel'),
       variant: 'danger',
     });
 
@@ -368,11 +382,11 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
             this.boards.update(current => current.filter(b => b.id !== boardId));
             this.removeBoardLocalState(boardId);
             this.syncPlayingState();
-            this.toast.success('Board deleted.');
+            this.toast.success(this.t('stages.msg.deleted'));
           },
           error: (err: unknown) => {
             console.error(err);
-            this.toast.error(httpErrorMessage(err, { fallback: 'Deleting board failed.' }));
+            this.toast.error(httpErrorMessage(err, { fallback: this.t('stages.err.delete') }));
           },
         });
     };
@@ -421,7 +435,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
           repeat,
           selectedWindowId: firstWindowId ?? undefined,
         },
-        'Updating loop mode failed.',
+        this.t('stages.err.loopMode'),
       );
       return;
     }
@@ -436,7 +450,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       this.updateBoard(
         board,
         { sequenceMode: false, repeat, selectedWindowId: undefined },
-        'Updating loop mode failed.',
+        this.t('stages.err.loopMode'),
       );
       return;
     }
@@ -445,7 +459,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     this.updateBoard(
       board,
       { sequenceMode: false, repeat },
-      'Updating loop mode failed.',
+      this.t('stages.err.loopMode'),
     );
   }
 
@@ -453,7 +467,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     this.updateBoard(
       board,
       { overplay: !(board.overplay ?? false) },
-      'Updating overplay failed.',
+      this.t('stages.err.overplay'),
     );
   }
 
@@ -487,7 +501,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
           selectedTrackId: undefined,
           selectedWindowId: undefined,
         },
-        'Updating playlist mode failed.',
+        this.t('stages.err.playlistMode'),
       );
       return;
     }
@@ -508,7 +522,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
           sequenceMode: true,
           selectedWindowId: firstWindowId ?? undefined,
         },
-        'Updating sequence mode failed.',
+        this.t('stages.err.sequenceMode'),
       );
       return;
     }
@@ -523,7 +537,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       this.updateBoard(
         board,
         { playlistMode: false, sequenceMode: false },
-        'Updating playlist mode failed.',
+        this.t('stages.err.playlistMode'),
         () => this.restoreSingleSelection(boardId),
       );
       return;
@@ -532,7 +546,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     this.updateBoard(
       board,
       { sequenceMode: false },
-      'Updating sequence mode failed.',
+      this.t('stages.err.sequenceMode'),
     );
   }
 
@@ -572,17 +586,17 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         },
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error(httpErrorMessage(err, { fallback: 'Restoring track failed.' }));
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('stages.err.restoreTrack') }));
         },
       });
   }
 
   onBoardRename(board: Board, name: string): void {
-    this.updateBoard(board, { name }, 'Renaming board failed.');
+    this.updateBoard(board, { name }, this.t('stages.err.rename'));
   }
 
   onPlaylistOptionsChange(board: Board, options: PlaylistOptions): void {
-    this.updateBoard(board, { shuffle: options.random }, 'Updating shuffle failed.');
+    this.updateBoard(board, { shuffle: options.random }, this.t('stages.err.shuffle'));
 
     const boardId = board.id;
     if (boardId == null || !board.playlistMode) return;
@@ -679,7 +693,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         },
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error(httpErrorMessage(err, { fallback: 'Updating group failed.' }));
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('stages.err.group') }));
         },
       });
   }
@@ -736,7 +750,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
           console.error(err);
           this.pendingTrackUpdateBoardIds.delete(boardId);
           this.playPendingAfterUpdateBoardIds.delete(boardId);
-          this.toast.error(httpErrorMessage(err, { fallback: 'Updating board failed.' }));
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('stages.err.update') }));
         },
       });
   }
@@ -802,7 +816,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
           console.error(err);
           this.pendingTrackUpdateBoardIds.delete(boardId);
           this.playPendingAfterUpdateBoardIds.delete(boardId);
-          this.toast.error(httpErrorMessage(err, { fallback: 'Updating board failed.' }));
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('stages.err.update') }));
         },
       });
   }
@@ -827,7 +841,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
         next: updated => this.upsertBoard(updated),
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error(httpErrorMessage(err, { fallback: 'Updating window failed.' }));
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('stages.err.window') }));
         },
       });
 
@@ -1023,7 +1037,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     this.boardStatuses.set(board.id, 'ERROR');
     this.streamUrlsByBoard.delete(board.id);
     this.syncPlayingState();
-    this.toast.error('Audio stream failed.');
+    this.toast.error(this.t('stages.err.audio'));
   }
 
   getBoardStatus(board: Board): PlayerStatus {

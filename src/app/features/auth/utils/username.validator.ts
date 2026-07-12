@@ -18,19 +18,20 @@ export const usernameValidators = [
   Validators.pattern(USERNAME_PATTERN),
 ];
 
-/** The single message covering every way a username can be malformed. */
-export function usernameErrorMessage(control: {
-  hasError(code: string): boolean;
-}): string {
-  if (control.hasError('required')) return 'Username is required.';
-  if (control.hasError('minlength')) {
-    return `Username must be at least ${USERNAME_MIN_LENGTH} characters.`;
-  }
-  if (control.hasError('maxlength')) {
-    return `Username must be at most ${FIELD_LIMITS.user.name} characters.`;
-  }
-  if (control.hasError('pattern')) {
-    return 'Use letters, digits, dot, underscore or hyphen. Must start and end with a letter or digit.';
-  }
+/** Interpolation params every username message may reference. */
+export const USERNAME_ERROR_PARAMS = {
+  min: USERNAME_MIN_LENGTH,
+  max: FIELD_LIMITS.user.name,
+};
+
+/**
+ * The translation key covering every way a username can be malformed. Callers
+ * translate it with `USERNAME_ERROR_PARAMS`; empty string means "no error".
+ */
+export function usernameErrorKey(control: { hasError(code: string): boolean }): string {
+  if (control.hasError('required')) return 'validation.usernameRequired';
+  if (control.hasError('minlength')) return 'validation.usernameMin';
+  if (control.hasError('maxlength')) return 'validation.usernameMax';
+  if (control.hasError('pattern')) return 'validation.usernamePattern';
   return '';
 }

@@ -1,6 +1,8 @@
 import { HttpErrorResponse, HttpHeaders } from '@angular/common/http';
+import { TestBed } from '@angular/core/testing';
 
 import { httpErrorCode, httpErrorMessage } from './http-error';
+import { loadTranslocoTesting, provideTranslocoTesting } from '../../../testing/transloco-testing';
 
 function httpError(
   status: number,
@@ -23,6 +25,13 @@ function badRequest(message?: string): HttpErrorResponse {
 }
 
 describe('httpErrorMessage', () => {
+  // The default messages come from the catalogue, so the service must exist:
+  // `translate()` resolves through it rather than through injection.
+  beforeEach(() => {
+    TestBed.configureTestingModule({ providers: [provideTranslocoTesting()] });
+    loadTranslocoTesting();
+  });
+
   it('returns the fallback for non-HTTP errors', () => {
     expect(httpErrorMessage(new Error('boom'), { fallback: 'Nope.' })).toBe('Nope.');
   });
@@ -46,17 +55,17 @@ describe('httpErrorMessage', () => {
 
   it('uses Retry-After seconds in the 429 message', () => {
     const msg = httpErrorMessage(httpError(429, { 'Retry-After': '30' }));
-    expect(msg).toBe('Too many attempts. Please wait 30 seconds and try again.');
+    expect(msg).toBe('Too many attempts. Please wait 30 s and try again.');
   });
 
-  it('renders Retry-After of 1 second without a plural', () => {
+  it('renders a short Retry-After in seconds', () => {
     const msg = httpErrorMessage(httpError(429, { 'Retry-After': '1' }));
-    expect(msg).toBe('Too many attempts. Please wait 1 second and try again.');
+    expect(msg).toBe('Too many attempts. Please wait 1 s and try again.');
   });
 
   it('rolls large Retry-After values up to minutes', () => {
     const msg = httpErrorMessage(httpError(429, { 'Retry-After': '120' }));
-    expect(msg).toBe('Too many attempts. Please wait 2 minutes and try again.');
+    expect(msg).toBe('Too many attempts. Please wait 2 min and try again.');
   });
 
   it('reports a server-side failure for 5xx', () => {

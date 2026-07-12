@@ -1,0 +1,14 @@
+
+<div class="app-page legal-page">
+  <ui-card [title]="'legal.title' | transloco">
+    <app-legal-content />
+
+    <div class="legal-page__actions">
+      <normal-button type="button" variant="secondary" (clicked)="goBack()">
+        {{ 'common.back' | transloco }}
+      </normal-button>
+    </div>
+  </ui-card>
+
+  <app-footer />
+</div>

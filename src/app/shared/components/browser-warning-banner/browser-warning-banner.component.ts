@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { TranslocoPipe } from '@jsverse/transloco';
 
 /**
  * Dismissible environment notice shown under the navbar (e.g. unsupported
@@ -8,6 +9,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
  */
 @Component({
   selector: 'app-browser-warning-banner',
+  imports: [TranslocoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '[class.browser-warning-host--open]': 'open()',
@@ -19,9 +21,8 @@ export class BrowserWarningBannerComponent {
   /** Drives the open/closed slide animation; the element stays mounted while closed. */
   readonly open = input(true);
 
-  readonly message = input(
-    'Currently, only Chromium browsers are supported. For the optimal audio experience, please use a Chromium-based browser.',
-  );
+  /** Translation key, resolved in the template. */
+  readonly message = input('warnings.browser');
 
   readonly close = output<void>();
 }

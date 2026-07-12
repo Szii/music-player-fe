@@ -1,4 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
+import { translate } from '@jsverse/transloco';
 import { Observable, forkJoin, map, tap } from 'rxjs';
 
 import {
@@ -78,7 +79,7 @@ export class ProfileStore {
       next: loaded => this.state.set(loaded),
       error: () => this.state.set({
         status: 'error',
-        message: 'Could not load your profile.',
+        message: translate<string>('profile.err.load'),
       }),
     });
   }
@@ -142,8 +143,11 @@ export class ProfileStore {
   }
 
   sessionNameForSession(sessionId: number | null | undefined): string {
-    if (sessionId == null) return 'Unknown session';
-    return this.sessionNames().get(sessionId) ?? `Session #${sessionId}`;
+    if (sessionId == null) return translate<string>('sessions.unknown');
+    return (
+      this.sessionNames().get(sessionId) ??
+      translate<string>('profile.limits.sessionFallback', { id: sessionId })
+    );
   }
 
   changePassword(currentPassword: string, newPassword: string): Observable<unknown> {
@@ -169,7 +173,9 @@ export class ProfileStore {
   changeUsername(name: string): Observable<User> {
     return this.usersApi.changeUsername({ changeUsernameRequest: { name } })
       .pipe(tap(user => {
-        this.state.update(s => s.status === 'loaded' ? { ...s, user } : s);
+        this.state.update(s => s.status === 'loaded'
+          ? { ...s, user: { ...s.user, name: user.name ?? name } }
+          : s);
       }));
   }
 }

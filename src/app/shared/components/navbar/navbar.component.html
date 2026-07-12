@@ -1,8 +1,41 @@
 
+<!-- Each icon is defined once and rendered by both the desktop bar and the
+     mobile tab bar; size comes from the surrounding context. -->
+<ng-template #iconTracks>
+  <svg class="app-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M9 18V5l12-2v13" />
+    <circle cx="6" cy="18" r="3" />
+    <circle cx="18" cy="16" r="3" />
+  </svg>
+</ng-template>
+
+<!-- Play triangle, not a grid: this tab is where sound actually comes out. -->
+<ng-template #iconStages>
+  <svg class="app-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="9" />
+    <path d="M10 8.5l6 3.5-6 3.5z" fill="currentColor" />
+  </svg>
+</ng-template>
+
+<ng-template #iconGroups>
+  <svg class="app-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M4 20h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-7l-2-2H4a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1Z" />
+  </svg>
+</ng-template>
+
+<!-- Sharing: outward arrow from a box. -->
+<ng-template #iconSharing>
+  <svg class="app-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
+    <path d="M12 15V3" />
+    <path d="M8 7l4-4 4 4" />
+  </svg>
+</ng-template>
+
 <nav class="app-navbar">
   <div class="app-navbar__inner">
     <div class="app-navbar__brand">
-      <a routerLink="/" class="app-navbar__brand-link">Sound Master's Lair</a>
+      <a routerLink="/" class="app-navbar__brand-link">{{ 'app.brand' | transloco }}</a>
     </div>
 
     <div class="app-navbar__links">
@@ -11,16 +44,23 @@
         routerLink="/tracks"
         routerLinkActive="app-navbar__link--active"
         [routerLinkActiveOptions]="{ exact: true }"
-      >Tracks</a>
+      >
+        <ng-container [ngTemplateOutlet]="iconTracks" />
+        {{ 'nav.tracks' | transloco }}
+      </a>
 
       <a
         class="app-navbar__link"
         routerLink="/boards"
         routerLinkActive="app-navbar__link--active"
       >
-        Boards
+        <ng-container [ngTemplateOutlet]="iconStages" />
+        {{ 'nav.stages' | transloco }}
         @if (boardPlayback.isAnyPlaying()) {
-          <span class="app-navbar__playing-dot" aria-label="Playing"></span>
+          <span
+            class="app-navbar__playing-dot"
+            [attr.aria-label]="'nav.playing' | transloco"
+          ></span>
         }
       </a>
 
@@ -28,13 +68,19 @@
         class="app-navbar__link"
         routerLink="/groups"
         routerLinkActive="app-navbar__link--active"
-      >Groups</a>
+      >
+        <ng-container [ngTemplateOutlet]="iconGroups" />
+        {{ 'nav.groups' | transloco }}
+      </a>
 
       <a
         class="app-navbar__link"
         routerLink="/workshop"
         routerLinkActive="app-navbar__link--active"
-      >Workshop</a>
+      >
+        <ng-container [ngTemplateOutlet]="iconSharing" />
+        {{ 'nav.sharing' | transloco }}
+      </a>
     </div>
 
     <div class="app-navbar__actions">
@@ -46,8 +92,8 @@
           class="app-navbar__warning-btn"
           (click)="warnings.toggleBanners()"
           [attr.aria-expanded]="warnings.anyOpen()"
-          aria-label="Environment notices"
-          title="Environment notices"
+          [attr.aria-label]="'nav.environmentNotices' | transloco"
+          [title]="'nav.environmentNotices' | transloco"
         >
           !
         </button>
@@ -58,19 +104,15 @@
 
 <!-- Mobile primary navigation: a thumb-reachable bottom tab bar (replaces
      the hamburger; Apple HIG / Material recommend this for 3–5 sections). -->
-<nav class="app-bottom-nav" aria-label="Primary">
+<nav class="app-bottom-nav" [attr.aria-label]="'nav.primary' | transloco">
   <a
     class="app-bottom-nav__item"
     routerLink="/tracks"
     routerLinkActive="app-bottom-nav__item--active"
     [routerLinkActiveOptions]="{ exact: true }"
   >
-    <svg class="app-bottom-nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M9 18V5l12-2v13" />
-      <circle cx="6" cy="18" r="3" />
-      <circle cx="18" cy="16" r="3" />
-    </svg>
-    <span class="app-bottom-nav__label">Tracks</span>
+    <ng-container [ngTemplateOutlet]="iconTracks" />
+    <span class="app-bottom-nav__label">{{ 'nav.tracks' | transloco }}</span>
   </a>
 
   <a
@@ -79,17 +121,12 @@
     routerLinkActive="app-bottom-nav__item--active"
   >
     <span class="app-bottom-nav__icon-wrap">
-      <svg class="app-bottom-nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <rect x="3" y="3" width="7" height="7" rx="1" />
-        <rect x="14" y="3" width="7" height="7" rx="1" />
-        <rect x="14" y="14" width="7" height="7" rx="1" />
-        <rect x="3" y="14" width="7" height="7" rx="1" />
-      </svg>
+      <ng-container [ngTemplateOutlet]="iconStages" />
       @if (boardPlayback.isAnyPlaying()) {
-        <span class="app-bottom-nav__dot" aria-label="Playing"></span>
+        <span class="app-bottom-nav__dot" [attr.aria-label]="'nav.playing' | transloco"></span>
       }
     </span>
-    <span class="app-bottom-nav__label">Boards</span>
+    <span class="app-bottom-nav__label">{{ 'nav.stages' | transloco }}</span>
   </a>
 
   <a
@@ -97,10 +134,8 @@
     routerLink="/groups"
     routerLinkActive="app-bottom-nav__item--active"
   >
-    <svg class="app-bottom-nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M4 20h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-7l-2-2H4a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1Z" />
-    </svg>
-    <span class="app-bottom-nav__label">Groups</span>
+    <ng-container [ngTemplateOutlet]="iconGroups" />
+    <span class="app-bottom-nav__label">{{ 'nav.groups' | transloco }}</span>
   </a>
 
   <a
@@ -108,9 +143,7 @@
     routerLink="/workshop"
     routerLinkActive="app-bottom-nav__item--active"
   >
-    <svg class="app-bottom-nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76Z" />
-    </svg>
-    <span class="app-bottom-nav__label">Workshop</span>
+    <ng-container [ngTemplateOutlet]="iconSharing" />
+    <span class="app-bottom-nav__label">{{ 'nav.sharing' | transloco }}</span>
   </a>
 </nav>

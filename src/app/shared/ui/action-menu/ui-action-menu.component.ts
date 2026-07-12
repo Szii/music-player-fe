@@ -9,6 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { ConnectedPosition, OverlayModule } from '@angular/cdk/overlay';
+import { TranslocoPipe } from '@jsverse/transloco';
 
 import { ScrollLockService } from '../../../core/services/scroll-lock.service';
 import { BottomSheetDragDirective } from '../bottom-sheet/bottom-sheet-drag.directive';
@@ -32,7 +33,7 @@ export interface ActionMenuItem {
 @Component({
   selector: 'ui-action-menu',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OverlayModule, BottomSheetDragDirective],
+  imports: [OverlayModule, BottomSheetDragDirective, TranslocoPipe],
   host: {
     '(document:keydown.escape)': 'animateClose()',
   },
@@ -41,7 +42,8 @@ export interface ActionMenuItem {
 })
 export class UiActionMenuComponent {
   readonly items = input.required<ActionMenuItem[]>();
-  readonly triggerLabel = input('More actions');
+  /** Empty falls back to the translated default. */
+  readonly triggerLabel = input('');
   readonly disabled = input(false);
 
   readonly select = output<string>();

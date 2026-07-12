@@ -1,11 +1,14 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  inject,
   computed,
   input,
   output,
   signal,
 } from '@angular/core';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { Track } from '../../../../api/generated';
 import {
   UiDataTableColumn,
@@ -38,11 +41,24 @@ type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
     UiListToolbarComponent,
     UiChipComponent,
     UiActionMenuComponent,
+    TranslocoPipe,
   ],
   templateUrl: './track-table.component.html',
   styleUrl: './track-table.component.scss',
 })
 export class TrackTableComponent {
+  private readonly transloco = inject(TranslocoService);
+
+  /** Read by t() so labels recompute when the language changes. */
+  private readonly activeLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    this.activeLang();
+    return this.transloco.translate<string>(key, params);
+  }
+
   readonly tracks = input<Track[]>([]);
   readonly loading = input(false);
 
@@ -55,27 +71,27 @@ export class TrackTableComponent {
   readonly sortMode = persistentSignal<TrackSortMode>('mpf:tracks:sort', 'nameAsc');
 
   readonly filterOptions = [
-    { label: 'All tracks', value: 'all' },
-    { label: 'My tracks', value: 'own' },
-    { label: 'Subscribed', value: 'subscribed' },
-    { label: 'With windows', value: 'withWindows' },
-    { label: 'Without windows', value: 'withoutWindows' },
-    { label: 'Published', value: 'published' },
+    { label: this.t('tracks.filter.all'), value: 'all' },
+    { label: this.t('tracks.filter.own'), value: 'own' },
+    { label: this.t('tracks.subscribed'), value: 'subscribed' },
+    { label: this.t('tracks.filter.withWindows'), value: 'withWindows' },
+    { label: this.t('tracks.filter.withoutWindows'), value: 'withoutWindows' },
+    { label: this.t('tracks.filter.published'), value: 'published' },
   ];
 
   readonly sortOptions = [
-    { label: 'Name A–Z', value: 'nameAsc' },
-    { label: 'Name Z–A', value: 'nameDesc' },
-    { label: 'Duration shortest', value: 'durationAsc' },
-    { label: 'Duration longest', value: 'durationDesc' },
+    { label: this.t('sort.nameAsc'), value: 'nameAsc' },
+    { label: this.t('sort.nameDesc'), value: 'nameDesc' },
+    { label: this.t('sort.durationAsc'), value: 'durationAsc' },
+    { label: this.t('sort.durationDesc'), value: 'durationDesc' },
   ];
 
   readonly columns: UiDataTableColumn[] = [
-    { label: 'Name', className: 'col-name', width: '180px' },
-    { label: 'Original name', className: 'col-original' },
-    { label: 'Owner', className: 'col-owner', width: '120px' },
-    { label: 'Duration', className: 'col-duration', width: '110px' },
-    { label: 'Status', className: 'col-status', width: '150px' },
+    { label: this.t('tracks.col.name'), className: 'col-name', width: '180px' },
+    { label: this.t('tracks.original'), className: 'col-original' },
+    { label: this.t('tracks.owner'), className: 'col-owner', width: '120px' },
+    { label: this.t('tracks.col.duration'), className: 'col-duration', width: '110px' },
+    { label: this.t('tracks.col.status'), className: 'col-status', width: '150px' },
     { label: '', className: 'col-actions', width: '64px' },
   ];
 
@@ -106,15 +122,15 @@ export class TrackTableComponent {
   menuItems(track: Track): ActionMenuItem[] {
     const subscribed = this.isSubscribed(track);
     const items: ActionMenuItem[] = [
-      { id: 'edit', label: 'Edit track', disabled: subscribed },
-      { id: 'windows', label: 'Edit windows', disabled: subscribed },
+      { id: 'edit', label: this.t('tracks.edit'), disabled: subscribed },
+      { id: 'windows', label: this.t('tracks.editWindows'), disabled: subscribed },
     ];
 
     if (track.trackLink) {
-      items.push({ id: 'open', label: 'Open source ↗', href: track.trackLink });
+      items.push({ id: 'open', label: this.t('tracks.openSource'), href: track.trackLink });
     }
 
-    items.push({ id: 'delete', label: 'Delete track', variant: 'danger', disabled: subscribed });
+    items.push({ id: 'delete', label: this.t('tracks.delete'), variant: 'danger', disabled: subscribed });
 
     return items;
   }

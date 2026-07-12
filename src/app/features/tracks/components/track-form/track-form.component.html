@@ -2,7 +2,7 @@
 @if (showTrigger()) {
   <app-icon-button
     icon="plus"
-    label="Add track"
+    [label]="'tracks.add' | transloco"
     variant="primary"
     size="lg"
     (clicked)="open()"
@@ -11,21 +11,21 @@
 
 @if (isOpen()) {
   <ui-dialog-shell
-    [title]="isEditing() ? 'Edit track' : 'Add track'"
+    [title]="(isEditing() ? 'tracks.edit' : 'tracks.add') | transloco"
     titleId="track-modal-title"
     [showFooter]="true"
     (closed)="close()"
   >
     <form [formGroup]="form" (ngSubmit)="onSubmit()" class="track-form">
-      <ui-form-field label="Track name" [error]="trackNameError()">
+      <ui-form-field [label]="'tracks.name' | transloco" [error]="trackNameError()">
         <ui-text-input
           formControlName="trackName"
-          placeholder="e.g. Dark Forest Ambience"
+          [placeholder]="'tracks.namePlaceholder' | transloco"
           [maxLength]="limits.name"
         />
       </ui-form-field>
 
-      <ui-form-field label="Track link" [error]="trackLinkError()">
+      <ui-form-field [label]="'tracks.link' | transloco" [error]="trackLinkError()">
         <ui-text-input
           formControlName="trackLink"
           type="url"
@@ -33,9 +33,7 @@
           [maxLength]="trackLinkMaxLength()"
         />
         @if (linkLocked()) {
-          <span class="track-form__hint">
-            The link can't be changed once a track has windows or is published.
-          </span>
+          <span class="track-form__hint">{{ 'tracks.linkLocked' | transloco }}</span>
         }
       </ui-form-field>
     </form>
@@ -46,7 +44,7 @@
         variant="secondary"
         (clicked)="close()"
       >
-        Cancel
+        {{ 'common.cancel' | transloco }}
       </normal-button>
 
       <normal-button
@@ -55,7 +53,7 @@
         [loading]="submitting()"
         (clicked)="onSubmit()"
       >
-        {{ isEditing() ? 'Save changes' : 'Add track' }}
+        {{ (isEditing() ? 'common.saveChanges' : 'tracks.add') | transloco }}
       </normal-button>
     </ng-container>
   </ui-dialog-shell>

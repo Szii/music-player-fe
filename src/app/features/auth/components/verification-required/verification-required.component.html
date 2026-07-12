@@ -1,13 +1,14 @@
 
 @if (showEmailInputs) {
   <p class="verify-required__notice">
-    {{ leadText() }} Please check
+    {{ leadText() }}
+    {{ 'auth.verify.checkPrefix' | transloco }}
     @if (currentEmail(); as email) {
       <strong>{{ email }}</strong>
     } @else {
-      your email
+      {{ 'auth.verify.yourEmail' | transloco }}
     }
-    and click the verification link to activate your account.
+    {{ 'auth.verify.checkSuffix' | transloco }}
   </p>
 
   <div class="verify-required__actions">
@@ -17,47 +18,46 @@
       [loading]="resendStatus() === 'sending'"
       (clicked)="onResend()"
     >
-      {{ resendStatus() === 'sending' ? 'Sending...' : 'Resend verification email' }}
+      {{ (resendStatus() === 'sending' ? 'auth.verify.sending' : 'auth.verify.resend') | transloco }}
     </normal-button>
   </div>
 
   @switch (resendStatus()) {
     @case ('sent') {
       <p class="verify-required__status verify-required__status--success" role="status">
-        A new verification email has been sent.
+        {{ 'auth.verify.sent' | transloco }}
       </p>
     }
     @case ('rate-limited') {
       <p class="verify-required__status verify-required__status--error" role="alert">
-        Too many requests. Please wait a moment and try again.
+        {{ 'auth.verify.rateLimited' | transloco }}
       </p>
     }
     @case ('wrong-credentials') {
       <p class="verify-required__status verify-required__status--error" role="alert">
-        We could not resend. Please log in again to retry.
+        {{ 'auth.verify.wrongCredentials' | transloco }}
       </p>
     }
     @case ('error') {
       <p class="verify-required__status verify-required__status--error" role="alert">
-        Could not resend the verification email. Please try again.
+        {{ 'auth.verify.resendError' | transloco }}
       </p>
     }
   }
 
   <p class="verify-required__hint">
-    Wrong email address? Just
+    {{ 'auth.verify.wrongEmailPrefix' | transloco }}
     <button type="button" class="verify-required__inline-link" (click)="registerAgain.emit()">
-      register again
+      {{ 'auth.verify.registerAgain' | transloco }}
     </button>
-    with the correct one — your unverified account will be replaced.
+    {{ 'auth.verify.wrongEmailSuffix' | transloco }}
   </p>
 } @else {
   <p class="verify-required__notice">
-    @if (mode() === 'registered') {
-      Registration successful. You can now proceed to login.
-    } @else {
-      This account is not verified yet.
-    }
+    {{
+      (mode() === 'registered' ? 'auth.verify.registeredNoEmail' : 'auth.verify.notVerified')
+        | transloco
+    }}
   </p>
 }
 

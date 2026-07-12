@@ -6,7 +6,8 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 
@@ -51,102 +52,24 @@ import { FooterComponent } from '../../../../shared/components/footer/footer.com
     UiCreateCtaComponent,
     UiPageTitleComponent,
     FooterComponent,
+    TranslocoPipe,
   ],
-  template: `
-    <div class="app-page tracks-page">
-      <ui-page-title title="Tracks" />
-
-      <app-track-form
-        #trackForm
-        [editingTrackId]="editingTrackId()"
-        [editTrackName]="editTrackName()"
-        [editTrackLink]="editTrackLink()"
-        [lockTrackLink]="editLockTrackLink()"
-        [submitting]="createSubmitting()"
-        [showTrigger]="tracks().length > 0"
-        (save)="saveTrack($event)"
-        (cancel)="cancelEdit()"
-      />
-
-      @if (errorMessage()) {
-        <ui-alert variant="danger">
-          {{ errorMessage() }}
-        </ui-alert>
-      }
-
-      @if (!loading() && tracks().length === 0) {
-        <ui-create-cta
-          label="Create your first track"
-          (clicked)="trackForm.open()"
-        />
-      } @else {
-        <div class="tracks-page__section">
-          <div class="tracks-page__table-wrap">
-            <app-track-table
-              [tracks]="tracks()"
-              [loading]="loading()"
-              (edit)="onEdit($event)"
-              (remove)="onRemove($event)"
-              (windows)="onWindows($event)"
-            />
-          </div>
-        </div>
-      }
-
-      <app-track-windows-panel
-        [track]="windowTrack()"
-        (close)="closeWindows()"
-        (saveWindow)="onSaveWindow($event)"
-        (deleteWindow)="onDeleteWindow($event)"
-        (saveTrackFades)="onSaveTrackFades($event)"
-        (reorderWindows)="onReorderWindows($event)"
-      />
-
-      <app-footer />
-    </div>
-  `,
-  styles: [`
-    :host {
-      display: block;
-    }
-
-    .tracks-page {
-      --track-table-max-height: calc(100dvh - 360px);
-    }
-
-    .tracks-page__subtitle {
-      margin: 0 0 1rem;
-      font-size: 1.25rem;
-      font-weight: 700;
-      color: var(--app-text);
-    }
-
-    /* Give the "+" trigger a deliberate gap from the toolbar below it.
-       app-icon-button is display:contents, so without this the spacing is
-       just an inline line-box. :has() keeps the margin off the empty state
-       (no trigger → the create CTA renders instead). */
-    app-track-form:has(app-icon-button) {
-      display: block;
-      margin-bottom: var(--space-sm);
-    }
-
-    .tracks-page__section {
-      min-width: 0;
-    }
-
-    .tracks-page__table-wrap {
-      --track-table-max-height: var(--track-table-max-height);
-      min-height: 0;
-    }
-
-    @media (max-width: 900px) {
-      .tracks-page {
-        --track-table-max-height: calc(100dvh - 280px);
-      }
-    }
-  `],
+  templateUrl: './tracks-page.component.html',
+  styleUrl: './tracks-page.component.scss',
 })
 export class TracksPageComponent implements OnInit {
+  private readonly transloco = inject(TranslocoService);
+
+  /** Read by t() so labels recompute when the language changes. */
+  private readonly activeLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    this.activeLang();
+    return this.transloco.translate<string>(key, params);
+  }
+
   @ViewChild(TrackFormComponent) private trackForm?: TrackFormComponent;
 
   private readonly tracksApi = inject(MusicTracksService);
@@ -181,14 +104,14 @@ export class TracksPageComponent implements OnInit {
       userTracks: this.tracksApi.getUserTracks().pipe(
         catchError((err: unknown) => {
           console.error(err);
-          this.appendError(httpErrorMessage(err, { fallback: 'Loading your tracks failed.' }));
+          this.appendError(httpErrorMessage(err, { fallback: this.t('tracks.err.loadOwn') }));
           return of([] as Track[]);
         }),
       ),
       subscribedTracks: this.tracksApi.getUserSubscribedTracks().pipe(
         catchError((err: unknown) => {
           console.error(err);
-          this.appendError(httpErrorMessage(err, { fallback: 'Loading subscribed tracks failed.' }));
+          this.appendError(httpErrorMessage(err, { fallback: this.t('tracks.err.loadSubscribed') }));
           return of([] as Track[]);
         }),
       ),
@@ -205,7 +128,7 @@ export class TracksPageComponent implements OnInit {
         },
         error: (err: unknown) => {
           console.error(err);
-          this.appendError(httpErrorMessage(err, { fallback: 'Loading tracks failed.' }));
+          this.appendError(httpErrorMessage(err, { fallback: this.t('stages.err.loadTracks') }));
         },
       });
   }
@@ -239,7 +162,7 @@ export class TracksPageComponent implements OnInit {
     const videoId = parseYoutubeId(event.trackLink);
     if (!videoId) {
       this.createSubmitting.set(false);
-      this.toast.error('Enter a valid YouTube link.');
+      this.toast.error(this.t('tracks.err.invalidLink'));
       return;
     }
 
@@ -271,7 +194,7 @@ export class TracksPageComponent implements OnInit {
       .catch((err: unknown) => {
         console.error(err);
         this.createSubmitting.set(false);
-        this.toast.error('Could not read the YouTube video — check the link.');
+        this.toast.error(this.t('tracks.err.unreadableVideo'));
       });
   }
 
@@ -285,7 +208,7 @@ export class TracksPageComponent implements OnInit {
         next: () => this.onTrackCreated(),
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error(httpErrorMessage(err, { fallback: 'Creating track failed.' }));
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('tracks.err.create') }));
         },
       });
   }
@@ -300,11 +223,11 @@ export class TracksPageComponent implements OnInit {
         next: () => {
           this.cancelEdit();
           this.loadTracks();
-          this.toast.success('Track updated.');
+          this.toast.success(this.t('tracks.msg.updated'));
         },
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error(httpErrorMessage(err, { fallback: 'Updating track failed.' }));
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('tracks.err.update') }));
         },
       });
   }
@@ -316,7 +239,7 @@ export class TracksPageComponent implements OnInit {
   private onTrackCreated(): void {
     this.trackForm?.close();
     this.loadTracks();
-    this.toast.success('Track created.');
+    this.toast.success(this.t('tracks.msg.created'));
   }
 
   onEdit(track: Track): void {
@@ -341,10 +264,10 @@ export class TracksPageComponent implements OnInit {
     if (track.id == null) return;
 
     const confirmed = await this.confirmDialog.confirm({
-      title: 'Delete track',
-      message: `Delete track "${track.trackName || track.id}"?`,
-      confirmText: 'Delete',
-      cancelText: 'Cancel',
+      title: this.t('tracks.delete'),
+      message: this.t('tracks.msg.deleteConfirm', { name: track.trackName || track.id }),
+      confirmText: this.t('common.delete'),
+      cancelText: this.t('common.cancel'),
       variant: 'danger',
     });
 
@@ -360,11 +283,11 @@ export class TracksPageComponent implements OnInit {
             this.closeWindows();
           }
 
-          this.toast.success('Track deleted.');
+          this.toast.success(this.t('tracks.msg.deleted'));
         },
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error(httpErrorMessage(err, { fallback: 'Deleting track failed.' }));
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('tracks.err.delete') }));
         },
       });
   }
@@ -372,10 +295,10 @@ export class TracksPageComponent implements OnInit {
   async onWindows(track: Track): Promise<void> {
     if (this.boardPlayback.isAnyPlaying()) {
       const confirmed = await this.confirmDialog.confirm({
-        title: 'Stop playback?',
-        message: 'Opening the window editor will stop all playing boards. Continue?',
-        confirmText: 'Stop & edit',
-        cancelText: 'Cancel',
+        title: this.t('tracks.stopPlaybackTitle'),
+        message: this.t('tracks.stopPlaybackMessage'),
+        confirmText: this.t('tracks.stopAndEdit'),
+        cancelText: this.t('common.cancel'),
         variant: 'danger',
       });
 
@@ -408,12 +331,12 @@ export class TracksPageComponent implements OnInit {
       .subscribe({
         next: (updatedTrack) => {
           this.applyTrackUpdate(event.trackId, updatedTrack);
-          this.toast.success(event.windowId != null ? 'Window updated.' : 'Window created.');
+          this.toast.success(this.t(event.windowId != null ? 'windows.msg.updated' : 'windows.msg.created'));
         },
         error: (err: unknown) => {
           console.error(err);
           this.toast.error(httpErrorMessage(err, {
-            fallback: event.windowId != null ? 'Updating window failed.' : 'Creating window failed.',
+            fallback: this.t(event.windowId != null ? 'windows.err.update' : 'windows.err.create'),
           }));
         },
       });
@@ -442,11 +365,11 @@ export class TracksPageComponent implements OnInit {
           };
 
           this.applyTrackUpdate(event.trackId, merged);
-          this.toast.success('Track fades updated.');
+          this.toast.success(this.t('windows.msg.fadesUpdated'));
         },
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error(httpErrorMessage(err, { fallback: 'Saving track fades failed.' }));
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('windows.err.fades') }));
         },
       });
   }
@@ -464,11 +387,11 @@ export class TracksPageComponent implements OnInit {
       .subscribe({
         next: (updatedTrack) => {
           this.applyTrackUpdate(event.trackId, updatedTrack);
-          this.toast.success('Windows reordered.');
+          this.toast.success(this.t('windows.msg.reordered'));
         },
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error(httpErrorMessage(err, { fallback: 'Reordering windows failed.' }));
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('windows.err.reorder') }));
         },
       });
   }
@@ -482,11 +405,11 @@ export class TracksPageComponent implements OnInit {
       .subscribe({
         next: (updatedTrack) => {
           this.applyTrackUpdate(event.trackId, updatedTrack);
-          this.toast.success('Window deleted.');
+          this.toast.success(this.t('windows.msg.deleted'));
         },
         error: (err: unknown) => {
           console.error(err);
-          this.toast.error(httpErrorMessage(err, { fallback: 'Deleting window failed.' }));
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('windows.err.delete') }));
         },
       });
   }

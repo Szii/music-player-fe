@@ -7,12 +7,13 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { GroupRequest } from '../../../../api/generated';
 import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 import {
-  PROFANITY_ERROR,
+  profanityErrorMessage,
   hasProfanity,
   profanityValidator,
 } from '../../../../shared/validators/profanity.validator';
@@ -33,6 +34,7 @@ import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-di
     NormalButtonComponent,
     IconButtonComponent,
     UiDialogShellComponent,
+    TranslocoPipe,
   ],
   templateUrl: './create-group-form.component.html',
   styleUrl: './create-group-form.component.scss',
@@ -57,7 +59,7 @@ export class CreateGroupFormComponent {
     { initialValue: '' },
   );
   readonly nameError = computed(() =>
-    hasProfanity(this.nameValue() ?? '') ? PROFANITY_ERROR : '',
+    hasProfanity(this.nameValue() ?? '') ? profanityErrorMessage() : '',
   );
 
   open(): void {

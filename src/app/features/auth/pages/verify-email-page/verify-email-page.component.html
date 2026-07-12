@@ -1,19 +1,17 @@
 
 <div class="app-page app-page--narrow">
-  <ui-card title="Verify email">
+  <ui-card [title]="'auth.verifyEmail' | transloco">
     @switch (state().status) {
       @case ('pending') {
-        <p class="verify-page__text">Preparing verification...</p>
+        <p class="verify-page__text">{{ 'auth.verify.preparing' | transloco }}</p>
       }
       @case ('verifying') {
-        <p class="verify-page__text">Verifying your email, please wait...</p>
+        <p class="verify-page__text">{{ 'auth.verify.verifying' | transloco }}</p>
       }
       @case ('success') {
-        <p class="verify-page__text">
-          Your email has been verified. You can now sign in.
-        </p>
+        <p class="verify-page__text">{{ 'auth.verify.verified' | transloco }}</p>
         <div class="verify-page__link">
-          <a routerLink="/login">Go to login</a>
+          <a routerLink="/login">{{ 'auth.goToLogin' | transloco }}</a>
         </div>
       }
       @case ('error') {
@@ -21,7 +19,7 @@
           {{ errorMessage() }}
         </p>
         <div class="verify-page__link">
-          <a routerLink="/login">Go to login</a>
+          <a routerLink="/login">{{ 'auth.goToLogin' | transloco }}</a>
         </div>
       }
     }

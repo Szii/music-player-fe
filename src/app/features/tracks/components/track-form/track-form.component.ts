@@ -8,6 +8,7 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
@@ -17,7 +18,7 @@ import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-butto
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
 import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 import {
-  PROFANITY_ERROR,
+  profanityErrorMessage,
   hasProfanity,
   profanityValidator,
 } from '../../../../shared/validators/profanity.validator';
@@ -38,11 +39,24 @@ export interface TrackFormEvent {
     UiTextInputComponent,
     IconButtonComponent,
     UiDialogShellComponent,
+    TranslocoPipe,
   ],
   templateUrl: './track-form.component.html',
   styleUrl: './track-form.component.scss',
 })
 export class TrackFormComponent {
+  private readonly transloco = inject(TranslocoService);
+
+  /** Read by t() so labels recompute when the language changes. */
+  private readonly activeLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    this.activeLang();
+    return this.transloco.translate<string>(key, params);
+  }
+
   private readonly fb = inject(FormBuilder);
 
   readonly editingTrackId = input<number | null>(null);
@@ -76,14 +90,14 @@ export class TrackFormComponent {
     { initialValue: '' },
   );
   readonly trackNameError = computed(() =>
-    hasProfanity(this.trackNameValue()) ? PROFANITY_ERROR : '',
+    hasProfanity(this.trackNameValue()) ? profanityErrorMessage() : '',
   );
 
   readonly trackLinkError = computed(() => {
     const control = this.form.controls.trackLink;
     if (!control.touched || !control.invalid) return '';
-    if (control.hasError('required')) return 'Track link is required.';
-    return 'Invalid value.';
+    if (control.hasError('required')) return this.t('tracks.linkRequired');
+    return this.t('tracks.invalidValue');
   });
 
   constructor() {

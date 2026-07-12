@@ -17,7 +17,7 @@ import { UiDialogShellComponent } from '../../ui/dialog-shell/ui-dialog-shell.co
 import { UiCharCounterComponent } from '../../ui/char-counter/ui-char-counter.component';
 import { PromptDialogService } from './prompt-dialog.service';
 import {
-  PROFANITY_ERROR,
+  profanityErrorMessage,
   hasProfanity,
 } from '../../validators/profanity.validator';
 
@@ -36,7 +36,7 @@ export class PromptDialogComponent implements AfterViewChecked {
   readonly dialog = computed(() => this.promptDialog.dialog());
   readonly value = signal('');
   readonly profanityError = computed(() =>
-    hasProfanity(this.value()) ? PROFANITY_ERROR : '',
+    hasProfanity(this.value()) ? profanityErrorMessage() : '',
   );
   readonly canSubmit = computed(
     () => this.value().trim().length > 0 && !this.profanityError(),

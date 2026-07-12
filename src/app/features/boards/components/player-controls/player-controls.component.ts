@@ -5,13 +5,16 @@ import {
   input,
   output,
 } from '@angular/core';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { UiPlayButtonComponent } from '../../../../shared/ui/play-button/ui-play-button.component';
 
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 
 @Component({
   selector: 'app-player-controls',
-  imports: [UiPlayButtonComponent],
+  imports: [UiPlayButtonComponent,
+    TranslocoPipe,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './player-controls.component.html',
   styleUrl: './player-controls.component.scss',

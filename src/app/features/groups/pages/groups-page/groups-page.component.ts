@@ -1,4 +1,6 @@
 import { Component, OnInit, ViewChild, inject } from '@angular/core';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 
 import {
@@ -45,11 +47,24 @@ type GroupSortMode =
     UiPageTitleComponent,
     UiListToolbarComponent,
     FooterComponent,
+    TranslocoPipe,
   ],
   templateUrl: './groups-page.component.html',
   styleUrl: './groups-page.component.scss',
 })
 export class GroupsPageComponent implements OnInit {
+  private readonly transloco = inject(TranslocoService);
+
+  /** Read by t() so labels recompute when the language changes. */
+  private readonly activeLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    this.activeLang();
+    return this.transloco.translate<string>(key, params);
+  }
+
   @ViewChild('createForm') createFormRef?: CreateGroupFormComponent;
 
   private groupsApi = inject(MusicGroupsService);
@@ -70,16 +85,16 @@ export class GroupsPageComponent implements OnInit {
   readonly sortMode = persistentSignal<GroupSortMode>('mpf:groups:sort', 'nameAsc');
 
   readonly filterOptions = [
-    { label: 'All groups', value: 'all' },
-    { label: 'With tracks', value: 'withTracks' },
-    { label: 'Empty', value: 'empty' },
+    { label: this.t('groups.filter.all'), value: 'all' },
+    { label: this.t('groups.withTracks'), value: 'withTracks' },
+    { label: this.t('groups.filter.empty'), value: 'empty' },
   ];
 
   readonly sortOptions = [
-    { label: 'Name A–Z', value: 'nameAsc' },
-    { label: 'Name Z–A', value: 'nameDesc' },
-    { label: 'Fewest tracks', value: 'tracksAsc' },
-    { label: 'Most tracks', value: 'tracksDesc' },
+    { label: this.t('sort.nameAsc'), value: 'nameAsc' },
+    { label: this.t('sort.nameDesc'), value: 'nameDesc' },
+    { label: this.t('sort.tracksAsc'), value: 'tracksAsc' },
+    { label: this.t('sort.tracksDesc'), value: 'tracksDesc' },
   ];
 
   private ownTracks: Track[] = [];
@@ -143,7 +158,7 @@ export class GroupsPageComponent implements OnInit {
       },
       error: (err: unknown) => {
         console.error(err);
-        this.errorMessage = httpErrorMessage(err, { fallback: 'Loading groups failed.' });
+        this.errorMessage = httpErrorMessage(err, { fallback: this.t('groups.err.load') });
         groupsDone = true;
         done();
       },
@@ -160,7 +175,7 @@ export class GroupsPageComponent implements OnInit {
       },
       error: (err: unknown) => {
         console.error(err);
-        this.errorMessage ||= httpErrorMessage(err, { fallback: 'Loading tracks failed.' });
+        this.errorMessage ||= httpErrorMessage(err, { fallback: this.t('stages.err.loadTracks') });
         tracksDone = true;
         done();
       },
@@ -195,7 +210,7 @@ export class GroupsPageComponent implements OnInit {
       },
       error: (err) => {
         console.error(err);
-        this.toast.error(httpErrorMessage(err, { fallback: 'Creating group failed.' }));
+        this.toast.error(httpErrorMessage(err, { fallback: this.t('groups.err.create') }));
         this.createFormRef?.reset();
       },
     });
@@ -205,10 +220,10 @@ export class GroupsPageComponent implements OnInit {
     if (group.id == null) return;
 
     const confirmed = await this.confirmDialog.confirm({
-      title: 'Delete group',
-      message: `Delete group "${group.listName || group.id}"?`,
-      confirmText: 'Delete',
-      cancelText: 'Cancel',
+      title: this.t('groups.delete'),
+      message: this.t('groups.deleteConfirm', { name: group.listName || group.id }),
+      confirmText: this.t('common.delete'),
+      cancelText: this.t('common.cancel'),
       variant: 'danger',
     });
 
@@ -225,11 +240,11 @@ export class GroupsPageComponent implements OnInit {
           this.editingGroup = null;
         }
 
-        this.toast.success('Group deleted.');
+        this.toast.success(this.t('groups.msg.deleted'));
       },
       error: (err) => {
         console.error(err);
-        this.toast.error(httpErrorMessage(err, { fallback: 'Deleting group failed.' }));
+        this.toast.error(httpErrorMessage(err, { fallback: this.t('groups.err.delete') }));
       },
       complete: () => {
         this.updatingGroupId = null;
@@ -285,11 +300,11 @@ export class GroupsPageComponent implements OnInit {
           this.editingGroup = null;
         }
 
-        this.toast.success('Group updated.');
+        this.toast.success(this.t('groups.msg.updated'));
       },
       error: (err) => {
         console.error(err);
-        this.toast.error(httpErrorMessage(err, { fallback: 'Updating group failed.' }));
+        this.toast.error(httpErrorMessage(err, { fallback: this.t('groups.err.update') }));
       },
       complete: () => {
         this.updatingGroupId = null;
@@ -344,6 +359,6 @@ export class GroupsPageComponent implements OnInit {
   }
 
   private displayTrackName(track: Track): string {
-    return track.trackName || track.trackOriginalName || ('Track #' + track.id);
+    return track.trackName || track.trackOriginalName || this.t('common.trackNum', { id: track.id });
   }
 }

@@ -1,9 +1,10 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { finalize } from 'rxjs/operators';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 
 import { UsersService, UserChangePasswordWithTokenRequest } from '../../../../api/generated';
 import { UiCardComponent } from '../../../../shared/ui/card/ui-card.component';
@@ -28,12 +29,25 @@ type FormStatus = 'ready' | 'submitting' | 'invalid-token' | 'error';
     UiTextInputComponent,
     UiFormActionsComponent,
     NormalButtonComponent,
+    TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './reset-password-page.component.html',
   styleUrl: './reset-password-page.component.scss',
 })
 export class ResetPasswordPageComponent implements OnInit {
+  private readonly transloco = inject(TranslocoService);
+
+  /** Read by t() so labels recompute when the language changes. */
+  private readonly activeLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    this.activeLang();
+    return this.transloco.translate<string>(key, params);
+  }
+
   private readonly fb = inject(FormBuilder);
   private readonly usersApi = inject(UsersService);
   private readonly route = inject(ActivatedRoute);
@@ -48,7 +62,7 @@ export class ResetPasswordPageComponent implements OnInit {
   readonly success = signal(false);
   readonly submitted = signal(false);
   /** Message rendered when `status() === 'error'`. */
-  readonly formError = signal('Could not change your password. Please try again.');
+  readonly formError = signal('');
 
   readonly form = this.fb.nonNullable.group({
     password: ['', [Validators.required, Validators.minLength(6)]],
@@ -63,8 +77,8 @@ export class ResetPasswordPageComponent implements OnInit {
     const control = this.form.controls.password;
     if (!control.invalid) return '';
     if (!(this.submitted() || (control.touched && control.dirty))) return '';
-    if (control.hasError('required')) return 'Password is required.';
-    if (control.hasError('minlength')) return 'Password must be at least 6 characters.';
+    if (control.hasError('required')) return this.t('auth.passwordRequired');
+    if (control.hasError('minlength')) return this.t('auth.passwordMinLength');
     return '';
   }
 
@@ -72,11 +86,11 @@ export class ResetPasswordPageComponent implements OnInit {
     const control = this.form.controls.confirm;
     const showControlError = control.invalid
       && (this.submitted() || (control.touched && control.dirty));
-    if (showControlError && control.hasError('required')) return 'Please confirm your password.';
+    if (showControlError && control.hasError('required')) return this.t('auth.confirmRequired');
 
     const showMismatch = this.form.hasError('passwordMismatch')
       && (this.submitted() || (control.touched && control.dirty));
-    if (showMismatch) return 'Passwords do not match.';
+    if (showMismatch) return this.t('auth.passwordsMismatch');
     return '';
   }
 
@@ -106,7 +120,7 @@ export class ResetPasswordPageComponent implements OnInit {
         next: () => {
           this.success.set(true);
           this.status.set('ready');
-          this.toast.success('Password changed. You can now sign in.');
+          this.toast.success(this.t('auth.msg.passwordChanged'));
           void this.router.navigateByUrl('/login');
         },
         error: (err: unknown) => {
@@ -116,7 +130,7 @@ export class ResetPasswordPageComponent implements OnInit {
             return;
           }
           this.formError.set(httpErrorMessage(err, {
-            fallback: 'Could not change your password. Please try again.',
+            fallback: this.t('auth.err.resetFailed'),
           }));
           this.status.set('error');
         },

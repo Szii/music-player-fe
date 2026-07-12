@@ -4,7 +4,6 @@ import { ToastContainerComponent } from './shared/features/toast/toast-container
 import { ConfirmDialogComponent } from './shared/features/confirm-dialog/confirm-dialog.component';
 import { PromptDialogComponent } from './shared/features/prompt-dialog/prompt-dialog.component';
 import { InfoDialogComponent } from './shared/features/info-dialog/info-dialog.component';
-import { LegalDialogComponent } from './shared/features/legal-dialog/legal-dialog.component';
 import { TutorialDialogComponent } from './features/tutorial/components/tutorial-dialog/tutorial-dialog.component';
 
 @Component({
@@ -16,7 +15,6 @@ import { TutorialDialogComponent } from './features/tutorial/components/tutorial
     ConfirmDialogComponent,
     PromptDialogComponent,
     InfoDialogComponent,
-    LegalDialogComponent,
     TutorialDialogComponent,
   ],
   templateUrl: './app.component.html',

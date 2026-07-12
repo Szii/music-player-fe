@@ -1,0 +1,39 @@
+.auth-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-sm, 0.5rem);
+  margin-bottom: var(--space-sm, 0.5rem);
+}
+
+.auth-toolbar__language {
+  flex: 0 0 auto;
+}
+
+/* Matches the profile page's "?" affordance. */
+.auth-toolbar__help {
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--app-border-color-soft);
+  border-radius: 50%;
+  background: #faf4e4;
+  color: var(--app-primary);
+  font-family: var(--app-font-heading);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.auth-toolbar__help:hover {
+  border-color: var(--app-primary);
+  background: #f5edd8;
+}
+
+.auth-toolbar__help:focus-visible {
+  outline: none;
+  border-color: var(--app-primary);
+  box-shadow: var(--app-focus-ring);
+}

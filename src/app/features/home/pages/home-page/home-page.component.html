@@ -3,14 +3,12 @@
 
   <header class="home-hero">
     <div class="home-hero__ornament" aria-hidden="true">✦</div>
-    <h1 class="home-hero__title">Sound Master's Lair</h1>
-    <p class="home-hero__subtitle">
-      Craft the perfect atmosphere for your adventures
-    </p>
+    <h1 class="home-hero__title">{{ 'app.brand' | transloco }}</h1>
+    <p class="home-hero__subtitle">{{ 'home.subtitle' | transloco }}</p>
     <div class="home-hero__rule" aria-hidden="true"></div>
   </header>
 
-  <nav class="home-nav" aria-label="Main navigation">
+  <nav class="home-nav" [attr.aria-label]="'nav.primary' | transloco">
     <a routerLink="/tracks" class="home-card">
       <div class="home-card__glyph" aria-hidden="true">
         <svg class="home-card__icon" viewBox="0 0 24 24">
@@ -20,10 +18,8 @@
         </svg>
       </div>
       <div class="home-card__body">
-        <div class="home-card__title">Tracks</div>
-        <div class="home-card__text">
-          Manage your music library and define precise playback windows for each track.
-        </div>
+        <div class="home-card__title">{{ 'nav.tracks' | transloco }}</div>
+        <div class="home-card__text">{{ 'home.tracksText' | transloco }}</div>
       </div>
       <div class="home-card__chevron" aria-hidden="true">›</div>
     </a>
@@ -31,17 +27,13 @@
     <a routerLink="/boards" class="home-card">
       <div class="home-card__glyph" aria-hidden="true">
         <svg class="home-card__icon" viewBox="0 0 24 24">
-          <rect x="4" y="4" width="6" height="6" rx="1" />
-          <rect x="14" y="4" width="6" height="6" rx="1" />
-          <rect x="4" y="14" width="6" height="6" rx="1" />
-          <rect x="14" y="14" width="6" height="6" rx="1" />
+          <circle cx="12" cy="12" r="9" />
+          <path d="M10 8.5l6 3.5-6 3.5z" fill="currentColor" />
         </svg>
       </div>
       <div class="home-card__body">
-        <div class="home-card__title">Boards</div>
-        <div class="home-card__text">
-          Play tracks live with seamless switching, windows replaying, volume control, and looping.
-        </div>
+        <div class="home-card__title">{{ 'nav.stages' | transloco }}</div>
+        <div class="home-card__text">{{ 'home.stagesText' | transloco }}</div>
       </div>
       <div class="home-card__chevron" aria-hidden="true">›</div>
     </a>
@@ -53,10 +45,8 @@
         </svg>
       </div>
       <div class="home-card__body">
-        <div class="home-card__title">Groups</div>
-        <div class="home-card__text">
-          Organize tracks into themed groups for quick access during sessions.
-        </div>
+        <div class="home-card__title">{{ 'nav.groups' | transloco }}</div>
+        <div class="home-card__text">{{ 'home.groupsText' | transloco }}</div>
       </div>
       <div class="home-card__chevron" aria-hidden="true">›</div>
     </a>
@@ -64,14 +54,14 @@
     <a routerLink="/workshop" class="home-card">
       <div class="home-card__glyph" aria-hidden="true">
         <svg class="home-card__icon" viewBox="0 0 24 24">
-          <path d="M14.7 6.3a4.5 4.5 0 0 0-5.9 5.9L4 17v3h3l4.8-4.8a4.5 4.5 0 0 0 5.9-5.9l-3 3-3-3z" />
+          <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
+          <path d="M12 15V3" />
+          <path d="M8 7l4-4 4 4" />
         </svg>
       </div>
       <div class="home-card__body">
-        <div class="home-card__title">Workshop</div>
-        <div class="home-card__text">
-          Subscribe to tracks from other bards or publish your own compositions.
-        </div>
+        <div class="home-card__title">{{ 'nav.sharing' | transloco }}</div>
+        <div class="home-card__text">{{ 'home.sharingText' | transloco }}</div>
       </div>
       <div class="home-card__chevron" aria-hidden="true">›</div>
     </a>

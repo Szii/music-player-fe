@@ -1,8 +1,8 @@
 
 @if (track(); as currentTrack) {
   <ui-dialog-shell
-    title="Windows"
-    [subtitle]="currentTrack.trackName || currentTrack.trackOriginalName || ('Track #' + currentTrack.id)"
+    [title]="'windows.title' | transloco"
+    [subtitle]="currentTrack.trackName || currentTrack.trackOriginalName || ('common.trackNum' | transloco: { id: currentTrack.id })"
     titleId="track-windows-title"
     size="extra-wide"
     (closed)="onClose()"
@@ -11,7 +11,7 @@
       <div class="panel-error">
         <span>{{ streamError }}</span>
         <normal-button size="sm" variant="danger" (clicked)="retryStream()">
-          Retry
+          {{ 'common.retry' | transloco }}
         </normal-button>
       </div>
     }
@@ -21,12 +21,12 @@
         @if (!editorStreamComplete) {
           <div class="panel-side__loading">
             <span class="panel-side__loading-spinner"></span>
-            <span>Wait for track to be loaded to manage windows…</span>
+            <span>{{ 'windows.waitForLoad' | transloco }}</span>
           </div>
         } @else {
           <div class="panel-side__inner">
             <div class="panel-block__head">
-              <span class="panel-block__title">Windows</span>
+              <span class="panel-block__title">{{ 'windows.title' | transloco }}</span>
               <span class="panel-block__meta">{{ windows.length }}</span>
             </div>
 
@@ -38,7 +38,7 @@
                     class="panel-window-arrow panel-window-arrow--left"
                     [class.panel-window-arrow--visible]="canScrollWindowsLeft()"
                     (click)="scrollWindows(-1)"
-                    aria-label="Scroll to previous windows"
+                    [attr.aria-label]="'windows.scrollPrev' | transloco"
                     tabindex="-1"
                   ></button>
 
@@ -54,18 +54,18 @@
                     (click)="selectWholeTrack()"
                   >
                     <div class="panel-window-item__top">
-                      <span class="panel-window-item__name" title="Whole track">
-                        Whole track
+                      <span class="panel-window-item__name" [title]="'windows.wholeTrack' | transloco">
+                        {{ 'windows.wholeTrack' | transloco }}
                       </span>
-                      <ui-chip variant="primary" size="sm">Default</ui-chip>
+                      <ui-chip variant="primary" size="sm">{{ 'windows.default' | transloco }}</ui-chip>
                     </div>
 
                     <div class="panel-window-item__bottom">
                       <div class="panel-window-item__meta">
-                        <ui-chip variant="neutral" size="sm" keyLabel="Fade in">
+                        <ui-chip variant="neutral" size="sm" [keyLabel]="'windows.fadeIn' | transloco">
                           {{ formatFade(currentTrack.fadeInDurationMs ?? 0) }}
                         </ui-chip>
-                        <ui-chip variant="neutral" size="sm" keyLabel="Fade out">
+                        <ui-chip variant="neutral" size="sm" [keyLabel]="'windows.fadeOut' | transloco">
                           {{ formatFade(currentTrack.fadeOutDurationMs ?? 0) }}
                         </ui-chip>
                       </div>
@@ -87,16 +87,16 @@
                         <div class="panel-window-item__title-row">
                           <span
                             class="panel-window-item__name"
-                            [title]="win.name || 'Untitled window'"
+                            [title]="win.name || ('windows.untitled' | transloco)"
                           >
-                            {{ win.name || 'Untitled window' }}
+                            {{ win.name || ('windows.untitled' | transloco) }}
                           </span>
 
                           <ui-chip
                             class="panel-window-item__position"
                             variant="gold"
                             size="sm"
-                            keyLabel="Pos"
+                            [keyLabel]="'windows.pos' | transloco"
                           >
                             {{ win.positionWithinTrack ?? (i + 1) }}
                           </ui-chip>
@@ -105,11 +105,11 @@
 
                       <div class="panel-window-item__bottom">
                         <div class="panel-window-item__meta">
-                          <ui-chip variant="neutral" size="sm" keyLabel="From">
+                          <ui-chip variant="neutral" size="sm" [keyLabel]="'windows.from' | transloco">
                             {{ formatTime(win.positionFrom ?? 0) }}
                           </ui-chip>
 
-                          <ui-chip variant="neutral" size="sm" keyLabel="To">
+                          <ui-chip variant="neutral" size="sm" [keyLabel]="'windows.to' | transloco">
                             {{ formatTime(win.positionTo ?? 0) }}
                           </ui-chip>
                         </div>
@@ -123,8 +123,8 @@
                             [disabled]="!canMoveWindow(win, -1)"
                             (mousedown)="$event.preventDefault(); $event.stopPropagation()"
                             (click)="onMoveWindowClick($event, win, -1)"
-                            aria-label="Move window earlier"
-                            title="Move earlier"
+                            [attr.aria-label]="'windows.moveEarlier' | transloco"
+                            [title]="'windows.moveEarlier' | transloco"
                           ></button>
 
                           <button
@@ -133,8 +133,8 @@
                             [disabled]="!canMoveWindow(win, 1)"
                             (mousedown)="$event.preventDefault(); $event.stopPropagation()"
                             (click)="onMoveWindowClick($event, win, 1)"
-                            aria-label="Move window later"
-                            title="Move later"
+                            [attr.aria-label]="'windows.moveLater' | transloco"
+                            [title]="'windows.moveLater' | transloco"
                           ></button>
                         </div>
 
@@ -144,7 +144,7 @@
                         >
                           <app-icon-button
                             icon="delete"
-                            label="Delete window"
+                            [label]="'windows.delete' | transloco"
                             variant="danger"
                             size="md"
                             (clicked)="onDeleteWindow(win)"
@@ -160,7 +160,7 @@
                     class="panel-window-arrow panel-window-arrow--right"
                     [class.panel-window-arrow--visible]="canScrollWindowsRight()"
                     (click)="scrollWindows(1)"
-                    aria-label="Scroll to more windows"
+                    [attr.aria-label]="'windows.scrollNext' | transloco"
                     tabindex="-1"
                   ></button>
                 </div>
@@ -185,20 +185,20 @@
                   [disabled]="!editorReady"
                   (clicked)="startCreateWindow()"
                 >
-                  New window
+                  {{ 'windows.new' | transloco }}
                 </normal-button>
               }
             </div>
 
             <div class="panel-editor__toolbar">
-              <span class="panel-editor__toolbar-label">Loop preview</span>
+              <span class="panel-editor__toolbar-label">{{ 'windows.loopPreview' | transloco }}</span>
               <button
                 type="button"
                 class="panel-loop-toggle"
                 [class.panel-loop-toggle--active]="loopPreview()"
                 [attr.aria-pressed]="loopPreview()"
                 (click)="toggleLoopPreview()"
-                title="Loop the preview playback with crossfade"
+                [title]="'windows.loopPreviewTip' | transloco"
               >
                 <svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true">
                   <path
@@ -211,7 +211,7 @@
                   <path d="M4 4l2.5 2.5L4 9" fill="currentColor" />
                   <path d="M16 16l-2.5-2.5L16 11" fill="currentColor" />
                 </svg>
-                {{ loopPreview() ? 'On' : 'Off' }}
+                {{ (loopPreview() ? 'common.on' : 'common.off') | transloco }}
               </button>
             </div>
 
@@ -237,14 +237,14 @@
           <div class="panel-editor panel-editor--placeholder">
             <div class="panel-editor__head">
               <span class="panel-block__title panel-block__title--primary">
-                Preparing editor
+                {{ 'windows.preparingEditor' | transloco }}
               </span>
             </div>
 
             <div class="panel-editor__placeholder">
               <ui-empty-state
-                title="Preparing preview"
-                message="The track preview will appear here shortly."
+                [title]="'windows.preparingPreview' | transloco"
+                [message]="'windows.preparingPreviewMsg' | transloco"
               />
             </div>
           </div>

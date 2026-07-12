@@ -17,7 +17,7 @@ import {
   inject,
   input,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { TranslocoPipe } from '@jsverse/transloco';
 
 export interface RegionChangeEvent {
   fromS: number;
@@ -39,7 +39,7 @@ type DragMode = 'left' | 'right' | 'region';
 @Component({
   selector: 'app-waveform-canvas',
   standalone: true,
-  imports: [CommonModule],
+  imports: [TranslocoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './waveform-canvas.component.html',
   styleUrl: './waveform-canvas.component.scss',

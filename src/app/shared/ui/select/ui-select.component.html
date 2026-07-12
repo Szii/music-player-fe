@@ -51,7 +51,7 @@
         class="sel__handle"
         [appBottomSheetDrag]="sheetEl"
         (dismiss)="dismissSheet()"
-        aria-label="Close"
+        [attr.aria-label]="'common.close' | transloco"
       >
         <span class="sel__handle-bar" aria-hidden="true"></span>
       </button>
@@ -62,7 +62,7 @@
             #searchInput
             type="text"
             class="sel__search"
-            placeholder="Search…"
+            [placeholder]="'common.searchEllipsis' | transloco"
             autocomplete="off"
             enterkeyhint="done"
             [value]="searchQuery()"
@@ -108,10 +108,10 @@
                   [class.sel__option-subhint--open]="hoveredOptionValue() === opt.value"
                   role="button"
                   tabindex="-1"
-                  aria-label="Show windows for this track"
+                  [attr.aria-label]="'common.showWindows' | transloco"
                   (click)="onMoreTap(opt, i, $event)"
                 >
-                  <span class="sel__option-subhint-text">More</span>
+                  <span class="sel__option-subhint-text">{{ 'common.more' | transloco }}</span>
                   <span class="sel__option-subhint-icon">›</span>
                 </span>
               }
@@ -150,7 +150,7 @@
         }
 
         @if (filteredOptions().length === 0) {
-          <div class="sel__no-match">No matches</div>
+          <div class="sel__no-match">{{ 'common.noMatches' | transloco }}</div>
         }
       </div>
     </div>

@@ -1,10 +1,8 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { TranslocoPipe } from '@jsverse/transloco';
 
 import { ProfileStore } from '../../data-access/profile-store.service';
-import { UiSelectComponent, UiSelectOption } from '../../../../shared/ui/select/ui-select.component';
-import { AppLanguage, LANGUAGE_CHOICES, LanguageService } from '../../../../core/services/language.service';
+import { LanguageSelectComponent } from '../../../../shared/components/language-select/language-select.component';
 import { UiCardComponent } from '../../../../shared/ui/card/ui-card.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { ChangePasswordFormComponent } from '../../components/change-password-form/change-password-form.component';
@@ -24,8 +22,8 @@ import { TutorialService } from '../../../tutorial/data-access/tutorial.service'
     ChangeUsernameFormComponent,
     UserLimitsCardComponent,
     FooterComponent,
-    UiSelectComponent,
-    ReactiveFormsModule,
+    LanguageSelectComponent,
+    TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './profile-page.component.html',
@@ -33,18 +31,7 @@ import { TutorialService } from '../../../tutorial/data-access/tutorial.service'
 })
 export class ProfilePageComponent implements OnInit {
   private readonly store = inject(ProfileStore);
-  private readonly languages = inject(LanguageService);
   readonly tutorial = inject(TutorialService);
-
-  readonly languageOptions: UiSelectOption[] = LANGUAGE_CHOICES.map(choice => ({
-    value: choice.value,
-    label: choice.label,
-    icon: choice.flag,
-  }));
-
-  readonly languageControl = new FormControl<AppLanguage>(this.languages.language(), {
-    nonNullable: true,
-  });
 
   readonly status = this.store.status;
   readonly user = this.store.user;
@@ -57,12 +44,6 @@ export class ProfilePageComponent implements OnInit {
    * endpoints answer 403, so the forms are hidden rather than left to fail.
    */
   readonly managedByGoogle = computed(() => this.user()?.managedByGoogle === true);
-
-  constructor() {
-    this.languageControl.valueChanges
-      .pipe(takeUntilDestroyed())
-      .subscribe(language => this.languages.setLanguage(language));
-  }
 
   ngOnInit(): void {
     // Always re-fetch /me so the profile shows current data on each visit.
