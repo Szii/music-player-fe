@@ -1,0 +1,18 @@
+
+<div class="app-page app-page--narrow">
+  <ui-card title="Signing in">
+    @switch (state()) {
+      @case ('signing-in') {
+        <p class="callback-page__text" role="status">Completing sign-in, please wait...</p>
+      }
+      @case ('failed') {
+        <p class="callback-page__text callback-page__text--error" role="alert">
+          Google sign-in failed. Please try again.
+        </p>
+        <div class="callback-page__link">
+          <a routerLink="/login">Back to login</a>
+        </div>
+      }
+    }
+  </ui-card>
+</div>

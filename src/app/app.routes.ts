@@ -16,6 +16,12 @@ export const routes: Routes = [
         .then(m => m.RegisterPageComponent),
   },
   {
+    path: 'auth/callback',
+    loadComponent: () =>
+      import('./features/auth/pages/auth-callback-page/auth-callback-page.component')
+        .then(m => m.AuthCallbackPageComponent),
+  },
+  {
     path: 'verify-email',
     canActivate: [emailInputsGuard],
     loadComponent: () =>

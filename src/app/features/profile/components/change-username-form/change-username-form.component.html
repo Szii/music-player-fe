@@ -1,0 +1,19 @@
+
+<form class="app-form-stack" [formGroup]="form" (ngSubmit)="onSubmit()">
+  <ui-form-field
+    label="New username"
+    [error]="nameError()"
+  >
+    <ui-text-input formControlName="name" autocomplete="username" [maxLength]="nameMaxLength" />
+  </ui-form-field>
+
+  <ui-form-actions>
+    <normal-button
+      type="submit"
+      [disabled]="form.invalid || isSubmitting()"
+      [loading]="isSubmitting()"
+    >
+      {{ isSubmitting() ? 'Saving...' : 'Change username' }}
+    </normal-button>
+  </ui-form-actions>
+</form>
