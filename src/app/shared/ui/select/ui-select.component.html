@@ -13,6 +13,10 @@
     aria-haspopup="listbox"
     (click)="toggle()"
   >
+    @if (selectedIcon(); as icon) {
+      <img class="sel__icon" [src]="icon" alt="" aria-hidden="true" />
+    }
+
     <span
       class="sel__value"
       [class.sel__value--placeholder]="isNullValue()"
@@ -91,7 +95,12 @@
               [attr.aria-selected]="currentValue() === opt.value"
               (click)="selectOption(opt)"
             >
-              <span class="sel__option-label">{{ opt.label }}</span>
+              <span class="sel__option-label">
+                @if (opt.icon; as icon) {
+                  <img class="sel__icon" [src]="icon" alt="" aria-hidden="true" />
+                }
+                <span class="sel__option-text">{{ opt.label }}</span>
+              </span>
 
               @if ((opt.subOptions?.length ?? 0) > 0) {
                 <span

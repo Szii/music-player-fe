@@ -55,13 +55,26 @@
           }
         </div>
 
-        <ui-card title="Rank & limits">
-          <app-user-limits-card
-            [limits]="user()?.limits ?? null"
-            [trackNames]="trackNames()"
-            [sessionNames]="sessionNames()"
-          />
-        </ui-card>
+        <div class="profile-grid__side">
+          <ui-card title="Rank & limits">
+            <app-user-limits-card
+              [limits]="user()?.limits ?? null"
+              [trackNames]="trackNames()"
+              [sessionNames]="sessionNames()"
+            />
+          </ui-card>
+
+          <ui-card title="Language">
+            <label class="profile-language">
+              <span class="profile-language__label">Interface language</span>
+              <ui-select
+                [options]="languageOptions"
+                [enableSearch]="false"
+                [formControl]="languageControl"
+              />
+            </label>
+          </ui-card>
+        </div>
       </div>
     }
   }

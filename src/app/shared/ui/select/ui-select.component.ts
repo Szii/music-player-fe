@@ -23,6 +23,8 @@ export interface UiSelectOption {
   subOptions?: UiSelectOption[];
   /** When true the option is shown greyed out and cannot be selected. */
   disabled?: boolean;
+  /** Optional decorative image (e.g. a flag) shown before the label. */
+  icon?: string;
 }
 
 export interface UiSelectSubOptionEvent {
@@ -159,6 +161,10 @@ export class UiSelectComponent implements ControlValueAccessor {
     }
     return this.options().find(o => o.value === v)?.label ?? this.placeholder();
   });
+
+  readonly selectedIcon = computed(
+    () => this.options().find(o => o.value === this.currentValue())?.icon ?? null,
+  );
 
   writeValue(val: any): void {
     this.currentValue.set(val ?? null);

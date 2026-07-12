@@ -63,6 +63,13 @@
   color: var(--app-text-muted);
 }
 
+.sel__icon {
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: auto;
+  border-radius: 2px;
+}
+
 .sel__arrow {
   flex-shrink: 0;
   display: inline-flex;
@@ -156,7 +163,14 @@
 }
 
 .sel__option-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   grid-column: 1;
+  min-width: 0;
+}
+
+.sel__option-text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
