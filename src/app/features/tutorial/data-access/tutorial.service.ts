@@ -1,6 +1,7 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, effect, signal } from '@angular/core';
 
 import { TUTORIAL_STEPS } from '../data/tutorial-steps';
+import { TutorialStep } from '../models/tutorial-step';
 
 const SEEN_KEY = 'tutorial-seen';
 
@@ -15,7 +16,17 @@ export class TutorialService {
   private readonly _index = signal<number | null>(null);
 
   constructor() {
-    this.preloadImages();
+    // Warm only the steps adjacent to the open one, so swiping swaps the <img>
+    // src without a blank flash. Preloading the whole tour up front cost every
+    // visitor the full screenshot set on the login page, before they had even
+    // signed in — most never open the tour at all.
+    effect(() => {
+      const i = this._index();
+      if (i === null) return;
+
+      this.preloadStep(this.steps[i + 1]);
+      this.preloadStep(this.steps[i - 1]);
+    });
   }
 
   readonly isOpen = computed(() => this._index() !== null);
@@ -59,14 +70,10 @@ export class TutorialService {
     this._index.set(null);
   }
 
-  // ponytail: warm the browser cache so swiping between steps swaps the <img>
-  // src in place without a blank flash. Trivial for ~14 small screenshots.
-  private preloadImages(): void {
-    if (typeof Image === 'undefined') return;
-    for (const step of this.steps) {
-      if (step.image) new Image().src = step.image;
-      if (step.imageMobile) new Image().src = step.imageMobile;
-    }
+  private preloadStep(step: TutorialStep | undefined): void {
+    if (!step || typeof Image === 'undefined') return;
+    if (step.image) new Image().src = step.image;
+    if (step.imageMobile) new Image().src = step.imageMobile;
   }
 
   // ponytail: try/catch because localStorage throws in private-mode/SSR; a

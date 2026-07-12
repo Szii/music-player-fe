@@ -672,7 +672,7 @@
     },
     "faq": {
       "title": "Otázky a odpovědi",
-      "body": "Několik věcí, které se často objevují:",
+      "body": "Nejčastější otázky:",
       "q1": "Co se stane, když během přehrávání přepnu skladbu / okno?",
       "a1": "Aktuální skladba se zastaví a scéna plynule přejde do nově vybrané.",
       "q2": "Začne zastavená scéna hrát, když předvyberu skladbu?",
