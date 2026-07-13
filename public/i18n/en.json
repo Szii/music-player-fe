@@ -222,7 +222,7 @@
     "email": "Email",
     "changeUsername": "Change username",
     "passwordAndEmail": "Password & email",
-    "googleManaged": "This account signs in with Google, so your password and email are managed there.",
+    "googleManaged": "This account signs in with Google.",
     "changePassword": "Change password",
     "changeEmail": "Change email",
     "rankAndLimits": "Rank & limits",
@@ -352,7 +352,13 @@
       "update": "Updating track failed.",
       "delete": "Deleting track failed.",
       "invalidLink": "Enter a valid YouTube link.",
-      "unreadableVideo": "Could not read the YouTube video — check the link."
+      "youtube": {
+        "embeddingDisabled": "This video's owner does not allow it to be played on other sites.",
+        "unavailable": "This video is unavailable. It may be private, deleted, or blocked in your region.",
+        "invalidId": "That link does not point to a playable YouTube video.",
+        "timeout": "Reading the video took too long. Check your connection and try again.",
+        "unknown": "Could not read the YouTube video — check the link."
+      }
     }
   },
   "windows": {
@@ -600,34 +606,44 @@
     "goToStep": "Go to step {{index}}",
     "back": "Back",
     "next": "Next",
-    "welcome": {
+    "overview": {
       "title": "Welcome to Sound Master’s Lair",
-      "body": "Build living soundscapes for your sessions. This quick tour walks through <strong>tracks</strong>, <strong>loop windows</strong>, <strong>groups</strong>, <strong>stages</strong>, and <strong>sharing</strong>. Start by adding your first track.",
+      "body": "Sound Master’s Lair is a soundboard for your sessions. You build a library of tracks from YouTube and play them live on <strong>stages</strong> while you run the game.<br><br>Playing a track is as simple as it sounds: find it on YouTube, add it to your collection, then select it on a stage and hit <strong>play</strong>.",
+      "alt": "Home page with the Tracks, Stages, Groups and Sharing cards"
+    },
+    "intro": {
+      "title": "What this tutorial covers",
+      "body": "In this short tutorial we will look at how to set up your own stage from scratch, and at what else you can do along the way.",
+      "alt": "Stages page with three stages playing at once, each with its own group, track and window"
+    },
+    "welcome": {
+      "title": "Tracks",
+      "body": "Your tracks are your library. Each one is a YouTube video you have added, ready to be played on any stage.<br><br>Start by adding your first track.",
       "alt": "Empty Tracks page with a \"Create your first track\" card"
     },
     "addTrack": {
       "title": "Add a track",
-      "body": "Start by creating your first track. Give the track a <strong>name</strong> and paste a <strong>YouTube link</strong>. That’s all it takes to bring audio into your library.",
+      "body": "Give the track a <strong>name</strong> and paste a <strong>YouTube link</strong>. That is all it takes to bring audio into your library.",
       "alt": "Add Track dialog with a name field and a YouTube link field"
     },
     "manageTracks": {
       "title": "Manage your tracks",
-      "body": "Each track has a <strong>row menu</strong>. From there, you can edit its details, edit its <strong>loop windows</strong>, open the source, or delete it.",
+      "body": "Every track has a <strong>row menu</strong>. From there you can edit its details, edit its <strong>loop windows</strong>, open the source on YouTube, or delete it.",
       "alt": "Tracks list with an open row menu showing Edit track, Edit windows, Open source, Delete"
     },
     "windows": {
       "title": "Loop windows",
-      "body": "Do you want to play only a part or some parts of a track? A <strong>window</strong> is a slice of a track that may be looped seamlessly. Set the <strong>from/to</strong> range, a <strong>crossfade</strong> for a clean seam, and preview before saving.",
+      "body": "Often you only want part of a track. A <strong>window</strong> is a slice of a track that can be looped seamlessly.<br><br>Set the <strong>from and to</strong> range, add a <strong>crossfade</strong> so the seam is clean, and preview it before you save.",
       "alt": "Windows editor showing a loop range, crossfade strength, and a preview player"
     },
     "groups": {
       "title": "Groups",
-      "body": "Groups let you organise tracks by <strong>mood or scene</strong> - combat, ambient, tavern. Start by creating your first group.",
+      "body": "Groups sort your tracks by mood or scene, such as combat, ambient or tavern. They keep a long library manageable when you are looking for something mid game.<br><br>Start by creating your first group.",
       "alt": "Empty Groups page with a \"Create your first group\" card"
     },
     "groupName": {
       "title": "Name the group",
-      "body": "Give the group a nice, recognisable name.",
+      "body": "Give the group a short name you will recognise at a glance.",
       "alt": "Create Group dialog with a name field"
     },
     "groupTracks": {
@@ -637,37 +653,37 @@
     },
     "sessions": {
       "title": "Sessions",
-      "body": "A <strong>session</strong> holds the stages for one game - think of it as your setup, where you control the flow of music. You can of course have <strong>multiple sessions</strong> for different setups. Create your first session to get started.",
+      "body": "A <strong>session</strong> holds the stages for one game. Think of it as a setup you can come back to.<br><br>You can keep <strong>several sessions</strong> for different games. Create your first session to get started.",
       "alt": "Stages page with a \"Create your first session\" card"
     },
     "stages": {
       "title": "Stages",
-      "body": "Stages are the application's bread and butter - your <strong>play surface</strong>. Each one plays a track or a playlist independently on demand during the session. Start by creating your first stage.",
+      "body": "A <strong>stage</strong> is where you play. Each stage plays one track, or a whole group, independently of the others and only when you tell it to.<br><br>Start by creating your first stage.",
       "alt": "Session with a \"Create your first stage\" card"
     },
     "createStage": {
       "title": "Create a stage",
-      "body": "Name the stage and optionally pick the track which should be initially selected.",
+      "body": "Name the stage. You can also pick the track it starts with, but you can change that at any time.",
       "alt": "Create Stage dialog with a name field and a track selector"
     },
     "playStage": {
       "title": "Play a stage",
-      "body": "Hit <strong>play</strong> to start playback for that stage. Choose a <strong>group</strong>, <strong>track</strong>, and <strong>window</strong> - even mid-play. Additionally, switch to playlist mode if you need to play through all tracks in a selected group.",
+      "body": "Hit <strong>play</strong> and the stage starts. You can change the <strong>group</strong>, <strong>track</strong> and <strong>window</strong> while it is still playing.<br><br>Switch to <strong>playlist</strong> mode to play through every track in the selected group.",
       "alt": "Stage player with group/track/window selectors, single/playlist toggle, and a seek bar"
     },
     "settings": {
       "title": "Playback settings",
-      "body": "Per-stage options:<ul><li><strong>Loop mode</strong> - controls how track windows repeat: <em>Off</em> plays once, <em>Loop</em> repeats seamlessly, and <em>Sequence</em> cycles through all available windows in order.</li><li><strong>Overplay</strong> - lets this stage play in parallel with others. Starting another stage won’t mute this one.</li><li><strong>Keyboard shortcut</strong> - toggle the stage without clicking.</li></ul>",
+      "body": "Every stage has its own options:<ul><li><strong>Loop mode</strong> controls how windows repeat. <em>Off</em> plays once, <em>Loop</em> repeats seamlessly, and <em>Sequence</em> steps through every window in order.</li><li><strong>Overplay</strong> lets this stage play alongside the others, so starting another stage will not stop it.</li><li><strong>Keyboard shortcut</strong> starts and stops the stage without clicking.</li></ul>",
       "alt": "Playback settings popover with loop mode, overplay, and keyboard shortcut options"
     },
     "workshop": {
       "title": "Sharing",
-      "body": "Have a track with nice windows, tight crossfades and want to share it? <strong>Publish</strong> your tracks so other Sound Masters can find and subscribe to them - and discover theirs.",
+      "body": "Happy with a track and the windows you set on it? <strong>Publish</strong> it so other Sound Masters can subscribe to it, and browse what they have published.",
       "alt": "Sharing \"My tracks\" dialog listing tracks with publish status and subscribers"
     },
     "profile": {
       "title": "Your profile",
-      "body": "See your <strong>current limits</strong>, change your <strong>password, email, name, </strong> set your preffered <strong>language</strong>, and re-open this tutorial any time from the <strong>“?”</strong> button here.",
+      "body": "See your <strong>current limits</strong>, change your <strong>password</strong>, <strong>email</strong> or <strong>name</strong>, set your preferred <strong>language</strong>, and re-open this tutorial any time from the <strong>“?”</strong> button.",
       "alt": "User profile page showing account details and rank & limits"
     },
     "faq": {

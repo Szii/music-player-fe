@@ -1,15 +1,20 @@
-import { Component, OnInit, ViewChild, inject } from '@angular/core';
-import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { Router } from '@angular/router';
-
 import {
-  MusicGroupsService,
-  MusicTracksService,
-  Group,
-  GroupRequest,
-  Track,
-} from '../../../../api/generated';
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  OnInit,
+  ViewChild,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
+import { forkJoin } from 'rxjs';
+import { finalize } from 'rxjs/operators';
+
+import { Group, GroupRequest, Track } from '../../../../api/generated';
 
 import { CreateGroupFormComponent } from '../../components/create-group-form/create-group-form.component';
 import { GroupCardComponent, RenameEvent } from '../../components/group-card/group-card.component';
@@ -18,6 +23,8 @@ import {
   GroupTracksSaveEvent,
 } from '../../components/group-tracks-editor/group-tracks-editor.component';
 import { persistentSignal } from '../../../../shared/utils/persistent-signal';
+import { GroupsStore } from '../../../../core/services/groups-store.service';
+import { TracksStore } from '../../../../core/services/tracks-store.service';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { UiCreateCtaComponent } from '../../../../shared/ui/create-cta/ui-create-cta.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
@@ -37,7 +44,6 @@ type GroupSortMode =
 
 @Component({
   selector: 'app-groups-page',
-  standalone: true,
   imports: [
     CreateGroupFormComponent,
     GroupCardComponent,
@@ -49,6 +55,7 @@ type GroupSortMode =
     FooterComponent,
     TranslocoPipe,
   ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './groups-page.component.html',
   styleUrl: './groups-page.component.scss',
 })
@@ -67,20 +74,37 @@ export class GroupsPageComponent implements OnInit {
 
   @ViewChild('createForm') createFormRef?: CreateGroupFormComponent;
 
-  private groupsApi = inject(MusicGroupsService);
-  private tracksApi = inject(MusicTracksService);
-  private toast = inject(ToastService);
-  private confirmDialog = inject(ConfirmDialogService);
-  private router = inject(Router);
+  private readonly groupsStore = inject(GroupsStore);
+  private readonly tracksStore = inject(TracksStore);
+  private readonly toast = inject(ToastService);
+  private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
-  groups: Group[] = [];
-  tracks: Track[] = [];
-  loading = false;
-  errorMessage = '';
-  updatingGroupId: number | null = null;
-  editingGroup: Group | null = null;
+  readonly groups = this.groupsStore.groups;
+  readonly tracks = this.tracksStore.tracks;
+  readonly loading = computed(() => this.groupsStore.loading() || this.tracksStore.loading());
 
-  search = '';
+  readonly errorMessage = computed(() => {
+    if (this.groupsStore.failed()) return this.t('groups.err.load');
+    if (this.tracksStore.ownFailed()) return this.t('stages.err.loadTracks');
+
+    return '';
+  });
+
+  readonly updatingGroupId = signal<number | null>(null);
+
+  private readonly editingGroupId = signal<number | null>(null);
+
+  /** Derived from the store so the open editor always shows the saved tracks. */
+  readonly editingGroup = computed<Group | null>(() => {
+    const id = this.editingGroupId();
+    if (id == null) return null;
+
+    return this.groupsStore.groups().find(group => group.id === id) ?? null;
+  });
+
+  readonly search = signal('');
   readonly filterMode = persistentSignal<GroupFilterMode>('mpf:groups:filter', 'all');
   readonly sortMode = persistentSignal<GroupSortMode>('mpf:groups:sort', 'nameAsc');
 
@@ -97,28 +121,13 @@ export class GroupsPageComponent implements OnInit {
     { label: this.t('sort.tracksDesc'), value: 'tracksDesc' },
   ];
 
-  private ownTracks: Track[] = [];
-  private subscribedTracks: Track[] = [];
-
-  ngOnInit(): void {
-    this.loadData();
-  }
-
-  setFilterMode(value: unknown): void {
-    this.filterMode.set(value as GroupFilterMode);
-  }
-
-  setSortMode(value: unknown): void {
-    this.sortMode.set(value as GroupSortMode);
-  }
-
-  filteredGroups(): Group[] {
-    const query = this.search.trim().toLowerCase();
+  readonly filteredGroups = computed<Group[]>(() => {
+    const query = this.search().trim().toLowerCase();
     const filter = this.filterMode();
     const sort = this.sortMode();
 
-    const filtered = this.groups.filter(group => {
-      const trackCount = this.getTrackIds(group).length;
+    const matching = this.groupsStore.groups().filter(group => {
+      const trackCount = trackIdsOf(group).length;
 
       const matchesSearch =
         !query ||
@@ -135,85 +144,34 @@ export class GroupsPageComponent implements OnInit {
       return matchesSearch && matchesFilter;
     });
 
-    return [...filtered].sort((a, b) => this.compareGroups(a, b, sort));
+    return [...matching].sort((a, b) => compareGroups(a, b, sort));
+  });
+
+  ngOnInit(): void {
+    forkJoin([this.groupsStore.load(), this.tracksStore.load()])
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe();
   }
 
-  loadData(): void {
-    this.loading = true;
-    this.errorMessage = '';
-
-    let groupsDone = false;
-    let tracksDone = false;
-    let subscribedDone = false;
-
-    const done = () => {
-      if (groupsDone && tracksDone && subscribedDone) {
-        this.loading = false;
-      }
-    };
-
-    this.groupsApi.getUserGroups().subscribe({
-      next: (data) => {
-        this.groups = this.sortGroups(data ?? []);
-      },
-      error: (err: unknown) => {
-        console.error(err);
-        this.errorMessage = httpErrorMessage(err, { fallback: this.t('groups.err.load') });
-        groupsDone = true;
-        done();
-      },
-      complete: () => {
-        groupsDone = true;
-        done();
-      },
-    });
-
-    this.tracksApi.getUserTracks().subscribe({
-      next: (data) => {
-        this.ownTracks = data ?? [];
-        this.mergeTracks();
-      },
-      error: (err: unknown) => {
-        console.error(err);
-        this.errorMessage ||= httpErrorMessage(err, { fallback: this.t('stages.err.loadTracks') });
-        tracksDone = true;
-        done();
-      },
-      complete: () => {
-        tracksDone = true;
-        done();
-      },
-    });
-
-    this.tracksApi.getUserSubscribedTracks().subscribe({
-      next: (data) => {
-        this.subscribedTracks = data ?? [];
-        this.mergeTracks();
-      },
-      error: (err) => {
-        console.error(err);
-        subscribedDone = true;
-        done();
-      },
-      complete: () => {
-        subscribedDone = true;
-        done();
-      },
-    });
+  setFilterMode(value: unknown): void {
+    this.filterMode.set(value as GroupFilterMode);
   }
 
-  createGroup(req: GroupRequest): void {
-    this.groupsApi.createGroup({ groupRequest: req }).subscribe({
-      next: (created) => {
-        this.groups = this.sortGroups([...this.groups, created]);
-        this.createFormRef?.reset();
-      },
-      error: (err) => {
-        console.error(err);
-        this.toast.error(httpErrorMessage(err, { fallback: this.t('groups.err.create') }));
-        this.createFormRef?.reset();
-      },
-    });
+  setSortMode(value: unknown): void {
+    this.sortMode.set(value as GroupSortMode);
+  }
+
+  createGroup(request: GroupRequest): void {
+    this.groupsStore.create(request)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.createFormRef?.reset(),
+        error: (err: unknown) => {
+          console.error(err);
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('groups.err.create') }));
+          this.createFormRef?.reset();
+        },
+      });
   }
 
   async deleteGroup(group: Group): Promise<void> {
@@ -230,39 +188,46 @@ export class GroupsPageComponent implements OnInit {
     if (!confirmed) return;
 
     const groupId = group.id;
-    this.updatingGroupId = groupId;
+    this.updatingGroupId.set(groupId);
 
-    this.groupsApi.deleteGroup({ groupId }).subscribe({
-      next: () => {
-        this.groups = this.groups.filter(g => g.id !== groupId);
+    this.groupsStore.remove(groupId)
+      .pipe(
+        finalize(() => this.updatingGroupId.set(null)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: () => {
+          if (this.editingGroupId() === groupId) {
+            this.closeTrackEditor();
+          }
 
-        if (this.editingGroup?.id === groupId) {
-          this.editingGroup = null;
-        }
-
-        this.toast.success(this.t('groups.msg.deleted'));
-      },
-      error: (err) => {
-        console.error(err);
-        this.toast.error(httpErrorMessage(err, { fallback: this.t('groups.err.delete') }));
-      },
-      complete: () => {
-        this.updatingGroupId = null;
-      },
-    });
+          this.toast.success(this.t('groups.msg.deleted'));
+        },
+        error: (err: unknown) => {
+          console.error(err);
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('groups.err.delete') }));
+        },
+      });
   }
 
   renameGroup({ group, newName }: RenameEvent): void {
     if (group.id == null) return;
-    this.updateGroup(group.id, newName, this.getTrackIds(group), false);
+
+    this.saveGroup(group.id, { listName: newName, trackIds: trackIdsOf(group) }, false);
+  }
+
+  saveGroupTracks({ group, trackIds }: GroupTracksSaveEvent): void {
+    if (group.id == null) return;
+
+    this.saveGroup(group.id, { listName: group.listName ?? '', trackIds }, true);
   }
 
   openTrackEditor(group: Group): void {
-    this.editingGroup = group;
+    this.editingGroupId.set(group.id ?? null);
   }
 
   closeTrackEditor(): void {
-    this.editingGroup = null;
+    this.editingGroupId.set(null);
   }
 
   goToAddTrack(): void {
@@ -275,90 +240,58 @@ export class GroupsPageComponent implements OnInit {
     this.router.navigate(['/workshop']);
   }
 
-  saveGroupTracks({ group, trackIds }: GroupTracksSaveEvent): void {
-    if (group.id == null) return;
-    this.updateGroup(group.id, group.listName ?? '', trackIds, true);
-  }
-
-  private updateGroup(
+  private saveGroup(
     groupId: number,
-    listName: string,
-    trackIds: number[],
+    request: GroupRequest,
     closeEditorOnSuccess: boolean,
   ): void {
-    this.updatingGroupId = groupId;
+    this.updatingGroupId.set(groupId);
 
-    this.groupsApi.updateGroup({ groupId, groupRequest: { listName, trackIds } }).subscribe({
-      next: (updated) => {
-        this.groups = this.sortGroups(this.groups.map(g => g.id === groupId ? updated : g));
+    this.groupsStore.update(groupId, request)
+      .pipe(
+        finalize(() => this.updatingGroupId.set(null)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: () => {
+          if (closeEditorOnSuccess) {
+            this.closeTrackEditor();
+          }
 
-        if (this.editingGroup?.id === groupId) {
-          this.editingGroup = updated;
-        }
-
-        if (closeEditorOnSuccess) {
-          this.editingGroup = null;
-        }
-
-        this.toast.success(this.t('groups.msg.updated'));
-      },
-      error: (err) => {
-        console.error(err);
-        this.toast.error(httpErrorMessage(err, { fallback: this.t('groups.err.update') }));
-      },
-      complete: () => {
-        this.updatingGroupId = null;
-      },
-    });
-  }
-
-  private getTrackIds(group: Group): number[] {
-    return (group.tracks ?? [])
-      .map(t => t.id)
-      .filter((id): id is number => id != null);
-  }
-
-  private mergeTracks(): void {
-    const seen = new Set<number>();
-    const merged: Track[] = [];
-
-    for (const t of [...this.ownTracks, ...this.subscribedTracks]) {
-      if (t.id != null && !seen.has(t.id)) {
-        seen.add(t.id);
-        merged.push(t);
-      }
-    }
-
-    this.tracks = merged;
-  }
-
-  private sortGroups(groups: Group[]): Group[] {
-    return [...groups].sort((a, b) => {
-      const nameA = a.listName ?? '';
-      const nameB = b.listName ?? '';
-      return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
-    });
-  }
-
-  private compareGroups(a: Group, b: Group, sortMode: GroupSortMode): number {
-    switch (sortMode) {
-      case 'nameDesc':
-        return this.compareStrings(b.listName ?? '', a.listName ?? '');
-      case 'tracksAsc':
-        return this.getTrackIds(a).length - this.getTrackIds(b).length;
-      case 'tracksDesc':
-        return this.getTrackIds(b).length - this.getTrackIds(a).length;
-      case 'nameAsc':
-      default:
-        return this.compareStrings(a.listName ?? '', b.listName ?? '');
-    }
-  }
-
-  private compareStrings(a: string, b: string): number {
-    return a.localeCompare(b, undefined, { sensitivity: 'base' });
+          this.toast.success(this.t('groups.msg.updated'));
+        },
+        error: (err: unknown) => {
+          console.error(err);
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('groups.err.update') }));
+        },
+      });
   }
 
   private displayTrackName(track: Track): string {
     return track.trackName || track.trackOriginalName || this.t('common.trackNum', { id: track.id });
   }
+}
+
+function trackIdsOf(group: Group): number[] {
+  return (group.tracks ?? [])
+    .map(track => track.id)
+    .filter((id): id is number => id != null);
+}
+
+function compareGroups(a: Group, b: Group, sortMode: GroupSortMode): number {
+  switch (sortMode) {
+    case 'nameDesc':
+      return compareNames(b.listName ?? '', a.listName ?? '');
+    case 'tracksAsc':
+      return trackIdsOf(a).length - trackIdsOf(b).length;
+    case 'tracksDesc':
+      return trackIdsOf(b).length - trackIdsOf(a).length;
+    case 'nameAsc':
+    default:
+      return compareNames(a.listName ?? '', b.listName ?? '');
+  }
+}
+
+function compareNames(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { sensitivity: 'base' });
 }

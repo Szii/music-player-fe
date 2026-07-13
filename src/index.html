@@ -9,11 +9,40 @@
        focused search input scrolls into view instead of hiding under the keyboard. -->
   <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <!-- The first render is blocked on the active language's translations, but that
+       request can only start once main.js has downloaded and booted. Start it here
+       instead, in parallel with the bundle, and hand the promise to
+       TranslocoHttpLoader so it reuses this response rather than issuing its own.
+
+       Deliberately NOT <link rel="preload" as="fetch">: whether a preload is reused
+       by Angular's XHR is engine-specific. With crossorigin, Blink reuses it but
+       Gecko re-downloads; without it, Gecko reuses it but Blink re-downloads. Owning
+       the fetch means exactly one request in every browser.
+
+       Reads the same 'app.language' key LanguageService writes, so a Czech user
+       warms cs.json, not en.json. -->
+  <script>
+    (function () {
+      var lang = 'en';
+      try { lang = localStorage.getItem('app.language') || 'en'; } catch (e) { /* private mode */ }
+
+      window.__i18n = {
+        lang: lang,
+        // Never rejects: on any failure the loader falls back to its own request.
+        data: fetch('i18n/' + lang + '.json')
+          .then(function (res) { return res.ok ? res.json() : null; })
+          .catch(function () { return null; }),
+      };
+    })();
+  </script>
   <!-- As a <link> rather than an @import in styles.css: the build inlines this
        stylesheet into the page (optimization.fonts), which it cannot do for an
        @import, and the font CSS no longer waits on styles.css to parse first. -->
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@400;700&display=swap">
+  <!-- Cinzel only. 'Cinzel Decorative' was requested here but no rule ever used
+       it, so it cost four woff2 downloads for nothing. Both latin and latin-ext
+       subsets are kept — Czech needs latin-ext. -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&display=swap">
 </head>
 <body>
   <app-root></app-root>

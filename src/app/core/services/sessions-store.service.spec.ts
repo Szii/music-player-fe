@@ -8,8 +8,10 @@ import { SessionsStore } from './sessions-store.service';
 /** Only the members SessionsStore touches. */
 class SessionsServiceStub {
   response: SessionsResponse | null = null;
+  calls = 0;
 
   getSessions(): Observable<SessionsResponse> {
+    this.calls++;
     return of(this.response as SessionsResponse);
   }
 }
@@ -60,5 +62,28 @@ describe('SessionsStore.load', () => {
     expect(emitted?.sessions?.length).toBe(2);
     expect(store.hasSessions()).toBe(true);
     expect(store.selectedSessionId()).toBe(7);
+  });
+
+  // On cold start the navbar's profile menu and the always-alive boards page both
+  // ask for sessions. The payload carries every board, so fetching it twice was
+  // the app's most expensive duplicate.
+  it('serves a second load from cache instead of re-fetching', () => {
+    api.response = { sessions: [{ sessionId: 7 }] };
+
+    store.load().subscribe();
+    store.load().subscribe();
+
+    expect(api.calls).toBe(1);
+    expect(store.sessions().length).toBe(1);
+  });
+
+  // Boards re-entry must see current boards, so it forces a read.
+  it('re-fetches when refresh() is called explicitly', () => {
+    api.response = { sessions: [{ sessionId: 7 }] };
+
+    store.load().subscribe();
+    store.refresh().subscribe();
+
+    expect(api.calls).toBe(2);
   });
 });

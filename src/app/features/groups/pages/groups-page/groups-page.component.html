@@ -4,19 +4,19 @@
 
   <app-create-group-form
     #createForm
-    [showTrigger]="groups.length > 0"
+    [showTrigger]="groups().length > 0"
     (groupCreateRequested)="createGroup($event)"
   />
 
-  @if (errorMessage) {
+  @if (errorMessage()) {
     <ui-alert variant="danger">
-      {{ errorMessage }}
+      {{ errorMessage() }}
     </ui-alert>
   }
 
-  @if (loading) {
+  @if (loading()) {
     <div class="app-muted groups-page__loading">{{ 'groups.loading' | transloco }}</div>
-  } @else if (groups.length === 0) {
+  } @else if (groups().length === 0) {
     <ui-create-cta
       [label]="'groups.createFirst' | transloco"
       (clicked)="createForm.open()"
@@ -32,7 +32,7 @@
       [sortOptions]="sortOptions"
       (sortValueChange)="setSortMode($event)"
       [filteredCount]="filteredGroups().length"
-      [totalCount]="groups.length"
+      [totalCount]="groups().length"
     />
 
     @if (filteredGroups().length > 0) {
@@ -40,8 +40,8 @@
         @for (group of filteredGroups(); track group.id) {
           <app-group-card
             [group]="group"
-            [tracks]="tracks"
-            [updating]="updatingGroupId === group.id"
+            [tracks]="tracks()"
+            [updating]="updatingGroupId() === group.id"
             (deleteRequested)="deleteGroup($event)"
             (renameRequested)="renameGroup($event)"
             (editTracksRequested)="openTrackEditor($event)"
@@ -53,11 +53,11 @@
     }
   }
 
-  @if (editingGroup; as group) {
+  @if (editingGroup(); as group) {
     <app-group-tracks-editor
       [group]="group"
-      [tracks]="tracks"
-      [saving]="updatingGroupId === group.id"
+      [tracks]="tracks()"
+      [saving]="updatingGroupId() === group.id"
       (cancel)="closeTrackEditor()"
       (save)="saveGroupTracks($event)"
       (addTrack)="goToAddTrack()"

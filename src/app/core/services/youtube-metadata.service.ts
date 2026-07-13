@@ -11,6 +11,43 @@ export interface YoutubeMetadata {
   durationS: number;
 }
 
+/** Why a video could not be read. Drives which message the user is shown. */
+export type YoutubeMetadataFailure =
+  | 'embeddingDisabled'
+  | 'unavailable'
+  | 'invalidId'
+  | 'timeout'
+  | 'unknown';
+
+export class YoutubeMetadataError extends Error {
+  constructor(readonly reason: YoutubeMetadataFailure) {
+    super(`Could not read YouTube metadata: ${reason}`);
+    this.name = 'YoutubeMetadataError';
+  }
+}
+
+/**
+ * Maps an IFrame API error code to a reason.
+ *
+ * 101 and 150 both mean the uploader forbids embedded playback — common for
+ * YouTube Music "art tracks". Those videos can never play here (the whole player
+ * is an embed), so the user has to be told to pick a different upload rather than
+ * left to retry a link that will never work.
+ */
+export function youtubeErrorReason(code: number): YoutubeMetadataFailure {
+  switch (code) {
+    case 101:
+    case 150:
+      return 'embeddingDisabled';
+    case 100:
+      return 'unavailable';
+    case 2:
+      return 'invalidId';
+    default:
+      return 'unknown';
+  }
+}
+
 /**
  * Reads YouTube video metadata (title + duration) client-side via a throwaway,
  * off-screen IFrame player. Used by the client-side track-create flow to fill
@@ -80,7 +117,7 @@ export class YoutubeMetadataService {
           };
 
           timeoutTimer = setTimeout(
-            () => fail(new Error('Timed out reading YouTube metadata')),
+            () => fail(new YoutubeMetadataError('timeout')),
             YoutubeMetadataService.TIMEOUT_MS,
           );
 
@@ -109,7 +146,8 @@ export class YoutubeMetadataService {
                 tryCapture();
               },
               onStateChange: () => tryCapture(),
-              onError: () => fail(new Error('YouTube could not load this video')),
+              onError: (event: YT.OnErrorEvent) =>
+                fail(new YoutubeMetadataError(youtubeErrorReason(event.data))),
             },
             // `host` is a real runtime option but missing from @types/youtube.
           } as YT.PlayerOptions & { host: string });

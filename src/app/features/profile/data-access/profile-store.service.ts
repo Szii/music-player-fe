@@ -4,9 +4,7 @@ import { Observable, forkJoin, map, tap } from 'rxjs';
 
 import {
   ChangeEmailRequest,
-  MusicTracksService,
   SessionsResponse,
-  SessionsService,
   Track,
   User,
   UserBoardsLimits,
@@ -14,6 +12,8 @@ import {
   UsersService,
 } from '../../../api/generated';
 import { SessionService } from '../../../core/auth/session.service';
+import { TracksStore } from '../../../core/services/tracks-store.service';
+import { SessionsStore } from '../../../core/services/sessions-store.service';
 
 interface LoadedProfileState {
   status: 'loaded';
@@ -32,8 +32,8 @@ type ProfileState =
 @Injectable({ providedIn: 'root' })
 export class ProfileStore {
   private readonly usersApi = inject(UsersService);
-  private readonly tracksApi = inject(MusicTracksService);
-  private readonly sessionsApi = inject(SessionsService);
+  private readonly tracksStore = inject(TracksStore);
+  private readonly sessionsStore = inject(SessionsStore);
   private readonly session = inject(SessionService);
 
   private readonly state = signal<ProfileState>({ status: 'idle' });
@@ -112,8 +112,11 @@ export class ProfileStore {
   private fetchProfile(): Observable<LoadedProfileState> {
     return forkJoin({
       user: this.usersApi.getCurrentUser(),
-      tracks: this.tracksApi.getUserTracks(),
-      sessionsResponse: this.sessionsApi.getSessions(),
+      // Names only. Both come from the shared stores: the navbar opens this on
+      // every page, and re-fetching the sessions payload (which carries every
+      // board) just to read their names was the app's most expensive duplicate.
+      tracks: this.tracksStore.load(),
+      sessionsResponse: this.sessionsStore.load(),
     }).pipe(
       map(({ user, tracks, sessionsResponse }) => ({
         status: 'loaded' as const,

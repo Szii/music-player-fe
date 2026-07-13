@@ -11,6 +11,18 @@ import { TutorialStep } from '../models/tutorial-step';
  */
 export const TUTORIAL_STEPS: readonly TutorialStep[] = [
   {
+    title: 'tutorial.overview.title',
+    body: 'tutorial.overview.body',
+    image: '/tutorial/home-page.webp',
+    alt: 'tutorial.overview.alt',
+  },
+  {
+    title: 'tutorial.intro.title',
+    body: 'tutorial.intro.body',
+    image: '/tutorial/promo.webp',
+    alt: 'tutorial.intro.alt',
+  },
+  {
     title: 'tutorial.welcome.title',
     body: 'tutorial.welcome.body',
     image: '/tutorial/tracks-create.webp',

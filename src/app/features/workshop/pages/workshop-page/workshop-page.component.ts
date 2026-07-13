@@ -1,23 +1,27 @@
-import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  OnInit,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { forkJoin, of } from 'rxjs';
-import { catchError, finalize } from 'rxjs/operators';
+import { Observable, forkJoin, of } from 'rxjs';
+import { catchError, finalize, tap } from 'rxjs/operators';
 
-import {
-  MusicTracksService,
-  ShareService,
-  Track,
-  PublishTrackRequest,
-  SubscribeRequest,
-} from '../../../../api/generated';
+import { Track } from '../../../../api/generated';
 
 import {
   MyTracksComponent,
   PublishEvent,
 } from '../../components/my-tracks/my-tracks.component';
 import { TrackCatalogComponent } from '../../components/track-catalog/track-catalog.component';
+import { TracksStore } from '../../../../core/services/tracks-store.service';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
@@ -28,7 +32,6 @@ import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog
 
 @Component({
   selector: 'app-workshop-page',
-  standalone: true,
   imports: [
     MyTracksComponent,
     TrackCatalogComponent,
@@ -38,6 +41,7 @@ import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog
     FooterComponent,
     TranslocoPipe,
   ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './workshop-page.component.html',
   styleUrl: './workshop-page.component.scss',
 })
@@ -54,38 +58,39 @@ export class WorkshopPageComponent implements OnInit {
     return this.transloco.translate<string>(key, params);
   }
 
-  private readonly tracksApi = inject(MusicTracksService);
-  private readonly shareApi = inject(ShareService);
+  private readonly tracksStore = inject(TracksStore);
   private readonly toast = inject(ToastService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
 
-  readonly loading = signal(false);
   readonly hasLoaded = signal(false);
-  readonly errorMessage = signal('');
   readonly busyTrackId = signal<number | null>(null);
   readonly myTracksOpen = signal(false);
 
-  readonly myTracks = signal<Track[]>([]);
-  readonly publishedTracks = signal<Track[]>([]);
-  readonly subscribedTracks = signal<Track[]>([]);
+  readonly myTracks = this.tracksStore.ownTracks;
 
-  readonly myTrackIds = computed(() =>
-    new Set(
-      this.myTracks()
-        .map(track => track.id)
-        .filter((id): id is number => id != null),
-    ),
-  );
+  /**
+   * The public catalog is deliberately outside the store's cached library: other
+   * users publish and unpublish these entries and nothing notifies us, so it is
+   * re-fetched every time this page opens.
+   */
+  private readonly publishedTracks = signal<Track[]>([]);
+  private readonly catalogFailed = signal(false);
 
-  readonly subscribedIds = computed(() =>
-    new Set(
-      this.subscribedTracks()
-        .map(track => track.id)
-        .filter((id): id is number => id != null),
-    ),
-  );
+  readonly errorMessage = computed(() => {
+    const messages: string[] = [];
+
+    if (this.tracksStore.ownFailed()) messages.push(this.t('tracks.err.loadOwn'));
+    if (this.catalogFailed()) messages.push(this.t('workshop.err.loadPublished'));
+    if (this.tracksStore.subscribedFailed()) messages.push(this.t('tracks.err.loadSubscribed'));
+
+    return messages.join(' ');
+  });
+
+  readonly subscribedIds = computed(() => idsOf(this.tracksStore.subscribedTracks()));
+
+  private readonly myTrackIds = computed(() => idsOf(this.myTracks()));
 
   readonly catalogTracks = computed(() =>
     this.publishedTracks().filter(
@@ -110,75 +115,54 @@ export class WorkshopPageComponent implements OnInit {
     this.router.navigate(['/tracks']);
   }
 
-  loadAll(): void {
-    this.loading.set(true);
-    this.errorMessage.set('');
-
+  /**
+   * Full resync: the library plus the catalog. Used on open, and as the recovery
+   * path when the server rejects a share action because the catalog we were
+   * showing had gone stale.
+   */
+  private loadAll(): void {
     forkJoin({
-      ownTracks: this.tracksApi.getUserTracks().pipe(
-        catchError((err: unknown) => {
-          console.error(err);
-          this.appendError(httpErrorMessage(err, { fallback: this.t('tracks.err.loadOwn') }));
-          return of([] as Track[]);
-        }),
-      ),
-      publishedTracks: this.tracksApi.getPublishedTracks().pipe(
-        catchError((err: unknown) => {
-          console.error(err);
-          this.appendError(httpErrorMessage(err, { fallback: this.t('workshop.err.loadPublished') }));
-          return of([] as Track[]);
-        }),
-      ),
-      subscribedTracks: this.tracksApi.getUserSubscribedTracks().pipe(
-        catchError((err: unknown) => {
-          console.error(err);
-          this.appendError(httpErrorMessage(err, { fallback: this.t('tracks.err.loadSubscribed') }));
-          return of([] as Track[]);
-        }),
-      ),
+      library: this.tracksStore.refresh(),
+      catalog: this.loadCatalog(),
     })
       .pipe(
-        finalize(() => this.loading.set(false)),
+        finalize(() => this.hasLoaded.set(true)),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe({
-        next: ({ ownTracks, publishedTracks, subscribedTracks }) => {
-          this.myTracks.set(ownTracks ?? []);
-          this.publishedTracks.set(publishedTracks ?? []);
-          this.subscribedTracks.set(subscribedTracks ?? []);
-          this.hasLoaded.set(true);
-        },
-        error: (err: unknown) => {
-          console.error(err);
-          this.appendError(httpErrorMessage(err, { fallback: this.t('workshop.err.loadData') }));
-        },
-      });
+      .subscribe();
+  }
+
+  private loadCatalog(): Observable<Track[]> {
+    return this.tracksStore.loadPublished().pipe(
+      tap(tracks => {
+        this.publishedTracks.set(tracks ?? []);
+        this.catalogFailed.set(false);
+      }),
+      catchError((err: unknown) => {
+        console.error('Loading the published catalog failed', err);
+        this.catalogFailed.set(true);
+        return of([] as Track[]);
+      }),
+    );
   }
 
   publishTrack(event: PublishEvent): void {
     if (event.track.id == null) return;
 
     const trackId = event.track.id;
-    const body: PublishTrackRequest = {
-      description: event.description || undefined,
-    };
-
     this.busyTrackId.set(trackId);
 
-    this.shareApi.publishTrack({ trackId, publishTrackRequest: body })
+    this.tracksStore.publish(trackId, event.description || undefined)
       .pipe(
         finalize(() => this.busyTrackId.set(null)),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: () => {
-          this.toast.success(this.t('workshop.msg.published'));
-          this.loadAll();
-        },
-        error: (err: any) => {
+        next: () => this.toast.success(this.t('workshop.msg.published')),
+        error: (err: unknown) => {
           console.error(err);
 
-          if (err?.status === 409) {
+          if (statusOf(err) === 409) {
             this.toast.warning(this.t('workshop.msg.alreadyPublished'));
             this.loadAll();
             return;
@@ -195,16 +179,13 @@ export class WorkshopPageComponent implements OnInit {
     const trackId = track.id;
     this.busyTrackId.set(trackId);
 
-    this.shareApi.unpublishTrack({ trackId })
+    this.tracksStore.unpublish(trackId)
       .pipe(
         finalize(() => this.busyTrackId.set(null)),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: () => {
-          this.toast.success(this.t('workshop.msg.unpublished'));
-          this.loadAll();
-        },
+        next: () => this.toast.success(this.t('workshop.msg.unpublished')),
         error: (err: unknown) => {
           console.error(err);
           this.toast.error(httpErrorMessage(err, { fallback: this.t('workshop.err.unpublish') }));
@@ -214,6 +195,7 @@ export class WorkshopPageComponent implements OnInit {
 
   subscribeFromCatalog(track: Track): void {
     const shareCode = track.trackShare?.shareCode;
+
     if (!shareCode) {
       this.toast.error(this.t('workshop.err.noShareCode'));
       return;
@@ -221,22 +203,22 @@ export class WorkshopPageComponent implements OnInit {
 
     this.busyTrackId.set(track.id ?? null);
 
-    const body: SubscribeRequest = { shareCode };
-
-    this.shareApi.subscribeToTrack({ subscribeRequest: body })
+    this.tracksStore.subscribe(shareCode)
       .pipe(
         finalize(() => this.busyTrackId.set(null)),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: () => {
-          this.toast.success(this.t('workshop.msg.subscribed'));
-          this.loadAll();
-        },
-        error: (err: any) => {
+        next: () => this.toast.success(this.t('workshop.msg.subscribed')),
+        error: (err: unknown) => {
           console.error(err);
 
-          if (err?.status === 409 || err?.status === 400) {
+          const status = statusOf(err);
+
+          // The catalog we rendered had gone stale — the share is already taken,
+          // or no longer exists. Resync rather than keep showing a track the
+          // server disagrees about.
+          if (status === 409 || status === 400) {
             this.toast.warning(this.t('workshop.msg.alreadySubscribed'));
             this.loadAll();
             return;
@@ -265,26 +247,29 @@ export class WorkshopPageComponent implements OnInit {
     const trackId = track.id;
     this.busyTrackId.set(trackId);
 
-    this.shareApi.unsubscribeFromTrack({ trackId })
+    this.tracksStore.unsubscribe(trackId)
       .pipe(
         finalize(() => this.busyTrackId.set(null)),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: () => {
-          this.toast.success(this.t('workshop.msg.unsubscribed'));
-          this.loadAll();
-        },
+        next: () => this.toast.success(this.t('workshop.msg.unsubscribed')),
         error: (err: unknown) => {
           console.error(err);
           this.toast.error(httpErrorMessage(err, { fallback: this.t('workshop.err.unsubscribe') }));
         },
       });
   }
+}
 
-  private appendError(message: string): void {
-    this.errorMessage.update(current =>
-      current ? (current.includes(message) ? current : `${current} ${message}`) : message,
-    );
-  }
+function idsOf(tracks: readonly Track[]): ReadonlySet<number> {
+  return new Set(
+    tracks
+      .map(track => track.id)
+      .filter((id): id is number => id != null),
+  );
+}
+
+function statusOf(err: unknown): number | null {
+  return err instanceof HttpErrorResponse ? err.status : null;
 }

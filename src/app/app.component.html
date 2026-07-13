@@ -2,6 +2,10 @@
 <router-outlet />
 <app-toast-container />
 <app-confirm-dialog />
-<app-prompt-dialog />
+
+@defer (when isPromptOpen(); prefetch on idle) {
+  <app-prompt-dialog />
+}
+
 <app-info-dialog />
 <app-tutorial-dialog />

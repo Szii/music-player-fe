@@ -1,15 +1,16 @@
 import {
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   OnInit,
   ViewChild,
+  computed,
   inject,
   signal,
 } from '@angular/core';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
-import { forkJoin, of } from 'rxjs';
-import { catchError, finalize } from 'rxjs/operators';
+import { finalize } from 'rxjs/operators';
 
 import { TrackTableComponent } from '../../components/track-table/track-table.component';
 import {
@@ -25,13 +26,15 @@ import {
 } from '../../components/track-window-panel/track-window-panel.component';
 import {
   CreateTrackRequestV2,
-  MusicTracksService,
-  ReorderTrackWindowsRequest,
   Track,
   UpdateTrackRequestV2,
 } from '../../../../api/generated';
 import { parseYoutubeId } from '../../../../shared/utils/youtube-id';
-import { YoutubeMetadataService } from '../../../../core/services/youtube-metadata.service';
+import {
+  YoutubeMetadataError,
+  YoutubeMetadataService,
+} from '../../../../core/services/youtube-metadata.service';
+import { TracksStore } from '../../../../core/services/tracks-store.service';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { UiCreateCtaComponent } from '../../../../shared/ui/create-cta/ui-create-cta.component';
@@ -43,7 +46,6 @@ import { FooterComponent } from '../../../../shared/components/footer/footer.com
 
 @Component({
   selector: 'app-tracks-page',
-  standalone: true,
   imports: [
     TrackTableComponent,
     TrackFormComponent,
@@ -54,6 +56,7 @@ import { FooterComponent } from '../../../../shared/components/footer/footer.com
     FooterComponent,
     TranslocoPipe,
   ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './tracks-page.component.html',
   styleUrl: './tracks-page.component.scss',
 })
@@ -72,17 +75,26 @@ export class TracksPageComponent implements OnInit {
 
   @ViewChild(TrackFormComponent) private trackForm?: TrackFormComponent;
 
-  private readonly tracksApi = inject(MusicTracksService);
+  private readonly tracksStore = inject(TracksStore);
   private readonly ytMetadata = inject(YoutubeMetadataService);
   private readonly toast = inject(ToastService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly boardPlayback = inject(BoardPlaybackService);
   private readonly destroyRef = inject(DestroyRef);
 
-  readonly tracks = signal<Track[]>([]);
-  readonly loading = signal(false);
+  readonly tracks = this.tracksStore.tracks;
+  readonly loading = this.tracksStore.loading;
+
+  readonly errorMessage = computed(() => {
+    const messages: string[] = [];
+
+    if (this.tracksStore.ownFailed()) messages.push(this.t('tracks.err.loadOwn'));
+    if (this.tracksStore.subscribedFailed()) messages.push(this.t('tracks.err.loadSubscribed'));
+
+    return messages.join(' ');
+  });
+
   readonly createSubmitting = signal(false);
-  readonly errorMessage = signal('');
 
   readonly editingTrackId = signal<number | null>(null);
   readonly editTrackName = signal('');
@@ -90,47 +102,21 @@ export class TracksPageComponent implements OnInit {
   /** The link can't be changed once a track has windows or is published. */
   readonly editLockTrackLink = signal(false);
 
-  readonly windowTrack = signal<Track | null>(null);
+  /**
+   * Held by id rather than by value, so the open panel always reflects whatever
+   * the store currently holds — a saved window shows up without any extra sync.
+   */
+  private readonly windowTrackId = signal<number | null>(null);
+
+  readonly windowTrack = computed<Track | null>(() => {
+    const id = this.windowTrackId();
+    if (id == null) return null;
+
+    return this.tracks().find(track => track.id === id) ?? null;
+  });
 
   ngOnInit(): void {
-    this.loadTracks();
-  }
-
-  loadTracks(): void {
-    this.loading.set(true);
-    this.errorMessage.set('');
-
-    forkJoin({
-      userTracks: this.tracksApi.getUserTracks().pipe(
-        catchError((err: unknown) => {
-          console.error(err);
-          this.appendError(httpErrorMessage(err, { fallback: this.t('tracks.err.loadOwn') }));
-          return of([] as Track[]);
-        }),
-      ),
-      subscribedTracks: this.tracksApi.getUserSubscribedTracks().pipe(
-        catchError((err: unknown) => {
-          console.error(err);
-          this.appendError(httpErrorMessage(err, { fallback: this.t('tracks.err.loadSubscribed') }));
-          return of([] as Track[]);
-        }),
-      ),
-    })
-      .pipe(
-        finalize(() => this.loading.set(false)),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe({
-        next: ({ userTracks, subscribedTracks }) => {
-          const merged = this.mergeTracks(userTracks ?? [], subscribedTracks ?? []);
-          this.tracks.set(merged);
-          this.syncWindowTrack(merged);
-        },
-        error: (err: unknown) => {
-          console.error(err);
-          this.appendError(httpErrorMessage(err, { fallback: this.t('stages.err.loadTracks') }));
-        },
-      });
+    this.tracksStore.load().pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
   }
 
   saveTrack(event: TrackFormEvent): void {
@@ -150,11 +136,7 @@ export class TracksPageComponent implements OnInit {
       const existing = this.findTrack(editingId);
 
       if (existing?.trackLink === event.trackLink) {
-        const body: UpdateTrackRequestV2 = {
-          trackName: event.trackName,
-        };
-
-        this.runUpdate(editingId, body);
+        this.runUpdate(editingId, { trackName: event.trackName });
         return;
       }
     }
@@ -189,23 +171,26 @@ export class TracksPageComponent implements OnInit {
           duration,
         };
 
-        this.runCreateV2(body);
+        this.runCreate(body);
       })
       .catch((err: unknown) => {
         console.error(err);
         this.createSubmitting.set(false);
-        this.toast.error(this.t('tracks.err.unreadableVideo'));
+        this.toast.error(this.youtubeErrorMessage(err));
       });
   }
 
-  private runCreateV2(body: CreateTrackRequestV2): void {
-    this.tracksApi.createTrackV2({ createTrackRequestV2: body })
+  private runCreate(body: CreateTrackRequestV2): void {
+    this.tracksStore.createTrack(body)
       .pipe(
         finalize(() => this.createSubmitting.set(false)),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: () => this.onTrackCreated(),
+        next: () => {
+          this.trackForm?.close();
+          this.toast.success(this.t('tracks.msg.created'));
+        },
         error: (err: unknown) => {
           console.error(err);
           this.toast.error(httpErrorMessage(err, { fallback: this.t('tracks.err.create') }));
@@ -214,7 +199,7 @@ export class TracksPageComponent implements OnInit {
   }
 
   private runUpdate(trackId: number, body: UpdateTrackRequestV2): void {
-    this.tracksApi.updateTrack({ trackId, updateTrackRequestV2: body })
+    this.tracksStore.updateTrack(trackId, body)
       .pipe(
         finalize(() => this.createSubmitting.set(false)),
         takeUntilDestroyed(this.destroyRef),
@@ -222,7 +207,6 @@ export class TracksPageComponent implements OnInit {
       .subscribe({
         next: () => {
           this.cancelEdit();
-          this.loadTracks();
           this.toast.success(this.t('tracks.msg.updated'));
         },
         error: (err: unknown) => {
@@ -236,10 +220,13 @@ export class TracksPageComponent implements OnInit {
     return this.tracks().find((t) => t.id === id);
   }
 
-  private onTrackCreated(): void {
-    this.trackForm?.close();
-    this.loadTracks();
-    this.toast.success(this.t('tracks.msg.created'));
+  /**
+   * A video whose owner blocks embedding can never play here, so say that plainly
+   * rather than implying a retry might work.
+   */
+  private youtubeErrorMessage(err: unknown): string {
+    const reason = err instanceof YoutubeMetadataError ? err.reason : 'unknown';
+    return this.t(`tracks.err.youtube.${reason}`);
   }
 
   onEdit(track: Track): void {
@@ -273,13 +260,13 @@ export class TracksPageComponent implements OnInit {
 
     if (!confirmed) return;
 
-    this.tracksApi.deleteTrack({ trackId: track.id })
+    const trackId = track.id;
+
+    this.tracksStore.deleteTrack(trackId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.tracks.update(current => current.filter(t => t.id !== track.id));
-
-          if (this.windowTrack()?.id === track.id) {
+          if (this.windowTrackId() === trackId) {
             this.closeWindows();
           }
 
@@ -307,31 +294,25 @@ export class TracksPageComponent implements OnInit {
       this.boardPlayback.stopAll();
     }
 
-    this.windowTrack.set(track);
+    this.windowTrackId.set(track.id ?? null);
   }
 
   closeWindows(): void {
-    this.windowTrack.set(null);
+    this.windowTrackId.set(null);
   }
 
   onSaveWindow(event: WindowSaveEvent): void {
     const request$ = event.windowId != null
-      ? this.tracksApi.updateTrackWindow({
-          trackId: event.trackId,
-          windowId: event.windowId,
-          trackWindowRequest: event.body,
-        })
-      : this.tracksApi.createTrackWindow({
-          trackId: event.trackId,
-          trackWindowRequest: event.body,
-        });
+      ? this.tracksStore.updateWindow(event.trackId, event.windowId, event.body)
+      : this.tracksStore.createWindow(event.trackId, event.body);
 
     request$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (updatedTrack) => {
-          this.applyTrackUpdate(event.trackId, updatedTrack);
-          this.toast.success(this.t(event.windowId != null ? 'windows.msg.updated' : 'windows.msg.created'));
+        next: () => {
+          this.toast.success(
+            this.t(event.windowId != null ? 'windows.msg.updated' : 'windows.msg.created'),
+          );
         },
         error: (err: unknown) => {
           console.error(err);
@@ -343,30 +324,15 @@ export class TracksPageComponent implements OnInit {
   }
 
   onSaveTrackFades(event: TrackFadesSaveEvent): void {
-    const track = this.findTrack(event.trackId);
-
     const body: UpdateTrackRequestV2 = {
       fadeInDurationMs: event.fadeInMs,
       fadeOutDurationMs: event.fadeOutMs,
     };
 
-    this.tracksApi.updateTrack({ trackId: event.trackId, updateTrackRequestV2: body })
+    this.tracksStore.updateTrack(event.trackId, body)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (updatedTrack) => {
-          // A fade-only update must not drop the track's windows. updateTrack's
-          // response may not carry them, so keep the ones we already have.
-          const merged: Track = {
-            ...(track ?? updatedTrack),
-            ...updatedTrack,
-            fadeInDurationMs: updatedTrack.fadeInDurationMs ?? body.fadeInDurationMs,
-            fadeOutDurationMs: updatedTrack.fadeOutDurationMs ?? body.fadeOutDurationMs,
-            trackWindows: updatedTrack.trackWindows ?? track?.trackWindows,
-          };
-
-          this.applyTrackUpdate(event.trackId, merged);
-          this.toast.success(this.t('windows.msg.fadesUpdated'));
-        },
+        next: () => this.toast.success(this.t('windows.msg.fadesUpdated')),
         error: (err: unknown) => {
           console.error(err);
           this.toast.error(httpErrorMessage(err, { fallback: this.t('windows.err.fades') }));
@@ -375,20 +341,10 @@ export class TracksPageComponent implements OnInit {
   }
 
   onReorderWindows(event: TrackWindowsReorderEvent): void {
-    const body: ReorderTrackWindowsRequest = {
-      windowIds: event.windowIds,
-    };
-
-    this.tracksApi.reorderTrackWindows({
-      trackId: event.trackId,
-      reorderTrackWindowsRequest: body,
-    })
+    this.tracksStore.reorderWindows(event.trackId, { windowIds: event.windowIds })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (updatedTrack) => {
-          this.applyTrackUpdate(event.trackId, updatedTrack);
-          this.toast.success(this.t('windows.msg.reordered'));
-        },
+        next: () => this.toast.success(this.t('windows.msg.reordered')),
         error: (err: unknown) => {
           console.error(err);
           this.toast.error(httpErrorMessage(err, { fallback: this.t('windows.err.reorder') }));
@@ -397,54 +353,14 @@ export class TracksPageComponent implements OnInit {
   }
 
   onDeleteWindow(event: WindowDeleteEvent): void {
-    this.tracksApi.deleteTrackWindow({
-      trackId: event.trackId,
-      windowId: event.windowId,
-    })
+    this.tracksStore.deleteWindow(event.trackId, event.windowId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (updatedTrack) => {
-          this.applyTrackUpdate(event.trackId, updatedTrack);
-          this.toast.success(this.t('windows.msg.deleted'));
-        },
+        next: () => this.toast.success(this.t('windows.msg.deleted')),
         error: (err: unknown) => {
           console.error(err);
           this.toast.error(httpErrorMessage(err, { fallback: this.t('windows.err.delete') }));
         },
       });
-  }
-
-  private applyTrackUpdate(trackId: number, updatedTrack: Track): void {
-    this.tracks.update(current =>
-      current.map(track => track.id === trackId ? updatedTrack : track),
-    );
-
-    if (this.windowTrack()?.id === trackId) {
-      this.windowTrack.set(updatedTrack);
-    }
-  }
-
-  private syncWindowTrack(mergedTracks: Track[]): void {
-    const currentWindowTrack = this.windowTrack();
-    if (currentWindowTrack?.id == null) return;
-
-    const fresh = mergedTracks.find(track => track.id === currentWindowTrack.id) ?? null;
-    this.windowTrack.set(fresh);
-  }
-
-  private mergeTracks(own: Track[], subscribed: Track[]): Track[] {
-    const seen = new Set<number>();
-
-    return [...own, ...subscribed].filter(track => {
-      if (track.id == null || seen.has(track.id)) return false;
-      seen.add(track.id);
-      return true;
-    });
-  }
-
-  private appendError(message: string): void {
-    this.errorMessage.update(current =>
-      current ? (current.includes(message) ? current : `${current} ${message}`) : message,
-    );
   }
 }

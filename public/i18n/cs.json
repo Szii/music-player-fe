@@ -143,7 +143,7 @@
       "playlistEmpty": "Tato skupina nemá žádné skladby k přehrání"
     },
     "mode": {
-      "single": "Jedna",
+      "single": "Single",
       "singleTip": "Režim jedné skladby",
       "singleTitle": "Přehraje jednu skladbu — režim opakování zvolíte v nastavení přehrávání",
       "playlist": "Playlist",
@@ -222,7 +222,7 @@
     "email": "E-mail",
     "changeUsername": "Změnit uživatelské jméno",
     "passwordAndEmail": "Heslo a e-mail",
-    "googleManaged": "Tento účet se přihlašuje přes Google. Heslo a e-mail jsou spravovány tam.",
+    "googleManaged": "Tento účet je spravovaný skrze Google.",
     "changePassword": "Změnit heslo",
     "changeEmail": "Změnit e-mail",
     "rankAndLimits": "Hodnost a limity",
@@ -352,7 +352,13 @@
       "update": "Úprava skladby se nezdařila.",
       "delete": "Smazání skladby se nezdařilo.",
       "invalidLink": "Zadejte platný odkaz na YouTube.",
-      "unreadableVideo": "Video z YouTube se nepodařilo načíst — zkontrolujte odkaz."
+      "youtube": {
+        "embeddingDisabled": "Autor tohoto videa nepovolil jeho přehrávání na jiných webech.",
+        "unavailable": "Toto video není dostupné. Může být soukromé, smazané nebo blokované ve vaší zemi.",
+        "invalidId": "Tento odkaz nevede na přehratelné video na YouTube.",
+        "timeout": "Načítání videa trvalo příliš dlouho. Zkontrolujte připojení a zkuste to znovu.",
+        "unknown": "Video z YouTube se nepodařilo načíst — zkontrolujte odkaz."
+      }
     }
   },
   "windows": {
@@ -600,34 +606,44 @@
     "goToStep": "Přejít na krok {{index}}",
     "back": "Zpět",
     "next": "Další",
-    "welcome": {
+    "overview": {
       "title": "Vítejte v Sound Master’s Lair",
-      "body": "Vytvářejte živé zvukové kulisy pro svá sezení. Tento rychlý průvodce projde <strong>skladby</strong>, <strong>okna smyček</strong>, <strong>skupiny</strong>, <strong>scény</strong> a <strong>sdílení</strong>. Začněte přidáním první skladby.",
+      "body": "Sound Master’s Lair je soundboard pro vaše sezení. Vytvoříte si knihovnu skladeb z YouTube a přehráváte je živě na <strong>scénách</strong> přímo během hraní.<br><br>Přehrát skladbu je opravdu tak jednoduché: najděte ji na YouTube, přidejte ji do své sbírky a pak ji kdykoli vyberte na scéně a stiskněte <strong>přehrát</strong>.",
+      "alt": "Domovská stránka s kartami Skladby, Scény, Skupiny a Sdílení"
+    },
+    "intro": {
+      "title": "Co vás v průvodci čeká",
+      "body": "V tomto krátkém průvodci si ukážeme, jak si od začátku nastavit vlastní scénu a co dalšího přitom můžete udělat.",
+      "alt": "Stránka Scény se třemi scénami, které hrají současně, každá s vlastní skupinou, skladbou a oknem"
+    },
+    "welcome": {
+      "title": "Skladby",
+      "body": "Skladby tvoří vaši knihovnu. Každá z nich je video z YouTube, které jste přidali, připravené k přehrání na kterékoli scéně.<br><br>Začněte přidáním první skladby.",
       "alt": "Prázdná stránka Skladby s kartou „Vytvořte svou první skladbu“"
     },
     "addTrack": {
       "title": "Přidání skladby",
-      "body": "Začněte vytvořením první skladby. Zadejte <strong>název</strong> a vložte <strong>odkaz na YouTube</strong>. Víc k dostání zvuku do knihovny nepotřebujete.",
+      "body": "Zadejte <strong>název</strong> a vložte <strong>odkaz na YouTube</strong>. Víc k dostání zvuku do knihovny nepotřebujete.",
       "alt": "Dialog Přidat skladbu s polem názvu a odkazem na YouTube"
     },
     "manageTracks": {
       "title": "Správa skladeb",
-      "body": "Každá skladba má <strong>vlastní sadu akcí</strong>. Odtud můžete upravit její detaily, upravit <strong>okna smyček</strong>, otevřít zdroj nebo ji smazat.",
+      "body": "Každá skladba má <strong>vlastní sadu akcí</strong>. Odtud můžete upravit její detaily, upravit <strong>okna smyček</strong>, otevřít zdroj na YouTube nebo ji smazat.",
       "alt": "Seznam skladeb s otevřenou nabídkou řádku"
     },
     "windows": {
       "title": "Okna smyček",
-      "body": "Chcete přehrát jen část nebo několik částí skladby? <strong>Okno</strong> je výsek skladby, který lze plynule opakovat. Nastavte rozsah <strong>od/do</strong>, <strong>prolnutí</strong> pro čistý přechod a před uložením si vše poslechněte.",
+      "body": "Často potřebujete jen část skladby. <strong>Okno</strong> je výsek skladby, který lze plynule opakovat.<br><br>Nastavte rozsah <strong>od a do</strong>, přidejte <strong>prolnutí</strong>, aby byl přechod čistý, a před uložením si vše poslechněte.",
       "alt": "Editor oken s rozsahem smyčky, sílou prolnutí a náhledovým přehrávačem"
     },
     "groups": {
       "title": "Skupiny",
-      "body": "Skupiny umožňují třídit skladby podle <strong>nálady nebo scény</strong> - například boj, podkres, cestování, atd. . Začněte vytvořením první skupiny.",
+      "body": "Skupiny třídí skladby podle nálady nebo scény, například boj, podkres nebo hospoda. Díky nim se v rozsáhlé knihovně vyznáte i uprostřed hry.<br><br>Začněte vytvořením první skupiny.",
       "alt": "Prázdná stránka Skupiny s kartou „Vytvořte svou první skupinu“"
     },
     "groupName": {
       "title": "Pojmenování skupiny",
-      "body": "Dejte skupině pěkný a snadno rozpoznatelný název.",
+      "body": "Dejte skupině krátký název, který hned poznáte.",
       "alt": "Dialog Vytvořit skupinu s polem názvu"
     },
     "groupTracks": {
@@ -637,37 +653,37 @@
     },
     "sessions": {
       "title": "Sezení",
-      "body": "<strong>Sezení</strong> obsahuje scény pro jednu hru - berte je jako své nastavení, kde řídíte tok hudby. Můžete mít samozřejmě <strong>více sezení</strong> pro různá nastavení. Začněte vytvořením prvního sezení.",
+      "body": "<strong>Sezení</strong> obsahuje scény pro jednu hru. Berte ho jako nastavení, ke kterému se můžete kdykoli vrátit.<br><br>Můžete si držet <strong>více sezení</strong> pro různé hry. Začněte vytvořením prvního sezení.",
       "alt": "Stránka Scény s kartou „Vytvořte své první sezení“"
     },
     "stages": {
       "title": "Scény",
-      "body": "Scény jsou srdcem aplikace - vaše <strong>hrací plocha</strong>. Každá z nich přehrává skladbu nebo playlist nezávisle a na vyžádání během sezení. Začněte vytvořením první scény.",
+      "body": "<strong>Scéna</strong> je vaše hrací plocha. Každá scéna přehrává jednu skladbu nebo celou skupinu, nezávisle na ostatních a jen když jí to řeknete.<br><br>Začněte vytvořením první scény.",
       "alt": "Sezení s kartou „Vytvořte svou první scénu“"
     },
     "createStage": {
       "title": "Vytvoření scény",
-      "body": "Pojmenujte scénu a případně vyberte skladbu, která má být zvolena jako výchozí.",
+      "body": "Pojmenujte scénu. Můžete rovnou vybrat i skladbu, se kterou začne, ale kdykoli ji později změníte.",
       "alt": "Dialog Vytvořit scénu s polem názvu a výběrem skladby"
     },
     "playStage": {
       "title": "Přehrávání scény",
-      "body": "Stiskněte <strong>play</strong> a spusťte přehrávání dané scény. Vyberte <strong>skupinu</strong>, <strong>skladbu</strong> a <strong>okno</strong> - i během přehrávání. Případně přepněte do režimu playlistu, pokud chcete přehrát všechny skladby vybrané skupiny.",
+      "body": "Stiskněte <strong>přehrát</strong> a scéna se rozjede. <strong>Skupinu</strong>, <strong>skladbu</strong> i <strong>okno</strong> můžete měnit i během přehrávání.<br><br>Přepnutím do režimu <strong>playlist</strong> přehrajete všechny skladby vybrané skupiny.",
       "alt": "Přehrávač scény s výběrem skupiny, skladby a okna"
     },
     "settings": {
       "title": "Nastavení přehrávání",
-      "body": "Možnosti pro každou scénu:<ul><li><strong>Režim opakování</strong> - určuje, jak se okna opakují: <em>Vypnuto</em> přehraje jednou, <em>Smyčka</em> plynule opakuje a <em>Sekvence</em> prochází všechna okna v pořadí.</li><li><strong>Překryv</strong> - umožní této scéně hrát souběžně s ostatními. Spuštění jiné scény tuto neztlumí.</li><li><strong>Klávesová zkratka</strong> - přepínejte scénu bez klikání.</li></ul>",
+      "body": "Každá scéna má vlastní možnosti:<ul><li><strong>Režim opakování</strong> určuje, jak se okna opakují. <em>Vypnuto</em> přehraje jednou, <em>Smyčka</em> plynule opakuje a <em>Sekvence</em> prochází všechna okna v pořadí.</li><li><strong>Překryv</strong> nechá tuto scénu hrát souběžně s ostatními, takže spuštění jiné scény ji nezastaví.</li><li><strong>Klávesová zkratka</strong> spouští a zastavuje scénu bez klikání.</li></ul>",
       "alt": "Nastavení přehrávání s režimem opakování, překryvem a klávesovou zkratkou"
     },
     "workshop": {
       "title": "Sdílení",
-      "body": "Máte skladbu s pěknými okny a vyladěnými prolnutími a chcete ji sdílet? <strong>Publikujte</strong> své skladby, aby je ostatní Sound Masteři našli a odebírali - a objevujte jejich.",
+      "body": "Jste s nastavením skladby a jejích oken spokojení? <strong>Publikujte</strong> ji, aby si ji ostatní Sound Masteři mohli odebírat, a prohlédněte si, co zveřejnili oni.",
       "alt": "Dialog sdílení „Moje skladby“ se stavem publikování a odběrateli"
     },
     "profile": {
       "title": "Váš profil",
-      "body": "Zobrazte si své <strong>aktuální limity</strong>, změňte si <strong>heslo, email, jméno,</strong> nastavte preferovaný <strong>jazyk</strong> a kdykoli znovu otevřete tohoto průvodce tlačítkem <strong>„?“</strong>.",
+      "body": "Zobrazte si své <strong>aktuální limity</strong>, změňte si <strong>heslo</strong>, <strong>e-mail</strong> nebo <strong>jméno</strong>, nastavte preferovaný <strong>jazyk</strong> a kdykoli znovu otevřete tohoto průvodce tlačítkem <strong>„?“</strong>.",
       "alt": "Stránka profilu s údaji o účtu a hodností a limity"
     },
     "faq": {

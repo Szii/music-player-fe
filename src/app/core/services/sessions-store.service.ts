@@ -1,6 +1,6 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { Observable, of, tap } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { catchError, finalize, map, shareReplay } from 'rxjs/operators';
 import {
   SessionResponse,
   SessionsResponse,
@@ -9,6 +9,9 @@ import {
 import { SessionService } from '../auth/session.service';
 
 const STORAGE_KEY = 'music-player.selected-session-id';
+
+/** Sessions only ever change through this app, so a fetch stays good for a while. */
+const FRESH_FOR_MS = 60_000;
 
 @Injectable({ providedIn: 'root' })
 export class SessionsStore {
@@ -28,6 +31,9 @@ export class SessionsStore {
 
   readonly hasSessions = computed(() => this.sessions().length > 0);
 
+  private inFlight$: Observable<SessionsResponse> | null = null;
+  private fetchedAt = 0;
+
   constructor() {
     effect(() => {
       const id = this.selectedSessionId();
@@ -43,27 +49,54 @@ export class SessionsStore {
       this.selectedSessionId.set(null);
       this.loaded.set(false);
       this.loading.set(false);
+      this.inFlight$ = null;
+      this.fetchedAt = 0;
     });
   }
 
+  /**
+   * Sessions for a page that is opening. Reuses an in-flight request or a still
+   * fresh result — the navbar's profile menu and the always-alive boards page both
+   * want this on cold start, and the payload carries every board, so fetching it
+   * twice is expensive.
+   */
   load(): Observable<SessionsResponse> {
+    if (this.inFlight$) return this.inFlight$;
+
+    const isFresh = this.loaded() && Date.now() - this.fetchedAt < FRESH_FOR_MS;
+    if (isFresh) return of({ sessions: this.sessions() });
+
+    return this.refresh();
+  }
+
+  /**
+   * Force a re-read. Boards must do this when the route is re-entered: the
+   * response carries the boards themselves, so it is the one thing that genuinely
+   * has to be current.
+   */
+  refresh(): Observable<SessionsResponse> {
     this.loading.set(true);
-    return this.api.getSessions().pipe(
+
+    const request$ = this.api.getSessions().pipe(
       map(response => response ?? { sessions: [] }),
-      tap(response => this.applyResponse(response)),
-      tap({
-        next: () => {
-          this.loading.set(false);
-          this.loaded.set(true);
-        },
-        error: () => this.loading.set(false),
+      tap(response => {
+        this.applyResponse(response);
+        this.loading.set(false);
+        this.loaded.set(true);
       }),
       catchError(err => {
         console.error('Loading sessions failed', err);
         this.loading.set(false);
         return of({ sessions: [] } as SessionsResponse);
       }),
+      finalize(() => {
+        this.inFlight$ = null;
+      }),
+      shareReplay({ bufferSize: 1, refCount: false }),
     );
+
+    this.inFlight$ = request$;
+    return request$;
   }
 
     refreshSession(sessionId: number): Observable<SessionResponse> {
@@ -146,6 +179,11 @@ export class SessionsStore {
   ): void {
     const sessions = response?.sessions ?? [];
     this.sessions.set(sessions);
+
+    // Create/rename/delete all return the full list, so a mutation leaves the
+    // store as current as a fetch would.
+    this.fetchedAt = Date.now();
+    this.loaded.set(true);
 
     const currentId = this.selectedSessionId();
     const stillExists = currentId != null && sessions.some(s => s.sessionId === currentId);
