@@ -12,8 +12,12 @@
 .boards-page__sessions {
   flex-shrink: 0;
   align-self: left;
-  position: relative;
-  z-index: 50;
+  /* No z-index here on purpose. A z-index other than `auto` on this positioned
+     host would make it a stacking context, trapping the dropdown's own panel
+     (z-index: 1100) inside a box that ranks only 50 — below the sticky navbar's
+     1000 — so the panel rendered *behind* the navbar. The component's :host
+     already sets `position: relative`, which is all the panel needs to anchor to.
+     See the matching note in shell.component.scss. */
 }
 
 .boards-list-wrap {

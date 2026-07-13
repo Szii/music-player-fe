@@ -17,8 +17,6 @@ import { BOARD_CHANGE_CROSSFADE_MS, effectiveCrossfadeMs, sourceCrossfadeMs } fr
 
 import {
   MusicBoardsService,
-  MusicGroupsService,
-  MusicTracksService,
   Board,
   BoardCreateRequest,
   BoardUpdateRequest,
@@ -49,6 +47,8 @@ import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog
 import { BoardPlaybackService } from '../../../../core/services/board-playback.service';
 import { BoardShortcutsService } from '../../../../core/services/board-shortcuts.service';
 import { SessionsStore } from '../../../../core/services/sessions-store.service';
+import { TracksStore } from '../../../../core/services/tracks-store.service';
+import { GroupsStore } from '../../../../core/services/groups-store.service';
 
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 
@@ -91,18 +91,18 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   }
 
   private readonly boardsApi = inject(MusicBoardsService);
-  private readonly groupsApi = inject(MusicGroupsService);
-  private readonly tracksApi = inject(MusicTracksService);
   private readonly toast = inject(ToastService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly boardPlayback = inject(BoardPlaybackService);
   private readonly shortcuts = inject(BoardShortcutsService);
   private readonly sessionsStore = inject(SessionsStore);
+  private readonly tracksStore = inject(TracksStore);
+  private readonly groupsStore = inject(GroupsStore);
 
   readonly boards = signal<Board[]>([]);
-  readonly tracks = signal<Track[]>([]);
-  readonly groups = signal<Group[]>([]);
+  readonly tracks = this.tracksStore.tracks;
+  readonly groups = this.groupsStore.groups;
   readonly loading = signal(false);
   readonly errorMessage = signal('');
   readonly createBoardSubmitting = signal(false);
@@ -266,6 +266,8 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     this.loading.set(true);
     this.errorMessage.set('');
 
+    // Tracks and groups come from the shared stores, which report their own
+    // failures — only the boards' own errors are collected here.
     forkJoin({
       sessions: this.sessionsStore.load().pipe(
         catchError((err: unknown) => {
@@ -274,32 +276,16 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
           return of({ sessions: [] });
         }),
       ),
-      ownTracks: this.tracksApi.getUserTracks().pipe(
-        catchError((err: unknown) => {
-          console.error(err);
-          this.appendError(httpErrorMessage(err, { fallback: this.t('stages.err.loadTracks') }));
-          return of([] as Track[]);
-        }),
-      ),
-      subscribedTracks: this.tracksApi.getUserSubscribedTracks().pipe(
-        catchError(() => of([] as Track[])),
-      ),
-      groups: this.groupsApi.getUserGroups().pipe(
-        catchError((err: unknown) => {
-          console.error(err);
-          this.appendError(httpErrorMessage(err, { fallback: this.t('stages.err.loadGroups') }));
-          return of([] as Group[]);
-        }),
-      ),
+      tracks: this.tracksStore.load(),
+      groups: this.groupsStore.load(),
     })
       .pipe(
         finalize(() => this.loading.set(false)),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: ({ sessions, ownTracks, subscribedTracks, groups }) => {
-          this.groups.set(groups ?? []);
-          this.tracks.set(this.mergeTracks(ownTracks ?? [], subscribedTracks ?? []));
+        next: ({ sessions }) => {
+          this.syncStoreLoadErrors();
 
           const mergedBoards = this.flattenSessionBoards(sessions.sessions ?? []);
           this.prepareBoards(mergedBoards, true);
@@ -311,6 +297,16 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
           this.appendError(httpErrorMessage(err, { fallback: this.t('stages.err.loadData') }));
         },
       });
+  }
+
+  private syncStoreLoadErrors(): void {
+    if (this.tracksStore.ownFailed()) {
+      this.appendError(this.t('stages.err.loadTracks'));
+    }
+
+    if (this.groupsStore.failed()) {
+      this.appendError(this.t('stages.err.loadGroups'));
+    }
   }
 
   createBoard(event: CreateBoardEvent): void {
@@ -1602,16 +1598,6 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     return board.sequenceMode ?? undefined;
   }
 
-  private mergeTracks(own: Track[], subscribed: Track[]): Track[] {
-    const seen = new Set<number>();
-
-    return [...own, ...subscribed].filter(track => {
-      if (track.id == null || seen.has(track.id)) return false;
-      seen.add(track.id);
-      return true;
-    });
-  }
-
   private regeneratePlaylistOrder(boardId: number, tracks: Track[], shuffle: boolean): void {
     const indices = tracks.map((_, i) => i);
     if (shuffle) {
@@ -1637,18 +1623,24 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     this.boardPlayback.setPlaying(anyPlaying);
   }
 
+  /**
+   * Re-entering /boards costs one request: sessions.
+   *
+   * Sessions carry the boards along with each board's `availableTracks`,
+   * `selectedTrack` and `selectedGroup` — so the server is already authoritative
+   * about what every board can play, including after a publisher revokes a share.
+   * The store's track list only populates the create-board form's picker, and the
+   * group list only the per-board dropdown; neither can change behind the user's
+   * back, so both are served from cache here.
+   */
   private refreshBackgroundData(): void {
     forkJoin({
-      sessions: this.sessionsStore.load().pipe(catchError(() => of({ sessions: [] }))),
-      ownTracks: this.tracksApi.getUserTracks().pipe(catchError(() => of([] as Track[]))),
-      subscribedTracks: this.tracksApi.getUserSubscribedTracks().pipe(catchError(() => of([] as Track[]))),
-      groups: this.groupsApi.getUserGroups().pipe(catchError(() => of([] as Group[]))),
+      sessions: this.sessionsStore.refresh().pipe(catchError(() => of({ sessions: [] }))),
+      tracks: this.tracksStore.load(),
+      groups: this.groupsStore.load(),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(({ sessions, ownTracks, subscribedTracks, groups }) => {
-        this.groups.set(groups ?? []);
-        this.tracks.set(this.mergeTracks(ownTracks ?? [], subscribedTracks ?? []));
-
+      .subscribe(({ sessions }) => {
         const mergedBoards = this.flattenSessionBoards(sessions.sessions ?? []);
 
         this.prepareBoards(mergedBoards, false, true);
