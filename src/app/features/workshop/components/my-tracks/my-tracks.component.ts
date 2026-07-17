@@ -75,7 +75,7 @@ export class MyTracksComponent {
   private readonly infoDialog = inject(InfoDialogService);
 
   readonly tracks = input<Track[]>([]);
-  readonly busyTrackId = input<number | null>(null);
+  readonly busyTrackId = input<string | null>(null);
 
   readonly publish = output<PublishEvent>();
   readonly unpublish = output<Track>();
@@ -171,7 +171,7 @@ export class MyTracksComponent {
     this.unpublish.emit(track);
   }
 
-  trackById(index: number, track: Track): number {
+  trackById(index: number, track: Track): string | number {
     return track.id ?? index;
   }
 

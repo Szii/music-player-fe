@@ -35,27 +35,27 @@ import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-di
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 
 export interface WindowSaveEvent {
-  trackId: number;
-  windowId?: number;
+  trackId: string;
+  windowId?: string;
   body: TrackWindowRequest;
 }
 
 export interface WindowDeleteEvent {
-  trackId: number;
-  windowId: number;
+  trackId: string;
+  windowId: string;
 }
 
 /** Saving the fades of the synthetic "Whole track" window updates the track. */
 export interface TrackFadesSaveEvent {
-  trackId: number;
+  trackId: string;
   fadeInMs: number;
   fadeOutMs: number;
 }
 
 export interface TrackWindowsReorderEvent {
-  trackId: number;
-  windowIds: number[];
-  movedWindowId: number;
+  trackId: string;
+  windowIds: string[];
+  movedWindowId: string;
 }
 
 /**
@@ -68,7 +68,7 @@ export interface TrackWindowsReorderEvent {
 type PanelSelection =
   | { kind: 'create' }
   | { kind: 'whole-track' }
-  | { kind: 'window'; id: number };
+  | { kind: 'window'; id: string };
 
 @Component({
   selector: 'app-track-windows-panel',
@@ -155,15 +155,15 @@ export class TrackWindowsPanelComponent implements OnDestroy {
     this.updateWindowScrollState();
   }
 
-  private currentTrackId: number | null = null;
+  private currentTrackId: string | null = null;
   /** Whether the default (whole-track) entry has been auto-selected for the
       current track once the editor became ready. */
   private hasAutoSelected = false;
   /** Window ids present just before a create-save, used to auto-select the
       newly created window once the refreshed track arrives. */
-  private windowIdsBeforeCreate: Set<number> | null = null;
+  private windowIdsBeforeCreate: Set<string> | null = null;
   /** Window to keep visible after a reorder refresh. */
-  private pendingScrollWindowId: number | null = null;
+  private pendingScrollWindowId: string | null = null;
 
   constructor() {
     // React to the track input the way the old ngOnChanges did: a different
@@ -213,7 +213,7 @@ export class TrackWindowsPanelComponent implements OnDestroy {
         return positionA - positionB;
       }
 
-      return (a.id ?? 0) - (b.id ?? 0);
+      return (a.id ?? '').localeCompare(b.id ?? '');
     });
   }
 
@@ -296,7 +296,7 @@ export class TrackWindowsPanelComponent implements OnDestroy {
 
     const windowIds = orderedWindows
       .map(item => item.id)
-      .filter((id): id is number => id != null);
+      .filter((id): id is string => id != null);
 
     [windowIds[index], windowIds[targetIndex]] = [windowIds[targetIndex], windowIds[index]];
 
@@ -310,7 +310,7 @@ export class TrackWindowsPanelComponent implements OnDestroy {
     });
   }
 
-  private scrollWindowIntoView(windowId: number): void {
+  private scrollWindowIntoView(windowId: string): void {
     this.centerCarouselItem(
       this.windowListEl?.querySelector<HTMLElement>(`[data-window-id="${windowId}"]`) ?? null,
     );
@@ -457,7 +457,7 @@ export class TrackWindowsPanelComponent implements OnDestroy {
     // auto-select the newly created one.
     if (windowId == null) {
       this.windowIdsBeforeCreate = new Set(
-        this.windows.map(w => w.id).filter((id): id is number => id != null),
+        this.windows.map(w => w.id).filter((id): id is string => id != null),
       );
     }
 
@@ -514,7 +514,7 @@ export class TrackWindowsPanelComponent implements OnDestroy {
     return this.resolvedDurationS || (this.track()?.duration ?? 0);
   }
 
-  private startEditorSessionForTrack(_trackId: number, durationS: number): void {
+  private startEditorSessionForTrack(_trackId: string, durationS: number): void {
     // The YT editor resolves audio from the track link client-side and renders a
     // timeline (no backend stream/waveform session).
     this.ytVideoId = parseYoutubeId(this.track()?.trackLink ?? null);

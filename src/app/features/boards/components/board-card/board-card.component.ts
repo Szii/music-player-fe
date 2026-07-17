@@ -95,7 +95,7 @@ export class BoardCardComponent implements OnInit {
   readonly board = input.required<Board>();
   readonly availableGroups = input<Group[]>([]);
   readonly status = input<'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR'>('STOPPED');
-  readonly selectedWindowId = input<number | null>(null);
+  readonly selectedWindowId = input<string | null>(null);
   readonly masterVolume = input(1);
   readonly masterFadeRampMs = input(0);
   readonly volumePercent = input<number>(100);
@@ -116,10 +116,10 @@ export class BoardCardComponent implements OnInit {
   );
 
   readonly delete = output<void>();
-  readonly groupChange = output<number | null>();
-  readonly trackChange = output<number | null>();
-  readonly windowChange = output<number | null>();
-  readonly trackWithWindowChange = output<{ trackId: number | null; windowId: number | null }>();
+  readonly groupChange = output<string | null>();
+  readonly trackChange = output<string | null>();
+  readonly windowChange = output<string | null>();
+  readonly trackWithWindowChange = output<{ trackId: string | null; windowId: string | null }>();
   readonly loopModeChange = output<LoopMode>();
   readonly toggleOverplay = output<void>();
   readonly play = output<void>();
@@ -754,8 +754,8 @@ export class BoardCardComponent implements OnInit {
 
 
 
-  private getPlaylistCandidates(groupId: number | null): Track[] {
-    const unique = new Map<number, Track>();
+  private getPlaylistCandidates(groupId: string | null): Track[] {
+    const unique = new Map<string, Track>();
 
     const tracks =
       groupId == null

@@ -77,7 +77,7 @@ export class GroupsStore {
     );
   }
 
-  update(groupId: number, request: GroupRequest): Observable<Group> {
+  update(groupId: string, request: GroupRequest): Observable<Group> {
     return this.api.updateGroup({ groupId, groupRequest: request }).pipe(
       tap(updated =>
         this.items.update(current => current.map(g => (g.id === groupId ? updated : g))),
@@ -85,7 +85,7 @@ export class GroupsStore {
     );
   }
 
-  remove(groupId: number): Observable<unknown> {
+  remove(groupId: string): Observable<unknown> {
     return this.api.deleteGroup({ groupId }).pipe(
       tap(() => this.items.update(current => current.filter(g => g.id !== groupId))),
     );

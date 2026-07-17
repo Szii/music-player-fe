@@ -18,9 +18,9 @@ import { SessionsStore } from '../../../core/services/sessions-store.service';
 interface LoadedProfileState {
   status: 'loaded';
   user: User;
-  trackNames: ReadonlyMap<number, string>;
-  sessionNames: ReadonlyMap<number, string>;
-  boardLimitsBySessionId: ReadonlyMap<number, UserBoardsLimits>;
+  trackNames: ReadonlyMap<string, string>;
+  sessionNames: ReadonlyMap<string, string>;
+  boardLimitsBySessionId: ReadonlyMap<string, UserBoardsLimits>;
 }
 
 type ProfileState =
@@ -49,17 +49,17 @@ export class ProfileStore {
     return s.status === 'loaded' ? s.user : null;
   });
 
-  readonly trackNames = computed<ReadonlyMap<number, string>>(() => {
+  readonly trackNames = computed<ReadonlyMap<string, string>>(() => {
     const s = this.state();
     return s.status === 'loaded' ? s.trackNames : new Map();
   });
 
-  readonly sessionNames = computed<ReadonlyMap<number, string>>(() => {
+  readonly sessionNames = computed<ReadonlyMap<string, string>>(() => {
     const s = this.state();
     return s.status === 'loaded' ? s.sessionNames : new Map();
   });
 
-  readonly boardLimitsBySessionId = computed<ReadonlyMap<number, UserBoardsLimits>>(() => {
+  readonly boardLimitsBySessionId = computed<ReadonlyMap<string, UserBoardsLimits>>(() => {
     const s = this.state();
     return s.status === 'loaded' ? s.boardLimitsBySessionId : new Map();
   });
@@ -128,24 +128,24 @@ export class ProfileStore {
     );
   }
 
-  boardLimitForSession(sessionId: number | null | undefined): UserBoardsLimits | null {
+  boardLimitForSession(sessionId: string | null | undefined): UserBoardsLimits | null {
     if (sessionId == null) return null;
     return this.boardLimitsBySessionId().get(sessionId) ?? null;
   }
 
-  isBoardLimitReached(sessionId: number | null | undefined): boolean {
+  isBoardLimitReached(sessionId: string | null | undefined): boolean {
     return this.boardLimitForSession(sessionId)?.boardLimitReached ?? false;
   }
 
-  actualBoardsForSession(sessionId: number | null | undefined): number {
+  actualBoardsForSession(sessionId: string | null | undefined): number {
     return this.boardLimitForSession(sessionId)?.actualBoards ?? 0;
   }
 
-  maxBoardsForSession(sessionId: number | null | undefined): number {
+  maxBoardsForSession(sessionId: string | null | undefined): number {
     return this.boardLimitForSession(sessionId)?.maxBoards ?? 0;
   }
 
-  sessionNameForSession(sessionId: number | null | undefined): string {
+  sessionNameForSession(sessionId: string | null | undefined): string {
     if (sessionId == null) return translate<string>('sessions.unknown');
     return (
       this.sessionNames().get(sessionId) ??
@@ -183,8 +183,8 @@ export class ProfileStore {
   }
 }
 
-function buildTrackNames(tracks: readonly Track[] | null | undefined): ReadonlyMap<number, string> {
-  const map = new Map<number, string>();
+function buildTrackNames(tracks: readonly Track[] | null | undefined): ReadonlyMap<string, string> {
+  const map = new Map<string, string>();
 
   for (const t of tracks ?? []) {
     if (t.id == null) continue;
@@ -196,8 +196,8 @@ function buildTrackNames(tracks: readonly Track[] | null | undefined): ReadonlyM
   return map;
 }
 
-function buildSessionNames(response: SessionsResponse | null | undefined): ReadonlyMap<number, string> {
-  const map = new Map<number, string>();
+function buildSessionNames(response: SessionsResponse | null | undefined): ReadonlyMap<string, string> {
+  const map = new Map<string, string>();
 
   for (const s of response?.sessions ?? []) {
     if (s.sessionId == null) continue;
@@ -209,8 +209,8 @@ function buildSessionNames(response: SessionsResponse | null | undefined): Reado
   return map;
 }
 
-function buildBoardLimitsBySessionId(user: User): ReadonlyMap<number, UserBoardsLimits> {
-  const map = new Map<number, UserBoardsLimits>();
+function buildBoardLimitsBySessionId(user: User): ReadonlyMap<string, UserBoardsLimits> {
+  const map = new Map<string, UserBoardsLimits>();
 
   for (const limit of user.limits?.boards ?? []) {
     if (limit.sessionId == null) continue;

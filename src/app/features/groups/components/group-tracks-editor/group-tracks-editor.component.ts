@@ -19,7 +19,7 @@ import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 
 export interface GroupTracksSaveEvent {
   group: Group;
-  trackIds: number[];
+  trackIds: string[];
 }
 
 type TrackFilterMode = 'all' | 'selected';
@@ -61,7 +61,7 @@ export class GroupTracksEditorComponent {
 
   readonly search = signal('');
   readonly filterMode = persistentSignal<TrackFilterMode>('mpf:groups:editor:filter', 'all');
-  readonly selectedIds = signal<ReadonlySet<number>>(new Set<number>());
+  readonly selectedIds = signal<ReadonlySet<string>>(new Set<string>());
 
   readonly filterOptions = [
     { label: this.t('common.all'), value: 'all' },
@@ -150,7 +150,7 @@ export class GroupTracksEditorComponent {
   }
 
   clearAll(): void {
-    this.selectedIds.set(new Set<number>());
+    this.selectedIds.set(new Set<string>());
   }
 
   onSave(): void {
@@ -160,7 +160,7 @@ export class GroupTracksEditorComponent {
     });
   }
 
-  trackById(index: number, track: Track): number {
+  trackById(index: number, track: Track): string | number {
     return track.id ?? index;
   }
 
@@ -186,7 +186,7 @@ export class GroupTracksEditorComponent {
   private resetSelectionFromGroup(group: Group | undefined): void {
     const ids = (group?.tracks ?? [])
       .map(track => track.id)
-      .filter((id): id is number => id != null);
+      .filter((id): id is string => id != null);
 
     this.selectedIds.set(new Set(ids));
     this.search.set('');

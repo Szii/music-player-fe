@@ -43,7 +43,7 @@ export class BoardPlayerYtDeckComponent {
 
   readonly title = input('');
   readonly hasTrack = input(false);
-  readonly trackId = input<number | null>(null);
+  readonly trackId = input<string | null>(null);
   readonly videoId = input<string | null>(null);
   readonly status = input<PlayerStatus>('STOPPED');
   readonly durationS = input<number | null>(null);
@@ -125,7 +125,7 @@ export class BoardPlayerYtDeckComponent {
   private crossfadeInProgress = false;
   private syncSeq = 0;
   private lastVideoId: string | null = null;
-  private lastTrackId: number | null = null;
+  private lastTrackId: string | null = null;
   private lastWindowStartS: number | null = null;
   private lastWindowEndS: number | null = null;
   private windowTracked = false;
