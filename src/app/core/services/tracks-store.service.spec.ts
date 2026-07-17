@@ -55,18 +55,18 @@ describe('TracksStore', () => {
   });
 
   it('merges own and subscribed tracks, dropping duplicates', () => {
-    api.own = [{ id: 1 }, { id: 2 }];
-    api.subscribed = [{ id: 2 }, { id: 3 }];
+    api.own = [{ id: '1' }, { id: '2' }];
+    api.subscribed = [{ id: '2' }, { id: '3' }];
 
     store.load().subscribe();
 
-    expect(store.tracks().map(t => t.id)).toEqual([1, 2, 3]);
+    expect(store.tracks().map(t => t.id)).toEqual(['1', '2', '3']);
   });
 
   // The whole point of the store: five pages asking for the library must not
   // produce five round trips.
   it('serves a second load from cache instead of re-fetching', () => {
-    api.own = [{ id: 1 }];
+    api.own = [{ id: '1' }];
 
     store.load().subscribe();
     store.load().subscribe();
@@ -86,22 +86,22 @@ describe('TracksStore', () => {
   // A fade-only updateTrack comes back without trackWindows. Replacing the track
   // wholesale would silently drop the windows from every board using it.
   it('keeps fields the mutation response omits', () => {
-    api.own = [{ id: 1, trackName: 'old', trackWindows: [{ id: 10 }] }];
+    api.own = [{ id: '1', trackName: 'old', trackWindows: [{ id: '10' }] }];
     store.load().subscribe();
 
-    api.updated = { id: 1, trackName: 'new' };
-    store.updateTrack(1, { trackName: 'new' }).subscribe();
+    api.updated = { id: '1', trackName: 'new' };
+    store.updateTrack('1', { trackName: 'new' }).subscribe();
 
-    const track = store.tracks().find(t => t.id === 1);
+    const track = store.tracks().find(t => t.id === '1');
 
     expect(track?.trackName).toBe('new');
-    expect(track?.trackWindows).toEqual([{ id: 10 }]);
+    expect(track?.trackWindows).toEqual([{ id: '10' }]);
     // Written through from the response — no re-fetch.
     expect(api.ownCalls).toBe(1);
   });
 
   it('drops everything on logout so the next user starts clean', () => {
-    api.own = [{ id: 1 }];
+    api.own = [{ id: '1' }];
     store.load().subscribe();
 
     session.logout$.next();

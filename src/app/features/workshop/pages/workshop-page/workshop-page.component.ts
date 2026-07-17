@@ -65,7 +65,7 @@ export class WorkshopPageComponent implements OnInit {
   private readonly router = inject(Router);
 
   readonly hasLoaded = signal(false);
-  readonly busyTrackId = signal<number | null>(null);
+  readonly busyTrackId = signal<string | null>(null);
   readonly myTracksOpen = signal(false);
 
   readonly myTracks = this.tracksStore.ownTracks;
@@ -262,11 +262,11 @@ export class WorkshopPageComponent implements OnInit {
   }
 }
 
-function idsOf(tracks: readonly Track[]): ReadonlySet<number> {
+function idsOf(tracks: readonly Track[]): ReadonlySet<string> {
   return new Set(
     tracks
       .map(track => track.id)
-      .filter((id): id is number => id != null),
+      .filter((id): id is string => id != null),
   );
 }
 

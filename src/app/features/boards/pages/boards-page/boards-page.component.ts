@@ -53,7 +53,7 @@ import { GroupsStore } from '../../../../core/services/groups-store.service';
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
 
 interface VolumeCommit {
-  boardId: number;
+  boardId: string;
   volumePercent: number;
 }
 
@@ -175,28 +175,28 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     container.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
   }
 
-  private readonly streamUrlsByBoard = new Map<number, string>();
-  private readonly boardStatuses = new Map<number, PlayerStatus>();
-  private readonly selectedWindowByBoard = new Map<number, number | null>();
+  private readonly streamUrlsByBoard = new Map<string, string>();
+  private readonly boardStatuses = new Map<string, PlayerStatus>();
+  private readonly selectedWindowByBoard = new Map<string, string | null>();
   /**
    * Local mirror of the backend-persisted sequence mode per board. It also keeps
    * optimistic UI state while an update request is in flight.
    */
-  private readonly sequentialWindowsByBoard = new Map<number, boolean>();
+  private readonly sequentialWindowsByBoard = new Map<string, boolean>();
   /**
    * Remembers the single-mode track/window selected when a board entered playlist
    * mode, so it can be restored when the board switches back to single instead of
    * being lost.
    */
-  private readonly preSingleSelectionByBoard = new Map<number, { trackId: number | null; windowId: number | null }>();
-  private readonly masterVolumesByBoard = new Map<number, number>();
-  private readonly masterFadeRampMsByBoard = new Map<number, number>();
-  private readonly playlistIndexByBoard = new Map<number, number>();
-  private readonly playlistOrderByBoard = new Map<number, number[]>();
-  private readonly persistedVolumesByBoard = new Map<number, number>();
-  private readonly pendingTrackUpdateBoardIds = new Set<number>();
-  private readonly playPendingAfterUpdateBoardIds = new Set<number>();
-  private readonly playlistAdvanceInFlightBoardIds = new Set<number>();
+  private readonly preSingleSelectionByBoard = new Map<string, { trackId: string | null; windowId: string | null }>();
+  private readonly masterVolumesByBoard = new Map<string, number>();
+  private readonly masterFadeRampMsByBoard = new Map<string, number>();
+  private readonly playlistIndexByBoard = new Map<string, number>();
+  private readonly playlistOrderByBoard = new Map<string, number[]>();
+  private readonly persistedVolumesByBoard = new Map<string, number>();
+  private readonly pendingTrackUpdateBoardIds = new Set<string>();
+  private readonly playPendingAfterUpdateBoardIds = new Set<string>();
+  private readonly playlistAdvanceInFlightBoardIds = new Set<string>();
 
   private readonly fadeStateVersion = signal(0);
   /** Bumped whenever the locally-selected window changes without a `boards()`
@@ -214,7 +214,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       const sessionIds = new Set(
         this.sessionsStore.sessions()
           .map(s => s.sessionId)
-          .filter((id): id is number => id != null),
+          .filter((id): id is string => id != null),
       );
       const current = this.boards();
       const surviving = current.filter(
@@ -246,7 +246,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       .subscribe(boardId => this.onShortcutTriggered(boardId));
   }
 
-  private onShortcutTriggered(boardId: number): void {
+  private onShortcutTriggered(boardId: string): void {
     const board = this.boards().find(item => item.id === boardId);
     if (!board) return;
 
@@ -551,7 +551,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
    * applies a track that is still available on the board; otherwise leaves the
    * board with no selection. The board is already stopped at this point.
    */
-  private restoreSingleSelection(boardId: number): void {
+  private restoreSingleSelection(boardId: string): void {
     const remembered = this.preSingleSelectionByBoard.get(boardId);
     this.preSingleSelectionByBoard.delete(boardId);
 
@@ -619,7 +619,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     this.advancePlaylist(board);
   }
 
-  onGroupSelectionChange(board: Board, selectedId: number | null): void {
+  onGroupSelectionChange(board: Board, selectedId: string | null): void {
     if (board.id == null) return;
 
     const boardId = board.id;
@@ -696,7 +696,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
   onTrackWithWindowChange(
     board: Board,
-    payload: { trackId: number | null; windowId: number | null },
+    payload: { trackId: string | null; windowId: string | null },
   ): void {
     if (board.id == null) return;
 
@@ -751,7 +751,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       });
   }
 
-  onTrackSelectionChange(board: Board, selectedId: number | null): void {
+  onTrackSelectionChange(board: Board, selectedId: string | null): void {
     if (board.id == null) return;
 
     const boardId = board.id;
@@ -817,7 +817,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       });
   }
 
-  onWindowSelectionChange(board: Board, windowId: number | null): void {
+  onWindowSelectionChange(board: Board, windowId: string | null): void {
     if (board.id == null) return;
 
     const boardId = board.id;
@@ -927,7 +927,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
    * after the fade.
    */
   private applyPlayCrossfade(
-    targetId: number,
+    targetId: string,
     wasActive: boolean,
     boardsToStop: Board[],
   ): void {
@@ -1094,7 +1094,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
    * Persist a downgrade out of sequence mode for a board that optimistically kept
    * it across a group change but landed on a track that can't be sequenced.
    */
-  private persistSequenceModeOff(boardId: number): void {
+  private persistSequenceModeOff(boardId: string): void {
     const fresh = this.boards().find(b => b.id === boardId);
     if (!fresh) return;
 
@@ -1130,11 +1130,11 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     return this.boardWindows(board).find(w => w.id === windowId) ?? null;
   }
 
-  private findBoard(id: number): Board | null {
+  private findBoard(id: string): Board | null {
     return this.boards().find(b => b.id === id) ?? null;
   }
 
-  private setSequenceWindow(boardId: number, window: TrackWindow): void {
+  private setSequenceWindow(boardId: string, window: TrackWindow): void {
     this.selectedWindowByBoard.set(boardId, window.id ?? null);
     // Force template getters bound to the selection to re-evaluate so the
     // player receives the new window and crossfades into it.
@@ -1236,7 +1236,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     target?.focusChevron();
   }
 
-  getSelectedWindowId(board: Board): number | null {
+  getSelectedWindowId(board: Board): string | null {
     // Read the version so this template getter re-evaluates when the selection
     // map mutates without a boards() update (sequence-mode advance).
     this.windowSelectionVersion();
@@ -1440,13 +1440,13 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     };
   }
 
-  private clearBoard(boardId: number): void {
+  private clearBoard(boardId: string): void {
     this.boardStatuses.set(boardId, 'STOPPED');
     this.streamUrlsByBoard.delete(boardId);
     this.syncPlayingState();
   }
 
-  private isBoardActive(boardId: number): boolean {
+  private isBoardActive(boardId: string): boolean {
     const status = this.boardStatuses.get(boardId);
     return status === 'PLAYING' || status === 'PAUSED';
   }
@@ -1518,7 +1518,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     }
   }
 
-  private updateBoardVolume(boardId: number, volumePercent: number): number {
+  private updateBoardVolume(boardId: string, volumePercent: number): number {
     const clamped = clampPct(volumePercent);
 
     this.boards.update(current =>
@@ -1530,7 +1530,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     return clamped;
   }
 
-  private removeBoardLocalState(boardId: number): void {
+  private removeBoardLocalState(boardId: string): void {
     this.boardStatuses.delete(boardId);
     this.streamUrlsByBoard.delete(boardId);
     this.selectedWindowByBoard.delete(boardId);
@@ -1598,7 +1598,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     return board.sequenceMode ?? undefined;
   }
 
-  private regeneratePlaylistOrder(boardId: number, tracks: Track[], shuffle: boolean): void {
+  private regeneratePlaylistOrder(boardId: string, tracks: Track[], shuffle: boolean): void {
     const indices = tracks.map((_, i) => i);
     if (shuffle) {
       for (let i = indices.length - 1; i > 0; i--) {
@@ -1678,7 +1678,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     return sessions.flatMap(session => this.stampSessionId(session.boards ?? [], session.sessionId));
   }
 
-  private stampSessionId(boards: Board[], sessionId: number | undefined): Board[] {
+  private stampSessionId(boards: Board[], sessionId: string | undefined): Board[] {
     if (sessionId == null) return boards;
     return boards.map(b => ({ ...b, sessionId }));
   }

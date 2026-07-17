@@ -92,9 +92,9 @@ export class GroupsPageComponent implements OnInit {
     return '';
   });
 
-  readonly updatingGroupId = signal<number | null>(null);
+  readonly updatingGroupId = signal<string | null>(null);
 
-  private readonly editingGroupId = signal<number | null>(null);
+  private readonly editingGroupId = signal<string | null>(null);
 
   /** Derived from the store so the open editor always shows the saved tracks. */
   readonly editingGroup = computed<Group | null>(() => {
@@ -241,7 +241,7 @@ export class GroupsPageComponent implements OnInit {
   }
 
   private saveGroup(
-    groupId: number,
+    groupId: string,
     request: GroupRequest,
     closeEditorOnSuccess: boolean,
   ): void {
@@ -272,10 +272,10 @@ export class GroupsPageComponent implements OnInit {
   }
 }
 
-function trackIdsOf(group: Group): number[] {
+function trackIdsOf(group: Group): string[] {
   return (group.tracks ?? [])
     .map(track => track.id)
-    .filter((id): id is number => id != null);
+    .filter((id): id is string => id != null);
 }
 
 function compareGroups(a: Group, b: Group, sortMode: GroupSortMode): number {

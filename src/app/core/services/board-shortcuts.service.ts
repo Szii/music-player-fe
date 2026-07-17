@@ -6,8 +6,8 @@ const MODIFIER_KEYS = new Set(['Control', 'Shift', 'Alt', 'Meta']);
 
 @Injectable({ providedIn: 'root' })
 export class BoardShortcutsService {
-  readonly shortcuts = signal<Record<number, string>>(this.load());
-  readonly trigger$ = new Subject<number>();
+  readonly shortcuts = signal<Record<string, string>>(this.load());
+  readonly trigger$ = new Subject<string>();
 
   private triggersEnabled = true;
 
@@ -15,15 +15,14 @@ export class BoardShortcutsService {
     document.addEventListener('keydown', this.handleKeyDown);
   }
 
-  getShortcut(boardId: number): string | null {
+  getShortcut(boardId: string): string | null {
     return this.shortcuts()[boardId] ?? null;
   }
 
-  setShortcut(boardId: number, shortcut: string): void {
-    const next: Record<number, string> = { ...this.shortcuts() };
+  setShortcut(boardId: string, shortcut: string): void {
+    const next: Record<string, string> = { ...this.shortcuts() };
 
-    for (const key of Object.keys(next)) {
-      const id = Number(key);
+    for (const id of Object.keys(next)) {
       if (id !== boardId && next[id] === shortcut) {
         delete next[id];
       }
@@ -34,7 +33,7 @@ export class BoardShortcutsService {
     this.persist(next);
   }
 
-  clearShortcut(boardId: number): void {
+  clearShortcut(boardId: string): void {
     if (this.shortcuts()[boardId] == null) return;
     const next = { ...this.shortcuts() };
     delete next[boardId];
@@ -78,7 +77,7 @@ export class BoardShortcutsService {
     for (const [key, value] of Object.entries(current)) {
       if (value === formatted) {
         matched = true;
-        this.trigger$.next(Number(key));
+        this.trigger$.next(key);
       }
     }
 
@@ -94,17 +93,19 @@ export class BoardShortcutsService {
     return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
   }
 
-  private load(): Record<number, string> {
+  private load(): Record<string, string> {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return {};
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
-        const result: Record<number, string> = {};
+        const result: Record<string, string> = {};
+        // Keys are board uuids. Any old numeric-keyed entries from a previous
+        // build reference boards that no longer exist under those ids; they load
+        // harmlessly and are simply never matched against a real board.
         for (const [key, value] of Object.entries(parsed)) {
-          const id = Number(key);
-          if (Number.isFinite(id) && typeof value === 'string' && value) {
-            result[id] = value;
+          if (typeof value === 'string' && value) {
+            result[key] = value;
           }
         }
         return result;
@@ -113,7 +114,7 @@ export class BoardShortcutsService {
     return {};
   }
 
-  private persist(value: Record<number, string>): void {
+  private persist(value: Record<string, string>): void {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
     } catch {}

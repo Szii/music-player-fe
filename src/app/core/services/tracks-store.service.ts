@@ -129,49 +129,49 @@ export class TracksStore {
     );
   }
 
-  updateTrack(trackId: number, body: UpdateTrackRequestV2): Observable<Track> {
+  updateTrack(trackId: string, body: UpdateTrackRequestV2): Observable<Track> {
     return this.api.updateTrack({ trackId, updateTrackRequestV2: body }).pipe(
       tap(track => this.upsert(trackId, track)),
     );
   }
 
-  deleteTrack(trackId: number): Observable<unknown> {
+  deleteTrack(trackId: string): Observable<unknown> {
     return this.api.deleteTrack({ trackId }).pipe(
       tap(() => this.removeById(trackId)),
     );
   }
 
-  createWindow(trackId: number, body: TrackWindowRequest): Observable<Track> {
+  createWindow(trackId: string, body: TrackWindowRequest): Observable<Track> {
     return this.api.createTrackWindow({ trackId, trackWindowRequest: body }).pipe(
       tap(track => this.upsert(trackId, track)),
     );
   }
 
-  updateWindow(trackId: number, windowId: number, body: TrackWindowRequest): Observable<Track> {
+  updateWindow(trackId: string, windowId: string, body: TrackWindowRequest): Observable<Track> {
     return this.api.updateTrackWindow({ trackId, windowId, trackWindowRequest: body }).pipe(
       tap(track => this.upsert(trackId, track)),
     );
   }
 
-  deleteWindow(trackId: number, windowId: number): Observable<Track> {
+  deleteWindow(trackId: string, windowId: string): Observable<Track> {
     return this.api.deleteTrackWindow({ trackId, windowId }).pipe(
       tap(track => this.upsert(trackId, track)),
     );
   }
 
-  reorderWindows(trackId: number, body: ReorderTrackWindowsRequest): Observable<Track> {
+  reorderWindows(trackId: string, body: ReorderTrackWindowsRequest): Observable<Track> {
     return this.api.reorderTrackWindows({ trackId, reorderTrackWindowsRequest: body }).pipe(
       tap(track => this.upsert(trackId, track)),
     );
   }
 
-  publish(trackId: number, description?: string): Observable<Track> {
+  publish(trackId: string, description?: string): Observable<Track> {
     return this.shareApi
       .publishTrack({ trackId, publishTrackRequest: { description } })
       .pipe(map(share => this.patchOwn(trackId, { trackShare: share })));
   }
 
-  unpublish(trackId: number): Observable<Track> {
+  unpublish(trackId: string): Observable<Track> {
     return this.shareApi
       .unpublishTrack({ trackId })
       .pipe(map(() => this.patchOwn(trackId, { trackShare: undefined })));
@@ -189,7 +189,7 @@ export class TracksStore {
     );
   }
 
-  unsubscribe(trackId: number): Observable<unknown> {
+  unsubscribe(trackId: string): Observable<unknown> {
     return this.shareApi.unsubscribeFromTrack({ trackId }).pipe(
       tap(() => this.subscribed.update(current => current.filter(t => t.id !== trackId))),
     );
@@ -200,7 +200,7 @@ export class TracksStore {
    * `trackWindows`, and overwriting the track wholesale would drop the windows
    * from the library. Responses that do carry a field still win.
    */
-  private upsert(trackId: number, track: Track): void {
+  private upsert(trackId: string, track: Track): void {
     const merge = (current: Track[]): Track[] =>
       current.map(t => (t.id === trackId ? { ...t, ...track } : t));
 
@@ -209,7 +209,7 @@ export class TracksStore {
   }
 
   /** Applies a partial change to an owned track and returns the merged result. */
-  private patchOwn(trackId: number, patch: Partial<Track>): Track {
+  private patchOwn(trackId: string, patch: Partial<Track>): Track {
     const existing = this.own().find(t => t.id === trackId);
     const merged: Track = { ...existing, ...patch, id: trackId };
 
@@ -218,7 +218,7 @@ export class TracksStore {
     return merged;
   }
 
-  private removeById(trackId: number): void {
+  private removeById(trackId: string): void {
     const without = (current: Track[]): Track[] => current.filter(t => t.id !== trackId);
 
     this.own.update(without);
@@ -238,7 +238,7 @@ export class TracksStore {
 }
 
 function dedupeById(tracks: readonly Track[]): Track[] {
-  const seen = new Set<number>();
+  const seen = new Set<string>();
 
   return tracks.filter(track => {
     if (track.id == null || seen.has(track.id)) return false;

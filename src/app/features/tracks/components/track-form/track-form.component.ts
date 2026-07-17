@@ -59,7 +59,7 @@ export class TrackFormComponent {
 
   private readonly fb = inject(FormBuilder);
 
-  readonly editingTrackId = input<number | null>(null);
+  readonly editingTrackId = input<string | null>(null);
   readonly editTrackName = input('');
   readonly editTrackLink = input('');
   /** Disallow changing the link (track has windows or is published). */
@@ -101,7 +101,7 @@ export class TrackFormComponent {
   });
 
   constructor() {
-    let previousEditingId: number | null | undefined = undefined;
+    let previousEditingId: string | null | undefined = undefined;
 
     effect(() => {
       const currentEditingId = this.editingTrackId();

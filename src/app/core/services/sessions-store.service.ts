@@ -19,7 +19,7 @@ export class SessionsStore {
   private readonly session = inject(SessionService);
 
   readonly sessions = signal<SessionResponse[]>([]);
-  readonly selectedSessionId = signal<number | null>(loadStoredId());
+  readonly selectedSessionId = signal<string | null>(loadStoredId());
   readonly loading = signal(false);
   readonly loaded = signal(false);
 
@@ -99,7 +99,7 @@ export class SessionsStore {
     return request$;
   }
 
-    refreshSession(sessionId: number): Observable<SessionResponse> {
+    refreshSession(sessionId: string): Observable<SessionResponse> {
       return this.api.getSessionById({ sessionId }).pipe(
         tap(session => this.upsertSessionLocal(session)),
       );
@@ -136,7 +136,7 @@ export class SessionsStore {
   }
 
   renameSession(
-    sessionId: number,
+    sessionId: string,
     name: string,
     description?: string,
   ): Observable<SessionsResponse> {
@@ -152,13 +152,13 @@ export class SessionsStore {
 
   }
 
-  deleteSession(sessionId: number): Observable<SessionsResponse> {
+  deleteSession(sessionId: string): Observable<SessionsResponse> {
     return this.api.deleteSession({ sessionId }).pipe(
       tap(response => this.applyResponse(response)),
     );
   }
 
-  selectSession(sessionId: number | null): void {
+  selectSession(sessionId: string | null): void {
     this.selectedSessionId.set(sessionId);
   }
 
@@ -198,12 +198,13 @@ export class SessionsStore {
   }
 }
 
-function loadStoredId(): number | null {
+function loadStoredId(): string | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = Number(raw);
-    return Number.isFinite(parsed) ? parsed : null;
+    // A returning user may still have an old numeric id cached here. It simply
+    // won't match any current uuid session, and applyResponse() falls back to
+    // the first session — so no explicit migration is needed.
+    return raw ? raw : null;
   } catch {
     return null;
   }

@@ -26,7 +26,7 @@ import {
 
 export interface CreateBoardEvent {
   name: string;
-  selectedTrackId: number | null;
+  selectedTrackId: string | null;
 }
 
 @Component({
@@ -77,7 +77,7 @@ export class CreateBoardFormComponent {
 
   readonly form = this.fb.group({
     name: this.fb.nonNullable.control('', [profanityValidator]),
-    selectedTrackId: this.fb.control<number | null>(null),
+    selectedTrackId: this.fb.control<string | null>(null),
   });
 
   private readonly nameValue = toSignal(this.form.controls.name.valueChanges, {

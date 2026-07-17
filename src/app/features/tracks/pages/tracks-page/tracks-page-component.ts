@@ -96,7 +96,7 @@ export class TracksPageComponent implements OnInit {
 
   readonly createSubmitting = signal(false);
 
-  readonly editingTrackId = signal<number | null>(null);
+  readonly editingTrackId = signal<string | null>(null);
   readonly editTrackName = signal('');
   readonly editTrackLink = signal('');
   /** The link can't be changed once a track has windows or is published. */
@@ -106,7 +106,7 @@ export class TracksPageComponent implements OnInit {
    * Held by id rather than by value, so the open panel always reflects whatever
    * the store currently holds — a saved window shows up without any extra sync.
    */
-  private readonly windowTrackId = signal<number | null>(null);
+  private readonly windowTrackId = signal<string | null>(null);
 
   readonly windowTrack = computed<Track | null>(() => {
     const id = this.windowTrackId();
@@ -129,7 +129,7 @@ export class TracksPageComponent implements OnInit {
     this.saveTrackViaYoutube(event, this.editingTrackId());
   }
 
-  private saveTrackViaYoutube(event: TrackFormEvent, editingId: number | null): void {
+  private saveTrackViaYoutube(event: TrackFormEvent, editingId: string | null): void {
     // Updating without changing the link: this is just a rename, so do not
     // re-read YouTube metadata and do not send unchanged metadata fields.
     if (editingId != null) {
@@ -198,7 +198,7 @@ export class TracksPageComponent implements OnInit {
       });
   }
 
-  private runUpdate(trackId: number, body: UpdateTrackRequestV2): void {
+  private runUpdate(trackId: string, body: UpdateTrackRequestV2): void {
     this.tracksStore.updateTrack(trackId, body)
       .pipe(
         finalize(() => this.createSubmitting.set(false)),
@@ -216,7 +216,7 @@ export class TracksPageComponent implements OnInit {
       });
   }
 
-  private findTrack(id: number): Track | undefined {
+  private findTrack(id: string): Track | undefined {
     return this.tracks().find((t) => t.id === id);
   }
 

@@ -43,8 +43,8 @@ export class UserLimitsCardComponent {
   });
 
   readonly limits = input<UserLimits | null>(null);
-  readonly trackNames = input<ReadonlyMap<number, string>>(new Map());
-  readonly sessionNames = input<ReadonlyMap<number, string>>(new Map());
+  readonly trackNames = input<ReadonlyMap<string, string>>(new Map());
+  readonly sessionNames = input<ReadonlyMap<string, string>>(new Map());
 
   private t(key: string, params?: Record<string, unknown>): string {
     this.activeLang();
@@ -112,7 +112,7 @@ export class UserLimitsCardComponent {
     return boards
       .filter(b => b.sessionId != null)
       .map(b => {
-        const sessionId = b.sessionId as number;
+        const sessionId = b.sessionId as string;
         const sessionName = names.get(sessionId);
 
         return {
@@ -132,7 +132,7 @@ export class UserLimitsCardComponent {
     return windows
       .filter(w => w.trackId != null)
       .map(w => {
-        const trackId = w.trackId as number;
+        const trackId = w.trackId as string;
 
         return {
           key: `id:${trackId}`,

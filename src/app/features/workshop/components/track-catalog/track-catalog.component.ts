@@ -63,8 +63,8 @@ export class TrackCatalogComponent {
   }
 
   readonly tracks = input<Track[]>([]);
-  readonly subscribedIds = input<ReadonlySet<number>>(new Set<number>());
-  readonly busyTrackId = input<number | null>(null);
+  readonly subscribedIds = input<ReadonlySet<string>>(new Set<string>());
+  readonly busyTrackId = input<string | null>(null);
 
   readonly subscribe = output<Track>();
   readonly unsubscribe = output<Track>();
@@ -171,7 +171,7 @@ export class TrackCatalogComponent {
     return this.t('workshop.subscriberCount', { count });
   }
 
-  trackById = (index: number, track: Track): number => track.id ?? index;
+  trackById = (index: number, track: Track): string | number => track.id ?? index;
 
   displayName(track: Track): string {
     return track.trackName || track.trackOriginalName || this.t('common.trackNum', { id: track.id });

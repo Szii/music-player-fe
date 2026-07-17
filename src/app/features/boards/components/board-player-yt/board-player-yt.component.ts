@@ -31,14 +31,14 @@ interface Slot {
   ready: boolean;
   creating: Promise<YT.Player | null> | null;
   loadedVideoId: string | null;
-  loadedTrackId: number | null;
+  loadedTrackId: string | null;
   /** Crossfade gain 0..1, multiplied by the master volume. */
   gain: number;
 }
 
 interface PendingTrack {
   readonly videoId: string;
-  readonly trackId: number | null;
+  readonly trackId: string | null;
   readonly crossfadeMs: number;
 }
 
@@ -78,7 +78,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
 
   readonly title = input('');
   readonly hasTrack = input(false);
-  readonly trackId = input<number | null>(null);
+  readonly trackId = input<string | null>(null);
   readonly videoId = input<string | null>(null);
   readonly status = input<PlayerStatus>('STOPPED');
   readonly durationS = input<number | null>(null);
@@ -328,7 +328,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
   private sync(
     status: PlayerStatus,
     videoId: string | null,
-    trackId: number | null,
+    trackId: string | null,
   ): void {
     if (!videoId) {
       this.stopAndReset();
@@ -398,7 +398,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
 
   private async startInitial(
     videoId: string,
-    trackId: number | null,
+    trackId: string | null,
   ): Promise<void> {
     const active = this.active();
     const player = await this.ensureSlotPlayer(active);
@@ -433,7 +433,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
    */
   private async crossfadeInto(
     videoId: string,
-    trackId: number | null,
+    trackId: string | null,
     startS: number,
     crossfadeMs: number,
     pinDisplayToStart = false,
@@ -588,7 +588,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
   private slotMatches(
     slot: Slot,
     videoId: string | null,
-    trackId: number | null,
+    trackId: string | null,
   ): boolean {
     return slot.loadedVideoId === videoId && slot.loadedTrackId === trackId;
   }
