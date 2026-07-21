@@ -82,11 +82,18 @@
         </td>
 
         <td class="col-actions">
-          <ui-action-menu
-            [items]="menuItems(track)"
-            [triggerLabel]="'common.actionsFor' | transloco: { name: displayName(track) }"
-            (select)="onMenuSelect(track, $event)"
-          />
+          <div class="track-catalog__actions">
+            <app-preview-button
+              [link]="track.trackLink ?? null"
+              [startS]="previewStartS(track)"
+              [previewKey]="'cat:' + track.id"
+            />
+            <ui-action-menu
+              [items]="menuItems(track)"
+              [triggerLabel]="'common.actionsFor' | transloco: { name: displayName(track) }"
+              (select)="onMenuSelect(track, $event)"
+            />
+          </div>
         </td>
       </tr>
     </ng-template>
@@ -133,6 +140,13 @@
                   subscriberCount(track)
                 }}</span>
               </span>
+
+              <app-preview-button
+                class="track-catalog__preview"
+                [link]="track.trackLink ?? null"
+                [startS]="previewStartS(track)"
+                [previewKey]="'catm:' + track.id"
+              />
 
               <ui-action-menu
                 class="track-catalog__menu"

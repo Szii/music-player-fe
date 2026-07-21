@@ -55,7 +55,9 @@
     "off": "Vypnuto",
     "done": "Hotovo",
     "all": "Vše",
-    "back": "Zpět"
+    "back": "Zpět",
+    "preview": "Přehrát ukázku",
+    "previewStop": "Zastavit ukázku"
   },
   "errors": {
     "generic": "Něco se pokazilo. Zkuste to prosím znovu.",

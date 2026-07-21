@@ -21,6 +21,8 @@ import {
   ActionMenuItem,
   UiActionMenuComponent,
 } from '../../../../shared/ui/action-menu/ui-action-menu.component';
+import { PreviewButtonComponent } from '../../../../shared/ui/preview-button/preview-button.component';
+import { previewMidpointS } from '../../../../shared/utils/preview';
 import { persistentSignal } from '../../../../shared/utils/persistent-signal';
 
 type CatalogFilterMode = 'all' | 'available' | 'subscribed';
@@ -44,6 +46,7 @@ type TrackCatalogSortMode =
     UiListToolbarComponent,
     UiChipComponent,
     UiActionMenuComponent,
+    PreviewButtonComponent,
     TranslocoPipe,
   ],
   templateUrl: './track-catalog.component.html',
@@ -97,7 +100,7 @@ export class TrackCatalogComponent {
     { label: this.t('workshop.subscribers'), className: 'col-subscribers', width: '110px' },
     { label: this.t('workshop.description'), className: 'col-desc' },
     { label: this.t('tracks.col.status'), className: 'col-status', width: '140px' },
-    { label: '', className: 'col-actions', width: '72px' },
+    { label: '', className: 'col-actions', width: '104px' },
   ];
 
   setFilterMode(value: unknown): void {
@@ -175,6 +178,11 @@ export class TrackCatalogComponent {
 
   displayName(track: Track): string {
     return track.trackName || track.trackOriginalName || this.t('common.trackNum', { id: track.id });
+  }
+
+  /** Preview from the middle of the track. */
+  previewStartS(track: Track): number {
+    return previewMidpointS(track.duration);
   }
 
   formatDuration(seconds?: number): string {

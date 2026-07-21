@@ -27,6 +27,8 @@ import {
   ActionMenuItem,
   UiActionMenuComponent,
 } from '../../../../shared/ui/action-menu/ui-action-menu.component';
+import { PreviewButtonComponent } from '../../../../shared/ui/preview-button/preview-button.component';
+import { previewMidpointS } from '../../../../shared/utils/preview';
 import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 import {
   profanityErrorMessage,
@@ -53,6 +55,7 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
     UiDataTableComponent,
     UiCharCounterComponent,
     UiActionMenuComponent,
+    PreviewButtonComponent,
     TranslocoPipe,
   ],
   templateUrl: './my-tracks.component.html',
@@ -93,7 +96,7 @@ export class MyTracksComponent {
     { label: this.t('tracks.col.duration'), className: 'col-duration', width: '100px' },
     { label: this.t('workshop.subscribers'), className: 'col-subscribers', width: '120px' },
     { label: this.t('tracks.col.status'), className: 'col-status', width: '150px' },
-    { label: '', className: 'col-actions', width: '72px' },
+    { label: '', className: 'col-actions', width: '104px' },
   ];
 
   readonly descriptionMaxLength = FIELD_LIMITS.trackShare.description;
@@ -214,6 +217,11 @@ export class MyTracksComponent {
 
   displayName(track: Track): string {
     return track.trackName || track.trackOriginalName || this.t('common.trackNum', { id: track.id });
+  }
+
+  /** Preview from the middle of the track. */
+  previewStartS(track: Track): number {
+    return previewMidpointS(track.duration);
   }
 
   formatDuration(seconds?: number): string {

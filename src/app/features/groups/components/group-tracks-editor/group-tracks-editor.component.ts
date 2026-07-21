@@ -28,7 +28,9 @@ import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-butto
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
 import { UiListToolbarComponent } from '../../../../shared/ui/list-toolbar/ui-list-toolbar.component';
+import { PreviewButtonComponent } from '../../../../shared/ui/preview-button/preview-button.component';
 import { persistentSignal } from '../../../../shared/utils/persistent-signal';
+import { previewMidpointS as midpointS } from '../../../../shared/utils/preview';
 
 export interface GroupTracksSaveEvent {
   group: Group;
@@ -62,6 +64,7 @@ function itemKey(trackId: string, windowId: string | null): string {
     UiChipComponent,
     UiDialogShellComponent,
     UiListToolbarComponent,
+    PreviewButtonComponent,
     CdkDropList,
     CdkDrag,
     CdkDragHandle,
@@ -268,6 +271,30 @@ export class GroupTracksEditorComponent {
     if (!this.isWindow(item)) return '';
     const track = this.sourceTrack(item.trackId);
     return track ? this.displayName(track) : item.trackId;
+  }
+
+  /** Track link to preview for an item (its underlying track). */
+  previewLink(item: EditorItem): string | null {
+    return this.sourceTrack(item.trackId)?.trackLink ?? null;
+  }
+
+  /** Preview from the middle so the snippet lands in the meat of the track/window,
+      not a quiet intro. A window item previews the middle of its own range. */
+  previewStartS(item: EditorItem): number {
+    const track = this.sourceTrack(item.trackId);
+    if (item.windowId) {
+      const win = track?.trackWindows?.find(w => w.id === item.windowId);
+      if (win?.positionFrom != null && win.positionTo != null) {
+        return Math.floor((win.positionFrom + win.positionTo) / 2);
+      }
+      return win?.positionFrom ?? 0;
+    }
+    return midpointS(track?.duration);
+  }
+
+  /** Middle of a whole track, for the select-view preview. */
+  trackMidS(track: Track): number {
+    return midpointS(track.duration);
   }
 
   itemNamePlaceholder(item: EditorItem): string {

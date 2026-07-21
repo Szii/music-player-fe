@@ -75,11 +75,18 @@
             </td>
 
             <td class="col-actions">
-              <ui-action-menu
-                [items]="menuItems(track)"
-                [triggerLabel]="'common.actionsFor' | transloco: { name: displayName(track) }"
-                (select)="onMenuSelect(track, $event)"
-              />
+              <div class="col-actions__wrap">
+                <app-preview-button
+                  [link]="track.trackLink ?? null"
+                  [startS]="previewStartS(track)"
+                  [previewKey]="'trk:' + track.id"
+                />
+                <ui-action-menu
+                  [items]="menuItems(track)"
+                  [triggerLabel]="'common.actionsFor' | transloco: { name: displayName(track) }"
+                  (select)="onMenuSelect(track, $event)"
+                />
+              </div>
             </td>
           </tr>
         </ng-template>
@@ -117,6 +124,13 @@
               <span>{{ formatDuration(track.duration) }}</span>
               <!-- "Open" is intentionally omitted here: it's already in the
                    kebab menu (menuItems adds "Open source ↗"). -->
+
+              <app-preview-button
+                class="track-item__preview"
+                [link]="track.trackLink ?? null"
+                [startS]="previewStartS(track)"
+                [previewKey]="'trkm:' + track.id"
+              />
 
               <ui-action-menu
                 class="track-item__menu"

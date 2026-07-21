@@ -54,40 +54,49 @@
         <div class="editor__list app-table-desktop-only" role="list">
           @for (track of filteredTracks(); track trackById($index, track)) {
             <div class="editor-row" role="listitem" [class.editor-row--checked]="isWholeSelected(track)">
-              <label class="editor-row__select">
-                <span class="editor-row__check">
-                  <input
-                    class="editor-row__check-input"
-                    type="checkbox"
-                    [checked]="isWholeSelected(track)"
-                    [disabled]="saving() || track.id == null"
-                    (change)="toggleWhole(track, $any($event.target).checked)"
-                  />
-                </span>
-
-                <span class="editor-row__main">
-                  <span class="editor-row__title" [title]="displayName(track)">
-                    {{ displayName(track) }}
+              <div class="editor-row__top">
+                <label class="editor-row__select">
+                  <span class="editor-row__check">
+                    <input
+                      class="editor-row__check-input"
+                      type="checkbox"
+                      [checked]="isWholeSelected(track)"
+                      [disabled]="saving() || track.id == null"
+                      (change)="toggleWhole(track, $any($event.target).checked)"
+                    />
                   </span>
 
-                  <span class="editor-row__sub">
-                    @if (track.trackOriginalName && track.trackOriginalName !== displayName(track)) {
-                      <span [title]="track.trackOriginalName">
-                        {{ 'tracks.original' | transloco }}: {{ track.trackOriginalName }}
-                      </span>
-                    }
+                  <span class="editor-row__main">
+                    <span class="editor-row__title" [title]="displayName(track)">
+                      {{ displayName(track) }}
+                    </span>
 
-                    @if (track.owner?.name) {
-                      <span [title]="track.owner?.name">
-                        {{ track.trackOriginalName && track.trackOriginalName !== displayName(track) ? ' · ' : '' }}
-                        {{ 'tracks.owner' | transloco }}: {{ track.owner?.name }}
-                      </span>
-                    }
+                    <span class="editor-row__sub">
+                      @if (track.trackOriginalName && track.trackOriginalName !== displayName(track)) {
+                        <span [title]="track.trackOriginalName">
+                          {{ 'tracks.original' | transloco }}: {{ track.trackOriginalName }}
+                        </span>
+                      }
+
+                      @if (track.owner?.name) {
+                        <span [title]="track.owner?.name">
+                          {{ track.trackOriginalName && track.trackOriginalName !== displayName(track) ? ' · ' : '' }}
+                          {{ 'tracks.owner' | transloco }}: {{ track.owner?.name }}
+                        </span>
+                      }
+                    </span>
                   </span>
-                </span>
 
-                <span class="editor-row__meta">{{ formatDuration(track.duration) }}</span>
-              </label>
+                  <span class="editor-row__meta">{{ formatDuration(track.duration) }}</span>
+                </label>
+
+                <app-preview-button
+                  class="editor-row__preview"
+                  [link]="track.trackLink ?? null"
+                  [startS]="trackMidS(track)"
+                  [previewKey]="'sel:' + track.id"
+                />
+              </div>
 
               @if (windowsOf(track).length > 0) {
                 <div class="editor-row__windows">
@@ -118,25 +127,34 @@
               class="app-entity-list__item editor-mobile-row"
               [class.editor-mobile-row--checked]="isWholeSelected(track)"
             >
-              <label class="editor-mobile-row__label">
-                <div class="app-entity-list__head editor-mobile-row__head">
-                  <span class="editor-mobile-row__title-wrap">
-                    <input
-                      class="editor-row__check-input"
-                      type="checkbox"
-                      [checked]="isWholeSelected(track)"
-                      [disabled]="saving() || track.id == null"
-                      (change)="toggleWhole(track, $any($event.target).checked)"
-                    />
+              <div class="editor-mobile-row__top">
+                <label class="editor-mobile-row__label">
+                  <div class="app-entity-list__head editor-mobile-row__head">
+                    <span class="editor-mobile-row__title-wrap">
+                      <input
+                        class="editor-row__check-input"
+                        type="checkbox"
+                        [checked]="isWholeSelected(track)"
+                        [disabled]="saving() || track.id == null"
+                        (change)="toggleWhole(track, $any($event.target).checked)"
+                      />
 
-                    <span class="app-entity-list__title editor-mobile-row__title" [title]="displayName(track)">
-                      {{ displayName(track) }}
+                      <span class="app-entity-list__title editor-mobile-row__title" [title]="displayName(track)">
+                        {{ displayName(track) }}
+                      </span>
                     </span>
-                  </span>
 
-                  <span class="editor-mobile-row__meta-val">{{ formatDuration(track.duration) }}</span>
-                </div>
-              </label>
+                    <span class="editor-mobile-row__meta-val">{{ formatDuration(track.duration) }}</span>
+                  </div>
+                </label>
+
+                <app-preview-button
+                  class="editor-mobile-row__preview"
+                  [link]="track.trackLink ?? null"
+                  [startS]="trackMidS(track)"
+                  [previewKey]="'selm:' + track.id"
+                />
+              </div>
 
               @if (windowsOf(track).length > 0) {
                 <div class="editor-row__windows">
@@ -228,6 +246,13 @@
                     }
                   </div>
                 </div>
+
+                <app-preview-button
+                  class="group-item__preview"
+                  [link]="previewLink(item)"
+                  [startS]="previewStartS(item)"
+                  [previewKey]="'arr:' + item.key"
+                />
 
                 <app-icon-button
                   icon="delete"
