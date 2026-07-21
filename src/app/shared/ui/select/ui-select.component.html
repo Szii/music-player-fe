@@ -100,6 +100,9 @@
                   <img class="sel__icon" [src]="icon" alt="" aria-hidden="true" />
                 }
                 <span class="sel__option-text">{{ opt.label }}</span>
+                @if (opt.tag; as tag) {
+                  <span class="sel__option-tag">{{ tag }}</span>
+                }
               </span>
 
               @if ((opt.subOptions?.length ?? 0) > 0) {

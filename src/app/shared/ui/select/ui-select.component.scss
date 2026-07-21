@@ -177,6 +177,22 @@
   white-space: nowrap;
 }
 
+/* Subtle marker after an option label (e.g. distinguishing a window from a
+   whole track). Muted so it reads as metadata, not a second label. */
+.sel__option-tag {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border: 1px solid var(--app-border-color-soft);
+  border-radius: 999px;
+  background: var(--app-primary-soft);
+  color: var(--app-primary);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  line-height: 1.4;
+}
+
 .sel__option-wrap {
   position: relative;
 }

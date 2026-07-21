@@ -461,6 +461,12 @@
     "selectFiltered": "Vybrat filtrované",
     "clearAll": "Zrušit výběr",
     "saveTracks": "Uložit skladby",
+    "noItems": "Zatím nevybrány žádné položky.",
+    "removeItem": "Odebrat položku",
+    "wholeTrack": "Celá skladba",
+    "windowChip": "Okno",
+    "itemName": "Název položky v této skupině",
+    "reorderHandle": "Změnit pořadí: {{name}} (přetáhněte nebo použijte šipky)",
     "searchTracksPlaceholder": "Hledat podle názvu, původního názvu nebo vlastníka",
     "noMatchingTracks": "Žádné odpovídající skladby.",
     "noTracksTitle": "Zatím nejsou dostupné žádné skladby",
@@ -481,7 +487,11 @@
     "filter": {
       "all": "Všechny skupiny",
       "empty": "Prázdné"
-    }
+    },
+    "windowsLabel": "Okna:",
+    "arrange": "Přejmenovat a seřadit",
+    "backToSelection": "Zpět na výběr",
+    "arrangeHint": "Přejmenujte položky pro tuto skupinu a přetažením změňte pořadí."
   },
   "workshop": {
     "title": "Sdílení",

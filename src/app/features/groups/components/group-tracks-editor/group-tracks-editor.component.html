@@ -22,7 +22,7 @@
           </normal-button>
         </div>
       </div>
-    } @else {
+    } @else if (mode() === 'select') {
       <ui-list-toolbar
         [(search)]="search"
         [searchPlaceholder]="'groups.searchTracksPlaceholder' | transloco"
@@ -53,46 +53,61 @@
         <!-- Desktop: scrollable checkbox list (hidden < md) -->
         <div class="editor__list app-table-desktop-only" role="list">
           @for (track of filteredTracks(); track trackById($index, track)) {
-            <label
-              class="editor-row"
-              role="listitem"
-              [class.editor-row--checked]="isSelected(track)"
-            >
-              <div class="editor-row__check">
-                <input
-                  class="editor-row__check-input"
-                  type="checkbox"
-                  [checked]="isSelected(track)"
-                  [disabled]="saving() || track.id == null"
-                  (change)="toggleTrack(track, $any($event.target).checked)"
-                />
-              </div>
+            <div class="editor-row" role="listitem" [class.editor-row--checked]="isWholeSelected(track)">
+              <label class="editor-row__select">
+                <span class="editor-row__check">
+                  <input
+                    class="editor-row__check-input"
+                    type="checkbox"
+                    [checked]="isWholeSelected(track)"
+                    [disabled]="saving() || track.id == null"
+                    (change)="toggleWhole(track, $any($event.target).checked)"
+                  />
+                </span>
 
-              <div class="editor-row__main">
-                <div class="editor-row__title" [title]="displayName(track)">
-                  {{ displayName(track) }}
-                </div>
+                <span class="editor-row__main">
+                  <span class="editor-row__title" [title]="displayName(track)">
+                    {{ displayName(track) }}
+                  </span>
 
-                <div class="editor-row__sub">
-                  @if (track.trackOriginalName && track.trackOriginalName !== displayName(track)) {
-                    <span [title]="track.trackOriginalName">
-                      {{ 'tracks.original' | transloco }}: {{ track.trackOriginalName }}
-                    </span>
+                  <span class="editor-row__sub">
+                    @if (track.trackOriginalName && track.trackOriginalName !== displayName(track)) {
+                      <span [title]="track.trackOriginalName">
+                        {{ 'tracks.original' | transloco }}: {{ track.trackOriginalName }}
+                      </span>
+                    }
+
+                    @if (track.owner?.name) {
+                      <span [title]="track.owner?.name">
+                        {{ track.trackOriginalName && track.trackOriginalName !== displayName(track) ? ' · ' : '' }}
+                        {{ 'tracks.owner' | transloco }}: {{ track.owner?.name }}
+                      </span>
+                    }
+                  </span>
+                </span>
+
+                <span class="editor-row__meta">{{ formatDuration(track.duration) }}</span>
+              </label>
+
+              @if (windowsOf(track).length > 0) {
+                <div class="editor-row__windows">
+                  <span class="editor-row__windows-label">{{ 'groups.windowsLabel' | transloco }}</span>
+                  @for (win of windowsOf(track); track windowById($index, win)) {
+                    <button
+                      type="button"
+                      class="win-chip"
+                      [class.win-chip--on]="isWindowSelected(track, win)"
+                      [disabled]="saving()"
+                      [attr.aria-pressed]="isWindowSelected(track, win)"
+                      (click)="toggleWindow(track, win, !isWindowSelected(track, win))"
+                    >
+                      <span class="win-chip__mark" aria-hidden="true">{{ isWindowSelected(track, win) ? '✓' : '+' }}</span>
+                      {{ win.name || ('windows.untitled' | transloco) }}
+                    </button>
                   }
-
-                  @if (track.owner?.name) {
-                    <span [title]="track.owner?.name">
-                      {{ track.trackOriginalName && track.trackOriginalName !== displayName(track) ? ' · ' : '' }}
-                      {{ 'tracks.owner' | transloco }}: {{ track.owner?.name }}
-                    </span>
-                  }
                 </div>
-              </div>
-
-              <div class="editor-row__meta">
-                {{ formatDuration(track.duration) }}
-              </div>
-            </label>
+              }
+            </div>
           }
         </div>
 
@@ -101,7 +116,7 @@
           @for (track of filteredTracks(); track trackById($index, track)) {
             <li
               class="app-entity-list__item editor-mobile-row"
-              [class.editor-mobile-row--checked]="isSelected(track)"
+              [class.editor-mobile-row--checked]="isWholeSelected(track)"
             >
               <label class="editor-mobile-row__label">
                 <div class="app-entity-list__head editor-mobile-row__head">
@@ -109,9 +124,9 @@
                     <input
                       class="editor-row__check-input"
                       type="checkbox"
-                      [checked]="isSelected(track)"
+                      [checked]="isWholeSelected(track)"
                       [disabled]="saving() || track.id == null"
-                      (change)="toggleTrack(track, $any($event.target).checked)"
+                      (change)="toggleWhole(track, $any($event.target).checked)"
                     />
 
                     <span class="app-entity-list__title editor-mobile-row__title" [title]="displayName(track)">
@@ -119,35 +134,114 @@
                     </span>
                   </span>
 
-                  <ui-chip
-                    [variant]="isSelected(track) ? 'success' : 'gold'"
-                    size="sm"
-                    shape="hex"
-                    [dot]="true"
-                  >
-                    {{ (isSelected(track) ? 'groups.selected' : 'groups.available') | transloco }}
-                  </ui-chip>
-                </div>
-
-                @if (track.trackOriginalName && track.trackOriginalName !== displayName(track)) {
-                  <span class="app-entity-list__subtitle editor-mobile-row__subtitle" [title]="track.trackOriginalName">
-                    {{ 'tracks.original' | transloco }}: {{ track.trackOriginalName }}
-                  </span>
-                }
-
-                <div class="app-entity-list__meta editor-mobile-row__meta">
-                  @if (track.owner?.name) {
-                    <span [title]="track.owner?.name">{{ track.owner?.name }}</span>
-                    <span class="app-entity-list__sep" aria-hidden="true">·</span>
-                  }
-
-                  <span>{{ formatDuration(track.duration) }}</span>
+                  <span class="editor-mobile-row__meta-val">{{ formatDuration(track.duration) }}</span>
                 </div>
               </label>
+
+              @if (windowsOf(track).length > 0) {
+                <div class="editor-row__windows">
+                  <span class="editor-row__windows-label">{{ 'groups.windowsLabel' | transloco }}</span>
+                  @for (win of windowsOf(track); track windowById($index, win)) {
+                    <button
+                      type="button"
+                      class="win-chip"
+                      [class.win-chip--on]="isWindowSelected(track, win)"
+                      [disabled]="saving()"
+                      [attr.aria-pressed]="isWindowSelected(track, win)"
+                      (click)="toggleWindow(track, win, !isWindowSelected(track, win))"
+                    >
+                      <span class="win-chip__mark" aria-hidden="true">{{ isWindowSelected(track, win) ? '✓' : '+' }}</span>
+                      {{ win.name || ('windows.untitled' | transloco) }}
+                    </button>
+                  }
+                </div>
+              }
             </li>
           }
         </ul>
       }
+
+      <div class="editor__arrange-bar">
+        <button
+          type="button"
+          class="editor__arrange-btn"
+          [disabled]="items().length === 0"
+          (click)="openArrange()"
+        >
+          {{ 'groups.arrange' | transloco }}
+          <span class="editor__arrange-count">{{ selectedCount() }}</span>
+          <span aria-hidden="true">→</span>
+        </button>
+      </div>
+    } @else {
+      <!-- Arrange: rename + reorder the selected items -->
+      <div class="arrange">
+        <button type="button" class="arrange__back" (click)="backToSelect()">
+          <span aria-hidden="true">←</span> {{ 'groups.backToSelection' | transloco }}
+        </button>
+        <p class="arrange__hint">{{ 'groups.arrangeHint' | transloco }}</p>
+
+        @if (items().length === 0) {
+          <p class="editor__empty">{{ 'groups.noItems' | transloco }}</p>
+        } @else {
+          <ul
+            class="arrange__list group-items"
+            role="list"
+            cdkDropList
+            (cdkDropListDropped)="drop($event)"
+          >
+            @for (item of items(); track itemById($index, item); let i = $index) {
+              <li class="group-item" [class.group-item--window]="isWindow(item)" cdkDrag>
+                <button
+                  type="button"
+                  class="group-item__handle"
+                  cdkDragHandle
+                  [disabled]="saving()"
+                  [attr.aria-label]="'groups.reorderHandle' | transloco: { name: item.name || itemNamePlaceholder(item) }"
+                  (keydown)="onHandleKeydown(item, $event)"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" />
+                    <circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" />
+                    <circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" />
+                  </svg>
+                  <span class="group-item__pos">{{ i + 1 }}</span>
+                </button>
+
+                <div class="group-item__body">
+                  <input
+                    class="group-item__name"
+                    type="text"
+                    [value]="item.name"
+                    [disabled]="saving()"
+                    [placeholder]="itemNamePlaceholder(item)"
+                    [attr.aria-label]="'groups.itemName' | transloco"
+                    maxlength="255"
+                    (input)="renameItem(item.key, $any($event.target).value)"
+                  />
+                  <div class="group-item__meta">
+                    <ui-chip [variant]="isWindow(item) ? 'crimson' : 'neutral'" size="sm" shape="hex">
+                      {{ typeLabel(item) }}
+                    </ui-chip>
+                    @if (parentName(item)) {
+                      <span class="group-item__parent" [title]="parentName(item)">{{ parentName(item) }}</span>
+                    }
+                  </div>
+                </div>
+
+                <app-icon-button
+                  icon="delete"
+                  variant="ghost"
+                  size="sm"
+                  [disabled]="saving()"
+                  [label]="'groups.removeItem' | transloco"
+                  (clicked)="removeItem(item.key)"
+                />
+              </li>
+            }
+          </ul>
+        }
+      </div>
     }
   </div>
 

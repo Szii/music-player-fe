@@ -241,11 +241,13 @@ export class BoardCardComponent implements OnInit {
 
 
   readonly displayedTrack = computed(() => {
-    const board = this.board();
-    const selected = board.selectedTrack;
+    const selected = this.board().selectedTrack;
     if (!selected) return null;
-    const tracks = board.availableTracks ?? [];
-    return tracks.some(t => t.id === selected.id) ? selected : null;
+    // Match against the current selectable set (group items when a group is
+    // selected) so a window item's track still resolves as the shown selection.
+    return this.orderedAvailableTracks().some(t => t.id === selected.id)
+      ? selected
+      : null;
   });
 
   readonly groupDesynced = computed(() => {
@@ -309,8 +311,16 @@ export class BoardCardComponent implements OnInit {
     return this.board().repeat ?? false;
   });
 
+  /** The board's selection is a group window item (a specific window chosen from
+      the track dropdown), not a whole track. */
+  readonly selectedIsWindowItem = computed(() =>
+    (this.selectedItemKey() ?? '').includes('::'),
+  );
+
+  // A window item already is a specific window, so the separate window dropdown
+  // would be a redundant duplicate — only offer it for a whole-track selection.
   readonly showWindowSelector = computed(() =>
-    !this.playlistMode() && this.windows().length > 0,
+    !this.playlistMode() && !this.selectedIsWindowItem() && this.windows().length > 0,
   );
 
   /** Playlist mode needs at least one playable track in the selected group. */
@@ -488,16 +498,48 @@ export class BoardCardComponent implements OnInit {
     })),
   );
 
+  /**
+   * The board's selectable items in playback (position) order.
+   *
+   * When a group is selected these are the group's items — including window items,
+   * which are track entries with `isWindow` set and a non-null `windowId` and
+   * behave like standalone tracks. The "within a group" fields (isWindow, windowId,
+   * positionWithinGroup, per-group name) only exist on the group's `tracks`, not on
+   * the board's flat `availableTracks`, so the group is the authoritative source.
+   * Sorted by position because the backend returns them alphabetically.
+   */
+  readonly orderedAvailableTracks = computed(() => {
+    const board = this.board();
+    const groupId = board.selectedGroup?.id ?? null;
+
+    if (groupId == null) {
+      return [...(board.availableTracks ?? [])].sort(byGroupPosition);
+    }
+
+    // Prefer the group from the groups store: it comes from the /groups endpoint,
+    // which returns items in position order with positionWithinGroup populated. The
+    // board/session response's selectedGroup.tracks is only a fallback — it can
+    // arrive alphabetical and without positions.
+    const source =
+      this.availableGroups().find(g => g.id === groupId)?.tracks
+      ?? board.selectedGroup?.tracks
+      ?? [];
+
+    return [...source].sort(byGroupPosition);
+  });
+
   readonly trackOptions = computed(() => {
     // In sequence mode only tracks with at least two windows can be sequenced;
     // the rest are shown but disabled so the active sequence isn't dropped.
     const sequencing = this.sequentialWindows();
 
-    return (this.board().availableTracks ?? []).map(t => {
+    return this.orderedAvailableTracks().map(t => {
+      const windowItem = isWindowItem(t);
       const trackWindows = t.trackWindows ?? [];
+      // A window item is already one specific window, so it gets no sub-options.
       // Sequence mode plays the windows automatically, so picking an individual
       // window from the track dropdown makes no sense — hide the sub-options there.
-      const subOptions = !sequencing && trackWindows.length > 0
+      const subOptions = !sequencing && !windowItem && trackWindows.length > 0
         ? [
             {
               label: this.t('stages.card.wholePlayback'),
@@ -513,11 +555,30 @@ export class BoardCardComponent implements OnInit {
       return {
         label:
           t.trackName || t.trackOriginalName || this.t('common.trackNum', { id: t.id }),
-        value: t.id,
+        // A composite key so a track and its window items are distinct options
+        // (ui-select compares option values by ===).
+        value: itemKeyOf(t),
+        // Subtle marker so window entries are recognisable in the dropdown.
+        tag: windowItem ? this.t('common.window') : undefined,
         subOptions,
-        disabled: sequencing && trackWindows.length < 2,
+        disabled: sequencing && (windowItem || trackWindows.length < 2),
       };
     });
+  });
+
+  /** Composite key of the board's current selection, matching a trackOptions value. */
+  readonly selectedItemKey = computed(() => {
+    const selected = this.displayedTrack();
+    if (selected?.id == null) return null;
+
+    const winId = this.selectedWindowId();
+    const hasWindowItem =
+      winId != null &&
+      this.orderedAvailableTracks().some(
+        t => isWindowItem(t) && t.id === selected.id && t.windowId === winId,
+      );
+
+    return hasWindowItem ? `${selected.id}::${winId}` : `${selected.id}`;
   });
 
   readonly windowOptions = computed(() =>
@@ -710,6 +771,30 @@ export class BoardCardComponent implements OnInit {
     this.loopModeChange.emit(mode as LoopMode);
   }
 
+  /**
+   * A track option was picked from the dropdown. A window item selects its
+   * track+window (behaving like a standalone track); anything else selects the
+   * whole track, preserving the existing single/sequence track-change flow.
+   */
+  onTrackOptionChange(key: string | null): void {
+    if (key == null) {
+      this.trackChange.emit(null);
+      return;
+    }
+
+    const track = this.orderedAvailableTracks().find(t => itemKeyOf(t) === key);
+    if (track?.id == null) {
+      this.trackChange.emit(null);
+      return;
+    }
+
+    if (isWindowItem(track)) {
+      this.trackWithWindowChange.emit({ trackId: track.id, windowId: track.windowId! });
+    } else {
+      this.trackChange.emit(track.id);
+    }
+  }
+
   onPlaylistRandomToggle(): void {
     this.playlistOptionsChange.emit({
       ...this.playlistOptions(),
@@ -762,7 +847,9 @@ export class BoardCardComponent implements OnInit {
         ? (this.board().availableTracks ?? [])
         : (this.availableGroups().find(group => group.id === groupId)?.tracks ?? []);
 
-    for (const track of tracks) {
+    for (const track of [...tracks].sort(
+      (a, b) => (a.positionWithinGroup ?? 0) - (b.positionWithinGroup ?? 0),
+    )) {
       if (track?.id != null) {
         unique.set(track.id, track);
       }
@@ -770,6 +857,21 @@ export class BoardCardComponent implements OnInit {
 
     return Array.from(unique.values());
   }
+}
+
+/** Sort comparator: a group's items by their 1-based position (0 outside a group). */
+function byGroupPosition(a: Track, b: Track): number {
+  return (a.positionWithinGroup ?? 0) - (b.positionWithinGroup ?? 0);
+}
+
+/** Within a group, a track entry that stands in for one of its windows. */
+function isWindowItem(t: Track): boolean {
+  return t.isWindow === true && t.windowId != null;
+}
+
+/** Distinguishes a whole-track entry from each of its window items. */
+function itemKeyOf(t: Track): string {
+  return isWindowItem(t) ? `${t.id}::${t.windowId}` : `${t.id ?? ''}`;
 }
 
 function clampPct(v: number): number {

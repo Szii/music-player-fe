@@ -461,6 +461,12 @@
     "selectFiltered": "Select filtered",
     "clearAll": "Clear all",
     "saveTracks": "Save tracks",
+    "noItems": "No items selected yet.",
+    "removeItem": "Remove item",
+    "wholeTrack": "Whole track",
+    "windowChip": "Window",
+    "itemName": "Item name in this group",
+    "reorderHandle": "Reorder {{name}} (drag, or use arrow keys)",
     "searchTracksPlaceholder": "Search by name, original name, or owner",
     "noMatchingTracks": "No matching tracks.",
     "noTracksTitle": "No tracks available yet",
@@ -481,7 +487,11 @@
     "filter": {
       "all": "All groups",
       "empty": "Empty"
-    }
+    },
+    "windowsLabel": "Windows:",
+    "arrange": "Rename & reorder",
+    "backToSelection": "Back to selection",
+    "arrangeHint": "Rename each item for this group and drag to reorder."
   },
   "workshop": {
     "title": "Sharing",
