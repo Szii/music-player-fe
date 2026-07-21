@@ -86,9 +86,23 @@ ui-list-toolbar {
   max-width: 100%;
 }
 
-/* Mobile card: duration and subscriber count stay with the kebab menu. */
-.track-catalog__menu {
+/* Desktop actions cell: preview + kebab side by side. */
+.track-catalog__actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* Mobile card: preview + kebab menu cluster at the right of the stats row. */
+.track-catalog__preview {
   margin-left: auto;
+  align-self: center;
+  flex: 0 0 auto;
+}
+
+.track-catalog__menu {
+  margin-left: 6px;
   align-self: center;
   flex: 0 0 auto;
 }

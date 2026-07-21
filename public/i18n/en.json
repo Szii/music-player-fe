@@ -55,7 +55,9 @@
     "off": "Off",
     "done": "Done",
     "all": "All",
-    "back": "Back"
+    "back": "Back",
+    "preview": "Preview",
+    "previewStop": "Stop preview"
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",

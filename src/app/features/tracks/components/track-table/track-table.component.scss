@@ -46,9 +46,22 @@ ui-list-toolbar {
   text-align: center;
 }
 
-/* Mobile card: kebab menu sits in the top-right of the meta row. */
-.track-item__menu {
+/* Desktop actions cell: preview + kebab side by side, centred. */
+.col-actions__wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* Mobile card: preview + kebab menu cluster at the right of the meta row. */
+.track-item__preview {
   margin-left: auto;
+  align-self: center;
+}
+
+.track-item__menu {
+  margin-left: 6px;
   align-self: center;
 }
 

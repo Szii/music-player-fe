@@ -73,17 +73,30 @@ ui-list-toolbar {
 }
 
 .col-actions {
-  width: 72px;
-  max-width: 72px;
+  width: 104px;
+  max-width: 104px;
   white-space: nowrap;
   text-align: right;
-  /* Breathing room between the kebab and the table's right edge. */
+  /* Breathing room between the actions and the table's right edge. */
   padding-right: 18px;
 }
 
-/* Mobile card: kebab menu sits at the right end of the meta row. */
-.my-tracks__menu {
+/* Desktop: preview + kebab side by side. */
+.my-tracks__actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* Mobile card: preview + kebab menu cluster at the right end of the meta row. */
+.my-tracks__preview {
   margin-left: auto;
+  align-self: center;
+}
+
+.my-tracks__menu {
+  margin-left: 6px;
   align-self: center;
 }
 

@@ -1,0 +1,23 @@
+@if (available()) {
+  <button
+    type="button"
+    class="preview-btn"
+    [class.preview-btn--md]="size() === 'md'"
+    [class.preview-btn--active]="active()"
+    [attr.aria-pressed]="active()"
+    [attr.aria-label]="(active() ? 'common.previewStop' : 'common.preview') | transloco"
+    [title]="(active() ? 'common.previewStop' : 'common.preview') | transloco"
+    (click)="toggle($event)"
+    (mousedown)="$event.preventDefault()"
+  >
+    @if (active()) {
+      <span class="preview-btn__bars" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </span>
+    } @else {
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M8 6l10 6-10 6V6Z" />
+      </svg>
+    }
+  </button>
+}

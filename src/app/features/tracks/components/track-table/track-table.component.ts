@@ -20,7 +20,9 @@ import {
   ActionMenuItem,
   UiActionMenuComponent,
 } from '../../../../shared/ui/action-menu/ui-action-menu.component';
+import { PreviewButtonComponent } from '../../../../shared/ui/preview-button/preview-button.component';
 import { persistentSignal } from '../../../../shared/utils/persistent-signal';
+import { previewMidpointS } from '../../../../shared/utils/preview';
 
 type TrackFilterMode =
   | 'all'
@@ -41,6 +43,7 @@ type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
     UiListToolbarComponent,
     UiChipComponent,
     UiActionMenuComponent,
+    PreviewButtonComponent,
     TranslocoPipe,
   ],
   templateUrl: './track-table.component.html',
@@ -92,7 +95,7 @@ export class TrackTableComponent {
     { label: this.t('tracks.owner'), className: 'col-owner', width: '120px' },
     { label: this.t('tracks.col.duration'), className: 'col-duration', width: '110px' },
     { label: this.t('tracks.col.status'), className: 'col-status', width: '150px' },
-    { label: '', className: 'col-actions', width: '64px' },
+    { label: '', className: 'col-actions', width: '96px' },
   ];
 
   readonly filteredTracks = computed(() => {
@@ -151,6 +154,11 @@ export class TrackTableComponent {
 
   displayName(track: Track): string {
     return track.trackName || track.trackOriginalName || '—';
+  }
+
+  /** Preview from the middle of the track. */
+  previewStartS(track: Track): number {
+    return previewMidpointS(track.duration);
   }
 
   isSubscribed(track: Track): boolean {
