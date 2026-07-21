@@ -27,6 +27,8 @@ export interface UiSelectOption {
   disabled?: boolean;
   /** Optional decorative image (e.g. a flag) shown before the label. */
   icon?: string;
+  /** Optional short muted badge after the label (e.g. a "Window" marker). */
+  tag?: string;
 }
 
 export interface UiSelectSubOptionEvent {

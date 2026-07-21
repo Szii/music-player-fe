@@ -12,9 +12,15 @@ import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { forkJoin } from 'rxjs';
-import { finalize } from 'rxjs/operators';
+import { finalize, switchMap } from 'rxjs/operators';
 
-import { Group, GroupRequest, Track } from '../../../../api/generated';
+import {
+  Group,
+  GroupRequest,
+  GroupTrackRef,
+  GroupTrackRequest,
+  Track,
+} from '../../../../api/generated';
 
 import { CreateGroupFormComponent } from '../../components/create-group-form/create-group-form.component';
 import { GroupCardComponent, RenameEvent } from '../../components/group-card/group-card.component';
@@ -213,13 +219,46 @@ export class GroupsPageComponent implements OnInit {
   renameGroup({ group, newName }: RenameEvent): void {
     if (group.id == null) return;
 
-    this.saveGroup(group.id, { listName: newName, trackIds: trackIdsOf(group) }, false);
+    this.saveGroup(group.id, { listName: newName, tracks: groupTracksOf(group) }, false);
   }
 
-  saveGroupTracks({ group, trackIds }: GroupTracksSaveEvent): void {
+  saveGroupTracks({ group, items }: GroupTracksSaveEvent): void {
     if (group.id == null) return;
 
-    this.saveGroup(group.id, { listName: group.listName ?? '', trackIds }, true);
+    const groupId = group.id;
+    const refs: GroupTrackRef[] = items.map(item => ({
+      trackId: item.trackId,
+      windowId: item.windowId ?? null,
+    }));
+
+    this.updatingGroupId.set(groupId);
+
+    // The PUT sets membership and per-group names; a follow-up reorder applies the
+    // item order (the PUT ignores it). Skip the reorder when the group is now empty
+    // — the endpoint requires at least one item.
+    const membership$ = this.groupsStore.update(groupId, {
+      listName: group.listName ?? '',
+      tracks: items,
+    });
+    const save$ = refs.length > 0
+      ? membership$.pipe(switchMap(() => this.groupsStore.reorder(groupId, refs)))
+      : membership$;
+
+    save$
+      .pipe(
+        finalize(() => this.updatingGroupId.set(null)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: () => {
+          this.closeTrackEditor();
+          this.toast.success(this.t('groups.msg.updated'));
+        },
+        error: (err: unknown) => {
+          console.error(err);
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('groups.err.update') }));
+        },
+      });
   }
 
   openTrackEditor(group: Group): void {
@@ -276,6 +315,22 @@ function trackIdsOf(group: Group): string[] {
   return (group.tracks ?? [])
     .map(track => track.id)
     .filter((id): id is string => id != null);
+}
+
+/** Group items as a save request, preserving order, windows and per-group names.
+    Used by rename, which must not drop the group's existing items. */
+function groupTracksOf(group: Group): GroupTrackRequest[] {
+  return [...(group.tracks ?? [])]
+    .sort((a, b) => (a.positionWithinGroup ?? 0) - (b.positionWithinGroup ?? 0))
+    .flatMap<GroupTrackRequest>(track =>
+      track.id == null
+        ? []
+        : [{
+            trackId: track.id,
+            windowId: track.windowId ?? null,
+            name: track.trackName?.trim() ? track.trackName : null,
+          }],
+    );
 }
 
 function compareGroups(a: Group, b: Group, sortMode: GroupSortMode): number {

@@ -2,7 +2,12 @@ import { Injectable, inject, signal } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { catchError, finalize, map, shareReplay, tap } from 'rxjs/operators';
 
-import { Group, GroupRequest, MusicGroupsService } from '../../api/generated';
+import {
+  Group,
+  GroupRequest,
+  GroupTrackRef,
+  MusicGroupsService,
+} from '../../api/generated';
 import { SessionService } from '../auth/session.service';
 
 /** Groups only ever change through this app, so a fetch stays good for a while. */
@@ -83,6 +88,20 @@ export class GroupsStore {
         this.items.update(current => current.map(g => (g.id === groupId ? updated : g))),
       ),
     );
+  }
+
+  /**
+   * Persist item order. The group PUT sets membership and names but ignores order;
+   * positions are only applied through this endpoint. Returns the reordered group.
+   */
+  reorder(groupId: string, tracks: GroupTrackRef[]): Observable<Group> {
+    return this.api
+      .reorderGroupTracks({ groupId, reorderGroupTracksRequest: { tracks } })
+      .pipe(
+        tap(updated =>
+          this.items.update(current => current.map(g => (g.id === groupId ? updated : g))),
+        ),
+      );
   }
 
   remove(groupId: string): Observable<unknown> {

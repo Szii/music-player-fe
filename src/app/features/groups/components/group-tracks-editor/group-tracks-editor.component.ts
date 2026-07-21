@@ -10,28 +10,61 @@ import {
 } from '@angular/core';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { Group, Track } from '../../../../api/generated';
+import {
+  CdkDrag,
+  CdkDragDrop,
+  CdkDragHandle,
+  CdkDropList,
+  moveItemInArray,
+} from '@angular/cdk/drag-drop';
+import {
+  Group,
+  GroupTrackRequest,
+  Track,
+  TrackWindow,
+} from '../../../../api/generated';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
+import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
+import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
 import { UiListToolbarComponent } from '../../../../shared/ui/list-toolbar/ui-list-toolbar.component';
 import { persistentSignal } from '../../../../shared/utils/persistent-signal';
-import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 
 export interface GroupTracksSaveEvent {
   group: Group;
-  trackIds: string[];
+  /** Ordered group items. Array order is the saved position. */
+  items: GroupTrackRequest[];
 }
 
 type TrackFilterMode = 'all' | 'selected';
+type EditorMode = 'select' | 'arrange';
+
+/** One ordered entry in the group: a whole track or one of its windows. */
+interface EditorItem {
+  /** Stable key: trackId, or `trackId:windowId` for a window item. */
+  key: string;
+  trackId: string;
+  windowId: string | null;
+  /** Per-group name the user typed; empty means "use the track/window own name". */
+  name: string;
+}
+
+function itemKey(trackId: string, windowId: string | null): string {
+  return windowId ? `${trackId}:${windowId}` : trackId;
+}
 
 @Component({
   selector: 'app-group-tracks-editor',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     NormalButtonComponent,
+    IconButtonComponent,
+    UiChipComponent,
     UiDialogShellComponent,
     UiListToolbarComponent,
-    UiChipComponent,
+    CdkDropList,
+    CdkDrag,
+    CdkDragHandle,
     TranslocoPipe,
   ],
   templateUrl: './group-tracks-editor.component.html',
@@ -61,14 +94,27 @@ export class GroupTracksEditorComponent {
 
   readonly search = signal('');
   readonly filterMode = persistentSignal<TrackFilterMode>('mpf:groups:editor:filter', 'all');
-  readonly selectedIds = signal<ReadonlySet<string>>(new Set<string>());
+
+  /** Which panel of the dialog is showing. */
+  readonly mode = signal<EditorMode>('select');
+
+  /** Ordered group items (membership + order + per-group names). */
+  readonly items = signal<EditorItem[]>([]);
+
+  private readonly selectedKeys = computed(
+    () => new Set(this.items().map(item => item.key)),
+  );
+
+  private readonly selectedTrackIds = computed(
+    () => new Set(this.items().map(item => item.trackId)),
+  );
 
   readonly filterOptions = [
     { label: this.t('common.all'), value: 'all' },
     { label: this.t('groups.selectedOnly'), value: 'selected' },
   ];
 
-  readonly selectedCount = computed(() => this.selectedIds().size);
+  readonly selectedCount = computed(() => this.items().length);
 
   readonly dialogSubtitle = computed(() => {
     const g = this.group();
@@ -79,7 +125,7 @@ export class GroupTracksEditorComponent {
   readonly filteredTracks = computed(() => {
     const q = this.search().trim().toLowerCase();
     const mode = this.filterMode();
-    const selected = this.selectedIds();
+    const selected = this.selectedTrackIds();
 
     return this.tracks().filter(track => {
       const matchesFilter =
@@ -88,11 +134,7 @@ export class GroupTracksEditorComponent {
       if (!matchesFilter) return false;
       if (!q) return true;
 
-      const haystack = [
-        track.trackName,
-        track.trackOriginalName,
-        track.owner?.name,
-      ]
+      const haystack = [track.trackName, track.trackOriginalName, track.owner?.name]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
@@ -105,44 +147,73 @@ export class GroupTracksEditorComponent {
     effect(() => {
       const g = this.group();
       this.tracks();
-      this.resetSelectionFromGroup(g);
+      this.resetFromGroup(g);
     });
   }
+
+  // ── mode ────────────────────────────────────────────────────────────
+
+  openArrange(): void {
+    this.mode.set('arrange');
+  }
+
+  backToSelect(): void {
+    this.mode.set('select');
+  }
+
+  // ── select view (membership) ────────────────────────────────────────
 
   setFilterMode(value: unknown): void {
     this.filterMode.set(value as TrackFilterMode);
   }
 
-  isSelected(track: Track): boolean {
-    return track.id != null && this.selectedIds().has(track.id);
+  windowsOf(track: Track): TrackWindow[] {
+    return [...(track.trackWindows ?? [])].sort(
+      (a, b) => (a.positionWithinTrack ?? 0) - (b.positionWithinTrack ?? 0),
+    );
   }
 
-  toggleTrack(track: Track, checked: boolean): void {
+  isWholeSelected(track: Track): boolean {
+    return track.id != null && this.selectedKeys().has(itemKey(track.id, null));
+  }
+
+  isWindowSelected(track: Track, win: TrackWindow): boolean {
+    return (
+      track.id != null &&
+      win.id != null &&
+      this.selectedKeys().has(itemKey(track.id, win.id))
+    );
+  }
+
+  toggleWhole(track: Track, checked: boolean): void {
     if (track.id == null) return;
+    if (checked) {
+      this.appendItem(track.id, null);
+    } else {
+      this.removeItem(itemKey(track.id, null));
+    }
+  }
 
-    const id = track.id;
-
-    this.selectedIds.update(prev => {
-      const next = new Set(prev);
-
-      if (checked) {
-        next.add(id);
-      } else {
-        next.delete(id);
-      }
-
-      return next;
-    });
+  toggleWindow(track: Track, win: TrackWindow, checked: boolean): void {
+    if (track.id == null || win.id == null) return;
+    if (checked) {
+      this.appendItem(track.id, win.id);
+    } else {
+      this.removeItem(itemKey(track.id, win.id));
+    }
   }
 
   selectAllFiltered(): void {
-    this.selectedIds.update(prev => {
-      const next = new Set(prev);
+    this.items.update(current => {
+      const keys = new Set(current.map(item => item.key));
+      const next = [...current];
 
       for (const track of this.filteredTracks()) {
-        if (track.id != null) {
-          next.add(track.id);
-        }
+        if (track.id == null) continue;
+        const key = itemKey(track.id, null);
+        if (keys.has(key)) continue;
+        keys.add(key);
+        next.push({ key, trackId: track.id, windowId: null, name: '' });
       }
 
       return next;
@@ -150,22 +221,81 @@ export class GroupTracksEditorComponent {
   }
 
   clearAll(): void {
-    this.selectedIds.set(new Set<string>());
+    this.items.set([]);
   }
 
-  onSave(): void {
-    this.save.emit({
-      group: this.group(),
-      trackIds: Array.from(this.selectedIds().values()),
+  // ── arrange view (rename + reorder) ─────────────────────────────────
+
+  removeItem(key: string): void {
+    this.items.update(current => current.filter(item => item.key !== key));
+  }
+
+  renameItem(key: string, name: string): void {
+    this.items.update(current =>
+      current.map(item => (item.key === key ? { ...item, name } : item)),
+    );
+  }
+
+  drop(event: CdkDragDrop<EditorItem[]>): void {
+    if (event.previousIndex === event.currentIndex) return;
+    this.items.update(current => {
+      const next = [...current];
+      moveItemInArray(next, event.previousIndex, event.currentIndex);
+      return next;
     });
   }
 
-  trackById(index: number, track: Track): string | number {
-    return track.id ?? index;
+  onHandleKeydown(item: EditorItem, event: KeyboardEvent): void {
+    if (this.saving()) return;
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      this.moveItem(item.key, -1);
+    } else if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      this.moveItem(item.key, 1);
+    }
   }
 
+  isWindow(item: EditorItem): boolean {
+    return item.windowId != null;
+  }
+
+  typeLabel(item: EditorItem): string {
+    return this.isWindow(item) ? this.t('groups.windowChip') : this.t('groups.wholeTrack');
+  }
+
+  parentName(item: EditorItem): string {
+    if (!this.isWindow(item)) return '';
+    const track = this.sourceTrack(item.trackId);
+    return track ? this.displayName(track) : item.trackId;
+  }
+
+  itemNamePlaceholder(item: EditorItem): string {
+    return this.ownName(item);
+  }
+
+  // ── save ────────────────────────────────────────────────────────────
+
+  onSave(): void {
+    const items = this.items().map<GroupTrackRequest>(item => {
+      const trimmed = item.name.trim();
+      // Only send a per-group name when it overrides the own name, so inherited
+      // names stay inherited instead of becoming copies.
+      const name = trimmed && trimmed !== this.ownName(item) ? trimmed : null;
+      return { trackId: item.trackId, windowId: item.windowId, name };
+    });
+
+    this.save.emit({ group: this.group(), items });
+  }
+
+  // ── display helpers ─────────────────────────────────────────────────
+
   displayName(track: Track): string {
-    return track.trackName || track.trackOriginalName || this.t('common.trackNum', { id: track.id });
+    return (
+      track.trackName ||
+      track.trackOriginalName ||
+      this.t('common.trackNum', { id: track.id })
+    );
   }
 
   formatDuration(seconds?: number): string {
@@ -183,13 +313,77 @@ export class GroupTracksEditorComponent {
     return `${m}:${String(s).padStart(2, '0')}`;
   }
 
-  private resetSelectionFromGroup(group: Group | undefined): void {
-    const ids = (group?.tracks ?? [])
-      .map(track => track.id)
-      .filter((id): id is string => id != null);
+  trackById(_index: number, track: Track): string | number {
+    return track.id ?? _index;
+  }
 
-    this.selectedIds.set(new Set(ids));
+  windowById(_index: number, win: TrackWindow): string | number {
+    return win.id ?? _index;
+  }
+
+  itemById(_index: number, item: EditorItem): string {
+    return item.key;
+  }
+
+  // ── internals ───────────────────────────────────────────────────────
+
+  private moveItem(key: string, direction: 1 | -1): void {
+    this.items.update(current => {
+      const index = current.findIndex(item => item.key === key);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= current.length) return current;
+
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }
+
+  private appendItem(trackId: string, windowId: string | null): void {
+    const key = itemKey(trackId, windowId);
+    this.items.update(current =>
+      current.some(item => item.key === key)
+        ? current
+        : [...current, { key, trackId, windowId, name: '' }],
+    );
+  }
+
+  private sourceTrack(trackId: string): Track | undefined {
+    return this.tracks().find(track => track.id === trackId);
+  }
+
+  /** The track's (or window's) own name — placeholder and override baseline. */
+  private ownName(item: EditorItem): string {
+    const track = this.sourceTrack(item.trackId);
+    if (!track) return '';
+
+    if (item.windowId) {
+      const win = (track.trackWindows ?? []).find(w => w.id === item.windowId);
+      return win?.name?.trim() || this.t('windows.untitled');
+    }
+
+    return this.displayName(track);
+  }
+
+  private resetFromGroup(group: Group): void {
+    const items = [...(group.tracks ?? [])]
+      .sort((a, b) => (a.positionWithinGroup ?? 0) - (b.positionWithinGroup ?? 0))
+      .flatMap<EditorItem>(track => {
+        if (track.id == null) return [];
+        const windowId = track.windowId ?? null;
+        return [
+          {
+            key: itemKey(track.id, windowId),
+            trackId: track.id,
+            windowId,
+            // In a group response, trackName is the effective (per-group or own) name.
+            name: track.trackName ?? '',
+          },
+        ];
+      });
+
+    this.items.set(items);
     this.search.set('');
-    this.filterMode.set('all');
+    this.mode.set('select');
   }
 }
