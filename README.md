@@ -1,4 +1,7 @@
 # MusicPlayerFe
+Main focus of this project is to create tabletop ready music player which supports quick changes of soundtracks by leveraging Youtube API together with possibility of preparation exact, possibly very complex music suite, which can then be controlled by simpliest manner possible.
+
+Try running build there: <https://soundmasterslair.cz>
 
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 19.2.15.
 
