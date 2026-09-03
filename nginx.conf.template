@@ -15,7 +15,12 @@ server {
     }
 
     location / {
-        add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://www.youtube.com https://s.ytimg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https://i.ytimg.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; frame-src https://www.youtube-nocookie.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
+        # YouTube search runs against the Piped instance configured in
+        # src/environments/environment.ts: the API host answers the search
+        # (connect-src) and the proxy host serves the thumbnails (img-src).
+        # Both live under piped.private.coffee — change this line too when the
+        # instance changes.
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://www.youtube.com https://s.ytimg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https://i.ytimg.com https://*.piped.private.coffee; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.piped.private.coffee; frame-src https://www.youtube-nocookie.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "DENY" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
