@@ -117,6 +117,7 @@ export class YoutubeSearchComponent {
     if (!token || !query || this.loading() || this.loadingMore()) return;
 
     this.loadingMore.set(true);
+    this.failed.set(false);
     // Cleared up front so a scroll event mid-request cannot re-request the page.
     this.nextPageToken.set(null);
 
@@ -125,6 +126,8 @@ export class YoutubeSearchComponent {
       .pipe(
         catchError(() => {
           this.failed.set(true);
+          // Restore the token so the "load more" button comes back as a retry.
+          this.nextPageToken.set(token);
           return of(null);
         }),
         finalize(() => this.loadingMore.set(false)),

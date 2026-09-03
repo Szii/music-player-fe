@@ -6,5 +6,5 @@ export const environment = {
   */
   pipedApiUrl: 'https://api.piped.private.coffee',
   /** Fallback only, used when the Piped instance fails. Empty disables it. */
-  youtubeApiKey: '',
+  youtubeApiKey: 'AIzaSyAFRAd6R7DlNfBPD0hGPsk4F_v5vL8YGLM',
 };
