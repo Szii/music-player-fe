@@ -115,13 +115,3 @@
     justify-content: flex-end;
   }
 }
-
-@media (max-width: 640px) {
-  /* The phone dialog body is already the single scroll area, so the list must
-     not add a second one. Paging falls back to the "load more" button. */
-  .yt-search__results {
-    max-height: none;
-    overflow-y: visible;
-    padding-right: 0;
-  }
-}
