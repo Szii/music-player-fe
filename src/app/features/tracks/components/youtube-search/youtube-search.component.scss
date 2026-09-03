@@ -86,13 +86,42 @@
   padding: var(--space-2xs) 0;
 }
 
-@media (max-width: 640px) {
+/* Below md the result takes the shape of the shared entity list (see
+   .app-entity-list in styles.css), so search results read like every other
+   condensed mobile list in the app. */
+@media (max-width: 900px) {
+  .yt-search__results {
+    gap: var(--space-sm);
+  }
+
   .yt-search__result {
     grid-template-columns: auto minmax(0, 1fr);
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--app-radius-md);
+    background: var(--app-surface);
+    box-shadow: var(--app-shadow-soft);
+  }
+
+  .yt-search__thumb {
+    width: 4.5rem;
+  }
+
+  .yt-search__title {
+    -webkit-line-clamp: 1;
   }
 
   .yt-search__actions {
     grid-column: 1 / -1;
     justify-content: flex-end;
+  }
+}
+
+@media (max-width: 640px) {
+  /* The phone dialog body is already the single scroll area, so the list must
+     not add a second one. Paging falls back to the "load more" button. */
+  .yt-search__results {
+    max-height: none;
+    overflow-y: visible;
+    padding-right: 0;
   }
 }
