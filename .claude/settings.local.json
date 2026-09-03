@@ -16,7 +16,22 @@
       "Bash(npm install *)",
       "Bash(npx ng *)",
       "WebFetch(domain:www.gdpr.cz)",
-      "WebFetch(domain:iuntsevich.cz)"
+      "WebFetch(domain:iuntsevich.cz)",
+      "Bash(python -c ' *)",
+      "Bash(git check-ignore *)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(curl -s -m 20 \"https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=forest+ambience&key=AIzaSyAFRAd6R7DlNfBPD0hGPsk4F_v5vL8YGLM\")",
+      "Bash(curl -s -m 15 \"https://api.piped.private.coffee/search?q=forest%20ambience&filter=videos\")",
+      "Bash(curl -s -m 25 https://piped-instances.kavin.rocks/)",
+      "Bash(curl -s -m 25 https://api.invidious.io/instances.json)",
+      "Bash(bash probe.sh https://pipedapi.owo.si https://pipedapi.ducks.party https://piped-api.codespace.cz https://pipedapi.reallyaweso.me https://api.piped.private.coffee https://pipedapi.darkness.services https://pipedapi.orangenet.cc)",
+      "Bash(curl -s -m 20 -D - -o innertube.json -X POST -H 'Origin: http://localhost:4200' -H 'Content-Type: application/json' -d '{\"context\":{\"client\":{\"clientName\":\"WEB\",\"clientVersion\":\"2.20240101.00.00\",\"hl\":\"en\",\"gl\":\"US\"}},\"query\":\"forest ambience\"}' 'https://www.youtube.com/youtubei/v1/search?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8&prettyPrint=false')",
+      "Bash(curl -s -m 20 -D - -o /dev/null -X OPTIONS -H \"Origin: http://localhost:4200\" -H \"Access-Control-Request-Method: POST\" -H \"Access-Control-Request-Headers: content-type\" \"https://www.youtube.com/youtubei/v1/search\")",
+      "Bash(curl -s -m 25 -o w.json -w 'http=%{http_code} bytes=%{size_download}\\\\n' -X POST -H 'Content-Type: application/json' -H 'User-Agent: __TRACKED_VAR__' -H 'X-Youtube-Client-Name: 1' -H 'X-Youtube-Client-Version: 2.20241201.01.00' -H 'Origin: https://www.youtube.com' -H 'Referer: https://www.youtube.com/' -d '{\"context\":{\"client\":{\"clientName\":\"WEB\",\"clientVersion\":\"2.20241201.01.00\",\"hl\":\"en\",\"gl\":\"US\"}},\"query\":\"forest ambience\"}' https://www.youtube.com/youtubei/v1/search?prettyPrint=false)",
+      "Bash(curl -s -m 25 -o c.json -w 'page2 http=%{http_code} bytes=%{size_download}\\\\n' -X POST -H 'Content-Type: application/json' -H 'User-Agent: __TRACKED_VAR__' -H 'Origin: https://www.youtube.com' -H 'Referer: https://www.youtube.com/' -d @cont.json https://www.youtube.com/youtubei/v1/search?prettyPrint=false)",
+      "Bash(curl -s -m 20 -D - -o /dev/null -H \"Origin: http://localhost:4200\" \"https://api.piped.private.coffee/search?q=test&filter=videos\")",
+      "Bash(curl -s -m 20 https://private.coffee/)",
+      "Bash(curl -s -m 25 \"https://raw.githubusercontent.com/libredirect/instances/main/data.json\")"
     ]
   }
 }

@@ -361,6 +361,22 @@
         "timeout": "Načítání videa trvalo příliš dlouho. Zkontrolujte připojení a zkuste to znovu.",
         "unknown": "Video z YouTube se nepodařilo načíst — zkontrolujte odkaz."
       }
+    },
+    "source": {
+      "link": "Vložit odkaz",
+      "search": "Hledat na YouTube"
+    },
+    "ytSearch": {
+      "label": "Hledat na YouTube",
+      "placeholder": "např. zvuky lesa 1 hodina",
+      "button": "Hledat",
+      "searching": "Hledám…",
+      "hint": "Vyhledej na YouTube a vyber video. Ukázka přehraje pár sekund z náhodného místa.",
+      "noResults": "Nenalezena žádná přehratelná videa.",
+      "use": "Získat",
+      "failed": "Hledání na YouTube selhalo. Zkus to prosím znovu.",
+      "loadMore": "Načíst další",
+      "loadingMore": "Načítám další…"
     }
   },
   "windows": {
@@ -635,7 +651,7 @@
     },
     "addTrack": {
       "title": "Přidání skladby",
-      "body": "Zadejte <strong>název</strong> a vložte <strong>odkaz na YouTube</strong>. Víc k dostání zvuku do knihovny nepotřebujete.",
+      "body": "Zadejte <strong>název</strong> a vložte <strong>odkaz na YouTube</strong>, nebo prohledejte Youtube ručně. Víc k dostání zvuku do knihovny nepotřebujete.",
       "alt": "Dialog Přidat skladbu s polem názvu a odkazem na YouTube"
     },
     "manageTracks": {

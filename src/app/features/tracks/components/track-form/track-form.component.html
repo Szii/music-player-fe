@@ -16,6 +16,44 @@
     [showFooter]="true"
     (closed)="close()"
   >
+    @if (canSearch()) {
+      <div class="track-form__source">
+        <button
+          type="button"
+          class="track-form__source-tab"
+          [class.track-form__source-tab--active]="linkSource() === 'link'"
+          [attr.aria-pressed]="linkSource() === 'link'"
+          (click)="setLinkSource('link')"
+        >
+          {{ 'tracks.source.link' | transloco }}
+        </button>
+        <button
+          type="button"
+          class="track-form__source-tab"
+          [class.track-form__source-tab--active]="linkSource() === 'search'"
+          [attr.aria-pressed]="linkSource() === 'search'"
+          (click)="setLinkSource('search')"
+        >
+          {{ 'tracks.source.search' | transloco }}
+        </button>
+      </div>
+    }
+
+    <!-- Both panels stay mounted: switching tabs must not throw away the
+         search results, the query or the scroll position. -->
+    @if (canSearch()) {
+      <div
+        class="track-form__panel"
+        [class.track-form__panel--hidden]="linkSource() !== 'search'"
+      >
+        <app-youtube-search (picked)="useSearchResult($event)" />
+      </div>
+    }
+
+    <div
+      class="track-form__panel"
+      [class.track-form__panel--hidden]="linkSource() !== 'link'"
+    >
     <form [formGroup]="form" (ngSubmit)="onSubmit()" class="track-form">
       <ui-form-field [label]="'tracks.name' | transloco" [error]="trackNameError()">
         <ui-text-input
@@ -37,6 +75,7 @@
         }
       </ui-form-field>
     </form>
+    </div>
 
     <ng-container dialog-footer>
       <normal-button
@@ -47,14 +86,16 @@
         {{ 'common.cancel' | transloco }}
       </normal-button>
 
-      <normal-button
-        type="submit"
-        [disabled]="form.invalid || submitting()"
-        [loading]="submitting()"
-        (clicked)="onSubmit()"
-      >
-        {{ (isEditing() ? 'common.saveChanges' : 'tracks.add') | transloco }}
-      </normal-button>
+      @if (linkSource() === 'link') {
+        <normal-button
+          type="submit"
+          [disabled]="form.invalid || submitting()"
+          [loading]="submitting()"
+          (clicked)="onSubmit()"
+        >
+          {{ (isEditing() ? 'common.saveChanges' : 'tracks.add') | transloco }}
+        </normal-button>
+      }
     </ng-container>
   </ui-dialog-shell>
 }

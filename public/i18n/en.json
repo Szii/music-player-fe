@@ -361,6 +361,22 @@
         "timeout": "Reading the video took too long. Check your connection and try again.",
         "unknown": "Could not read the YouTube video — check the link."
       }
+    },
+    "source": {
+      "link": "Paste link",
+      "search": "Search YouTube"
+    },
+    "ytSearch": {
+      "label": "Search YouTube",
+      "placeholder": "e.g. forest ambience 1 hour",
+      "button": "Search",
+      "searching": "Searching…",
+      "hint": "Search YouTube and pick a video. Preview plays a few seconds from a random point.",
+      "noResults": "No playable videos found.",
+      "use": "Get",
+      "failed": "YouTube search failed. Try again in a moment.",
+      "loadMore": "Load more",
+      "loadingMore": "Loading more…"
     }
   },
   "windows": {
@@ -635,7 +651,7 @@
     },
     "addTrack": {
       "title": "Add a track",
-      "body": "Give the track a <strong>name</strong> and paste a <strong>YouTube link</strong>. That is all it takes to bring audio into your library.",
+      "body": "Give the track a <strong>name</strong> and paste a <strong>YouTube link</strong>, or search Youtube directly. That is all it takes to bring audio into your library.",
       "alt": "Add Track dialog with a name field and a YouTube link field"
     },
     "manageTracks": {

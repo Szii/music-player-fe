@@ -8,6 +8,7 @@ import { inject } from '@angular/core';
 import { catchError, switchMap, throwError } from 'rxjs';
 import { SessionService } from './session.service';
 import { TokenRenewalService } from './token-renewal.service';
+import { environment } from '../../../environments/environment';
 
 const AUTH_ENDPOINT_MARKER = '/auth/';
 /** Endpoints that exchange the HttpOnly refresh cookie. */
@@ -19,8 +20,16 @@ function isCookieEndpoint(req: HttpRequest<unknown>): boolean {
   return COOKIE_ENDPOINTS.some(path => req.url.includes(path));
 }
 
+function isThirdParty(req: HttpRequest<unknown>): boolean {
+  return /^https?:\/\//i.test(req.url) && !req.url.startsWith(environment.apiUrl);
+}
+
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const session = inject(SessionService);
+
+  if (isThirdParty(req)) {
+    return next(req);
+  }
 
   // Login sets the refresh cookie and refresh sends it: these need credentials.
   if (isCookieEndpoint(req)) {
