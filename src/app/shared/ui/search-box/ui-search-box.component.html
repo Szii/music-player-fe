@@ -3,6 +3,8 @@
   <input
     class="app-input ui-search-box__input"
     type="text"
+    autocomplete="off"
+    [attr.aria-label]="ariaLabel() || null"
     [placeholder]="placeholder() || ('common.search' | transloco)"
     [value]="value()"
     (input)="valueChange.emit($any($event.target).value)"

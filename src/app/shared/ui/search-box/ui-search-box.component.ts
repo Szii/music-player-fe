@@ -12,6 +12,8 @@ export class UiSearchBoxComponent {
   readonly value = input('');
   /** Empty falls back to the translated default. */
   readonly placeholder = input('');
+  /** Accessible name, for when no visible label sits next to the box. */
+  readonly ariaLabel = input('');
 
   readonly valueChange = output<string>();
 

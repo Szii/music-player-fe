@@ -22,15 +22,22 @@ import {
   hasProfanity,
   profanityValidator,
 } from '../../../../shared/validators/profanity.validator';
+import {
+  YoutubeSearchResult,
+  YoutubeSearchService,
+} from '../../../../core/services/youtube-search.service';
+import { YoutubeSearchComponent } from '../youtube-search/youtube-search.component';
 
 export interface TrackFormEvent {
   trackName: string;
   trackLink: string;
 }
 
+/** How the user supplies the video: paste a link, or search YouTube. */
+export type TrackLinkSource = 'link' | 'search';
+
 @Component({
   selector: 'app-track-form',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
@@ -39,6 +46,7 @@ export interface TrackFormEvent {
     UiTextInputComponent,
     IconButtonComponent,
     UiDialogShellComponent,
+    YoutubeSearchComponent,
     TranslocoPipe,
   ],
   templateUrl: './track-form.component.html',
@@ -73,6 +81,14 @@ export class TrackFormComponent {
   readonly isOpen = signal(false);
 
   readonly limits = FIELD_LIMITS.track;
+
+  private readonly youtubeSearch = inject(YoutubeSearchService);
+
+  readonly linkSource = signal<TrackLinkSource>('link');
+  /** Searching only makes sense while creating, and only with a key configured. */
+  readonly canSearch = computed(
+    () => this.youtubeSearch.available && !this.isEditing(),
+  );
 
   readonly isEditing = computed(() => this.editingTrackId() != null);
   readonly linkLocked = computed(() => this.isEditing() && this.lockTrackLink());
@@ -143,8 +159,24 @@ export class TrackFormComponent {
     this.isOpen.set(true);
   }
 
+  setLinkSource(source: TrackLinkSource): void {
+    this.linkSource.set(source);
+  }
+
+  /** Fills the form from a search hit and returns to the link view to confirm. */
+  useSearchResult(result: YoutubeSearchResult): void {
+    this.form.patchValue({
+      trackLink: result.link,
+      trackName:
+        this.form.controls.trackName.value.trim() ||
+        result.title.slice(0, this.limits.name),
+    });
+    this.linkSource.set('link');
+  }
+
   close(): void {
     this.isOpen.set(false);
+    this.linkSource.set('link');
 
     this.form.reset({
       trackName: '',

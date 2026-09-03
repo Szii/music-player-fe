@@ -1,0 +1,82 @@
+
+<div class="yt-search">
+  <ui-search-box
+    [value]="query()"
+    [ariaLabel]="'tracks.ytSearch.label' | transloco"
+    [placeholder]="'tracks.ytSearch.placeholder' | transloco"
+    (valueChange)="query.set($event)"
+  />
+
+  @if (failed()) {
+    <p class="yt-search__message yt-search__message--error" role="alert">
+      {{ 'tracks.ytSearch.failed' | transloco }}
+    </p>
+  } @else if (loading()) {
+    <p class="yt-search__message">{{ 'tracks.ytSearch.searching' | transloco }}</p>
+  } @else if (results().length === 0) {
+    <p class="yt-search__message">
+      {{ (searched() ? 'tracks.ytSearch.noResults' : 'tracks.ytSearch.hint') | transloco }}
+    </p>
+  }
+
+  @if (results().length > 0) {
+    <ul
+      class="yt-search__results"
+      aria-live="polite"
+      (scroll)="onResultsScroll($event)"
+    >
+      @for (result of results(); track result.videoId) {
+        <li class="yt-search__result">
+          @if (result.thumbnailUrl) {
+            <img
+              class="yt-search__thumb"
+              [src]="result.thumbnailUrl"
+              alt=""
+              loading="lazy"
+              width="120"
+              height="68"
+            />
+          }
+
+          <div class="yt-search__meta">
+            <span class="yt-search__title">{{ result.title }}</span>
+            <span class="yt-search__sub">
+              {{ result.channelTitle }}
+              @if (result.durationLabel) {
+                <span aria-hidden="true"> · </span>{{ result.durationLabel }}
+              }
+            </span>
+          </div>
+
+          <div class="yt-search__actions">
+            <app-preview-button
+              [link]="result.videoId"
+              [startS]="result.previewStartS"
+              [previewKey]="'yt-search:' + result.videoId"
+            />
+            <normal-button
+              type="button"
+              variant="secondary"
+              size="sm"
+              (clicked)="picked.emit(result)"
+            >
+              {{ 'tracks.ytSearch.use' | transloco }}
+            </normal-button>
+          </div>
+        </li>
+      }
+
+      @if (loadingMore()) {
+        <li class="yt-search__more yt-search__message">
+          {{ 'tracks.ytSearch.loadingMore' | transloco }}
+        </li>
+      } @else if (hasMore()) {
+        <li class="yt-search__more">
+          <normal-button type="button" variant="ghost" size="sm" (clicked)="loadMore()">
+            {{ 'tracks.ytSearch.loadMore' | transloco }}
+          </normal-button>
+        </li>
+      }
+    </ul>
+  }
+</div>
