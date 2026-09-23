@@ -146,13 +146,20 @@
       "afterEnd": "After playback ends",
       "afterEndNothing": "Nothing",
       "afterEndStart": "Start {{name}}",
-      "afterEndStartAnother": "Start another stage",
+      "afterEndStartAnother": "Start a stage",
       "afterEndChooseStage": "Choose a stage to start",
       "afterEndNoStages": "No other stages in this session",
       "afterEndHint": "Crossfades into the chosen stage when this one finishes",
       "afterEndLoopHint": "Turn loop off in playback settings to continue with another stage",
       "afterEndChip": "Then {{name}}",
-      "afterEndChipTip": "After playback ends, starts {{name}}"
+      "afterEndChipTip": "After playback ends, starts {{name}}",
+      "afterEndResumeAnother": "Pause & resume",
+      "afterEndResume": "Resume {{name}}",
+      "afterEndResumeHint": "Pauses {{name}} while this stage plays, then fades it back in where it left off",
+      "afterEndResumeChip": "Resume {{name}}",
+      "afterEndResumeChipTip": "Pauses {{name}} while playing and resumes it after playback ends",
+      "paused": "Paused",
+      "pausedTip": "Paused by another stage — resumes when that one finishes, or press play"
     },
     "mode": {
       "single": "Single",

@@ -41,7 +41,11 @@ import {
   hasProfanity,
 } from '../../../../shared/validators/profanity.validator';
 import { UiCharCounterComponent } from '../../../../shared/ui/char-counter/ui-char-counter.component';
-import { LinkedBoardChoice } from '../../models/linked-board-choice';
+import {
+  LinkedBoardAction,
+  LinkedBoardChoice,
+  LinkedBoardSelection,
+} from '../../models/linked-board-choice';
 
 export interface PlaylistOptions {
   random: boolean;
@@ -55,9 +59,6 @@ export type PlaybackMode = 'single' | 'playlist' | 'sequence';
  * order; the others loop (or don't loop) the whole track / selected window.
  */
 export type LoopMode = 'off' | 'whole' | 'sequence';
-
-/** Value of the "Start another stage" action in the After-playback dropdown. */
-const START_LINKED_BOARD = 'start-board';
 
 let nextCardId = 0;
 
@@ -116,6 +117,10 @@ export class BoardCardComponent implements OnInit {
   readonly sequentialWindows = input(false);
   /** Boards of the session this board can hand playback over to (may include itself). */
   readonly linkedBoardChoices = input<LinkedBoardChoice[]>([]);
+  /** What happens with the linked board after this one ends. */
+  readonly linkedBoardAction = input<LinkedBoardAction>('start');
+  /** Paused by another board's pause-and-resume action; resumes when that one ends. */
+  readonly heldForResume = input(false);
 
   readonly isPlaying = computed(() => this.status() === 'PLAYING');
 
@@ -145,8 +150,12 @@ export class BoardCardComponent implements OnInit {
   readonly navigateBoardUp = output<void>();
   readonly navigateBoardDown = output<void>();
   readonly requestPlay = output<void>();
-  /** The After-playback action changed: the board to start next, or null for nothing. */
-  readonly linkedBoardChange = output<string | null>();
+  /** The After-playback action changed (board null = do nothing). */
+  readonly linkedBoardChange = output<LinkedBoardSelection>();
+  /** Non-repeating playback is a couple of seconds from its crossfade point. */
+  readonly endApproaching = output<void>();
+  /** The player's audio actually started (after load/buffer or resume). */
+  readonly playbackStarted = output<void>();
 
   readonly settingsOpen = signal(false);
   /** Mobile only: plays the settings sheet's slide-down before it's removed. */
@@ -505,7 +514,7 @@ export class BoardCardComponent implements OnInit {
     this.linkedBoardChoices().filter(choice => choice.id !== this.board().id),
   );
 
-  /** The board started after this one ends; null when unset or no longer present. */
+  /** The board started/resumed after this one ends; null when unset or gone. */
   readonly linkedBoard = computed(() => {
     const id = this.board().linkedBoardId;
     if (id == null) return null;
@@ -520,27 +529,40 @@ export class BoardCardComponent implements OnInit {
     () => !this.playlistMode() && !this.afterEndBlockedByLoop() && this.linkedBoard() != null,
   );
 
-  readonly afterEndValue = computed(() => (this.linkedBoard() ? START_LINKED_BOARD : null));
+  readonly afterEndValue = computed<LinkedBoardAction | null>(() =>
+    this.linkedBoard() ? this.linkedBoardAction() : null,
+  );
 
   readonly afterEndOptions = computed<UiSelectOption[]>(() => {
     const targets = this.linkTargets();
     const linked = this.linkedBoard();
+    const current = this.linkedBoardAction();
+    const subOptions = targets.map(choice => ({ label: choice.name, value: choice.id }));
 
-    let label = this.t('stages.card.afterEndStartAnother');
-    if (targets.length === 0) label = this.t('stages.card.afterEndNoStages');
-    else if (linked) label = this.t('stages.card.afterEndStart', { name: linked.name });
+    // Each action is a category: picking it opens the board list ("More" flyout).
+    const actionOption = (
+      action: LinkedBoardAction,
+      genericKey: string,
+      namedKey: string,
+    ): UiSelectOption => ({
+      label: targets.length === 0
+        ? this.t('stages.card.afterEndNoStages')
+        : linked && current === action
+          ? this.t(namedKey, { name: linked.name })
+          : this.t(genericKey),
+      value: action,
+      requiresSubOption: true,
+      subOptionsLabel: this.t('stages.card.afterEndChooseStage'),
+      disabled: targets.length === 0,
+      subOptions,
+    });
 
-    return [
-      {
-        label,
-        value: START_LINKED_BOARD,
-        // Picking the action itself only opens the board list ("More" flyout).
-        requiresSubOption: true,
-        subOptionsLabel: this.t('stages.card.afterEndChooseStage'),
-        disabled: targets.length === 0,
-        subOptions: targets.map(choice => ({ label: choice.name, value: choice.id })),
-      },
+    const options = [
+      actionOption('start', 'stages.card.afterEndStartAnother', 'stages.card.afterEndStart'),
+      actionOption('resume', 'stages.card.afterEndResumeAnother', 'stages.card.afterEndResume'),
     ];
+    // With no other boards both rows would read "No other stages" — show one.
+    return targets.length === 0 ? options.slice(0, 1) : options;
   });
 
   private readonly cardUid = nextCardId++;
@@ -549,8 +571,27 @@ export class BoardCardComponent implements OnInit {
 
   readonly afterEndHint = computed(() => {
     if (this.afterEndBlockedByLoop()) return this.t('stages.card.afterEndLoopHint');
-    return this.linkedBoard() ? this.t('stages.card.afterEndHint') : null;
+    const linked = this.linkedBoard();
+    if (!linked) return null;
+    return this.linkedBoardAction() === 'resume'
+      ? this.t('stages.card.afterEndResumeHint', { name: linked.name })
+      : this.t('stages.card.afterEndHint');
   });
+
+  readonly afterEndChip = computed(() => {
+    const linked = this.linkedBoard();
+    if (!this.afterEndActive() || !linked) return null;
+    const resume = this.linkedBoardAction() === 'resume';
+    const params = { name: linked.name };
+    return {
+      label: this.t(resume ? 'stages.card.afterEndResumeChip' : 'stages.card.afterEndChip', params),
+      tooltip: this.t(
+        resume ? 'stages.card.afterEndResumeChipTip' : 'stages.card.afterEndChipTip',
+        params,
+      ),
+    };
+  });
+
 
   readonly groupOptions = computed(() =>
     // A group with no tracks has nothing to select or play, so disable it.
@@ -858,17 +899,18 @@ export class BoardCardComponent implements OnInit {
     }
   }
 
-  /** Only "Nothing" commits directly; the start action commits via its sub-option. */
-  onAfterEndChange(value: string | null): void {
+  /** Only "Nothing" commits directly; the actions commit via their board sub-option. */
+  onAfterEndChange(value: LinkedBoardAction | null): void {
     if (value == null && this.board().linkedBoardId != null) {
-      this.linkedBoardChange.emit(null);
+      this.linkedBoardChange.emit({ boardId: null, action: this.linkedBoardAction() });
     }
   }
 
   onAfterEndBoardSelected(event: UiSelectSubOptionEvent): void {
     const boardId = event.sub.value as string;
-    if (boardId !== this.board().linkedBoardId) {
-      this.linkedBoardChange.emit(boardId);
+    const action = event.parent.value as LinkedBoardAction;
+    if (boardId !== this.board().linkedBoardId || action !== this.linkedBoardAction()) {
+      this.linkedBoardChange.emit({ boardId, action });
     }
   }
 

@@ -73,6 +73,10 @@ export class BoardPlayerYtDeckComponent {
   readonly stopRequested = output<void>();
   readonly ended = output<void>();
   readonly nearEnd = output<void>();
+  /** Non-repeating playback is a couple of seconds from its crossfade point. */
+  readonly endApproaching = output<void>();
+  /** The audible source's audio actually started (after load/buffer or resume). */
+  readonly playbackStarted = output<void>();
   readonly audioError = output<void>();
   /** Playhead position (seconds) of the audible source, for host timelines. */
   readonly positionChange = output<number>();
@@ -333,6 +337,18 @@ export class BoardPlayerYtDeckComponent {
     this.startLoopCrossfade();
   }
 
+  onSourceEndApproaching(source: SourceName): void {
+    if (source === this.activeSource() && !this.repeat()) {
+      this.endApproaching.emit();
+    }
+  }
+
+  onSourcePlaybackStarted(source: SourceName): void {
+    if (source === this.activeSource()) {
+      this.playbackStarted.emit();
+    }
+  }
+
   onSourceEnded(source: SourceName): void {
     // If the outgoing source reaches its real end while the deck fade is still
     // finishing, do not start a second crossfade. That would reset the gains
@@ -533,8 +549,15 @@ export class BoardPlayerYtDeckComponent {
     }
   }
 
+  /**
+   * A source that is playing or already paused. Counting PAUSED keeps pausing
+   * idempotent: the sync effect reads these statuses, so setting a source to
+   * PAUSED re-runs it — without this the second pass would demote the paused
+   * source to STOPPED, resetting the player so a resume restarts from the start.
+   */
   private sourceWasRunning(source: SourceName): boolean {
-    return this.getSourceStatus(source) === 'PLAYING';
+    const status = this.getSourceStatus(source);
+    return status === 'PLAYING' || status === 'PAUSED';
   }
 
   private getSourceComponent(source: SourceName): BoardPlayerYtComponent | undefined {
