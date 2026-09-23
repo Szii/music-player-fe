@@ -36,6 +36,7 @@ import {
   PlaybackMode,
   LoopMode,
 } from '../../components/board-card/board-card.component';
+import { LinkedBoardChoice } from '../../models/linked-board-choice';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { UiCreateCtaComponent } from '../../../../shared/ui/create-cta/ui-create-cta.component';
@@ -60,7 +61,6 @@ interface VolumeCommit {
 
 @Component({
   selector: 'app-boards-page',
-  standalone: true,
   imports: [
     CreateBoardFormComponent,
     BoardCardComponent,
@@ -116,6 +116,15 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     if (sessionId == null) return [];
     return this.boards().filter(b => b.sessionId === sessionId);
   });
+
+  /** Boards of the selected session, named as in the tabs, for the After-playback action. */
+  readonly linkedBoardChoices = computed<LinkedBoardChoice[]>(() =>
+    this.sessionBoards().flatMap((board, index) =>
+      board.id == null
+        ? []
+        : [{ id: board.id, name: board.name || this.t('common.stageIndex', { index: index + 1 }) }],
+    ),
+  );
 
   @ViewChild('sessionsDropdown') sessionsDropdownRef?: SessionsDropdownComponent;
   @ViewChild('boardsList') boardsListRef?: ElementRef<HTMLElement>;
@@ -197,6 +206,9 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   private readonly pendingTrackUpdateBoardIds = new Set<string>();
   private readonly playPendingAfterUpdateBoardIds = new Set<string>();
   private readonly playlistAdvanceInFlightBoardIds = new Set<string>();
+  /** Boards that already started their linked board during the current play-through,
+      so nearEnd and ended don't both trigger the handoff. */
+  private readonly linkedHandoffBoardIds = new Set<string>();
 
   private readonly fadeStateVersion = signal(0);
   /** Bumped whenever the locally-selected window changes without a `boards()`
@@ -591,6 +603,10 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     this.updateBoard(board, { name }, this.t('stages.err.rename'));
   }
 
+  onLinkedBoardChange(board: Board, linkedBoardId: string | null): void {
+    this.updateBoard(board, { linkedBoardId }, this.t('stages.err.linkedBoard'));
+  }
+
   onPlaylistOptionsChange(board: Board, options: PlaylistOptions): void {
     this.updateBoard(board, { shuffle: options.random }, this.t('stages.err.shuffle'));
 
@@ -878,7 +894,11 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     this.playBoardTrack(board);
   }
 
-  playBoardTrack(board: Board): void {
+  /**
+   * @param rampMsOverride Crossfade length to use instead of the default board
+   *   change / fade-up length (a linked-board handoff lands its fade on the seam).
+   */
+  playBoardTrack(board: Board, rampMsOverride?: number): void {
     if (board.id == null) return;
 
     if (!board.selectedTrack) {
@@ -903,6 +923,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
     if (!wasActive) {
       this.masterVolumesByBoard.set(targetId, 0);
+      this.linkedHandoffBoardIds.delete(targetId);
 
       // Sequence mode always (re)starts from the first window.
       if (this.sequentialWindowsByBoard.get(targetId)) {
@@ -918,7 +939,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     this.boardStatuses.set(targetId, 'PLAYING');
     this.streamUrlsByBoard.delete(targetId);
     this.syncPlayingState();
-    this.applyPlayCrossfade(targetId, wasActive, boardsToStop);
+    this.applyPlayCrossfade(targetId, wasActive, boardsToStop, rampMsOverride);
   }
 
   /**
@@ -930,6 +951,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     targetId: string,
     wasActive: boolean,
     boardsToStop: Board[],
+    rampMsOverride?: number,
   ): void {
     this.clearCrossfadeCleanupTimer();
 
@@ -942,9 +964,9 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     // starting from silence there are no stopping boards, so the incoming board's
     // own crossfade sizes the fade-up (floored at a tiny safety fade for a 0 setting).
     const incomingBoard = this.findBoard(targetId);
-    const rampMs = boardsToStop.length > 0
+    const rampMs = rampMsOverride ?? (boardsToStop.length > 0
       ? BOARD_CHANGE_CROSSFADE_MS
-      : effectiveCrossfadeMs(incomingBoard ? this.boardCrossfadeMs(incomingBoard) : 0);
+      : effectiveCrossfadeMs(incomingBoard ? this.boardCrossfadeMs(incomingBoard) : 0));
 
     // Schedule audio-clock-driven master gain ramps in each affected
     // board-player. Setting the ramp before the target ensures the child reads
@@ -1001,7 +1023,10 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       // Advance to the next window ahead of the current window's end so the
       // window-change crossfade overlaps the seam.
       this.advanceSequenceWindow(board);
+      return;
     }
+
+    this.handOffToLinkedBoard(board);
   }
 
   onAudioEnded(board: Board): void {
@@ -1023,7 +1048,42 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // Fallback when nearEnd never fired (e.g. seeked past it): hand off at the seam.
+    if (!this.linkedHandoffBoardIds.delete(board.id)) {
+      this.handOffToLinkedBoard(board);
+      this.linkedHandoffBoardIds.delete(board.id);
+    }
+
     this.clearBoard(board.id);
+  }
+
+  /**
+   * Start the board's linked board as this one finishes. Called from nearEnd,
+   * which fires one crossfade-length before the seam, so ramping over that same
+   * length lands the crossfade right on the seam (like a loop or window advance).
+   */
+  private handOffToLinkedBoard(board: Board): void {
+    const boardId = board.id;
+    if (boardId == null || this.linkedHandoffBoardIds.has(boardId)) return;
+    if (!this.isBoardActive(boardId)) return;
+
+    const next = this.linkedBoardFor(board);
+    if (!next) return;
+
+    this.linkedHandoffBoardIds.add(boardId);
+    this.playBoardTrack(next, effectiveCrossfadeMs(this.boardCrossfadeMs(board)));
+  }
+
+  /** The board to start after this one, when the chain can fire (single, loop off). */
+  private linkedBoardFor(board: Board): Board | null {
+    const linkedId = board.linkedBoardId;
+    if (linkedId == null || linkedId === board.id) return null;
+    if (board.playlistMode || (board.repeat ?? false) || this.getSequentialWindows(board)) {
+      return null;
+    }
+
+    const next = this.findBoard(linkedId);
+    return next?.sessionId === board.sessionId ? next : null;
   }
 
   onAudioError(board: Board): void {
@@ -1436,6 +1496,9 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       shuffle: board.shuffle ?? undefined,
       playlistMode: board.playlistMode ?? undefined,
       sequenceMode: this.sequenceModeForRequest(board),
+      // Always sent so a full update never drops the link (null clears it); a
+      // link to a board deleted meanwhile is cleared rather than re-sent.
+      linkedBoardId: this.findBoard(board.linkedBoardId ?? '') ? board.linkedBoardId : null,
       ...overrides,
     };
   }
@@ -1543,6 +1606,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     this.persistedVolumesByBoard.delete(boardId);
     this.pendingTrackUpdateBoardIds.delete(boardId);
     this.playPendingAfterUpdateBoardIds.delete(boardId);
+    this.linkedHandoffBoardIds.delete(boardId);
     this.shortcuts.clearShortcut(boardId);
   }
 

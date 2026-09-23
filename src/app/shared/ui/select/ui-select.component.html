@@ -11,6 +11,8 @@
     [disabled]="isDisabled()"
     [attr.aria-expanded]="isOpen()"
     aria-haspopup="listbox"
+    [attr.aria-labelledby]="triggerLabelledBy()"
+    [attr.aria-describedby]="ariaDescribedBy()"
     (click)="toggle()"
   >
     @if (selectedIcon(); as icon) {
@@ -19,6 +21,7 @@
 
     <span
       class="sel__value"
+      [id]="valueId"
       [class.sel__value--placeholder]="isNullValue()"
     >{{ selectedLabel() }}</span>
 
@@ -93,7 +96,7 @@
               [attr.aria-disabled]="opt.disabled || null"
               role="option"
               [attr.aria-selected]="currentValue() === opt.value"
-              (click)="selectOption(opt)"
+              (click)="selectOption(opt, i)"
             >
               <span class="sel__option-label">
                 @if (opt.icon; as icon) {
@@ -111,7 +114,7 @@
                   [class.sel__option-subhint--open]="hoveredOptionValue() === opt.value"
                   role="button"
                   tabindex="-1"
-                  [attr.aria-label]="'common.showWindows' | transloco"
+                  [attr.aria-label]="opt.subOptionsLabel ?? ('common.showWindows' | transloco)"
                   (click)="onMoreTap(opt, i, $event)"
                 >
                   <span class="sel__option-subhint-text">{{ 'common.more' | transloco }}</span>

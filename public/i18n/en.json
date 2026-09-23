@@ -142,7 +142,17 @@
       "groupDesyncTip": "Selected group does not match the playing track — pick a track to switch",
       "sequenceLocked": "Sequence mode steps through every window automatically",
       "playlistTitle": "Play through the selected group",
-      "playlistEmpty": "This group has no tracks to play"
+      "playlistEmpty": "This group has no tracks to play",
+      "afterEnd": "After playback ends",
+      "afterEndNothing": "Nothing",
+      "afterEndStart": "Start {{name}}",
+      "afterEndStartAnother": "Start another stage",
+      "afterEndChooseStage": "Choose a stage to start",
+      "afterEndNoStages": "No other stages in this session",
+      "afterEndHint": "Crossfades into the chosen stage when this one finishes",
+      "afterEndLoopHint": "Turn loop off in playback settings to continue with another stage",
+      "afterEndChip": "Then {{name}}",
+      "afterEndChipTip": "After playback ends, starts {{name}}"
     },
     "mode": {
       "single": "Single",
@@ -207,6 +217,7 @@
       "playlistMode": "Updating playlist mode failed.",
       "sequenceMode": "Updating sequence mode failed.",
       "shuffle": "Updating shuffle failed.",
+      "linkedBoard": "Updating the after-playback action failed.",
       "restoreTrack": "Restoring track failed.",
       "group": "Updating group failed.",
       "window": "Updating window failed.",

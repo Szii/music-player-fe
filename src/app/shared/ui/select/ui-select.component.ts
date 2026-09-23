@@ -29,12 +29,21 @@ export interface UiSelectOption {
   icon?: string;
   /** Optional short muted badge after the label (e.g. a "Window" marker). */
   tag?: string;
+  /**
+   * When true the option is only a category: picking the row itself opens its
+   * sub-options flyout instead of committing the option's own value.
+   */
+  requiresSubOption?: boolean;
+  /** Accessible name of the "More" affordance that reveals the sub-options. */
+  subOptionsLabel?: string;
 }
 
 export interface UiSelectSubOptionEvent {
   parent: UiSelectOption;
   sub: UiSelectOption;
 }
+
+let nextSelectId = 0;
 
 interface PanelRect {
   top: number | null;
@@ -71,6 +80,16 @@ export class UiSelectComponent implements ControlValueAccessor {
   readonly placeholder = input('');
   readonly enableSearch = input(true);
   readonly navigateUpWhenClosed = input(false);
+  /** Id of an external label element; the trigger is named by it plus its value. */
+  readonly ariaLabelledBy = input<string | null>(null);
+  /** Id of an element describing the control (e.g. a hint below it). */
+  readonly ariaDescribedBy = input<string | null>(null);
+
+  readonly valueId = `ui-select-value-${nextSelectId++}`;
+  readonly triggerLabelledBy = computed(() => {
+    const labelId = this.ariaLabelledBy();
+    return labelId ? `${labelId} ${this.valueId}` : null;
+  });
 
   readonly subOptionSelected = output<UiSelectSubOptionEvent>();
   readonly navigateNext = output<void>();
@@ -103,8 +122,9 @@ export class UiSelectComponent implements ControlValueAccessor {
   private readonly scrollLock = inject(ScrollLockService);
   private readonly device = inject(DeviceCapabilitiesService);
   private readonly transloco = inject(TranslocoService);
+  private readonly el = inject<ElementRef<HTMLElement>>(ElementRef);
 
-  constructor(private readonly el: ElementRef) {
+  constructor() {
     effect(() => {
       const len = this.filteredOptions().length;
       const idx = this.highlightedIndex();
@@ -362,6 +382,7 @@ export class UiSelectComponent implements ControlValueAccessor {
     const opts = this.filteredOptions();
     const idx = this.highlightedIndex();
     if (idx < 0 || idx >= opts.length || opts[idx].disabled) return false;
+    if (opts[idx].requiresSubOption) return this.openFlyoutForIndex(idx, true);
     this.selectOption(opts[idx]);
     this.enterCommitted.emit();
     return true;
@@ -412,13 +433,19 @@ export class UiSelectComponent implements ControlValueAccessor {
     this.triggerRef?.nativeElement.focus();
   }
 
-  selectOption(opt: UiSelectOption): void {
+  selectOption(opt: UiSelectOption, index?: number): void {
     if (opt.disabled) return;
 
     // On touch, an open window flyout has no hover to dismiss it, so the first
     // tap on any row just closes the flyout instead of selecting that track.
     if (!this.isHoverDevice() && this.hoveredOptionValue() !== null) {
       this.closeFlyout();
+      return;
+    }
+
+    // A category row has no value of its own — reveal its sub-options instead.
+    if (opt.requiresSubOption) {
+      if (index != null) this.openFlyoutForIndex(index, true);
       return;
     }
 
@@ -596,6 +623,10 @@ export class UiSelectComponent implements ControlValueAccessor {
       if (this.commitHighlighted()) return;
       const opts = this.filteredOptions();
       if (opts.length === 1) {
+        if (opts[0].requiresSubOption) {
+          this.openFlyoutForIndex(0, true);
+          return;
+        }
         this.selectOption(opts[0]);
         this.enterCommitted.emit();
       }
@@ -603,7 +634,7 @@ export class UiSelectComponent implements ControlValueAccessor {
   }
 
   onDocumentClick(event: MouseEvent): void {
-    if (!this.el.nativeElement.contains(event.target)) {
+    if (!this.el.nativeElement.contains(event.target as Node | null)) {
       this.isOpen.set(false);
       this.searchQuery.set('');
       this.clearFlyoutTimer();

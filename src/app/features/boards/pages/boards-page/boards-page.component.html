@@ -61,6 +61,7 @@
               [playlistMode]="board.playlistMode ?? false"
               [sequentialWindows]="getSequentialWindows(board)"
               [playlistOptions]="getPlaylistOptions(board)"
+              [linkedBoardChoices]="linkedBoardChoices()"
               (delete)="deleteBoard(board)"
               (groupChange)="onGroupSelectionChange(board, $event)"
               (trackChange)="onTrackSelectionChange(board, $event)"
@@ -82,6 +83,7 @@
               (navigateBoardUp)="focusBoardByOffset(board, -1)"
               (navigateBoardDown)="focusBoardByOffset(board, 1)"
               (requestPlay)="onBoardRequestPlay(board)"
+              (linkedBoardChange)="onLinkedBoardChange(board, $event)"
             />
           }
         </div>

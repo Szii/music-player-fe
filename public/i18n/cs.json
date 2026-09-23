@@ -142,7 +142,17 @@
       "groupDesyncTip": "Vybraná skupina neodpovídá přehrávané skladbě — přepnete výběrem skladby",
       "sequenceLocked": "Režim sekvence prochází všechna okna automaticky",
       "playlistTitle": "Přehrát celou vybranou skupinu",
-      "playlistEmpty": "Tato skupina nemá žádné skladby k přehrání"
+      "playlistEmpty": "Tato skupina nemá žádné skladby k přehrání",
+      "afterEnd": "Po skončení přehrávání",
+      "afterEndNothing": "Nic",
+      "afterEndStart": "Spustit {{name}}",
+      "afterEndStartAnother": "Spustit jinou scénu",
+      "afterEndChooseStage": "Vyberte scénu ke spuštění",
+      "afterEndNoStages": "V této relaci nejsou další scény",
+      "afterEndHint": "Po skončení plynule přejde do vybrané scény",
+      "afterEndLoopHint": "Pro navázání další scény vypněte opakování v nastavení přehrávání",
+      "afterEndChip": "Poté {{name}}",
+      "afterEndChipTip": "Po skončení přehrávání spustí {{name}}"
     },
     "mode": {
       "single": "Single",
@@ -207,6 +217,7 @@
       "playlistMode": "Změna režimu playlistu se nezdařila.",
       "sequenceMode": "Změna režimu sekvence se nezdařila.",
       "shuffle": "Změna náhodného pořadí se nezdařila.",
+      "linkedBoard": "Změna akce po skončení přehrávání se nezdařila.",
       "restoreTrack": "Obnovení skladby se nezdařilo.",
       "group": "Změna skupiny se nezdařila.",
       "window": "Změna okna se nezdařila.",
