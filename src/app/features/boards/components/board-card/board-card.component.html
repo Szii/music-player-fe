@@ -103,6 +103,18 @@
               </ui-chip>
             }
 
+            @if (afterEndActive() && linkedBoard(); as next) {
+              <ui-chip
+                variant="gold"
+                size="sm"
+                shape="hex"
+                [tooltip]="'stages.card.afterEndChipTip' | transloco: { name: next.name }"
+              >
+                <ui-icon class="ribbon-ico" name="then" />
+                {{ 'stages.card.afterEndChip' | transloco: { name: next.name } }}
+              </ui-chip>
+            }
+
             @if (board().overplay) {
               <ui-chip
                 variant="gold"
@@ -460,6 +472,35 @@
                 (navigateUp)="focusChevron()"
                 (escape)="focusChevron()"
               />
+            </div>
+          }
+
+          @if (!playlistMode()) {
+            <div class="board-after-end">
+              <div class="board-field board-after-end__field">
+                <span class="board-field__label" [id]="afterEndLabelId">
+                  {{ 'stages.card.afterEnd' | transloco }}
+                </span>
+                <ui-select
+                  class="board-control"
+                  [ariaLabelledBy]="afterEndLabelId"
+                  [ariaDescribedBy]="afterEndHint() ? afterEndHintId : null"
+                  [enableSearch]="false"
+                  [options]="afterEndOptions()"
+                  [nullOption]="'stages.card.afterEndNothing' | transloco"
+                  [disabled]="afterEndBlockedByLoop()"
+                  [ngModel]="afterEndValue()"
+                  [ngModelOptions]="{ standalone: true }"
+                  (ngModelChange)="onAfterEndChange($event)"
+                  (subOptionSelected)="onAfterEndBoardSelected($event)"
+                  (navigateUp)="focusChevron()"
+                  (escape)="focusChevron()"
+                />
+              </div>
+
+              @if (afterEndHint(); as hint) {
+                <p class="board-after-end__hint" [id]="afterEndHintId">{{ hint }}</p>
+              }
             </div>
           }
         </div>

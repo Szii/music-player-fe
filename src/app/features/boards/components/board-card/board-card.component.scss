@@ -555,6 +555,32 @@
   align-items: end;
 }
 
+/* Full-width row under the selectors: what happens when playback ends. The
+   hint sits beside the dropdown on wide boards and wraps under it on narrow. */
+.board-after-end {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 6px 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--app-border-color-soft);
+}
+
+.board-after-end__field {
+  flex: 0 1 320px;
+}
+
+.board-after-end__hint {
+  flex: 1 1 200px;
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--app-text-muted);
+}
+
 .board-field {
   display: flex;
   flex-direction: column;
@@ -828,6 +854,14 @@
 
   .board-card__controls {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .board-after-end__field {
+    flex-basis: 100%;
+  }
+
+  .board-after-end__hint {
+    min-height: 0;
   }
 
   /* Volume is a full-width horizontal bar at the bottom of the info zone. */

@@ -9,7 +9,8 @@ export type UiIconName =
   | 'shuffle'
   | 'ordered'
   | 'overlap'
-  | 'keyboard';
+  | 'keyboard'
+  | 'then';
 
 @Component({
   selector: 'ui-icon',
