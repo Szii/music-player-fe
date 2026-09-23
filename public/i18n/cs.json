@@ -146,13 +146,20 @@
       "afterEnd": "Po skončení přehrávání",
       "afterEndNothing": "Nic",
       "afterEndStart": "Spustit {{name}}",
-      "afterEndStartAnother": "Spustit jinou scénu",
+      "afterEndStartAnother": "Spustit scénu",
       "afterEndChooseStage": "Vyberte scénu ke spuštění",
       "afterEndNoStages": "V této relaci nejsou další scény",
       "afterEndHint": "Po skončení plynule přejde do vybrané scény",
       "afterEndLoopHint": "Pro navázání další scény vypněte opakování v nastavení přehrávání",
       "afterEndChip": "Poté {{name}}",
-      "afterEndChipTip": "Po skončení přehrávání spustí {{name}}"
+      "afterEndChipTip": "Po skončení přehrávání spustí {{name}}",
+      "afterEndResumeAnother": "Pozastavit a obnovit",
+      "afterEndResume": "Obnovit {{name}}",
+      "afterEndResumeHint": "Během přehrávání této scény pozastaví {{name}} a poté ji plynule obnoví tam, kde skončila",
+      "afterEndResumeChip": "Obnovit {{name}}",
+      "afterEndResumeChipTip": "Během přehrávání pozastaví {{name}} a po skončení ji obnoví",
+      "paused": "Pozastaveno",
+      "pausedTip": "Pozastaveno jinou scénou — obnoví se, až ta skončí, nebo stiskněte přehrát"
     },
     "mode": {
       "single": "Single",

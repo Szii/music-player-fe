@@ -70,6 +70,9 @@ export class BoardPlayerYtComponent implements OnDestroy {
   /** Extra head-start so the incoming slot can buffer before the fade starts. */
   private static readonly CROSSFADE_BUFFER_LEAD_S = 1;
   private static readonly PLAYING_WAIT_TIMEOUT_MS = 4000;
+  /** How long before the crossfade point `endApproaching` fires, giving a host
+      time to spin up (buffer) whatever plays next. */
+  private static readonly END_APPROACHING_EXTRA_LEAD_S = 2;
 
   private readonly zone = inject(NgZone);
   private readonly destroyRef = inject(DestroyRef);
@@ -109,6 +112,11 @@ export class BoardPlayerYtComponent implements OnDestroy {
   readonly stopRequested = output<void>();
   readonly ended = output<void>();
   readonly nearEnd = output<void>();
+  /** Fires a couple of seconds before `nearEnd` (non-repeating playback only) so a
+      host can warm up the next source before the crossfade has to start. */
+  readonly endApproaching = output<void>();
+  /** The active YouTube player actually reached the PLAYING state (audio flows). */
+  readonly playbackStarted = output<void>();
   readonly audioError = output<void>();
   /** Emitted when the user commits a manual seek (so the deck can cancel an
       in-progress loop crossfade and honour the new position). */
@@ -178,6 +186,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
 
   private pollTimer: number | null = null;
   private emittedNearEnd = false;
+  private emittedEndApproaching = false;
   private isUserSeeking = false;
   private lastWindowKey: string | null = null;
   /**
@@ -258,7 +267,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
 
     this.displayPositionS.set(target);
     this.isUserSeeking = false;
-    this.emittedNearEnd = false;
+    this.resetEndSignals();
     this.ignoreWindowEnd = false;
 
     const videoId = this.hasTrack() ? this.videoId() : null;
@@ -298,7 +307,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
     this.displayPositionS.set(target);
     this.seekableMaxS.set(this.seekableWindowEnd());
     this.isUserSeeking = false;
-    this.emittedNearEnd = false;
+    this.resetEndSignals();
     this.ignoreWindowEnd = false;
 
     const active = this.active();
@@ -411,7 +420,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
     active.loadedTrackId = trackId;
     active.gain = 1;
     this.idle().gain = 0;
-    this.emittedNearEnd = false;
+    this.resetEndSignals();
     this.ignoreWindowEnd = false;
     this.captureActiveWindowFades();
     this.localStatus.set('BUFFERING');
@@ -514,7 +523,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
       this.captureActiveWindowFades();
       this.applyVolumes();
 
-      this.emittedNearEnd = false;
+      this.resetEndSignals();
       this.localStatus.set('PLAYING');
       this.displayPositionS.set(startS);
       this.seekableMaxS.set(this.seekableWindowEnd());
@@ -684,6 +693,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
       if (state === YT.PlayerState.PLAYING) {
         this.localStatus.set('PLAYING');
         this.startPolling();
+        this.playbackStarted.emit();
         return;
       }
 
@@ -777,6 +787,15 @@ export class BoardPlayerYtComponent implements OnDestroy {
 
       if (
         endS > 0 &&
+        remainingS <= this.nearEndLeadS() + BoardPlayerYtComponent.END_APPROACHING_EXTRA_LEAD_S &&
+        !this.emittedEndApproaching
+      ) {
+        this.emittedEndApproaching = true;
+        this.endApproaching.emit();
+      }
+
+      if (
+        endS > 0 &&
         remainingS <= this.nearEndLeadS() &&
         !this.emittedNearEnd
       ) {
@@ -786,12 +805,17 @@ export class BoardPlayerYtComponent implements OnDestroy {
     });
   }
 
+  private resetEndSignals(): void {
+    this.emittedNearEnd = false;
+    this.emittedEndApproaching = false;
+  }
+
   private hardLoop(startS: number): void {
     const active = this.active();
     if (!active.player || !active.ready) {
       return;
     }
-    this.emittedNearEnd = false;
+    this.resetEndSignals();
     active.player.seekTo(startS, true);
     active.player.playVideo();
     this.displayPositionS.set(startS);
@@ -821,7 +845,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
     this.crossfadeInProgress = false;
     this.pendingTrack = null;
     this.finishCurrentCrossfadeRequested = false;
-    this.emittedNearEnd = false;
+    this.resetEndSignals();
     this.ignoreWindowEnd = false;
 
     for (const slot of [this.slotA, this.slotB]) {
@@ -1034,7 +1058,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
       return;
     }
 
-    this.emittedNearEnd = false;
+    this.resetEndSignals();
 
     if (active.player.getPlayerState() === YT.PlayerState.PLAYING) {
       void this.crossfadeInto(
@@ -1076,7 +1100,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
       return;
     }
 
-    this.emittedNearEnd = false;
+    this.resetEndSignals();
 
     // Window editor / deck-managed sequence: defer all repositioning to the host
     // (commitWindowReposition, or the deck's advance crossfade). Repositioning on

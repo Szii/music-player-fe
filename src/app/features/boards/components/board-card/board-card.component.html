@@ -103,15 +103,26 @@
               </ui-chip>
             }
 
-            @if (afterEndActive() && linkedBoard(); as next) {
+            @if (afterEndChip(); as chip) {
               <ui-chip
                 variant="gold"
                 size="sm"
                 shape="hex"
-                [tooltip]="'stages.card.afterEndChipTip' | transloco: { name: next.name }"
+                [tooltip]="chip.tooltip"
               >
                 <ui-icon class="ribbon-ico" name="then" />
-                {{ 'stages.card.afterEndChip' | transloco: { name: next.name } }}
+                {{ chip.label }}
+              </ui-chip>
+            }
+
+            @if (heldForResume()) {
+              <ui-chip
+                variant="neutral"
+                size="sm"
+                shape="hex"
+                [tooltip]="'stages.card.pausedTip' | transloco"
+              >
+                {{ 'stages.card.paused' | transloco }}
               </ui-chip>
             }
 
@@ -528,6 +539,8 @@
             (stopRequested)="stop.emit()"
             (ended)="ended.emit()"
             (nearEnd)="nearEnd.emit()"
+            (endApproaching)="endApproaching.emit()"
+            (playbackStarted)="playbackStarted.emit()"
             (audioError)="audioError.emit()"
           />
         </div>

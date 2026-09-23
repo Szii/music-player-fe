@@ -36,7 +36,8 @@ import {
   PlaybackMode,
   LoopMode,
 } from '../../components/board-card/board-card.component';
-import { LinkedBoardChoice } from '../../models/linked-board-choice';
+import { LinkedBoardAction, LinkedBoardChoice, LinkedBoardSelection } from '../../models/linked-board-choice';
+import { BoardLinkActionsService } from '../../data-access/board-link-actions.service';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { UiCreateCtaComponent } from '../../../../shared/ui/create-cta/ui-create-cta.component';
@@ -52,6 +53,31 @@ import { TracksStore } from '../../../../core/services/tracks-store.service';
 import { GroupsStore } from '../../../../core/services/groups-store.service';
 
 type PlayerStatus = 'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR';
+
+/** Boards faded out by a starting board: stopped, or paused to be resumed later. */
+interface DisplacedBoards {
+  stop: Board[];
+  pause: Board[];
+}
+
+/**
+ * A board being started/resumed because another board is ending.
+ *  - `loading`  — started silently ahead of the seam, waiting for its audio,
+ *  - `primed`   — loaded and held paused at its start until the seam,
+ *  - `starting` — resumed at the seam, waiting for its audio to fade it in.
+ */
+interface PendingHandoff {
+  fromId: string;
+  /** The outgoing board's crossfade, so the fade lands on its seam. */
+  rampMs: number;
+  phase: 'loading' | 'primed' | 'starting';
+  /** The outgoing board reached its crossfade point. */
+  seamReached: boolean;
+  fallbackTimer: ReturnType<typeof setTimeout> | null;
+}
+
+/** Longest wait for a handoff target's audio before fading it in regardless. */
+const LINKED_HANDOFF_START_TIMEOUT_MS = 4000;
 
 interface VolumeCommit {
   boardId: string;
@@ -99,6 +125,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   private readonly sessionsStore = inject(SessionsStore);
   private readonly tracksStore = inject(TracksStore);
   private readonly groupsStore = inject(GroupsStore);
+  private readonly linkActions = inject(BoardLinkActionsService);
 
   readonly boards = signal<Board[]>([]);
   readonly tracks = this.tracksStore.tracks;
@@ -117,10 +144,14 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     return this.boards().filter(b => b.sessionId === sessionId);
   });
 
-  /** Boards of the selected session, named as in the tabs, for the After-playback action. */
+  /**
+   * Boards of the selected session that can be linked for the After-playback
+   * action (named as in the tabs). A board without a selected track has nothing
+   * to play, so it isn't offered.
+   */
   readonly linkedBoardChoices = computed<LinkedBoardChoice[]>(() =>
     this.sessionBoards().flatMap((board, index) =>
-      board.id == null
+      board.id == null || !board.selectedTrack
         ? []
         : [{ id: board.id, name: board.name || this.t('common.stageIndex', { index: index + 1 }) }],
     ),
@@ -209,13 +240,18 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   /** Boards that already started their linked board during the current play-through,
       so nearEnd and ended don't both trigger the handoff. */
   private readonly linkedHandoffBoardIds = new Set<string>();
+  /** Linked-board handoffs in progress, keyed by the board being started. */
+  private readonly pendingHandoffs = new Map<string, PendingHandoff>();
+  /** The fade that last touched each board; an older fade's cleanup skips it. */
+  private readonly fadeTokens = new Map<string, number>();
+  private fadeTokenSeq = 0;
+  private readonly fadeCleanupTimers = new Set<ReturnType<typeof setTimeout>>();
 
   private readonly fadeStateVersion = signal(0);
   /** Bumped whenever the locally-selected window changes without a `boards()`
       update (e.g. a sequence-mode advance), so template getters re-read the
       non-reactive selection map and the player crossfades to the new window. */
   private readonly windowSelectionVersion = signal(0);
-  private crossfadeCleanupTimer: ReturnType<typeof setTimeout> | null = null;
 
   private readonly volumeCommit$ = new Subject<VolumeCommit>();
 
@@ -262,7 +298,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     const board = this.boards().find(item => item.id === boardId);
     if (!board) return;
 
-    if (this.isBoardActive(boardId)) {
+    if (this.isBoardPlaying(boardId)) {
       this.stopBoardTrack(board);
     } else {
       this.playBoardTrack(board);
@@ -270,7 +306,8 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.clearCrossfadeCleanupTimer();
+    this.clearFadeCleanupTimers();
+    for (const targetId of [...this.pendingHandoffs.keys()]) this.dropHandoff(targetId);
     this.volumeCommit$.complete();
   }
 
@@ -603,8 +640,26 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     this.updateBoard(board, { name }, this.t('stages.err.rename'));
   }
 
-  onLinkedBoardChange(board: Board, linkedBoardId: string | null): void {
-    this.updateBoard(board, { linkedBoardId }, this.t('stages.err.linkedBoard'));
+  onLinkedBoardChange(board: Board, selection: LinkedBoardSelection): void {
+    if (board.id == null) return;
+
+    if (selection.boardId != null) {
+      this.linkActions.setAction(board.id, selection.action);
+    }
+    if (selection.boardId !== (board.linkedBoardId ?? null)) {
+      this.updateBoard(board, { linkedBoardId: selection.boardId }, this.t('stages.err.linkedBoard'));
+    }
+  }
+
+  getLinkedBoardAction(board: Board): LinkedBoardAction {
+    return this.linkActions.actionFor(board.id);
+  }
+
+  /** Paused by another board's pause-and-resume action (not a handoff warm-up). */
+  isHeldForResume(board: Board): boolean {
+    return board.id != null
+      && this.boardStatuses.get(board.id) === 'PAUSED'
+      && !this.pendingHandoffs.has(board.id);
   }
 
   onPlaylistOptionsChange(board: Board, options: PlaylistOptions): void {
@@ -886,20 +941,23 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Window changes are synchronous; if the board is already active,
+    // Window changes are synchronous; if the board is already playing,
     // onWindowSelectionChange already kicked off a restart. Skip to avoid
     // double-playing.
-    if (this.isBoardActive(boardId)) return;
+    if (this.isBoardPlaying(boardId)) return;
 
     this.playBoardTrack(board);
   }
 
-  /**
-   * @param rampMsOverride Crossfade length to use instead of the default board
-   *   change / fade-up length (a linked-board handoff lands its fade on the seam).
-   */
-  playBoardTrack(board: Board, rampMsOverride?: number): void {
+  playBoardTrack(board: Board): void {
     if (board.id == null) return;
+    const targetId = board.id;
+
+    // Playing a board that is being warmed up for a linked handoff: fade it in now.
+    if (this.pendingHandoffs.has(targetId)) {
+      this.commitHandoff(targetId, false);
+      return;
+    }
 
     if (!board.selectedTrack) {
       if (board.playlistMode) {
@@ -908,30 +966,12 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const targetId = board.id;
-    const targetOverplay = board.overplay ?? false;
-    const wasActive = this.isBoardActive(targetId);
+    const status = this.boardStatuses.get(targetId);
+    const wasPlaying = status === 'PLAYING';
+    const displaced = this.displacedBy(board);
 
-    const boardsToStop = targetOverplay
-      ? []
-      : this.boards().filter(candidate =>
-          candidate.id != null &&
-          candidate.id !== targetId &&
-          !(candidate.overplay ?? false) &&
-          this.isBoardActive(candidate.id),
-        );
-
-    if (!wasActive) {
-      this.masterVolumesByBoard.set(targetId, 0);
-      this.linkedHandoffBoardIds.delete(targetId);
-
-      // Sequence mode always (re)starts from the first window.
-      if (this.sequentialWindowsByBoard.get(targetId)) {
-        const windows = this.boardWindows(board);
-        if (windows.length >= 2) {
-          this.setSequenceWindow(targetId, windows[0]);
-        }
-      }
+    if (!wasPlaying) {
+      this.prepareStart(board, status === 'PAUSED');
     }
 
     // The YouTube IFrame player owns playback status client-side: set the board
@@ -939,23 +979,64 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     this.boardStatuses.set(targetId, 'PLAYING');
     this.streamUrlsByBoard.delete(targetId);
     this.syncPlayingState();
-    this.applyPlayCrossfade(targetId, wasActive, boardsToStop, rampMsOverride);
+    this.applyPlayCrossfade(targetId, wasPlaying, displaced);
   }
 
   /**
-   * Master-volume crossfade orchestration shared by both playback backends:
-   * ramp the started board up and any displaced boards down, then release them
-   * after the fade.
+   * Reset per-play state before a board starts from silence. A board resuming from
+   * a pause keeps its window/sequence position — the player resumes in place.
+   */
+  private prepareStart(board: Board, resuming: boolean): void {
+    const boardId = board.id!;
+    this.masterVolumesByBoard.set(boardId, 0);
+    this.linkedHandoffBoardIds.delete(boardId);
+
+    // Sequence mode always (re)starts from the first window.
+    if (!resuming && this.sequentialWindowsByBoard.get(boardId)) {
+      const windows = this.boardWindows(board);
+      if (windows.length >= 2) {
+        this.setSequenceWindow(boardId, windows[0]);
+      }
+    }
+  }
+
+  /**
+   * Boards a starting board fades out. Other playing boards are stopped (unless
+   * either side is overplay); the starting board's pause-and-resume target is
+   * paused instead, so it can be resumed in place when that board ends.
+   */
+  private displacedBy(board: Board): DisplacedBoards {
+    const targetId = board.id;
+    const pauseTarget = this.resumeTargetFor(board);
+    const pause = pauseTarget?.id != null && this.isBoardPlaying(pauseTarget.id)
+      ? [pauseTarget]
+      : [];
+
+    const stop = (board.overplay ?? false)
+      ? []
+      : this.boards().filter(candidate =>
+          candidate.id != null &&
+          candidate.id !== targetId &&
+          candidate.id !== pauseTarget?.id &&
+          !(candidate.overplay ?? false) &&
+          this.isBoardPlaying(candidate.id),
+        );
+
+    return { stop, pause };
+  }
+
+  /**
+   * Master-volume crossfade orchestration: ramp the started board up and the
+   * displaced boards down, then stop (or pause) them once the fade completes.
    */
   private applyPlayCrossfade(
     targetId: string,
-    wasActive: boolean,
-    boardsToStop: Board[],
+    wasPlaying: boolean,
+    displaced: DisplacedBoards,
     rampMsOverride?: number,
   ): void {
-    this.clearCrossfadeCleanupTimer();
-
-    if (wasActive && boardsToStop.length === 0) {
+    const fadingOut = displaced.stop.length + displaced.pause.length;
+    if (wasPlaying && fadingOut === 0) {
       return;
     }
 
@@ -963,43 +1044,89 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     // feels the same regardless of the boards' own crossfade settings. When
     // starting from silence there are no stopping boards, so the incoming board's
     // own crossfade sizes the fade-up (floored at a tiny safety fade for a 0 setting).
+    // A linked handoff passes the outgoing board's crossfade so it lands on the seam.
     const incomingBoard = this.findBoard(targetId);
-    const rampMs = rampMsOverride ?? (boardsToStop.length > 0
+    const rampMs = rampMsOverride ?? (fadingOut > 0
       ? BOARD_CHANGE_CROSSFADE_MS
       : effectiveCrossfadeMs(incomingBoard ? this.boardCrossfadeMs(incomingBoard) : 0));
 
-    // Schedule audio-clock-driven master gain ramps in each affected
-    // board-player. Setting the ramp before the target ensures the child reads
-    // the correct duration when its masterVolume subscription fires.
-    if (!wasActive) {
-      this.masterFadeRampMsByBoard.set(targetId, rampMs);
-      this.masterVolumesByBoard.set(targetId, 1);
+    if (!wasPlaying) {
+      this.fadeIn(targetId, rampMs);
     }
+    this.fadeOut(displaced, rampMs);
+  }
 
-    for (const item of boardsToStop) {
-      this.masterFadeRampMsByBoard.set(item.id!, rampMs);
-      this.masterVolumesByBoard.set(item.id!, 0);
-    }
+  /*
+   * Each faded board records the fade that last touched it (a token), so when a
+   * later fade takes over the board (e.g. it is restarted mid fade-out) the older
+   * fade's cleanup leaves it alone instead of stopping it.
+   */
 
+  private fadeIn(boardId: string, rampMs: number): void {
+    const token = ++this.fadeTokenSeq;
+    this.fadeTokens.set(boardId, token);
+    // Setting the ramp before the target ensures the child player reads the
+    // correct duration when its masterVolume input changes.
+    this.masterFadeRampMsByBoard.set(boardId, rampMs);
+    this.masterVolumesByBoard.set(boardId, 1);
     this.fadeStateVersion.update(n => n + 1);
 
-    const stopAfterFade = boardsToStop.slice();
-    this.crossfadeCleanupTimer = setTimeout(() => {
-      this.crossfadeCleanupTimer = null;
+    this.scheduleFadeCleanup(rampMs, () => {
+      if (!this.releaseFade(boardId, token)) return;
+      this.masterVolumesByBoard.delete(boardId);
+      this.masterFadeRampMsByBoard.delete(boardId);
+    });
+  }
 
-      if (!wasActive) {
-        this.masterVolumesByBoard.delete(targetId);
-        this.masterFadeRampMsByBoard.delete(targetId);
-      }
+  private fadeOut({ stop, pause }: DisplacedBoards, rampMs: number): void {
+    if (stop.length === 0 && pause.length === 0) return;
 
-      for (const item of stopAfterFade) {
+    const token = ++this.fadeTokenSeq;
+    for (const item of [...stop, ...pause]) {
+      const id = item.id!;
+      // A fading-out board can no longer warm up (or be warmed up for) a handoff.
+      this.cancelHandoffsInvolving(id);
+      this.fadeTokens.set(id, token);
+      this.masterFadeRampMsByBoard.set(id, rampMs);
+      this.masterVolumesByBoard.set(id, 0);
+    }
+    this.fadeStateVersion.update(n => n + 1);
+
+    this.scheduleFadeCleanup(rampMs, () => {
+      for (const item of stop) {
+        if (!this.releaseFade(item.id!, token)) continue;
         this.masterVolumesByBoard.delete(item.id!);
         this.masterFadeRampMsByBoard.delete(item.id!);
         this.clearBoard(item.id!);
       }
 
+      for (const item of pause) {
+        if (!this.releaseFade(item.id!, token)) continue;
+        // Keep the master volume at 0 while paused so the resume fades up from silence.
+        this.masterFadeRampMsByBoard.delete(item.id!);
+        if (this.isBoardPlaying(item.id!)) {
+          this.boardStatuses.set(item.id!, 'PAUSED');
+        }
+      }
+
+      this.syncPlayingState();
+    });
+  }
+
+  private scheduleFadeCleanup(rampMs: number, cleanup: () => void): void {
+    const timer = setTimeout(() => {
+      this.fadeCleanupTimers.delete(timer);
+      cleanup();
       this.fadeStateVersion.update(n => n + 1);
     }, rampMs + 60);
+    this.fadeCleanupTimers.add(timer);
+  }
+
+  /** True (and forgets the token) when `token` is still the board's latest fade. */
+  private releaseFade(boardId: string, token: number): boolean {
+    if (this.fadeTokens.get(boardId) !== token) return false;
+    this.fadeTokens.delete(boardId);
+    return true;
   }
 
   stopBoardTrack(board: Board): void {
@@ -1027,6 +1154,45 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     }
 
     this.handOffToLinkedBoard(board);
+  }
+
+  /**
+   * A couple of seconds before this board's crossfade point: warm up the board it
+   * will start, so its YouTube player has loaded and buffered by the seam instead
+   * of cold-starting there. A paused resume target is already loaded — it resumes
+   * at the seam.
+   */
+  onBoardEndApproaching(board: Board): void {
+    if (board.id == null || !this.isBoardPlaying(board.id)) return;
+
+    const next = this.linkedBoardFor(board);
+    if (next?.id == null) return;
+    if (this.pendingHandoffs.has(next.id)) return;
+
+    const status = this.boardStatuses.get(next.id);
+    if (status === 'PLAYING' || status === 'PAUSED') return;
+
+    this.beginHandoff(board, next, false);
+  }
+
+  /** A board's audio actually started — advances a handoff waiting on it. */
+  onBoardPlaybackStarted(board: Board): void {
+    const boardId = board.id;
+    const pending = boardId != null ? this.pendingHandoffs.get(boardId) : undefined;
+    if (!pending || boardId == null) return;
+
+    if (!pending.seamReached) {
+      // Warmed up early: hold it paused at its start (loaded and buffered) so none
+      // of it plays unheard; it resumes when the outgoing board reaches the seam.
+      if (pending.phase === 'loading') {
+        pending.phase = 'primed';
+        this.boardStatuses.set(boardId, 'PAUSED');
+        this.syncPlayingState();
+      }
+      return;
+    }
+
+    this.commitHandoff(boardId, true);
   }
 
   onAudioEnded(board: Board): void {
@@ -1058,23 +1224,135 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Start the board's linked board as this one finishes. Called from nearEnd,
-   * which fires one crossfade-length before the seam, so ramping over that same
-   * length lands the crossfade right on the seam (like a loop or window advance).
+   * The outgoing board reached its crossfade point (nearEnd fires one
+   * crossfade-length before the seam): start or resume its linked board and
+   * crossfade into it as soon as that board's audio is actually playing.
    */
   private handOffToLinkedBoard(board: Board): void {
-    const boardId = board.id;
-    if (boardId == null || this.linkedHandoffBoardIds.has(boardId)) return;
-    if (!this.isBoardActive(boardId)) return;
+    const fromId = board.id;
+    if (fromId == null || this.linkedHandoffBoardIds.has(fromId)) return;
+    if (!this.isBoardPlaying(fromId)) return;
 
     const next = this.linkedBoardFor(board);
-    if (!next) return;
+    if (next?.id == null) return;
+    const targetId = next.id;
 
-    this.linkedHandoffBoardIds.add(boardId);
-    this.playBoardTrack(next, effectiveCrossfadeMs(this.boardCrossfadeMs(board)));
+    this.linkedHandoffBoardIds.add(fromId);
+
+    const pending = this.pendingHandoffs.get(targetId);
+    if (pending?.fromId === fromId) {
+      pending.seamReached = true;
+      if (pending.phase === 'primed') {
+        this.resumeSilently(targetId);
+        pending.phase = 'starting';
+      }
+      this.armHandoffFallback(targetId);
+    } else if (this.isBoardPlaying(targetId)) {
+      // Already audible (e.g. an overplay board) — nothing to start.
+      return;
+    } else {
+      this.beginHandoff(board, next, true);
+    }
+
+    // Fade the outgoing board out on its own schedule so the fade lands on its
+    // seam; the target fades in as soon as its audio is actually playing.
+    this.fadeOut({ stop: [board], pause: [] }, effectiveCrossfadeMs(this.boardCrossfadeMs(board)));
   }
 
-  /** The board to start after this one, when the chain can fire (single, loop off). */
+  /** Start (or resume) the target silently and track it until it can fade in. */
+  private beginHandoff(from: Board, target: Board, seamReached: boolean): void {
+    const targetId = target.id!;
+    this.dropHandoff(targetId);
+
+    const resuming = this.boardStatuses.get(targetId) === 'PAUSED';
+    this.pendingHandoffs.set(targetId, {
+      fromId: from.id!,
+      rampMs: effectiveCrossfadeMs(this.boardCrossfadeMs(from)),
+      phase: resuming ? 'starting' : 'loading',
+      seamReached,
+      fallbackTimer: null,
+    });
+
+    this.prepareStart(target, resuming);
+    this.resumeSilently(targetId);
+
+    if (seamReached) {
+      this.armHandoffFallback(targetId);
+    }
+  }
+
+  /** Set a board playing with its master volume held at 0 (no fade yet). */
+  private resumeSilently(boardId: string): void {
+    // Detach it from any fade still running on it (e.g. the pause fade-out).
+    this.fadeTokens.delete(boardId);
+    this.masterFadeRampMsByBoard.delete(boardId);
+    this.masterVolumesByBoard.set(boardId, 0);
+    this.boardStatuses.set(boardId, 'PLAYING');
+    this.streamUrlsByBoard.delete(boardId);
+    this.syncPlayingState();
+    this.fadeStateVersion.update(n => n + 1);
+  }
+
+  /** If the target never reports playback (slow network, blocked autoplay), fade it in anyway. */
+  private armHandoffFallback(targetId: string): void {
+    const pending = this.pendingHandoffs.get(targetId);
+    if (!pending || pending.fallbackTimer != null) return;
+
+    pending.fallbackTimer = setTimeout(() => {
+      pending.fallbackTimer = null;
+      this.commitHandoff(targetId, true);
+    }, LINKED_HANDOFF_START_TIMEOUT_MS);
+  }
+
+  /**
+   * Fade a handoff target in (and whatever it displaces out). At the seam this
+   * uses the outgoing board's crossfade — that board is already fading out; a
+   * manual early play of the target follows the normal board-switch rules.
+   */
+  private commitHandoff(targetId: string, atSeam: boolean): void {
+    const pending = this.pendingHandoffs.get(targetId);
+    if (!pending) return;
+    this.dropHandoff(targetId);
+
+    const target = this.findBoard(targetId);
+    if (!target) return;
+
+    if (!this.isBoardPlaying(targetId)) {
+      this.resumeSilently(targetId);
+    }
+
+    this.applyPlayCrossfade(
+      targetId,
+      false,
+      this.displacedBy(target),
+      atSeam ? pending.rampMs : undefined,
+    );
+  }
+
+  /** Forget a pending handoff into this board (no playback change). */
+  private dropHandoff(targetId: string): void {
+    const pending = this.pendingHandoffs.get(targetId);
+    if (!pending) return;
+    if (pending.fallbackTimer != null) clearTimeout(pending.fallbackTimer);
+    this.pendingHandoffs.delete(targetId);
+  }
+
+  /**
+   * A board stopped or started fading out: drop the handoff into it, and undo any
+   * warm-up it started for a board it will no longer reach the seam to hand off to.
+   */
+  private cancelHandoffsInvolving(boardId: string): void {
+    this.dropHandoff(boardId);
+
+    for (const [targetId, pending] of [...this.pendingHandoffs]) {
+      if (pending.fromId !== boardId || pending.seamReached) continue;
+      this.dropHandoff(targetId);
+      this.clearBoard(targetId);
+    }
+  }
+
+  /** The board to start after this one, when the chain can fire (single, loop off,
+      and the linked board has a track to play). */
   private linkedBoardFor(board: Board): Board | null {
     const linkedId = board.linkedBoardId;
     if (linkedId == null || linkedId === board.id) return null;
@@ -1083,7 +1361,13 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     }
 
     const next = this.findBoard(linkedId);
-    return next?.sessionId === board.sessionId ? next : null;
+    if (!next?.selectedTrack || next.sessionId !== board.sessionId) return null;
+    return next;
+  }
+
+  /** The linked board this one pauses while it plays (pause-and-resume action). */
+  private resumeTargetFor(board: Board): Board | null {
+    return this.linkActions.actionFor(board.id) === 'resume' ? this.linkedBoardFor(board) : null;
   }
 
   onAudioError(board: Board): void {
@@ -1504,6 +1788,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   }
 
   private clearBoard(boardId: string): void {
+    this.cancelHandoffsInvolving(boardId);
     this.boardStatuses.set(boardId, 'STOPPED');
     this.streamUrlsByBoard.delete(boardId);
     this.syncPlayingState();
@@ -1512,6 +1797,11 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   private isBoardActive(boardId: string): boolean {
     const status = this.boardStatuses.get(boardId);
     return status === 'PLAYING' || status === 'PAUSED';
+  }
+
+  /** Audibly playing — excludes boards paused for a pause-and-resume action. */
+  private isBoardPlaying(boardId: string): boolean {
+    return this.boardStatuses.get(boardId) === 'PLAYING';
   }
 
   private upsertBoard(updated: Board): void {
@@ -1607,14 +1897,16 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     this.pendingTrackUpdateBoardIds.delete(boardId);
     this.playPendingAfterUpdateBoardIds.delete(boardId);
     this.linkedHandoffBoardIds.delete(boardId);
+    this.dropHandoff(boardId);
+    this.fadeTokens.delete(boardId);
+    this.linkActions.clear(boardId);
     this.shortcuts.clearShortcut(boardId);
   }
 
-  private clearCrossfadeCleanupTimer(): void {
-    if (this.crossfadeCleanupTimer !== null) {
-      clearTimeout(this.crossfadeCleanupTimer);
-      this.crossfadeCleanupTimer = null;
-    }
+  private clearFadeCleanupTimers(): void {
+    for (const timer of this.fadeCleanupTimers) clearTimeout(timer);
+    this.fadeCleanupTimers.clear();
+    this.fadeTokens.clear();
   }
 
   private syncPersistedVolume(board: Board): void {
@@ -1682,7 +1974,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
   private syncPlayingState(): void {
     const anyPlaying = this.boards().some(b =>
-      b.id != null && this.isBoardActive(b.id),
+      b.id != null && this.isBoardPlaying(b.id),
     );
     this.boardPlayback.setPlaying(anyPlaying);
   }
@@ -1730,7 +2022,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   }
 
   private stopAllBoards(): void {
-    this.clearCrossfadeCleanupTimer();
+    this.clearFadeCleanupTimers();
 
     for (const board of this.boards()) {
       if (board.id == null || !this.isBoardActive(board.id)) continue;
