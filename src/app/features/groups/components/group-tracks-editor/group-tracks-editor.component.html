@@ -16,10 +16,6 @@
           <normal-button type="button" (clicked)="addTrack.emit()">
             {{ 'groups.addTrack' | transloco }}
           </normal-button>
-
-          <normal-button type="button" variant="secondary" (clicked)="browseWorkshop.emit()">
-            {{ 'groups.browseWorkshop' | transloco }}
-          </normal-button>
         </div>
       </div>
     } @else if (mode() === 'select') {

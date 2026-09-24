@@ -57,7 +57,12 @@
                 <span class="sd__item-text">
                   <span class="sd__item-name">{{ s.sessionName || ('sessions.untitled' | transloco) }}</span>
                   <span class="sd__item-meta">
-                    {{ 'sessions.counts' | transloco: { tracks: s.trackIds?.length ?? 0, groups: s.groupIds?.length ?? 0 } }}
+                    {{ 'sessions.counts' | transloco: { tracks: s.trackCount ?? 0, groups: s.groupIds?.length ?? 0 } }}
+                    @if (s.subscription; as sub) {
+                      <span class="sd__item-shared">
+                        · {{ (sub.updateAvailable ? 'sessions.shared.updateBadge' : 'sessions.shared.badge') | transloco }}
+                      </span>
+                    }
                   </span>
                 </span>
                 @if (s.sessionId === selectedId()) {
@@ -66,18 +71,20 @@
               </button>
 
               <div class="sd__item-actions">
-                <app-icon-button
-                  icon="edit"
-                  size="xs"
-                  variant="ghost"
-                  [label]="'sessions.rename' | transloco"
-                  (clicked)="startRename(s)"
-                />
+                @if (!s.readOnly) {
+                  <app-icon-button
+                    icon="edit"
+                    size="xs"
+                    variant="ghost"
+                    [label]="'sessions.rename' | transloco"
+                    (clicked)="startRename(s)"
+                  />
+                }
                 <app-icon-button
                   icon="delete"
                   size="xs"
                   variant="ghost"
-                  [label]="'sessions.delete' | transloco"
+                  [label]="(s.readOnly ? 'sessions.shared.unsubscribe' : 'sessions.delete') | transloco"
                   (clicked)="confirmDelete(s)"
                 />
               </div>

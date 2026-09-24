@@ -4,8 +4,10 @@ import {
   DestroyRef,
   OnInit,
   computed,
+  effect,
   inject,
   signal,
+  untracked,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
@@ -14,28 +16,28 @@ import { Router } from '@angular/router';
 import { Observable, forkJoin, of } from 'rxjs';
 import { catchError, finalize, tap } from 'rxjs/operators';
 
-import { Track } from '../../../../api/generated';
-
+import { SessionResponse, SessionShareResponse } from '../../../../api/generated';
 import {
-  MyTracksComponent,
-  PublishEvent,
-} from '../../components/my-tracks/my-tracks.component';
-import { TrackCatalogComponent } from '../../components/track-catalog/track-catalog.component';
-import { TracksStore } from '../../../../core/services/tracks-store.service';
+  MySessionsComponent,
+  SessionDescriptionEvent,
+} from '../../components/my-sessions/my-sessions.component';
+import { SessionCatalogComponent } from '../../components/session-catalog/session-catalog.component';
+import { MySubscriptionsComponent } from '../../components/my-subscriptions/my-subscriptions.component';
 import { SessionsStore } from '../../../../core/services/sessions-store.service';
+import { SessionActionsService } from '../../../../core/services/session-actions.service';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { FooterComponent } from '../../../../shared/components/footer/footer.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { httpErrorMessage } from '../../../../shared/utils/http-error';
-import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 
 @Component({
   selector: 'app-workshop-page',
   imports: [
-    MyTracksComponent,
-    TrackCatalogComponent,
+    MySessionsComponent,
+    MySubscriptionsComponent,
+    SessionCatalogComponent,
     UiAlertComponent,
     NormalButtonComponent,
     UiPageTitleComponent,
@@ -49,7 +51,6 @@ import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog
 export class WorkshopPageComponent implements OnInit {
   private readonly transloco = inject(TranslocoService);
 
-  /** Read by t() so labels recompute when the language changes. */
   private readonly activeLang = toSignal(this.transloco.langChanges$, {
     initialValue: this.transloco.getActiveLang(),
   });
@@ -59,72 +60,176 @@ export class WorkshopPageComponent implements OnInit {
     return this.transloco.translate<string>(key, params);
   }
 
-  private readonly tracksStore = inject(TracksStore);
   private readonly sessionsStore = inject(SessionsStore);
+  private readonly sessionActions = inject(SessionActionsService);
   private readonly toast = inject(ToastService);
-  private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
 
   readonly hasLoaded = signal(false);
-  readonly busyTrackId = signal<string | null>(null);
-  readonly myTracksOpen = signal(false);
+  readonly busyId = signal<string | null>(null);
+  readonly mySessionsOpen = signal(false);
+  readonly mySubscriptionsOpen = signal(false);
 
-  readonly myTracks = this.tracksStore.ownTracks;
+  readonly ownSessions = this.sessionsStore.ownSessions;
+  readonly subscribedSessions = computed(() => this.sessionsStore.sessions().filter(s => s.readOnly));
 
-  /**
-   * The public catalog is deliberately outside the store's cached library: other
-   * users publish and unpublish these entries and nothing notifies us, so it is
-   * re-fetched every time this page opens.
-   */
-  private readonly publishedTracks = signal<Track[]>([]);
+  private readonly allShares = signal<SessionShareResponse[]>([]);
+
+  readonly shares = computed(() => {
+    const subscribedShareIds = new Set(this.subscribedSessions().map(s => s.subscription?.shareId));
+    return this.allShares().filter(share => !share.owned && !subscribedShareIds.has(share.id));
+  });
   private readonly catalogFailed = signal(false);
 
-  readonly errorMessage = computed(() => {
-    const messages: string[] = [];
-
-    if (this.tracksStore.ownFailed()) messages.push(this.t('tracks.err.loadOwn'));
-    if (this.catalogFailed()) messages.push(this.t('workshop.err.loadPublished'));
-    if (this.tracksStore.subscribedFailed()) messages.push(this.t('tracks.err.loadSubscribed'));
-
-    return messages.join(' ');
-  });
-
-  readonly subscribedIds = computed(() => idsOf(this.tracksStore.subscribedTracks()));
-
-  private readonly myTrackIds = computed(() => idsOf(this.myTracks()));
-
-  readonly catalogTracks = computed(() =>
-    this.publishedTracks().filter(
-      track => track.id != null && !this.myTrackIds().has(track.id),
-    ),
+  readonly errorMessage = computed(() =>
+    this.catalogFailed() ? this.t('workshop.err.loadPublished') : '',
   );
+
+  private subscriptionKey = '';
+
+  constructor() {
+    effect(() => {
+      const key = this.subscribedSessions()
+        .map(session => session.subscription?.shareId ?? '')
+        .sort()
+        .join(',');
+      const loaded = this.hasLoaded();
+      if (key === this.subscriptionKey) return;
+      this.subscriptionKey = key;
+      if (!loaded) return;
+      untracked(() => this.loadCatalog().pipe(takeUntilDestroyed(this.destroyRef)).subscribe());
+    });
+  }
 
   ngOnInit(): void {
     this.loadAll();
   }
 
-  openMyTracks(): void {
-    this.myTracksOpen.set(true);
+  openMySessions(): void {
+    this.mySessionsOpen.set(true);
   }
 
-  closeMyTracks(): void {
-    this.myTracksOpen.set(false);
+  closeMySessions(): void {
+    this.mySessionsOpen.set(false);
   }
 
-  goToAddTrack(): void {
-    this.closeMyTracks();
-    this.router.navigate(['/tracks']);
+  openMySubscriptions(): void {
+    this.mySubscriptionsOpen.set(true);
   }
 
-  /**
-   * Full resync: the library plus the catalog. Used on open, and as the recovery
-   * path when the server rejects a share action because the catalog we were
-   * showing had gone stale.
-   */
+  closeMySubscriptions(): void {
+    this.mySubscriptionsOpen.set(false);
+  }
+
+  subscribe(share: SessionShareResponse): void {
+    if (!share.shareCode) return;
+
+    this.busyId.set(share.id ?? null);
+    this.sessionsStore.subscribe(share.shareCode)
+      .pipe(
+        finalize(() => this.busyId.set(null)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: session => {
+          this.toast.success(this.t('workshop.msg.subscribed', { name: session.sessionName ?? '' }), 6000, {
+            label: this.t('workshop.goToStages'),
+            run: () => void this.router.navigate(['/boards']),
+          });
+        },
+        error: (err: unknown) => {
+          console.error(err);
+          const status = statusOf(err);
+          if (status === 404 || status === 409) {
+            this.toast.warning(this.t('workshop.msg.catalogStale'));
+            this.loadAll();
+            return;
+          }
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('workshop.err.subscribe') }));
+        },
+      });
+  }
+
+  unsubscribe(session: SessionResponse): void {
+    void this.sessionActions.delete(session);
+  }
+
+  update(session: SessionResponse): void {
+    this.sessionActions.update(session);
+  }
+
+  publish(event: SessionDescriptionEvent): void {
+    this.runOwnerAction(
+      event.session,
+      id => this.sessionsStore.publish(id, event.description || undefined),
+      'workshop.msg.published',
+      'workshop.err.publish',
+    );
+  }
+
+  publishUpdate(session: SessionResponse): void {
+    this.runOwnerAction(
+      session,
+      id => this.sessionsStore.publishUpdate(id),
+      'workshop.msg.updatePublished',
+      'workshop.err.publish',
+    );
+  }
+
+  editDescription(event: SessionDescriptionEvent): void {
+    this.runOwnerAction(
+      event.session,
+      id => this.sessionsStore.updateShareDescription(id, event.description || undefined),
+      'workshop.msg.descriptionSaved',
+      'workshop.err.description',
+    );
+  }
+
+  unpublish(session: SessionResponse): void {
+    this.runOwnerAction(
+      session,
+      id => this.sessionsStore.unpublish(id),
+      'workshop.msg.unpublished',
+      'workshop.err.unpublish',
+    );
+  }
+
+  private runOwnerAction(
+    session: SessionResponse,
+    action: (sessionId: string) => Observable<SessionResponse>,
+    successKey: string,
+    errorKey: string,
+  ): void {
+    const sessionId = session.sessionId;
+    if (sessionId == null) return;
+
+    this.busyId.set(sessionId);
+    action(sessionId)
+      .pipe(
+        finalize(() => this.busyId.set(null)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: () => {
+          this.toast.success(this.t(successKey));
+          this.loadCatalog().pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
+        },
+        error: (err: unknown) => {
+          console.error(err);
+          if (statusOf(err) === 409 || statusOf(err) === 404) {
+            this.toast.warning(this.t('workshop.msg.catalogStale'));
+            this.loadAll();
+            return;
+          }
+          this.toast.error(httpErrorMessage(err, { fallback: this.t(errorKey) }));
+        },
+      });
+  }
+
   private loadAll(): void {
     forkJoin({
-      library: this.tracksStore.refresh(),
+      sessions: this.sessionsStore.refresh(),
       catalog: this.loadCatalog(),
     })
       .pipe(
@@ -134,149 +239,19 @@ export class WorkshopPageComponent implements OnInit {
       .subscribe();
   }
 
-  private loadCatalog(): Observable<Track[]> {
-    return this.tracksStore.loadPublished().pipe(
-      tap(tracks => {
-        this.publishedTracks.set(tracks ?? []);
+  private loadCatalog(): Observable<SessionShareResponse[]> {
+    return this.sessionsStore.loadPublished().pipe(
+      tap(shares => {
+        this.allShares.set(shares);
         this.catalogFailed.set(false);
       }),
       catchError((err: unknown) => {
         console.error('Loading the published catalog failed', err);
         this.catalogFailed.set(true);
-        return of([] as Track[]);
+        return of([] as SessionShareResponse[]);
       }),
     );
   }
-
-  publishTrack(event: PublishEvent): void {
-    if (event.track.id == null) return;
-
-    const trackId = event.track.id;
-    this.busyTrackId.set(trackId);
-
-    this.tracksStore.publish(trackId, event.description || undefined)
-      .pipe(
-        finalize(() => this.busyTrackId.set(null)),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe({
-        next: () => this.toast.success(this.t('workshop.msg.published')),
-        error: (err: unknown) => {
-          console.error(err);
-
-          if (statusOf(err) === 409) {
-            this.toast.warning(this.t('workshop.msg.alreadyPublished'));
-            this.loadAll();
-            return;
-          }
-
-          this.toast.error(httpErrorMessage(err, { fallback: this.t('workshop.err.publish') }));
-        },
-      });
-  }
-
-  unpublishTrack(track: Track): void {
-    if (track.id == null) return;
-
-    const trackId = track.id;
-    this.busyTrackId.set(trackId);
-
-    this.tracksStore.unpublish(trackId)
-      .pipe(
-        finalize(() => this.busyTrackId.set(null)),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe({
-        next: () => this.toast.success(this.t('workshop.msg.unpublished')),
-        error: (err: unknown) => {
-          console.error(err);
-          this.toast.error(httpErrorMessage(err, { fallback: this.t('workshop.err.unpublish') }));
-        },
-      });
-  }
-
-  subscribeFromCatalog(track: Track): void {
-    const shareCode = track.trackShare?.shareCode;
-
-    if (!shareCode) {
-      this.toast.error(this.t('workshop.err.noShareCode'));
-      return;
-    }
-
-    this.busyTrackId.set(track.id ?? null);
-
-    const sessionId = this.sessionsStore.selectedSessionId();
-
-    this.tracksStore.subscribe(shareCode, sessionId)
-      .pipe(
-        finalize(() => this.busyTrackId.set(null)),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe({
-        next: () => {
-          if (sessionId != null && track.id != null) {
-            this.sessionsStore.noteAdded(sessionId, { trackId: track.id });
-          }
-          this.toast.success(this.t('workshop.msg.subscribed'));
-        },
-        error: (err: unknown) => {
-          console.error(err);
-
-          const status = statusOf(err);
-
-          // The catalog we rendered had gone stale — the share is already taken,
-          // or no longer exists. Resync rather than keep showing a track the
-          // server disagrees about.
-          if (status === 409 || status === 400) {
-            this.toast.warning(this.t('workshop.msg.alreadySubscribed'));
-            this.loadAll();
-            return;
-          }
-
-          this.toast.error(httpErrorMessage(err, { fallback: this.t('workshop.err.subscribe') }));
-        },
-      });
-  }
-
-  async unsubscribe(track: Track): Promise<void> {
-    if (track.id == null) return;
-
-    const confirmed = await this.confirmDialog.confirm({
-      title: this.t('workshop.unsubscribeTitle'),
-      message: this.t('workshop.unsubscribeConfirm', {
-        name: track.trackName || track.trackOriginalName || track.id,
-      }),
-      confirmText: this.t('workshop.unsubscribe'),
-      cancelText: this.t('common.cancel'),
-      variant: 'danger',
-    });
-
-    if (!confirmed) return;
-
-    const trackId = track.id;
-    this.busyTrackId.set(trackId);
-
-    this.tracksStore.unsubscribe(trackId)
-      .pipe(
-        finalize(() => this.busyTrackId.set(null)),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe({
-        next: () => this.toast.success(this.t('workshop.msg.unsubscribed')),
-        error: (err: unknown) => {
-          console.error(err);
-          this.toast.error(httpErrorMessage(err, { fallback: this.t('workshop.err.unsubscribe') }));
-        },
-      });
-  }
-}
-
-function idsOf(tracks: readonly Track[]): ReadonlySet<string> {
-  return new Set(
-    tracks
-      .map(track => track.id)
-      .filter((id): id is string => id != null),
-  );
 }
 
 function statusOf(err: unknown): number | null {

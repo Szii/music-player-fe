@@ -1,11 +1,13 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { Observable, of, tap } from 'rxjs';
-import { catchError, finalize, map, shareReplay } from 'rxjs/operators';
+import { catchError, finalize, map, shareReplay, switchMap } from 'rxjs/operators';
 import {
   Board,
   SessionResponse,
+  SessionShareResponse,
   SessionsResponse,
   SessionsService,
+  ShareService,
 } from '../../api/generated';
 import { SessionService } from '../auth/session.service';
 import { GroupsStore } from './groups-store.service';
@@ -18,6 +20,7 @@ const FRESH_FOR_MS = 60_000;
 @Injectable({ providedIn: 'root' })
 export class SessionsStore {
   private readonly api = inject(SessionsService);
+  private readonly shareApi = inject(ShareService);
   private readonly session = inject(SessionService);
   private readonly groupsStore = inject(GroupsStore);
 
@@ -34,6 +37,10 @@ export class SessionsStore {
 
   readonly hasSessions = computed(() => this.sessions().length > 0);
 
+  readonly selectedSubscription = computed(() => this.selectedSession()?.subscription ?? null);
+
+  readonly ownSessions = computed(() => this.sessions().filter(s => !s.readOnly));
+
   readonly sessionTrackIds = computed<ReadonlySet<string>>(
     () => new Set(this.selectedSession()?.trackIds ?? []),
   );
@@ -44,6 +51,11 @@ export class SessionsStore {
 
   /** Tracks of the selected session: added directly or through one of its groups. */
   readonly scopedTrackIds = computed<ReadonlySet<string>>(() => {
+    const subscription = this.selectedSubscription();
+    if (subscription) {
+      return new Set((subscription.tracks ?? []).map(track => track.id).filter((id): id is string => id != null));
+    }
+
     const ids = new Set(this.sessionTrackIds());
     const groupIds = this.sessionGroupIds();
 
@@ -63,11 +75,7 @@ export class SessionsStore {
   constructor() {
     effect(() => {
       const id = this.selectedSessionId();
-      if (id == null) {
-        localStorage.removeItem(STORAGE_KEY);
-      } else {
-        localStorage.setItem(STORAGE_KEY, String(id));
-      }
+      if (id != null) storeId(id);
     });
 
     this.session.logout$.subscribe(() => {
@@ -184,6 +192,49 @@ export class SessionsStore {
     );
   }
 
+  loadPublished(): Observable<SessionShareResponse[]> {
+    return this.shareApi.getPublishedSessions().pipe(map(shares => shares ?? []));
+  }
+
+  subscribe(shareCode: string): Observable<SessionResponse> {
+    return this.shareApi.subscribeToSession({ subscribeRequest: { shareCode } }).pipe(
+      tap(session => {
+        this.upsertSessionLocal(session);
+        if (session.sessionId != null) this.selectedSessionId.set(session.sessionId);
+      }),
+    );
+  }
+
+  sync(sessionId: string): Observable<SessionResponse> {
+    return this.shareApi.syncSession({ sessionId }).pipe(
+      tap(session => this.upsertSessionLocal(session)),
+    );
+  }
+
+  publish(sessionId: string, description?: string): Observable<SessionResponse> {
+    return this.shareApi.publishSession({ sessionId, publishSessionRequest: { description } }).pipe(
+      switchMap(() => this.refreshSession(sessionId)),
+    );
+  }
+
+  publishUpdate(sessionId: string): Observable<SessionResponse> {
+    return this.shareApi.publishSessionUpdate({ sessionId }).pipe(
+      switchMap(() => this.refreshSession(sessionId)),
+    );
+  }
+
+  updateShareDescription(sessionId: string, description?: string): Observable<SessionResponse> {
+    return this.shareApi.updateSessionShare({ sessionId, updateSessionShareRequest: { description } }).pipe(
+      switchMap(() => this.refreshSession(sessionId)),
+    );
+  }
+
+  unpublish(sessionId: string): Observable<SessionResponse> {
+    return this.shareApi.unpublishSession({ sessionId }).pipe(
+      switchMap(() => this.refreshSession(sessionId)),
+    );
+  }
+
   /** Names of the selected session's stages that match `predicate`. */
   selectedSessionStageNames(predicate: (board: Board) => boolean): string[] {
     return (this.selectedSession()?.boards ?? [])
@@ -262,16 +313,27 @@ export class SessionsStore {
     this.fetchedAt = Date.now();
     this.loaded.set(true);
 
-    const currentId = this.selectedSessionId();
+    const currentId = this.selectedSessionId() ?? loadStoredId();
     const stillExists = currentId != null && sessions.some(s => s.sessionId === currentId);
 
-    if (stillExists) return;
+    if (stillExists) {
+      this.selectedSessionId.set(currentId);
+      return;
+    }
 
     if (options.preserveSelection) {
       this.selectedSessionId.set(null);
     } else {
       this.selectedSessionId.set(sessions[0]?.sessionId ?? null);
     }
+  }
+}
+
+function storeId(id: string): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, id);
+  } catch {
+    return;
   }
 }
 

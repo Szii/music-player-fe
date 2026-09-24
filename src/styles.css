@@ -987,3 +987,35 @@ input[type="range"].app-range--seek::-webkit-slider-thumb {
   white-space: nowrap;
 }
 
+
+/* One-line status of a subscribed session, shown above read-only content. */
+.app-shared-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0 0 0.75rem;
+  font-size: 0.82rem;
+  color: var(--app-text-muted);
+}
+
+.app-shared-note__action {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: var(--app-primary);
+  cursor: pointer;
+}
+
+.app-shared-note__action:hover {
+  text-decoration: underline;
+}
+
+.app-shared-note__action:focus-visible {
+  outline: 2px solid var(--app-secondary);
+  outline-offset: 2px;
+  border-radius: var(--app-radius-sm, 4px);
+}

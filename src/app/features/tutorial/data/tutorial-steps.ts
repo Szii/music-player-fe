@@ -89,6 +89,7 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
       { question: 'tutorial.faq.q7', answer: 'tutorial.faq.a7' },
       { question: 'tutorial.faq.q8', answer: 'tutorial.faq.a8' },
       { question: 'tutorial.faq.q9', answer: 'tutorial.faq.a9' },
+      { question: 'tutorial.faq.q10', answer: 'tutorial.faq.a10' },
     ],
   },
 ];

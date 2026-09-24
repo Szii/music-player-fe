@@ -1,0 +1,175 @@
+<ui-dialog-shell
+  [title]="'workshop.mySessions' | transloco"
+  [subtitle]="'workshop.mySessionsSubtitle' | transloco"
+  titleId="my-sessions-title"
+  size="wide"
+  (closed)="close.emit()"
+>
+  @if (sessions().length > 0) {
+    <ui-list-toolbar
+      [(search)]="search"
+      [searchPlaceholder]="'workshop.searchMySessions' | transloco"
+      [filterValue]="filterMode()"
+      [filterOptions]="filterOptions"
+      [filterLabel]="'tracks.col.status' | transloco"
+      (filterValueChange)="setFilterMode($event)"
+      [filteredCount]="filteredSessions().length"
+      [totalCount]="sessions().length"
+    />
+  }
+
+  @if (filteredSessions().length > 0) {
+    <ui-data-table
+      class="my-sessions-table"
+      [rows]="filteredSessions()"
+      [columns]="columns"
+      [trackBy]="trackById"
+      [maxHeight]="'min(58dvh, 680px)'"
+      [tableClass]="'app-table--workshop'"
+    >
+      <ng-template let-session>
+        <tr>
+          <td class="col-title">
+            <span
+              class="cell-text cell-text--strong cell-text--truncate"
+              [title]="session.publication?.description || displayName(session)"
+            >
+              {{ displayName(session) }}
+            </span>
+            <span class="cell-text cell-text--muted cell-text--truncate my-sessions__content">{{ contentLabel(session) }}</span>
+          </td>
+
+          <td class="col-subscribers">
+            @if (session.publication) {
+              <span class="app-subscriber-stat" [title]="subscriberTitle(session)" [attr.aria-label]="subscriberTitle(session)">
+                <ui-icon class="app-subscriber-stat__star" name="users" />
+                <span class="app-subscriber-stat__count">{{ session.publication.subscriberCount ?? 0 }}</span>
+              </span>
+            } @else {
+              <span class="cell-text cell-text--muted" aria-hidden="true">—</span>
+            }
+          </td>
+
+          <td class="col-status">
+            <ui-chip
+              [variant]="statusVariant(session)"
+              [tooltip]="statusTitle(session)"
+              size="sm"
+              shape="hex"
+              [dot]="true"
+            >{{ statusLabel(session) }}</ui-chip>
+          </td>
+
+          <td class="col-actions">
+            <ui-action-menu
+              [items]="menuItems(session)"
+              [triggerLabel]="'common.actionsFor' | transloco: { name: displayName(session) }"
+              (select)="onMenuSelect(session, $event)"
+            />
+          </td>
+        </tr>
+      </ng-template>
+    </ui-data-table>
+
+    <ul class="my-sessions-mobile-list app-entity-list" role="list">
+      @for (session of filteredSessions(); track trackById($index, session)) {
+        <li class="app-entity-list__item">
+          <div class="app-entity-list__head">
+            <span class="app-entity-list__title" [title]="displayName(session)">{{ displayName(session) }}</span>
+            <ui-chip
+              [variant]="statusVariant(session)"
+              [tooltip]="statusTitle(session)"
+              size="sm"
+              shape="hex"
+              [dot]="true"
+            >{{ statusLabel(session) }}</ui-chip>
+          </div>
+
+          @if (session.publication?.description; as description) {
+            <button
+              type="button"
+              class="app-entity-list__subtitle app-text-button"
+              [title]="description"
+              (click)="openDescription(session)"
+            >
+              {{ description }}
+            </button>
+          }
+
+          <div class="app-entity-list__meta">
+            <span>{{ contentLabel(session) }}</span>
+
+            @if (session.publication) {
+              <span class="app-subscriber-stat" [title]="subscriberTitle(session)" [attr.aria-label]="subscriberTitle(session)">
+                <ui-icon class="app-subscriber-stat__star" name="users" />
+                <span class="app-subscriber-stat__count">{{ session.publication.subscriberCount ?? 0 }}</span>
+              </span>
+            }
+
+            <ui-action-menu
+              class="my-sessions__menu"
+              [items]="menuItems(session)"
+              [triggerLabel]="'common.actionsFor' | transloco: { name: displayName(session) }"
+              (select)="onMenuSelect(session, $event)"
+            />
+          </div>
+        </li>
+      }
+    </ul>
+  } @else if (sessions().length === 0) {
+    <div class="my-sessions__empty">
+      <p class="my-sessions__empty-title">{{ 'workshop.noOwnSessions' | transloco }}</p>
+      <p class="my-sessions__empty-msg">{{ 'workshop.emptyMsg' | transloco }}</p>
+    </div>
+  } @else {
+    <p class="app-empty-note">{{ 'workshop.noMatches' | transloco }}</p>
+  }
+</ui-dialog-shell>
+
+@if (dialogSession(); as session) {
+  <ui-dialog-shell
+    [title]="(dialogMode() === 'edit' ? 'workshop.editDescription' : 'workshop.publishTitle') | transloco"
+    titleId="publish-session-title"
+    [showFooter]="true"
+    (closed)="closeDialog()"
+  >
+    <div class="publish-form">
+      <p class="publish-form__session-name">{{ displayName(session) }}</p>
+
+      @if (dialogMode() === 'publish') {
+        <p class="publish-form__hint">{{ 'workshop.publishHint' | transloco }}</p>
+      }
+
+      <div class="publish-form__field">
+        <label class="app-form-label">
+          {{ 'workshop.description' | transloco }}
+          <span class="optional">{{ 'workshop.optional' | transloco }}</span>
+        </label>
+
+        <textarea
+          class="app-input publish-form__textarea"
+          rows="4"
+          [ngModel]="description()"
+          [ngModelOptions]="{ standalone: true }"
+          (ngModelChange)="description.set($event)"
+          [placeholder]="'workshop.descriptionPlaceholder' | transloco"
+          [maxlength]="descriptionMaxLength"
+        ></textarea>
+        <ui-char-counter [current]="description().length" [max]="descriptionMaxLength" />
+        @if (descriptionError()) {
+          <p class="publish-form__error">{{ descriptionError() }}</p>
+        }
+      </div>
+    </div>
+
+    <ng-container dialog-footer>
+      <normal-button type="button" variant="ghost" (clicked)="closeDialog()">
+        {{ 'common.cancel' | transloco }}
+      </normal-button>
+
+      <normal-button type="button" [disabled]="!!descriptionError()" (clicked)="confirmDialogAction()">
+        {{ (dialogMode() === 'edit' ? 'common.save' : 'workshop.publish') | transloco }}
+      </normal-button>
+    </ng-container>
+  </ui-dialog-shell>
+}

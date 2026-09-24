@@ -2,46 +2,56 @@
 <div class="app-page tracks-page">
   <ui-page-title [title]="'tracks.title' | transloco" />
 
-  <app-track-form
-    #trackForm
-    [editingTrackId]="editingTrackId()"
-    [editTrackName]="editTrackName()"
-    [editTrackLink]="editTrackLink()"
-    [lockTrackLink]="editLockTrackLink()"
-    [submitting]="createSubmitting()"
-    [showTrigger]="tracks().length > 0"
-    (save)="saveTrack($event)"
-    (cancel)="cancelEdit()"
-  />
-
-  @if (errorMessage()) {
-    <ui-alert variant="danger">
-      {{ errorMessage() }}
-    </ui-alert>
-  }
-
-  @if (!loading() && tracks().length === 0) {
-    <ui-create-cta
-      [label]="'tracks.createFirst' | transloco"
-      (clicked)="trackForm.open()"
-    />
+  @if (subscription(); as sub) {
+    <ui-empty-state
+      [title]="'sessions.shared.stagesOnlyTitle' | transloco"
+      [message]="'sessions.shared.stagesOnly' | transloco: { name: sessionName(), owner: sub.owner?.name ?? '—' }"
+      [actions]="true"
+    >
+      <normal-button type="button" (clicked)="goToStages()">{{ 'workshop.goToStages' | transloco }}</normal-button>
+    </ui-empty-state>
   } @else {
-    <div class="tracks-page__section">
-      <div class="tracks-page__table-wrap">
-        <app-track-table
-          [tracks]="tracks()"
-          [loading]="loading()"
-          [sessionName]="sessionName()"
-          [sessionTrackIds]="sessionTrackIds()"
-          [scopedTrackIds]="scopedTrackIds()"
-          (addToSession)="onAddToSession($event)"
-          (removeFromSession)="onRemoveFromSession($event)"
-          (edit)="onEdit($event)"
-          (remove)="onRemove($event)"
-          (windows)="onWindows($event)"
-        />
+    <app-track-form
+      #trackForm
+      [editingTrackId]="editingTrackId()"
+      [editTrackName]="editTrackName()"
+      [editTrackLink]="editTrackLink()"
+      [lockTrackLink]="editLockTrackLink()"
+      [submitting]="createSubmitting()"
+      [showTrigger]="tracks().length > 0"
+      (save)="saveTrack($event)"
+      (cancel)="cancelEdit()"
+    />
+
+    @if (errorMessage()) {
+      <ui-alert variant="danger">
+        {{ errorMessage() }}
+      </ui-alert>
+    }
+
+    @if (!loading() && tracks().length === 0) {
+      <ui-create-cta
+        [label]="'tracks.createFirst' | transloco"
+        (clicked)="trackForm.open()"
+      />
+    } @else {
+      <div class="tracks-page__section">
+        <div class="tracks-page__table-wrap">
+          <app-track-table
+            [tracks]="tracks()"
+            [loading]="loading()"
+            [sessionName]="sessionName()"
+            [sessionTrackIds]="sessionTrackIds()"
+            [scopedTrackIds]="scopedTrackIds()"
+            (addToSession)="onAddToSession($event)"
+            (removeFromSession)="onRemoveFromSession($event)"
+            (edit)="onEdit($event)"
+            (remove)="onRemove($event)"
+            (windows)="onWindows($event)"
+          />
+        </div>
       </div>
-    </div>
+    }
   }
 
   <app-track-windows-panel

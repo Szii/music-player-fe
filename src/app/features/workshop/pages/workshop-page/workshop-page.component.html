@@ -1,16 +1,21 @@
-
 <div class="app-page workshop-page">
   <ui-page-title [title]="'workshop.title' | transloco">
     <span class="workshop-page__desktop-action">
-      <normal-button type="button" (clicked)="openMyTracks()">
-        {{ 'workshop.myTracks' | transloco }}
+      <normal-button type="button" variant="secondary" (clicked)="openMySubscriptions()">
+        {{ 'workshop.mySubscriptions' | transloco }}
+      </normal-button>
+      <normal-button type="button" (clicked)="openMySessions()">
+        {{ 'workshop.mySessions' | transloco }}
       </normal-button>
     </span>
   </ui-page-title>
 
   <div class="workshop-page__mobile-action">
-    <normal-button type="button" (clicked)="openMyTracks()">
-      {{ 'workshop.myTracks' | transloco }}
+    <normal-button type="button" variant="secondary" (clicked)="openMySubscriptions()">
+      {{ 'workshop.mySubscriptions' | transloco }}
+    </normal-button>
+    <normal-button type="button" (clicked)="openMySessions()">
+      {{ 'workshop.mySessions' | transloco }}
     </normal-button>
   </div>
 
@@ -22,24 +27,33 @@
     <div class="app-muted">{{ 'workshop.loading' | transloco }}</div>
   } @else {
     <div class="workshop-page__body">
-      <app-track-catalog
-        [tracks]="catalogTracks()"
-        [subscribedIds]="subscribedIds()"
-        [busyTrackId]="busyTrackId()"
-        (subscribe)="subscribeFromCatalog($event)"
-        (unsubscribe)="unsubscribe($event)"
+      <app-session-catalog
+        [shares]="shares()"
+        [busyShareId]="busyId()"
+        (subscribe)="subscribe($event)"
       />
     </div>
   }
 
-  @if (myTracksOpen()) {
-    <app-my-tracks
-      [tracks]="myTracks()"
-      [busyTrackId]="busyTrackId()"
-      (publish)="publishTrack($event)"
-      (unpublish)="unpublishTrack($event)"
-      (close)="closeMyTracks()"
-      (addTrack)="goToAddTrack()"
+  @if (mySessionsOpen()) {
+    <app-my-sessions
+      [sessions]="ownSessions()"
+      [busySessionId]="busyId()"
+      (publish)="publish($event)"
+      (publishUpdate)="publishUpdate($event)"
+      (editDescription)="editDescription($event)"
+      (unpublish)="unpublish($event)"
+      (close)="closeMySessions()"
+    />
+  }
+
+  @if (mySubscriptionsOpen()) {
+    <app-my-subscriptions
+      [sessions]="subscribedSessions()"
+      [busySessionId]="busyId()"
+      (update)="update($event)"
+      (unsubscribe)="unsubscribe($event)"
+      (close)="closeMySubscriptions()"
     />
   }
 

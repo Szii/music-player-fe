@@ -1,0 +1,93 @@
+:host {
+  display: block;
+  min-width: 0;
+  container-type: inline-size;
+  container-name: my-subscriptions;
+}
+
+ui-list-toolbar {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.my-subscriptions-table {
+  display: block !important;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.my-subscriptions-mobile-list {
+  display: none !important;
+}
+
+.my-subscriptions-table ::ng-deep table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.my-subscriptions-table ::ng-deep th,
+.my-subscriptions-table ::ng-deep td {
+  min-width: 0;
+  overflow: hidden;
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
+.col-version,
+.col-status {
+  white-space: nowrap;
+}
+
+.col-actions {
+  white-space: nowrap;
+  text-align: center;
+}
+
+.my-subscriptions__menu {
+  margin-left: auto;
+  align-self: center;
+}
+
+.my-subscriptions-mobile-list .app-entity-list__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.my-subscriptions-mobile-list .app-entity-list__title {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@container my-subscriptions (max-width: 820px) {
+  .my-subscriptions-table {
+    display: none !important;
+  }
+
+  .my-subscriptions-mobile-list {
+    display: flex !important;
+    flex-direction: column;
+    gap: 14px;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .my-subscriptions-table {
+    display: none !important;
+  }
+
+  .my-subscriptions-mobile-list {
+    display: flex !important;
+    flex-direction: column;
+    gap: 14px;
+    margin: 0;
+    padding: 0;
+  }
+}

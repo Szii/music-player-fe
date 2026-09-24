@@ -12,6 +12,7 @@
 
 .workshop-page__desktop-action {
   display: inline-flex;
+  gap: 10px;
 }
 
 @media (max-width: 330px) {
@@ -21,6 +22,8 @@
 
   .workshop-page__mobile-action {
     display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
     justify-content: flex-start;
     margin-top: -6px;
     margin-bottom: 18px;

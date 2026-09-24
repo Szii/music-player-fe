@@ -30,9 +30,7 @@ ui-list-toolbar {
 }
 
 :host ::ng-deep .app-table--tracks th.col-name,
-:host ::ng-deep .app-table--tracks th.col-original,
-:host ::ng-deep .app-table--tracks th.col-owner,
-:host ::ng-deep .app-table--tracks td.col-owner {
+:host ::ng-deep .app-table--tracks th.col-original {
   text-align: left;
 }
 
@@ -65,24 +63,6 @@ ui-list-toolbar {
   align-self: center;
 }
 
-.track-row--subscribed td {
-  background: rgba(238, 198, 145, 0.12);
-}
-
-.track-row--subscribed .cell-text--strong {
-  color: var(--app-text-muted);
-}
-
-/* Mobile list shape lives in the shared .app-entity-list primitive;
-   only the subscribed-state tint is track-specific. */
-.app-entity-list__item.is-subscribed {
-  background: rgba(238, 198, 145, 0.12);
-}
-
-.app-entity-list__item.is-subscribed .app-entity-list__title {
-  color: var(--app-text-muted);
-}
-
 .track-table__scope {
   margin-bottom: 12px;
 }
@@ -90,5 +70,6 @@ ui-list-toolbar {
 .col-status__chips {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 4px;
 }

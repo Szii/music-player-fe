@@ -85,6 +85,8 @@
 .sel__panel {
   position: fixed;
   z-index: 9999;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 16px));
 }
 
 /* Scrim + drag handle are phone-only (see media query). */

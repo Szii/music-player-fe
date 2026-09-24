@@ -108,7 +108,24 @@
     "counts": "skladeb: {{tracks}} · skupin: {{groups}}",
     "switchPlayingTitle": "Přepnout sezení?",
     "switchPlayingMessage": "Přepnutím na {{name}} zastavíte vše, co právě hraje.",
-    "switchPlayingConfirm": "Přepnout"
+    "switchPlayingConfirm": "Přepnout",
+    "shared": {
+      "badge": "Sdílené",
+      "updateBadge": "Dostupná aktualizace",
+      "unsubscribe": "Zrušit odběr",
+      "unsubscribeConfirm": "Zrušit odběr „{{name}}“? Sezení i jeho scény budou z vašeho účtu odebrány.",
+      "unsubscribed": "Odběr sezení zrušen.",
+      "update": "Aktualizovat",
+      "updated": "Sezení aktualizováno.",
+      "syncFailed": "Synchronizace sezení se nezdařila.",
+      "banner": "Sdílí {{owner}} · v{{version}}",
+      "noStages": "Toto sdílené sezení nemá žádné scény.",
+      "readOnlyHint": "Scény sdíleného sezení lze měnit jen při přehrávání.",
+      "updateTo": "Aktualizovat na v{{version}}",
+      "unpublishedShort": "již nepublikováno",
+      "stagesOnly": "„{{name}}“ sdílí {{owner}}. Jeho skladby a skupiny najdete na jeho scénách.",
+      "stagesOnlyTitle": "Sdílené sezení"
+    }
   },
   "stages": {
     "title": "Scény",
@@ -166,7 +183,8 @@
       "scopeLibraryTip": "Vybírejte ze všech svých skladeb a skupin. Co vyberete, přidá se do tohoto sezení.",
       "allSessionTracks": "Všechny skladby sezení",
       "allLibraryTracks": "Všechny skladby knihovny",
-      "turnLoopOff": "Vypnout opakování"
+      "turnLoopOff": "Vypnout opakování",
+      "lockedHint": "Nastavuje autor sezení"
     },
     "mode": {
       "single": "Single",
@@ -206,7 +224,8 @@
       "shortcutHint": "Spustit/zastavit přehrávání klávesou",
       "shortcutCapturing": "Stiskněte kombinaci kláves (Esc zruší)",
       "listening": "Naslouchám…",
-      "noShortcut": "Žádná"
+      "noShortcut": "Žádná",
+      "lockedHint": "Tato scéna pochází ze sdíleného sezení. Změnit lze jen klávesovou zkratku."
     },
     "warn": {
       "emptyGroup": "Tato skupina nemá žádné skladby k přehrání. Vyberte skupinu se skladbami.",
@@ -297,7 +316,7 @@
       "groups": "Skupiny",
       "tracks": "Skladby",
       "sessions": "Sezení",
-      "subscribedTracks": "Odebírané skladby",
+      "subscribedSessions": "Odebíraná sezení",
       "perSessionBoards": "Limity scén na sezení ({{count}})",
       "perTrackWindows": "Limity oken na skladbu ({{count}})",
       "noSessions": "Zatím žádná aktivní sezení.",
@@ -348,7 +367,6 @@
     "invalidValue": "Neplatná hodnota.",
     "original": "Původní název",
     "owner": "Vlastník",
-    "subscribed": "Odebírané",
     "own": "Vlastní",
     "stopPlaybackTitle": "Zastavit přehrávání?",
     "stopPlaybackMessage": "Otevření editoru oken zastaví všechny hrající scény. Pokračovat?",
@@ -361,10 +379,8 @@
     },
     "filter": {
       "all": "Všechny skladby",
-      "own": "Moje skladby",
       "withWindows": "S okny",
-      "withoutWindows": "Bez oken",
-      "published": "Publikované"
+      "withoutWindows": "Bez oken"
     },
     "msg": {
       "created": "Skladba vytvořena.",
@@ -374,7 +390,6 @@
     },
     "err": {
       "loadOwn": "Načtení vašich skladeb se nezdařilo.",
-      "loadSubscribed": "Načtení odebíraných skladeb se nezdařilo.",
       "create": "Vytvoření skladby se nezdařilo.",
       "update": "Úprava skladby se nezdařila.",
       "delete": "Smazání skladby se nezdařilo.",
@@ -516,7 +531,6 @@
     "noTracksTitle": "Zatím nejsou dostupné žádné skladby",
     "noTracksMsg": "Přidejte vlastní skladbu nebo si odeberte skladbu sdílenou jiným uživatelem a pak se sem vraťte a přidejte ji do této skupiny.",
     "addTrack": "Přidat skladbu",
-    "browseWorkshop": "Procházet sdílené skladby",
     "deleteConfirm": "Smazat skupinu „{{name}}“?",
     "msg": {
       "deleted": "Skupina smazána.",
@@ -542,15 +556,18 @@
   "workshop": {
     "title": "Sdílení",
     "loading": "Načítání…",
-    "myTracks": "Moje skladby",
-    "myTracksSubtitle": "Publikujte své skladby, aby je ostatní uživatelé našli a mohli je odebírat.",
-    "searchMyTracks": "Hledat skladby podle názvu",
-    "searchShared": "Hledat sdílené skladby",
-    "emptyMsg": "Nejprve přidejte skladbu, poté ji zde můžete publikovat, aby ji ostatní našli a odebírali.",
+    "mySessions": "Moje sezení",
+    "mySessionsSubtitle": "Publikujte svá sezení, aby je ostatní mohli odebírat. Odběratelé dostanou kopii jen pro čtení a mohou ji aktualizovat, kdykoli publikujete novou verzi.",
+    "searchMySessions": "Hledat sezení",
+    "searchShared": "Hledat sdílená sezení",
+    "emptyMsg": "Nejprve vytvořte sezení, poté ho zde můžete publikovat.",
+    "noOwnSessions": "Zatím žádná sezení",
     "published": "Publikováno",
     "unpublished": "Soukromé",
-    "inscribed": "Odebíráno",
     "publish": "Publikovat",
+    "publishUpdate": "Publikovat aktualizaci",
+    "publishUpdateConfirm": "Publikovat aktuální stav „{{name}}“ jako verzi {{version}}? Odběratelům bude nabídnuta aktualizace.",
+    "editDescription": "Upravit popis",
     "unpublish": "Zrušit publikování",
     "subscribe": "Odebírat",
     "unsubscribe": "Zrušit odběr",
@@ -558,31 +575,54 @@
     "subscriberCount": "odběratelů: {{count}}",
     "description": "Popis",
     "optional": "(nepovinné)",
-    "descriptionPlaceholder": "K čemu je tato skladba?",
-    "publishTitle": "Publikovat skladbu",
+    "descriptionPlaceholder": "K čemu je toto sezení?",
+    "publishTitle": "Publikovat sezení",
+    "publishHint": "Odběratelé dostanou sezení v aktuálním stavu. Pozdější změny k nim dorazí až po publikování aktualizace.",
     "publishConfirm": "Publikovat „{{name}}“?",
-    "unpublishTitle": "Zrušit publikování skladby",
-    "unpublishConfirm": "Zrušit publikování „{{name}}“? Odběratelé o skladbu přijdou a zmizí z jejich skupin a scén.",
-    "unsubscribeTitle": "Zrušit odběr skladby",
-    "unsubscribeConfirm": "Zrušit odběr „{{name}}“? Skladba zmizí i z vašich skupin, scén a sezení.",
+    "unpublishTitle": "Zrušit publikování sezení",
+    "unpublishConfirm": "Zrušit publikování „{{name}}“? Zmizí z katalogu. Stávající odběratelé si kopii ponechají, ale nedostanou další aktualizace.",
+    "filter": {
+      "all": "Všechna sezení"
+    },
+    "sort": {
+      "updatedDesc": "Nedávno aktualizované"
+    },
+    "col": {
+      "session": "Sezení",
+      "content": "Obsah",
+      "version": "Verze"
+    },
+    "content": "scén: {{boards}} · skladeb: {{tracks}} · skupin: {{groups}}",
+    "noMatches": "Hledání neodpovídá žádné sezení.",
     "msg": {
-      "published": "Skladba publikována.",
-      "unpublished": "Publikování skladby zrušeno.",
-      "subscribed": "Skladba přidána k odběru.",
-      "unsubscribed": "Odběr skladby zrušen.",
-      "alreadyPublished": "Skladba je již publikovaná.",
-      "alreadySubscribed": "Již odebíráno nebo neplatný kód."
+      "published": "Sezení publikováno.",
+      "updatePublished": "Nová verze publikována.",
+      "descriptionSaved": "Popis uložen.",
+      "unpublished": "Publikování sezení zrušeno.",
+      "subscribed": "Odebíráte „{{name}}“. Sezení je nyní vybrané.",
+      "catalogStale": "Katalog byl zastaralý a byl znovu načten."
     },
     "err": {
-      "loadPublished": "Načtení publikovaných skladeb se nezdařilo.",
-      "loadData": "Načtení dat sdílení se nezdařilo.",
+      "loadPublished": "Načtení publikovaných sezení se nezdařilo.",
       "publish": "Publikování se nezdařilo.",
+      "description": "Uložení popisu se nezdařilo.",
       "unpublish": "Zrušení publikování se nezdařilo.",
-      "subscribe": "Odběr se nezdařil.",
-      "unsubscribe": "Zrušení odběru se nezdařilo.",
-      "noShareCode": "Není dostupný žádný kód sdílení."
+      "subscribe": "Odběr se nezdařil."
     },
-    "nothingPublished": "Momentálně není nic publikováno."
+    "mySubscriptions": "Moje odběry",
+    "mySubscriptionsSubtitle": "Sezení, která odebíráte. Aktualizujte je, když autor publikuje novou verzi, nebo je obnovte a vraťte své změny.",
+    "noSubscriptions": "Zatím neodebíráte žádné sezení.",
+    "nothingToSubscribe": "Momentálně není co nového odebírat.",
+    "goToStages": "Přejít na scény",
+    "publishedVersion": "Publikováno · v{{version}}",
+    "notPublishable": "Nepřipraveno",
+    "notPublishableHint": "Pro publikování přidejte alespoň jednu scénu a jednu skladbu.",
+    "subscriptionStatus": {
+      "removed": "Odstraněno autorem",
+      "unpublished": "Již nepublikováno",
+      "update": "Dostupná aktualizace",
+      "current": "Aktuální"
+    }
   },
   "auth": {
     "login": "Přihlášení",
@@ -709,8 +749,8 @@
     },
     "workshop": {
       "title": "Sdílení",
-      "body": "Jste s nastavením skladby a jejích oken spokojení? <strong>Publikujte</strong> ji, aby si ji ostatní Sound Masteři mohli odebírat, a prohlédněte si, co zveřejnili oni.",
-      "alt": "Dialog sdílení „Moje skladby“ se stavem publikování a odběrateli"
+      "body": "Máte sezení, na které jste hrdí? Otevřete <strong>Moje sezení</strong> a <strong>publikujte</strong> ho, aby ostatní Sound Masteři mohli odebírat jeho scény, skladby, skupiny a okna přesně tak, jak jste je nastavili.<br><br>Odebírané sezení se objeví ve vašem <strong>výběru sezení</strong>. Jeho scény jsou připravené k hraní, vše ostatní je jen pro čtení a jeho skladby se nemíchají s vaší knihovnou.<br><br>Vylepšili jste své sezení? <strong>Publikujte aktualizaci</strong>. Odběratelé uvidí u svých scén <strong>Aktualizovat</strong> a novou verzi získají jedním kliknutím.",
+      "alt": "Stránka sdílení se seznamem publikovaných sezení, jejich autorem, obsahem, odběrateli a stavem"
     },
     "profile": {
       "title": "Váš profil",
@@ -726,8 +766,8 @@
       "a2": "Ne. Scéna nezačne hrát, dokud nestisknete start. Můžete dokonce vybrat jinou skupinu a připravit si nový výběr skladby, zatímco scéna stále hraje, aniž byste změnili aktuální přehrávání.",
       "q3": "Co se stane, když spustím scénu, zatímco hraje jiná?",
       "a3": "Ve výchozím stavu se druhá scéna zastaví a přehrávání plynule přejde do nové, takže hraje vždy jen jedna scéna. Zapněte <strong>Překryv</strong> v nastavení přehrávání scény, aby hrála <em>souběžně</em> s ostatními.",
-      "q4": "Mohou ostatní uživatelé upravovat skladby, které publikuji?",
-      "a4": "Ne. Ostatní Sound Masteři mohou vaše publikované skladby odebírat a přehrávat. Upravovat originál můžete jen vy.",
+      "q4": "Mohou odběratelé měnit sezení, které publikuji?",
+      "a4": "Ne. Mohou hrát jeho scény a pro sebe upravit hlasitost a hranou skladbu, ale scény, jejich režimy, skladby a skupiny zůstávají tak, jak jste je nastavili. Vašeho vlastního sezení se nic nedotkne.",
       "q5": "Skladba nebo okno končí příliš náhle a smyčka nezní dobře",
       "a5": "Přejděte na <strong>Skladby</strong>, zvolte u dané skladby <strong>Upravit okna</strong> a upravte délku prolnutí pro okno nebo celou skladbu.",
       "q6": "Režim sekvence nelze u některých skladeb vybrat",
@@ -737,7 +777,9 @@
       "q8": "Přehrávání na pozadí nefunguje vůbec",
       "a8": "To je hlavně problém YouTube IFrame API na mobilních zařízeních. IFrame API neposkytuje surový audio element, který by operační systém mohl zpracovat. Existuje však workaround: zkuste <strong>minimalizovat okno prohlížeče</strong>, aby zůstalo v popředí, nebo <strong>zapnout režim pro počítače</strong>.",
       "q9": "Ve výběru na scéně chybí skladba",
-      "a9": "Scény nabízejí jen <strong>skladby a skupiny aktuálního sezení</strong>. Přepněte scénu na <strong>Knihovnu</strong> a vyberte skladbu tam, nebo ji přidejte do sezení z nabídky řádku na stránce <strong>Skladby</strong>."
+      "a9": "Scény nabízejí jen <strong>skladby a skupiny aktuálního sezení</strong>. Přepněte scénu na <strong>Knihovnu</strong> a vyberte skladbu tam, nebo ji přidejte do sezení z nabídky řádku na stránce <strong>Skladby</strong>.",
+      "q10": "Jak odeberu sdílené sezení?",
+      "a10": "Otevřete <strong>výběr sezení</strong> a zvolte u něj <strong>Zrušit odběr</strong>. Funguje to i poté, co ho autor přestane publikovat."
     }
   },
   "toast": {

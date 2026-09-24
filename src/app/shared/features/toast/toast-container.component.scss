@@ -70,6 +70,29 @@
   word-break: break-word;
 }
 
+.toast__action {
+  appearance: none;
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--app-primary);
+  cursor: pointer;
+}
+
+.toast__action:hover {
+  text-decoration: underline;
+}
+
+.toast__action:focus-visible {
+  outline: 2px solid var(--app-secondary);
+  outline-offset: 2px;
+  border-radius: var(--app-radius-sm, 4px);
+}
+
 .toast__close {
   width: 28px;
   height: 28px;

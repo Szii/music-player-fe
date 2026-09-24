@@ -16,7 +16,23 @@
       (clicked)="openCreateSession($event)"
     />
   } @else {
-    @if (sessionBoards().length > 0) {
+    @if (subscription(); as sub) {
+      <div class="app-shared-note" [title]="'sessions.shared.readOnlyHint' | transloco">
+        <span class="app-shared-note__info">
+          {{ 'sessions.shared.banner' | transloco: { owner: sub.owner?.name ?? '—', version: sub.installedVersion } }}
+          @if (sub.unpublished) {
+            · {{ 'sessions.shared.unpublishedShort' | transloco }}
+          }
+        </span>
+        @if (sub.restorable && sub.updateAvailable) {
+          <button type="button" class="app-shared-note__action" (click)="updateSharedSession()">
+            {{ 'sessions.shared.updateTo' | transloco: { version: sub.latestVersion } }}
+          </button>
+        }
+      </div>
+    }
+
+    @if (sessionBoards().length > 0 && !readOnly()) {
       <app-icon-button
         class="boards-page__create-board"
         icon="plus"
@@ -28,7 +44,9 @@
       />
     }
 
-    @if (sessionBoards().length === 0) {
+    @if (sessionBoards().length === 0 && readOnly()) {
+      <p class="app-empty-note">{{ 'sessions.shared.noStages' | transloco }}</p>
+    } @else if (sessionBoards().length === 0) {
       <ui-create-cta
         [label]="'stages.createFirst' | transloco"
         (clicked)="createBoard()"
@@ -63,6 +81,7 @@
               [playlistOptions]="getPlaylistOptions(board)"
               [linkedBoardChoices]="linkedBoardChoices()"
               [heldForResume]="isHeldForResume(board)"
+              [locked]="readOnly()"
               (delete)="deleteBoard(board)"
               (groupChange)="onGroupSelectionChange(board, $event)"
               (trackChange)="onTrackSelectionChange(board, $event)"

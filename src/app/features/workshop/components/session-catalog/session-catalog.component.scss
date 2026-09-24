@@ -8,6 +8,10 @@ ui-list-toolbar {
   margin-bottom: 12px;
 }
 
+.col-content {
+  white-space: nowrap;
+}
+
 .col-subscribers {
   width: 110px;
   max-width: 110px;
@@ -24,18 +28,17 @@ ui-list-toolbar {
 
 :host ::ng-deep .app-table--workshop td.col-actions {
   text-align: right;
-  /* Breathing room between the kebab and the table's right edge. */
   padding-right: 18px;
 }
 
-.track-catalog-mobile-list .app-entity-list__item {
+.session-catalog-mobile-list .app-entity-list__item {
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
   box-sizing: border-box;
 }
 
-.track-catalog-mobile-list .app-entity-list__head {
+.session-catalog-mobile-list .app-entity-list__head {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
@@ -44,9 +47,9 @@ ui-list-toolbar {
   max-width: 100%;
 }
 
-.track-catalog-mobile-list .app-entity-list__title,
-.track-catalog-mobile-list .app-entity-list__subtitle,
-.track-catalog__owner {
+.session-catalog-mobile-list .app-entity-list__title,
+.session-catalog-mobile-list .app-entity-list__subtitle,
+.session-catalog__owner {
   display: block;
   min-width: 0;
   max-width: 100%;
@@ -55,7 +58,7 @@ ui-list-toolbar {
   white-space: nowrap;
 }
 
-.track-catalog__mobile-meta {
+.session-catalog__mobile-meta {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -65,7 +68,7 @@ ui-list-toolbar {
   overflow: hidden;
 }
 
-.track-catalog__stats-row {
+.session-catalog__stats-row {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -74,35 +77,15 @@ ui-list-toolbar {
   overflow: hidden;
 }
 
-.track-catalog__stats-row > span {
+.session-catalog__stats-row > span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.track-catalog-mobile-list ui-chip {
-  justify-self: end;
-  max-width: 100%;
-}
-
-/* Desktop actions cell: preview + kebab side by side. */
-.track-catalog__actions {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-/* Mobile card: preview + kebab menu cluster at the right of the stats row. */
-.track-catalog__preview {
-  margin-left: auto;
-  align-self: center;
-  flex: 0 0 auto;
-}
-
-.track-catalog__menu {
-  margin-left: 6px;
-  align-self: center;
-  flex: 0 0 auto;
+.session-catalog__desc {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.82rem;
 }

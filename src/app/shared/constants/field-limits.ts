@@ -16,9 +16,8 @@ export const FIELD_LIMITS = {
     /** TrackWindowRequest.name */
     name: 30,
   },
-  trackShare: {
-    /** PublishTrackRequest.description */
-    description: 100,
+  sessionShare: {
+    description: 255,
   },
   group: {
     /** GroupRequest.listName */
