@@ -29,10 +29,6 @@ import {
 } from '../../../../api/generated';
 
 import {
-  CreateBoardFormComponent,
-  CreateBoardEvent,
-} from '../../components/create-board-form/create-board-form.component';
-import {
   BoardCardComponent,
   PlaylistOptions,
   PlaybackMode,
@@ -40,9 +36,9 @@ import {
 } from '../../components/board-card/board-card.component';
 import { LinkedBoardChoice, LinkedBoardSelection } from '../../models/linked-board-choice';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
+import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { UiCreateCtaComponent } from '../../../../shared/ui/create-cta/ui-create-cta.component';
-import { SessionsDropdownComponent } from '../../../../shared/components/sessions-dropdown/sessions-dropdown.component';
 import { FooterComponent } from '../../../../shared/components/footer/footer.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { httpErrorMessage } from '../../../../shared/utils/http-error';
@@ -50,6 +46,7 @@ import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog
 import { BoardPlaybackService } from '../../../../core/services/board-playback.service';
 import { BoardShortcutsService } from '../../../../core/services/board-shortcuts.service';
 import { SessionsStore } from '../../../../core/services/sessions-store.service';
+import { SessionActionsService } from '../../../../core/services/session-actions.service';
 import { TracksStore } from '../../../../core/services/tracks-store.service';
 import { GroupsStore } from '../../../../core/services/groups-store.service';
 
@@ -89,11 +86,10 @@ interface VolumeCommit {
 @Component({
   selector: 'app-boards-page',
   imports: [
-    CreateBoardFormComponent,
+    IconButtonComponent,
     BoardCardComponent,
     UiAlertComponent,
     UiCreateCtaComponent,
-    SessionsDropdownComponent,
     UiPageTitleComponent,
     FooterComponent,
     TranslocoPipe,
@@ -124,6 +120,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   private readonly boardPlayback = inject(BoardPlaybackService);
   private readonly shortcuts = inject(BoardShortcutsService);
   private readonly sessionsStore = inject(SessionsStore);
+  private readonly sessionActions = inject(SessionActionsService);
   private readonly tracksStore = inject(TracksStore);
   private readonly groupsStore = inject(GroupsStore);
 
@@ -138,6 +135,12 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   readonly activeBoardIndex = signal(0);
 
   readonly hasSessions = this.sessionsStore.hasSessions;
+
+  private readonly sessionGroups = computed<Group[]>(() => {
+    const ids = this.sessionsStore.sessionGroupIds();
+    return this.groups().filter(group => group.id != null && ids.has(group.id));
+  });
+
   readonly sessionBoards = computed<Board[]>(() => {
     const sessionId = this.sessionsStore.selectedSessionId();
     if (sessionId == null) return [];
@@ -157,7 +160,6 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     ),
   );
 
-  @ViewChild('sessionsDropdown') sessionsDropdownRef?: SessionsDropdownComponent;
   @ViewChild('boardsList') boardsListRef?: ElementRef<HTMLElement>;
   @ViewChild('boardsTabs') boardsTabsRef?: ElementRef<HTMLElement>;
   @ViewChildren(BoardCardComponent) boardCards!: QueryList<BoardCardComponent>;
@@ -358,7 +360,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     }
   }
 
-  createBoard(event: CreateBoardEvent): void {
+  createBoard(): void {
     const sessionId = this.sessionsStore.selectedSessionId();
     if (sessionId == null) {
       this.toast.error(this.t('stages.err.noSessionSelected'));
@@ -368,8 +370,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     this.createBoardSubmitting.set(true);
 
     const body: BoardCreateRequest = {
-      name: event.name || undefined,
-      selectedTrackId: event.selectedTrackId ?? undefined,
+      name: this.t('common.stageIndex', { index: this.sessionBoards().length + 1 }),
       sessionId,
     };
 
@@ -389,7 +390,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
           if (newBoards.length > 0) {
             this.boards.update(current => this.sortBoards([...current, ...newBoards]));
-            this.toast.success(this.t('stages.msg.created'));
+            this.focusNewBoard(newBoards[0].id);
           }
         },
         error: (err: unknown) => {
@@ -399,9 +400,22 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       });
   }
 
+  /** Brings a just-created stage into view with its name ready to edit. */
+  private focusNewBoard(boardId: string | undefined): void {
+    if (boardId == null) return;
+
+    setTimeout(() => {
+      const index = this.sessionBoards().findIndex(board => board.id === boardId);
+      if (index >= 0) this.scrollToBoard(index);
+      const card = this.boardCards?.find(item => item.board().id === boardId);
+      card?.expand();
+      card?.startRename();
+    });
+  }
+
   openCreateSession(event?: Event): void {
     event?.stopPropagation();
-    this.sessionsDropdownRef?.openCreate();
+    this.sessionActions.create();
   }
 
   async deleteBoard(board: Board): Promise<void> {
@@ -704,6 +718,8 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: updated => {
+          this.syncSessionScope(updated);
+
           if (updated.playlistMode && updated.id != null) {
             this.regeneratePlaylistOrder(updated.id, updated.availableTracks ?? [], updated.shuffle ?? false);
           }
@@ -783,6 +799,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       .subscribe({
         next: updated => {
           this.upsertBoard(updated);
+          this.syncSessionScope(updated);
           this.selectedWindowByBoard.set(boardId, windowId);
           this.pendingTrackUpdateBoardIds.delete(boardId);
           const wantsPlay = this.playPendingAfterUpdateBoardIds.delete(boardId);
@@ -841,6 +858,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       .subscribe({
         next: updated => {
           this.upsertBoard(updated);
+          this.syncSessionScope(updated);
           this.pendingTrackUpdateBoardIds.delete(boardId);
           const wantsPlay = this.playPendingAfterUpdateBoardIds.delete(boardId);
 
@@ -1536,7 +1554,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
   getGroupsForBoard(board: Board): Group[] {
     const selected = board.selectedGroup;
-    const base = this.groups();
+    const base = this.sessionGroups();
 
     if (selected?.id == null) {
       return base;
@@ -1742,6 +1760,39 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
           this.toast.error(httpErrorMessage(err, { fallback: errorMessage }));
         },
       });
+  }
+
+  /**
+   * Picking a track or group from the whole library adds it to the session on the
+   * server, which widens every board's track list — re-read the session then.
+   */
+  private syncSessionScope(board: Board): void {
+    const sessionId = board.sessionId ?? this.sessionsStore.selectedSessionId();
+    if (sessionId == null) return;
+
+    const trackId = board.selectedTrack?.id;
+    const groupId = board.selectedGroup?.id;
+    const known =
+      (trackId == null || this.sessionsStore.scopedTrackIds().has(trackId))
+      && (groupId == null || this.sessionsStore.sessionGroupIds().has(groupId));
+    if (known) return;
+
+    this.sessionsStore.refreshSession(sessionId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: session => this.refreshAvailableTracks(session),
+        error: (err: unknown) => console.error(err),
+      });
+  }
+
+  private refreshAvailableTracks(session: SessionResponse): void {
+    const fresh = new Map((session.boards ?? []).map(b => [b.id, b.availableTracks]));
+
+    this.boards.update(current =>
+      current.map(board =>
+        fresh.has(board.id) ? { ...board, availableTracks: fresh.get(board.id) } : board,
+      ),
+    );
   }
 
   private replaceBoardsFromSession(session: SessionResponse | null): void {

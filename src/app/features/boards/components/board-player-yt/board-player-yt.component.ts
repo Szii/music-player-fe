@@ -70,6 +70,8 @@ export class BoardPlayerYtComponent implements OnDestroy {
   /** Extra head-start so the incoming slot can buffer before the fade starts. */
   private static readonly CROSSFADE_BUFFER_LEAD_S = 1;
   private static readonly PLAYING_WAIT_TIMEOUT_MS = 4000;
+  /** Buffering this long means YouTube is not going to start; surface it as an error. */
+  private static readonly STALLED_BUFFERING_MS = 20000;
   /** How long before the crossfade point `endApproaching` fires, giving a host
       time to spin up (buffer) whatever plays next. */
   private static readonly END_APPROACHING_EXTRA_LEAD_S = 2;
@@ -185,6 +187,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
   private finishCurrentCrossfadeRequested = false;
 
   private pollTimer: number | null = null;
+  private stallTimer: number | null = null;
   private emittedNearEnd = false;
   private emittedEndApproaching = false;
   private isUserSeeking = false;
@@ -234,6 +237,14 @@ export class BoardPlayerYtComponent implements OnDestroy {
       const startS = this.windowStartFloor();
       const endS = this.windowEndCeil();
       this.onWindowChanged(`${hasWindow}:${startS}:${endS}`, startS);
+    });
+
+    effect(() => {
+      if (this.localStatus() === 'BUFFERING') {
+        this.armStallWatchdog();
+      } else {
+        this.clearStallWatchdog();
+      }
     });
 
     this.destroyRef.onDestroy(() => this.teardown());
@@ -709,6 +720,28 @@ export class BoardPlayerYtComponent implements OnDestroy {
       () => this.tick(),
       BoardPlayerYtComponent.POLL_INTERVAL_MS,
     );
+  }
+
+  private armStallWatchdog(): void {
+    if (this.stallTimer !== null) return;
+
+    this.stallTimer = this.clock.setInterval(() => {
+      this.clearStallWatchdog();
+      if (this.localStatus() !== 'BUFFERING') return;
+
+      this.zone.run(() => {
+        this.stopPolling();
+        this.localStatus.set('ERROR');
+        this.audioError.emit();
+      });
+    }, BoardPlayerYtComponent.STALLED_BUFFERING_MS);
+  }
+
+  private clearStallWatchdog(): void {
+    if (this.stallTimer !== null) {
+      this.clock.clearInterval(this.stallTimer);
+      this.stallTimer = null;
+    }
   }
 
   private stopPolling(): void {
@@ -1250,6 +1283,7 @@ export class BoardPlayerYtComponent implements OnDestroy {
 
   private teardown(): void {
     this.stopPolling();
+    this.clearStallWatchdog();
     this.clearMasterRampTimer();
     this.clearGainRampTimer();
     this.masterRampId++;

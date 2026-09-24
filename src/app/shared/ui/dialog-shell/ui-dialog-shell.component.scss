@@ -40,8 +40,6 @@
   z-index: 0;
   pointer-events: none;
   background: var(--app-modal-backdrop);
-  backdrop-filter: blur(var(--app-modal-backdrop-blur));
-  -webkit-backdrop-filter: blur(var(--app-modal-backdrop-blur));
   animation: ui-dialog-fade-in 0.15s ease;
 }
 

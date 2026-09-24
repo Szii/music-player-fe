@@ -7,6 +7,7 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { UiIconComponent } from '../../../../shared/ui/icon/ui-icon.component';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Track } from '../../../../api/generated';
@@ -24,6 +25,7 @@ import {
 import { PreviewButtonComponent } from '../../../../shared/ui/preview-button/preview-button.component';
 import { previewMidpointS } from '../../../../shared/utils/preview';
 import { persistentSignal } from '../../../../shared/utils/persistent-signal';
+import { formatDuration } from '../../../../shared/utils/duration';
 
 type CatalogFilterMode = 'all' | 'available' | 'subscribed';
 
@@ -42,6 +44,7 @@ type TrackCatalogSortMode =
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    UiIconComponent,
     UiDataTableComponent,
     UiListToolbarComponent,
     UiChipComponent,
@@ -186,10 +189,7 @@ export class TrackCatalogComponent {
   }
 
   formatDuration(seconds?: number): string {
-    if (seconds == null) return '—';
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
+    return formatDuration(seconds);
   }
 
   private matchesSearch(track: Track, query: string): boolean {

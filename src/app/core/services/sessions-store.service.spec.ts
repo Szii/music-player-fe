@@ -1,9 +1,11 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Observable, of } from 'rxjs';
 
 import { SessionsResponse, SessionsService } from '../../api/generated';
 import { SessionService } from '../auth/session.service';
 import { SessionsStore } from './sessions-store.service';
+import { GroupsStore } from './groups-store.service';
 
 /** Only the members SessionsStore touches. */
 class SessionsServiceStub {
@@ -33,6 +35,7 @@ describe('SessionsStore.load', () => {
         SessionsStore,
         { provide: SessionsService, useValue: api },
         { provide: SessionService, useValue: new SessionServiceStub() },
+        { provide: GroupsStore, useValue: { groups: signal([]) } },
       ],
     });
 

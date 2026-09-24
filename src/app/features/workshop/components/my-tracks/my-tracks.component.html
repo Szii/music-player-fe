@@ -61,7 +61,7 @@
                 [title]="subscriberTitle(track)"
                 [attr.aria-label]="subscriberTitle(track)"
               >
-                <span class="app-subscriber-stat__star" aria-hidden="true">★</span>
+                <ui-icon class="app-subscriber-stat__star" name="users" />
                 <span class="app-subscriber-stat__count">{{
                   subscriberCount(track)
                 }}</span>
@@ -138,7 +138,7 @@
                 [title]="subscriberTitle(track)"
                 [attr.aria-label]="subscriberTitle(track)"
               >
-                <span class="app-subscriber-stat__star" aria-hidden="true">★</span>
+                <ui-icon class="app-subscriber-stat__star" name="users" />
                 <span class="app-subscriber-stat__count">{{
                   subscriberCount(track)
                 }}</span>
@@ -218,7 +218,7 @@
     <ng-container dialog-footer>
       <normal-button
         type="button"
-        variant="secondary"
+        variant="ghost"
         (clicked)="closePublish()"
       >
         {{ 'common.cancel' | transloco }}

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, input, output, viewChild } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 
 @Component({
@@ -16,6 +16,12 @@ export class UiSearchBoxComponent {
   readonly ariaLabel = input('');
 
   readonly valueChange = output<string>();
+
+  private readonly field = viewChild<ElementRef<HTMLInputElement>>('field');
+
+  focus(): void {
+    this.field()?.nativeElement.focus();
+  }
 
   clear(): void {
     this.valueChange.emit('');

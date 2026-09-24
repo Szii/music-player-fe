@@ -36,6 +36,7 @@ import {
   formatFadeMs,
   maxFadeForWindow,
 } from '../../utils/fade';
+import { formatDuration } from '../../../../shared/utils/duration';
 
 /** Result emitted when a window (or whole-track fades) is applied. */
 export interface WindowEditorResult {
@@ -341,10 +342,7 @@ export class WindowEditorYtComponent {
   }
 
   formatTime(totalSeconds: number): string {
-    const safe = Math.max(0, Math.floor(totalSeconds));
-    const minutes = Math.floor(safe / 60);
-    const seconds = safe % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    return formatDuration(totalSeconds);
   }
 
   formatFade(ms: number): string {

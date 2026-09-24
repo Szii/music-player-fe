@@ -6,6 +6,7 @@ import {
   inject,
   output,
   signal,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { TranslocoPipe } from '@jsverse/transloco';
@@ -48,6 +49,12 @@ export class YoutubeSearchComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly picked = output<YoutubeSearchResult>();
+
+  private readonly searchBox = viewChild(UiSearchBoxComponent);
+
+  focus(): void {
+    this.searchBox()?.focus();
+  }
 
   readonly query = signal('');
   readonly results = signal<readonly YoutubeSearchResult[]>([]);

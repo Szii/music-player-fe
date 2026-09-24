@@ -10,7 +10,8 @@ export type UiIconName =
   | 'ordered'
   | 'overlap'
   | 'keyboard'
-  | 'then';
+  | 'then'
+  | 'users';
 
 @Component({
   selector: 'ui-icon',

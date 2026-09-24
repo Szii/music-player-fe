@@ -1,11 +1,6 @@
 
 <div class="app-page board-page">
-  <ui-page-title [title]="'stages.title' | transloco">
-    <app-sessions-dropdown
-      #sessionsDropdown
-      class="boards-page__sessions"
-    />
-  </ui-page-title>
+  <ui-page-title [title]="'stages.title' | transloco" />
 
   @if (errorMessage()) {
     <ui-alert variant="danger">
@@ -21,19 +16,22 @@
       (clicked)="openCreateSession($event)"
     />
   } @else {
-    <app-create-board-form
-      #createBoardForm
-      class="boards-page__create-board-form"
-      [tracks]="tracks()"
-      [submitting]="createBoardSubmitting()"
-      [showTrigger]="sessionBoards().length > 0"
-      (create)="createBoard($event)"
-    />
+    @if (sessionBoards().length > 0) {
+      <app-icon-button
+        class="boards-page__create-board"
+        icon="plus"
+        [label]="'stages.add' | transloco"
+        variant="primary"
+        size="lg"
+        [disabled]="createBoardSubmitting()"
+        (clicked)="createBoard()"
+      />
+    }
 
     @if (sessionBoards().length === 0) {
       <ui-create-cta
         [label]="'stages.createFirst' | transloco"
-        (clicked)="createBoardForm.open()"
+        (clicked)="createBoard()"
       />
     } @else {
       <div class="boards-tabs" role="tablist" #boardsTabs>
@@ -53,6 +51,8 @@
             <app-board-card
               [board]="board"
               [availableGroups]="getGroupsForBoard(board)"
+              [libraryGroups]="groups()"
+              [libraryTracks]="tracks()"
               [status]="getBoardStatus(board)"
               [selectedWindowId]="getSelectedWindowId(board)"
               [masterVolume]="getMasterVolume(board)"

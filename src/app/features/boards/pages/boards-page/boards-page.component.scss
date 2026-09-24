@@ -1,7 +1,6 @@
 
 :host {
   display: block;
-  --boards-list-max-height: min(70dvh, 720px);
 }
 
 .boards-page__loading {
@@ -9,23 +8,8 @@
   color: var(--app-text-muted);
 }
 
-.boards-page__sessions {
-  flex-shrink: 0;
-  align-self: left;
-  /* No z-index here on purpose. A z-index other than `auto` on this positioned
-     host would make it a stacking context, trapping the dropdown's own panel
-     (z-index: 1100) inside a box that ranks only 50 — below the sticky navbar's
-     1000 — so the panel rendered *behind* the navbar. The component's :host
-     already sets `position: relative`, which is all the panel needs to anchor to.
-     See the matching note in shell.component.scss. */
-}
-
 .boards-list-wrap {
   margin-top: 1.25rem;
-  max-height: var(--boards-list-max-height);
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-right: 4px;
 }
 
 .boards-list {
@@ -107,22 +91,12 @@
 
 .boards-list-wrap,
 .boards-list,
-app-create-board-form,
 ui-create-cta {
   position: relative;
 }
 
-.boards-page__create-board-form {
+.boards-page__create-board {
   display: block;
   margin-bottom: 1rem;
 }
 
-@media (max-width: 900px) {
-  /* Mobile: natural full-page scroll (header scrolls away with the page),
-     matching the other pages — drop the desktop internal scroll area. */
-  .boards-list-wrap {
-    max-height: none;
-    overflow: visible;
-    padding-right: 0;
-  }
-}

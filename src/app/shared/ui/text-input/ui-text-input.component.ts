@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  afterNextRender,
+  computed,
+  input,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { UiCharCounterComponent } from '../char-counter/ui-char-counter.component';
 
@@ -25,6 +34,9 @@ export class UiTextInputComponent implements ControlValueAccessor {
   readonly name = input<string | null>(null);
   /** Max character length. When set, enforces the limit and shows a counter. */
   readonly maxLength = input<number | null>(null);
+  readonly autofocus = input(false);
+
+  private readonly field = viewChild<ElementRef<HTMLInputElement>>('field');
 
   readonly value = signal('');
   readonly disabled = signal(false);
@@ -40,6 +52,16 @@ export class UiTextInputComponent implements ControlValueAccessor {
   readonly showCounter = computed(
     () => this.maxLength() != null && !this.isPassword(),
   );
+
+  constructor() {
+    afterNextRender(() => {
+      if (this.autofocus()) this.focus();
+    });
+  }
+
+  focus(): void {
+    this.field()?.nativeElement.focus();
+  }
 
   private onChange: (value: string) => void = () => {};
   private onTouched: () => void = () => {};

@@ -71,27 +71,31 @@
           </div>
 
           <div class="board-card__feature-chips">
-            <ui-chip
-              variant="crimson"
-              size="sm"
-              shape="hex"
-              [tooltip]="modeChipTooltip()"
-            >
-              <ui-icon class="ribbon-ico" [name]="modeIconName()" />
-              {{ modeChipLabel() }}
-            </ui-chip>
-
-            <ui-chip
-              variant="gold"
-              size="sm"
-              shape="hex"
-              [tooltip]="loopRibbonTooltip()"
-            >
-              <ui-icon class="ribbon-ico" name="loop" />
-              {{ loopRibbonLabel() }}
-            </ui-chip>
-
             @if (playlistMode()) {
+              <ui-chip
+                variant="crimson"
+                size="sm"
+                shape="hex"
+                [tooltip]="modeChipTooltip()"
+              >
+                <ui-icon class="ribbon-ico" [name]="modeIconName()" />
+                {{ modeChipLabel() }}
+              </ui-chip>
+            }
+
+            @if (showLoopChip()) {
+              <ui-chip
+                variant="gold"
+                size="sm"
+                shape="hex"
+                [tooltip]="loopRibbonTooltip()"
+              >
+                <ui-icon class="ribbon-ico" name="loop" />
+                {{ loopRibbonLabel() }}
+              </ui-chip>
+            }
+
+            @if (playlistMode() && playlistOptions().random) {
               <ui-chip
                 variant="gold"
                 size="sm"
@@ -153,11 +157,13 @@
 
         <div class="board-card__summary-bottom">
           <div class="board-card__meta-line">
-            <ui-chip
-              variant="neutral"
-              [keyLabel]="'stages.card.group' | transloco"
-              [tooltip]="currentGroupLabel()"
-            >{{ currentGroupLabel() }}</ui-chip>
+            @if (currentGroupLabel(); as groupLabel) {
+              <ui-chip
+                variant="neutral"
+                [keyLabel]="'stages.card.group' | transloco"
+                [tooltip]="groupLabel"
+              >{{ groupLabel }}</ui-chip>
+            }
 
             <ui-chip
               variant="neutral"
@@ -165,7 +171,7 @@
               [tooltip]="currentTrackLabel()"
             >{{ currentTrackLabel() }}</ui-chip>
 
-            @if (!playlistMode()) {
+            @if (showWindowChip()) {
               <ui-chip
                 variant="neutral"
                 [keyLabel]="'stages.card.window' | transloco"
@@ -219,6 +225,7 @@
     <div class="board-card__details-inner">
       <div class="board-card__main">
         <div class="board-card__header">
+          <div class="board-card__switches">
           <div
             class="board-mode-switch"
             role="group"
@@ -243,6 +250,34 @@
               (click)="setPlaylistTab(true)">
               ♫ {{ 'stages.mode.playlist' | transloco }}
             </button>
+          </div>
+
+          <div
+            class="board-mode-switch"
+            role="group"
+            [attr.aria-label]="'stages.card.pickFrom' | transloco"
+          >
+            <button
+              type="button"
+              class="board-mode-switch__btn"
+              [class.board-mode-switch__btn--active]="!browseLibrary()"
+              [attr.aria-pressed]="!browseLibrary()"
+              [title]="'stages.card.scopeSessionTip' | transloco"
+              (mousedown)="$event.preventDefault()"
+              (click)="setBrowseLibrary(false)">
+              ◉ {{ 'stages.card.scopeSession' | transloco }}
+            </button>
+            <button
+              type="button"
+              class="board-mode-switch__btn"
+              [class.board-mode-switch__btn--active]="browseLibrary()"
+              [attr.aria-pressed]="browseLibrary()"
+              [title]="'stages.card.scopeLibraryTip' | transloco"
+              (mousedown)="$event.preventDefault()"
+              (click)="setBrowseLibrary(true)">
+              ▤ {{ 'stages.card.scopeLibrary' | transloco }}
+            </button>
+          </div>
           </div>
 
           <div class="board-card__header-actions">
@@ -417,7 +452,7 @@
               [class.board-control--desynced]="groupDesynced()"
               [navigateUpWhenClosed]="true"
               [options]="groupOptions()"
-              [nullOption]="'stages.card.allTracks' | transloco"
+              [nullOption]="allTracksLabel()"
               [ngModel]="board().selectedGroup?.id ?? null"
               [ngModelOptions]="{ standalone: true }"
               (ngModelChange)="groupChange.emit($event)"
@@ -510,7 +545,16 @@
               </div>
 
               @if (afterEndHint(); as hint) {
-                <p class="board-after-end__hint" [id]="afterEndHintId">{{ hint }}</p>
+                <p class="board-after-end__hint" [id]="afterEndHintId">
+                  {{ hint }}
+                  @if (afterEndBlockedByLoop()) {
+                    <button
+                      type="button"
+                      class="board-after-end__action"
+                      (click)="turnLoopOff()"
+                    >{{ 'stages.card.turnLoopOff' | transloco }}</button>
+                  }
+                </p>
               }
             </div>
           }

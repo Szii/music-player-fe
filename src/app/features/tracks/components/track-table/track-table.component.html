@@ -3,6 +3,16 @@
   @if (loading()) {
     <div class="app-muted">{{ 'tracks.loading' | transloco }}</div>
   } @else {
+    @if (scopeOptions(); as options) {
+      <ui-segmented
+        class="track-table__scope"
+        [options]="options"
+        [value]="effectiveScope()"
+        [ariaLabel]="'scope.label' | transloco"
+        (valueChange)="setScope($event)"
+      />
+    }
+
     @if (tracks().length > 0) {
       <ui-list-toolbar
         [(search)]="search"
@@ -14,7 +24,7 @@
         [sortOptions]="sortOptions"
         (sortValueChange)="setSortMode($event)"
         [filteredCount]="filteredTracks().length"
-        [totalCount]="tracks().length"
+        [totalCount]="scopeTotal()"
       />
     }
 
@@ -23,7 +33,11 @@
     }
 
     @if (tracks().length > 0 && filteredTracks().length === 0) {
-      <p class="app-muted">{{ 'tracks.noMatches' | transloco }}</p>
+      @if (effectiveScope() === 'session' && scopedTrackIds().size === 0) {
+        <p class="app-muted">{{ 'scope.sessionEmptyTracks' | transloco }}</p>
+      } @else {
+        <p class="app-muted">{{ 'tracks.noMatches' | transloco }}</p>
+      }
     }
 
     @if (filteredTracks().length > 0) {
@@ -31,7 +45,7 @@
       <ui-data-table
         class="app-table-desktop-only"
         [rows]="filteredTracks()"
-        [columns]="columns"
+        [columns]="columns()"
         [trackBy]="trackByTrackId"
         [maxHeight]="'var(--track-table-max-height)'"
         [tableClass]="'app-table--tracks'"
@@ -56,23 +70,30 @@
               </span>
             </td>
 
-            <td class="col-owner">
-              <span class="cell-text cell-text--muted cell-text--truncate">
-                {{ track.owner?.name || '—' }}
-              </span>
-            </td>
+            @if (showOwner()) {
+              <td class="col-owner">
+                <span class="cell-text cell-text--muted cell-text--truncate">
+                  {{ track.owner?.name || '—' }}
+                </span>
+              </td>
+            }
 
             <td class="col-duration col-num">
               {{ formatDuration(track.duration) }}
             </td>
 
-            <td class="col-status">
-              @if (isSubscribed(track)) {
-                <ui-chip variant="success" size="sm" shape="hex" [dot]="true">{{ 'tracks.subscribed' | transloco }}</ui-chip>
-              } @else {
-                <ui-chip variant="gold" size="sm" shape="hex" [dot]="true">{{ 'tracks.own' | transloco }}</ui-chip>
-              }
-            </td>
+            @if (showStatus()) {
+              <td class="col-status">
+                <div class="col-status__chips">
+                  @if (isSubscribed(track)) {
+                    <ui-chip variant="success" size="sm" shape="hex" [dot]="true">{{ 'tracks.subscribed' | transloco }}</ui-chip>
+                  }
+                  @if (showSessionBadge(track)) {
+                    <ui-chip variant="primary" size="sm">{{ 'scope.inSession' | transloco }}</ui-chip>
+                  }
+                </div>
+              </td>
+            }
 
             <td class="col-actions">
               <div class="col-actions__wrap">
@@ -107,8 +128,9 @@
               </span>
               @if (isSubscribed(track)) {
                 <ui-chip variant="success" size="sm" shape="hex" [dot]="true">{{ 'tracks.subscribed' | transloco }}</ui-chip>
-              } @else {
-                <ui-chip variant="gold" size="sm" shape="hex" [dot]="true">{{ 'tracks.own' | transloco }}</ui-chip>
+              }
+              @if (showSessionBadge(track)) {
+                <ui-chip variant="primary" size="sm">{{ 'scope.inSession' | transloco }}</ui-chip>
               }
             </div>
 

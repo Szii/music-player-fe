@@ -7,6 +7,7 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { UiIconComponent } from '../../../../shared/ui/icon/ui-icon.component';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -34,6 +35,7 @@ import {
   profanityErrorMessage,
   hasProfanity,
 } from '../../../../shared/validators/profanity.validator';
+import { formatDuration } from '../../../../shared/utils/duration';
 
 export interface PublishEvent {
   track: Track;
@@ -47,6 +49,7 @@ type PublishFilterMode = 'all' | 'published' | 'unpublished';
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
   imports: [
+    UiIconComponent,
     FormsModule,
     NormalButtonComponent,
     UiListToolbarComponent,
@@ -225,18 +228,7 @@ export class MyTracksComponent {
   }
 
   formatDuration(seconds?: number): string {
-    if (seconds == null) return '—';
-
-    const safe = Math.max(0, Math.floor(seconds));
-    const h = Math.floor(safe / 3600);
-    const m = Math.floor((safe % 3600) / 60);
-    const s = safe % 60;
-
-    if (h > 0) {
-      return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-    }
-
-    return `${m}:${String(s).padStart(2, '0')}`;
+    return formatDuration(seconds);
   }
 
   private matchesSearch(track: Track, query: string): boolean {

@@ -182,8 +182,8 @@ export class TracksStore {
    * in — this is the one mutation that has to go back to the server. It re-fetches
    * only the subscribed half, not the whole library.
    */
-  subscribe(shareCode: string): Observable<Track[]> {
-    return this.shareApi.subscribeToTrack({ subscribeRequest: { shareCode } }).pipe(
+  subscribe(shareCode: string, sessionId?: string | null): Observable<Track[]> {
+    return this.shareApi.subscribeToTrack({ subscribeRequest: { shareCode, sessionId } }).pipe(
       switchMap(() => this.api.getUserSubscribedTracks()),
       tap(tracks => this.subscribed.set(tracks ?? [])),
     );

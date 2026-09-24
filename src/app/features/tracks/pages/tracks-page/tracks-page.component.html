@@ -31,6 +31,11 @@
         <app-track-table
           [tracks]="tracks()"
           [loading]="loading()"
+          [sessionName]="sessionName()"
+          [sessionTrackIds]="sessionTrackIds()"
+          [scopedTrackIds]="scopedTrackIds()"
+          (addToSession)="onAddToSession($event)"
+          (removeFromSession)="onRemoveFromSession($event)"
           (edit)="onEdit($event)"
           (remove)="onRemove($event)"
           (windows)="onWindows($event)"

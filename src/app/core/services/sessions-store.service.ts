@@ -2,11 +2,13 @@ import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { Observable, of, tap } from 'rxjs';
 import { catchError, finalize, map, shareReplay } from 'rxjs/operators';
 import {
+  Board,
   SessionResponse,
   SessionsResponse,
   SessionsService,
 } from '../../api/generated';
 import { SessionService } from '../auth/session.service';
+import { GroupsStore } from './groups-store.service';
 
 const STORAGE_KEY = 'music-player.selected-session-id';
 
@@ -17,6 +19,7 @@ const FRESH_FOR_MS = 60_000;
 export class SessionsStore {
   private readonly api = inject(SessionsService);
   private readonly session = inject(SessionService);
+  private readonly groupsStore = inject(GroupsStore);
 
   readonly sessions = signal<SessionResponse[]>([]);
   readonly selectedSessionId = signal<string | null>(loadStoredId());
@@ -30,6 +33,29 @@ export class SessionsStore {
   });
 
   readonly hasSessions = computed(() => this.sessions().length > 0);
+
+  readonly sessionTrackIds = computed<ReadonlySet<string>>(
+    () => new Set(this.selectedSession()?.trackIds ?? []),
+  );
+
+  readonly sessionGroupIds = computed<ReadonlySet<string>>(
+    () => new Set(this.selectedSession()?.groupIds ?? []),
+  );
+
+  /** Tracks of the selected session: added directly or through one of its groups. */
+  readonly scopedTrackIds = computed<ReadonlySet<string>>(() => {
+    const ids = new Set(this.sessionTrackIds());
+    const groupIds = this.sessionGroupIds();
+
+    for (const group of this.groupsStore.groups()) {
+      if (group.id == null || !groupIds.has(group.id)) continue;
+      for (const track of group.tracks ?? []) {
+        if (track.id != null) ids.add(track.id);
+      }
+    }
+
+    return ids;
+  });
 
   private inFlight$: Observable<SessionsResponse> | null = null;
   private fetchedAt = 0;
@@ -155,6 +181,57 @@ export class SessionsStore {
   deleteSession(sessionId: string): Observable<SessionsResponse> {
     return this.api.deleteSession({ sessionId }).pipe(
       tap(response => this.applyResponse(response)),
+    );
+  }
+
+  /** Names of the selected session's stages that match `predicate`. */
+  selectedSessionStageNames(predicate: (board: Board) => boolean): string[] {
+    return (this.selectedSession()?.boards ?? [])
+      .filter(predicate)
+      .map(board => board.name || '—');
+  }
+
+  addTrack(sessionId: string, trackId: string): Observable<SessionResponse> {
+    return this.api.addTrackToSession({ sessionId, trackId }).pipe(
+      tap(session => this.upsertSessionLocal(session)),
+    );
+  }
+
+  removeTrack(sessionId: string, trackId: string): Observable<SessionResponse> {
+    return this.api.removeTrackFromSession({ sessionId, trackId }).pipe(
+      tap(session => this.upsertSessionLocal(session)),
+    );
+  }
+
+  addGroup(sessionId: string, groupId: string): Observable<SessionResponse> {
+    return this.api.addGroupToSession({ sessionId, groupId }).pipe(
+      tap(session => this.upsertSessionLocal(session)),
+    );
+  }
+
+  removeGroup(sessionId: string, groupId: string): Observable<SessionResponse> {
+    return this.api.removeGroupFromSession({ sessionId, groupId }).pipe(
+      tap(session => this.upsertSessionLocal(session)),
+    );
+  }
+
+  /** Mirrors a server-side add that came back on another endpoint's response. */
+  noteAdded(sessionId: string, added: { trackId?: string; groupId?: string }): void {
+    this.sessions.update(current =>
+      current.map(s => {
+        if (s.sessionId !== sessionId) return s;
+        const trackIds = s.trackIds ?? [];
+        const groupIds = s.groupIds ?? [];
+        return {
+          ...s,
+          trackIds: added.trackId != null && !trackIds.includes(added.trackId)
+            ? [...trackIds, added.trackId]
+            : trackIds,
+          groupIds: added.groupId != null && !groupIds.includes(added.groupId)
+            ? [...groupIds, added.groupId]
+            : groupIds,
+        };
+      }),
     );
   }
 

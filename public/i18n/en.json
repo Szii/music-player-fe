@@ -104,17 +104,17 @@
     "renameFailed": "Renaming session failed.",
     "deleteFailed": "Deleting session failed.",
     "deleteConfirm": "Delete \"{{name}}\" and all its stages? This cannot be undone.",
-    "unknown": "Unknown session"
+    "unknown": "Unknown session",
+    "counts": "tracks: {{tracks}} · groups: {{groups}}",
+    "switchPlayingTitle": "Switch session?",
+    "switchPlayingMessage": "Switching to {{name}} stops everything that is playing.",
+    "switchPlayingConfirm": "Switch"
   },
   "stages": {
     "title": "Stages",
     "loading": "Loading stages…",
     "add": "Add stage",
-    "create": "Create stage",
     "createFirst": "Create your first stage in this session",
-    "name": "Stage name",
-    "namePlaceholder": "e.g. Tavern Ambience",
-    "noTrackSelected": "— no track selected —",
     "card": {
       "play": "Play stage",
       "stop": "Stop playback",
@@ -131,7 +131,6 @@
       "window": "Window",
       "nowPlaying": "Now playing",
       "auto": "Auto",
-      "allTracks": "All tracks",
       "noTrack": "No track",
       "wholePlayback": "Whole playback",
       "skipNext": "Skip to next track",
@@ -150,7 +149,7 @@
       "afterEndChooseStage": "Choose a stage to start",
       "afterEndNoStages": "No other stages in this session",
       "afterEndHint": "Crossfades into the chosen stage when this one finishes",
-      "afterEndLoopHint": "Turn loop off in playback settings to continue with another stage",
+      "afterEndLoopHint": "A looping stage never ends.",
       "afterEndChip": "Then {{name}}",
       "afterEndChipTip": "After playback ends, starts {{name}}",
       "afterEndResumeAnother": "Pause & resume",
@@ -159,7 +158,15 @@
       "afterEndResumeChip": "Resume {{name}}",
       "afterEndResumeChipTip": "Pauses {{name}} while playing and resumes it after playback ends",
       "paused": "Paused",
-      "pausedTip": "Paused by another stage — resumes when that one finishes, or press play"
+      "pausedTip": "Paused by another stage — resumes when that one finishes, or press play",
+      "pickFrom": "Pick from",
+      "scopeSession": "Session",
+      "scopeSessionTip": "Pick from the tracks and groups of this session",
+      "scopeLibrary": "Library",
+      "scopeLibraryTip": "Pick from all your tracks and groups. Whatever you pick is added to this session.",
+      "allSessionTracks": "All session tracks",
+      "allLibraryTracks": "All library tracks",
+      "turnLoopOff": "Turn loop off"
     },
     "mode": {
       "single": "Single",
@@ -171,14 +178,15 @@
     "loop": {
       "off": "Off",
       "offTip": "Loop: off",
-      "whole": "Whole",
       "wholeTip": "Loop: whole playback",
-      "sequence": "Sequence",
       "sequenceTip": "Loop: window sequence",
       "windowSequence": "Window sequence",
       "hintOff": "Plays once, then stops",
       "hintWhole": "Loops the track or selected window",
-      "hintSequence": "Steps through every window, looping the sequence"
+      "hintSequence": "Steps through every window, looping the sequence",
+      "chipWhole": "Loop",
+      "chipSequence": "Sequence",
+      "repeat": "Repeat"
     },
     "random": {
       "shuffle": "Shuffle",
@@ -205,7 +213,6 @@
       "sequenceNeedsWindows": "Window sequence needs at least two windows on this track — playing the whole track on loop instead."
     },
     "msg": {
-      "created": "Stage created.",
       "deleted": "Stage deleted.",
       "deleteConfirm": "Delete stage \"{{name}}\"?"
     },
@@ -228,7 +235,7 @@
       "restoreTrack": "Restoring track failed.",
       "group": "Updating group failed.",
       "window": "Updating window failed.",
-      "audio": "Audio stream failed."
+      "audio": "Couldn’t start playback. Try again, or open the track on YouTube to check it is still available."
     },
     "crossfadeRegion": "Crossfade region — not seekable",
     "buffering": "buffering…"
@@ -395,7 +402,8 @@
       "failed": "YouTube search failed. Try again in a moment.",
       "loadMore": "Load more",
       "loadingMore": "Loading more…"
-    }
+    },
+    "nameOptional": "Optional. Leave it empty to use the YouTube title."
   },
   "windows": {
     "title": "Windows",
@@ -527,7 +535,9 @@
     "windowsLabel": "Windows:",
     "arrange": "Rename & reorder",
     "backToSelection": "Back to selection",
-    "arrangeHint": "Rename each item for this group and drag to reorder."
+    "arrangeHint": "Rename each item for this group and drag to reorder.",
+    "previewEmpty": "No tracks yet",
+    "previewMore": "+{{count}} more"
   },
   "workshop": {
     "title": "Sharing",
@@ -539,7 +549,7 @@
     "emptyMsg": "Add a track first, then you can publish it here for other users to find and subscribe to.",
     "published": "Published",
     "unpublished": "Private",
-    "inscribed": "Inscribed",
+    "inscribed": "Subscribed",
     "publish": "Publish",
     "unpublish": "Unpublish",
     "subscribe": "Subscribe",
@@ -552,9 +562,9 @@
     "publishTitle": "Publish track",
     "publishConfirm": "Publish \"{{name}}\"?",
     "unpublishTitle": "Unpublish track",
-    "unpublishConfirm": "Unpublish \"{{name}}\"?",
+    "unpublishConfirm": "Unpublish \"{{name}}\"? Its subscribers lose access, and it disappears from their groups and stages.",
     "unsubscribeTitle": "Unsubscribe from track",
-    "unsubscribeConfirm": "Unsubscribe from \"{{name}}\"?",
+    "unsubscribeConfirm": "Unsubscribe from \"{{name}}\"? It is also removed from your groups, stages and sessions.",
     "msg": {
       "published": "Track published.",
       "unpublished": "Track unpublished.",
@@ -654,28 +664,18 @@
     "next": "Next",
     "overview": {
       "title": "Welcome to Sound Master’s Lair",
-      "body": "Sound Master’s Lair is a soundboard for your sessions. You build a library of tracks from YouTube and play them live on <strong>stages</strong> while you run the game.<br><br>Playing a track is as simple as it sounds: find it on YouTube, add it to your collection, then select it on a stage and hit <strong>play</strong>.",
+      "body": "Sound Master’s Lair is a soundboard for your sessions. You build a library of tracks from YouTube and play them live on <strong>stages</strong> while you run the game.<br><br>This short tour shows how to set up a session from scratch: add tracks, sort them into groups and play them on stages.",
       "alt": "Home page with the Tracks, Stages, Groups and Sharing cards"
-    },
-    "intro": {
-      "title": "What this tutorial covers",
-      "body": "In this short tutorial we will look at how to set up your own stage from scratch, and at what else you can do along the way.",
-      "alt": "Stages page with three stages playing at once, each with its own group, track and window"
     },
     "welcome": {
       "title": "Tracks",
-      "body": "Your tracks are your library. Each one is a YouTube video you have added, ready to be played on any stage.<br><br>Start by adding your first track.",
-      "alt": "Empty Tracks page with a \"Create your first track\" card"
-    },
-    "addTrack": {
-      "title": "Add a track",
-      "body": "Give the track a <strong>name</strong> and paste a <strong>YouTube link</strong>, or search Youtube directly. That is all it takes to bring audio into your library.",
-      "alt": "Add Track dialog with a name field and a YouTube link field"
+      "body": "Your tracks are your library. Each one is a YouTube video you have added, ready to be played on any stage.<br><br>Press <strong>+</strong>, give the track a <strong>name</strong> and paste a <strong>YouTube link</strong>, or search YouTube directly. The track goes straight into the <strong>current session</strong>.<br><br>Use the <strong>session / Library</strong> switch above the list to see only this session or everything you have.",
+      "alt": "Add Track dialog with a YouTube link field and an optional track name"
     },
     "manageTracks": {
       "title": "Manage your tracks",
-      "body": "Every track has a <strong>row menu</strong>. From there you can edit its details, edit its <strong>loop windows</strong>, open the source on YouTube, or delete it.",
-      "alt": "Tracks list with an open row menu showing Edit track, Edit windows, Open source, Delete"
+      "body": "Every track has a <strong>row menu</strong>. From there you can edit its details, edit its <strong>loop windows</strong>, open the source on YouTube, <strong>add it to or remove it from the session</strong>, or delete it.<br><br>An <strong>In session</strong> badge marks tracks of the current session. <strong>Via group</strong> means the track is there because one of the session’s groups contains it.",
+      "alt": "Tracks list with In session badges and an open row menu with Edit windows and Remove from session"
     },
     "windows": {
       "title": "Loop windows",
@@ -684,38 +684,23 @@
     },
     "groups": {
       "title": "Groups",
-      "body": "Groups sort your tracks by mood or scene, such as combat, ambient or tavern. They keep a long library manageable when you are looking for something mid game.<br><br>Start by creating your first group.",
-      "alt": "Empty Groups page with a \"Create your first group\" card"
-    },
-    "groupName": {
-      "title": "Name the group",
-      "body": "Give the group a short name you will recognise at a glance.",
-      "alt": "Create Group dialog with a name field"
-    },
-    "groupTracks": {
-      "title": "Add tracks to a group",
-      "body": "Search and select the tracks that belong in this group. A track can live in <strong>more than one group</strong>.",
-      "alt": "Edit tracks dialog with a searchable, selectable list of tracks"
+      "body": "Groups sort your tracks by mood or scene, such as combat, ambient or tavern. They keep a long library manageable when you are looking for something mid game.<br><br>Create a group, give it a short name, then use <strong>Edit tracks</strong> to pick what belongs in it. A track can live in <strong>more than one group</strong>.<br><br>A new group joins the current session, and its menu lets you add it to other sessions.",
+      "alt": "Edit tracks dialog with a searchable list of tracks and selectable loop windows"
     },
     "sessions": {
       "title": "Sessions",
-      "body": "A <strong>session</strong> holds the stages for one game. Think of it as a setup you can come back to.<br><br>You can keep <strong>several sessions</strong> for different games. Create your first session to get started.",
-      "alt": "Stages page with a \"Create your first session\" card"
+      "body": "A <strong>session</strong> is one game: its <strong>stages</strong>, plus the <strong>tracks and groups</strong> you picked for it. Your full library stays shared, but each session only shows what it needs, so long libraries stay easy to use mid game.<br><br>Switch sessions or create a new one from the <strong>session picker</strong> in the top bar. Start by creating your first session.",
+      "alt": "Session picker open in the top bar, listing sessions with their track and group counts and a New session button"
     },
     "stages": {
       "title": "Stages",
-      "body": "A <strong>stage</strong> is where you play. Each stage plays one track, or a whole group, independently of the others and only when you tell it to.<br><br>Start by creating your first stage.",
-      "alt": "Session with a \"Create your first stage\" card"
-    },
-    "createStage": {
-      "title": "Create a stage",
-      "body": "Name the stage. You can also pick the track it starts with, but you can change that at any time.",
-      "alt": "Create Stage dialog with a name field and a track selector"
+      "body": "A <strong>stage</strong> is where you play. Each stage plays one track, or a whole group, independently of the others and only when you tell it to.<br><br>Press <strong>+</strong> to add a stage. It is created right away, so just type its name.",
+      "alt": "Stages page with two stages playing and a stage’s track list open"
     },
     "playStage": {
       "title": "Play a stage",
-      "body": "Hit <strong>play</strong> and the stage starts. You can change the <strong>group</strong>, <strong>track</strong> and <strong>window</strong> while it is still playing.<br><br>Switch to <strong>playlist</strong> mode to play through every track in the selected group.",
-      "alt": "Stage player with group/track/window selectors, single/playlist toggle, and a seek bar"
+      "body": "Hit <strong>play</strong> and the stage starts. You can change the <strong>group</strong>, <strong>track</strong> and <strong>window</strong> while it is still playing.<br><br>Switch to <strong>playlist</strong> mode to play through every track in the selected group.<br><br>The pickers list what is in this session. Switch to <strong>Library</strong> to pick from everything you have, and whatever you pick is added to the session.",
+      "alt": "Stage player with Single/Playlist and Session/Library switches, group and track selectors and a seek bar"
     },
     "settings": {
       "title": "Playback settings",
@@ -750,7 +735,9 @@
       "q7": "Background looping does not respect crossfades",
       "a7": "Some browsers, for example Safari, simply do not allow processing multiple audio streams at once. In that case, try a different browser. The application was successfully tested on: <strong>Chrome, Edge, Brave and Firefox</strong>",
       "q8": "Background looping does not work at all",
-      "a8": "This is mainly a problem with the YouTube IFrame API on mobile devices. The IFrame API does not provide a raw audio element that the underlying OS can process. But don't worry, there are workarounds. Try to <strong>minimise the browser window</strong> so it stays in focus, or <strong>turn on desktop mode</strong>."
+      "a8": "This is mainly a problem with the YouTube IFrame API on mobile devices. The IFrame API does not provide a raw audio element that the underlying OS can process. But don't worry, there are workarounds. Try to <strong>minimise the browser window</strong> so it stays in focus, or <strong>turn on desktop mode</strong>.",
+      "q9": "A track is missing from the stage pickers",
+      "a9": "Stages only list the <strong>tracks and groups of the current session</strong>. Switch the stage to <strong>Library</strong> and pick it there, or add it to the session from its row menu on the <strong>Tracks</strong> page."
     }
   },
   "toast": {
@@ -760,5 +747,30 @@
     "error": "Error",
     "warning": "Warning",
     "info": "Info"
+  },
+  "scope": {
+    "library": "Whole library",
+    "inSession": "In session",
+    "inThisSession": "In this session",
+    "addToSession": "Add to session",
+    "removeFromSession": "Remove from session",
+    "sessionEmptyTracks": "This session has no tracks yet. Switch to Whole library to add some, or pick one on a stage.",
+    "sessionEmptyGroups": "This session has no groups yet. Switch to Whole library to add some, or create a new one.",
+    "msg": {
+      "trackAdded": "Track added to session.",
+      "trackRemoved": "Track removed from session.",
+      "groupAdded": "Group added to session.",
+      "groupRemoved": "Group removed from session.",
+      "inSessionViaGroup": "This track is in the session through {{groups}}. Remove it from that group, or remove the group from the session."
+    },
+    "err": {
+      "add": "Adding to session failed.",
+      "remove": "Removing from session failed."
+    },
+    "label": "Show",
+    "sessionTip": "Only the tracks and groups of this session",
+    "libraryTip": "Everything in your library",
+    "confirmRemoveGroup": "\"{{name}}\" is selected on {{stages}}. Removing it from the session clears it from those stages.",
+    "confirmRemoveTrack": "\"{{name}}\" is selected on {{stages}}. Removing it from the session clears it from those stages."
   }
 }

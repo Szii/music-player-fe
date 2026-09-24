@@ -7,10 +7,18 @@ import { SessionService } from '../../../core/auth/session.service';
 import { BoardPlaybackService } from '../../../core/services/board-playback.service';
 import { EnvironmentWarningsService } from '../../../core/services/environment-warnings.service';
 import { UserMenuComponent } from '../user-menu/user-menu.component';
+import { SessionsDropdownComponent } from '../sessions-dropdown/sessions-dropdown.component';
 
 @Component({
   selector: 'app-navbar',
-  imports: [NgTemplateOutlet, RouterLink, RouterLinkActive, UserMenuComponent, TranslocoPipe],
+  imports: [
+    NgTemplateOutlet,
+    RouterLink,
+    RouterLinkActive,
+    UserMenuComponent,
+    SessionsDropdownComponent,
+    TranslocoPipe,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './navbar.component.html',
   styleUrls: ['./navbar.component.scss'],

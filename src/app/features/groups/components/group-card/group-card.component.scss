@@ -19,6 +19,15 @@
   overflow: hidden;
 }
 
+.group-card__preview {
+  margin: 8px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--app-text-muted);
+}
+
 .group-card__header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

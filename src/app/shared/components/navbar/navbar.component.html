@@ -36,26 +36,29 @@
   <div class="app-navbar__inner">
     <div class="app-navbar__brand">
       <a routerLink="/" class="app-navbar__brand-link">{{ 'app.brand' | transloco }}</a>
+      <app-sessions-dropdown class="app-navbar__session-inline" variant="inline" />
     </div>
 
     <div class="app-navbar__links">
       <a
         class="app-navbar__link"
         routerLink="/tracks"
+        [title]="'nav.tracks' | transloco"
         routerLinkActive="app-navbar__link--active"
         [routerLinkActiveOptions]="{ exact: true }"
       >
         <ng-container [ngTemplateOutlet]="iconTracks" />
-        {{ 'nav.tracks' | transloco }}
+        <span class="app-navbar__link-label">{{ 'nav.tracks' | transloco }}</span>
       </a>
 
       <a
         class="app-navbar__link"
         routerLink="/boards"
+        [title]="'nav.stages' | transloco"
         routerLinkActive="app-navbar__link--active"
       >
         <ng-container [ngTemplateOutlet]="iconStages" />
-        {{ 'nav.stages' | transloco }}
+        <span class="app-navbar__link-label">{{ 'nav.stages' | transloco }}</span>
         @if (boardPlayback.isAnyPlaying()) {
           <span
             class="app-navbar__playing-dot"
@@ -67,23 +70,26 @@
       <a
         class="app-navbar__link"
         routerLink="/groups"
+        [title]="'nav.groups' | transloco"
         routerLinkActive="app-navbar__link--active"
       >
         <ng-container [ngTemplateOutlet]="iconGroups" />
-        {{ 'nav.groups' | transloco }}
+        <span class="app-navbar__link-label">{{ 'nav.groups' | transloco }}</span>
       </a>
 
       <a
         class="app-navbar__link"
         routerLink="/workshop"
+        [title]="'nav.sharing' | transloco"
         routerLinkActive="app-navbar__link--active"
       >
         <ng-container [ngTemplateOutlet]="iconSharing" />
-        {{ 'nav.sharing' | transloco }}
+        <span class="app-navbar__link-label">{{ 'nav.sharing' | transloco }}</span>
       </a>
     </div>
 
     <div class="app-navbar__actions">
+      <app-sessions-dropdown class="app-navbar__session" />
       <app-user-menu (logout)="logout()" />
 
       @if (warnings.hasWarnings()) {
