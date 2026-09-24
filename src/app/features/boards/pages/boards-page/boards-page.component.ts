@@ -21,6 +21,8 @@ import {
   BoardCreateRequest,
   BoardUpdateRequest,
   Group,
+  LinkedBoard,
+  LinkedBoardMode,
   SessionResponse,
   Track,
   TrackWindow,
@@ -36,8 +38,7 @@ import {
   PlaybackMode,
   LoopMode,
 } from '../../components/board-card/board-card.component';
-import { LinkedBoardAction, LinkedBoardChoice, LinkedBoardSelection } from '../../models/linked-board-choice';
-import { BoardLinkActionsService } from '../../data-access/board-link-actions.service';
+import { LinkedBoardChoice, LinkedBoardSelection } from '../../models/linked-board-choice';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { UiCreateCtaComponent } from '../../../../shared/ui/create-cta/ui-create-cta.component';
@@ -125,7 +126,6 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   private readonly sessionsStore = inject(SessionsStore);
   private readonly tracksStore = inject(TracksStore);
   private readonly groupsStore = inject(GroupsStore);
-  private readonly linkActions = inject(BoardLinkActionsService);
 
   readonly boards = signal<Board[]>([]);
   readonly tracks = this.tracksStore.tracks;
@@ -641,18 +641,10 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   }
 
   onLinkedBoardChange(board: Board, selection: LinkedBoardSelection): void {
-    if (board.id == null) return;
-
-    if (selection.boardId != null) {
-      this.linkActions.setAction(board.id, selection.action);
-    }
-    if (selection.boardId !== (board.linkedBoardId ?? null)) {
-      this.updateBoard(board, { linkedBoardId: selection.boardId }, this.t('stages.err.linkedBoard'));
-    }
-  }
-
-  getLinkedBoardAction(board: Board): LinkedBoardAction {
-    return this.linkActions.actionFor(board.id);
+    const linkedBoard: LinkedBoard | null = selection.boardId == null
+      ? null
+      : { boardId: selection.boardId, mode: selection.mode };
+    this.updateBoard(board, { linkedBoard }, this.t('stages.err.linkedBoard'));
   }
 
   /** Paused by another board's pause-and-resume action (not a handoff warm-up). */
@@ -1354,7 +1346,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   /** The board to start after this one, when the chain can fire (single, loop off,
       and the linked board has a track to play). */
   private linkedBoardFor(board: Board): Board | null {
-    const linkedId = board.linkedBoardId;
+    const linkedId = board.linkedBoard?.boardId;
     if (linkedId == null || linkedId === board.id) return null;
     if (board.playlistMode || (board.repeat ?? false) || this.getSequentialWindows(board)) {
       return null;
@@ -1367,7 +1359,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
   /** The linked board this one pauses while it plays (pause-and-resume action). */
   private resumeTargetFor(board: Board): Board | null {
-    return this.linkActions.actionFor(board.id) === 'resume' ? this.linkedBoardFor(board) : null;
+    return board.linkedBoard?.mode === LinkedBoardMode.Resume ? this.linkedBoardFor(board) : null;
   }
 
   onAudioError(board: Board): void {
@@ -1782,7 +1774,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       sequenceMode: this.sequenceModeForRequest(board),
       // Always sent so a full update never drops the link (null clears it); a
       // link to a board deleted meanwhile is cleared rather than re-sent.
-      linkedBoardId: this.findBoard(board.linkedBoardId ?? '') ? board.linkedBoardId : null,
+      linkedBoard: this.findBoard(board.linkedBoard?.boardId ?? '') ? board.linkedBoard : null,
       ...overrides,
     };
   }
@@ -1899,7 +1891,6 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     this.linkedHandoffBoardIds.delete(boardId);
     this.dropHandoff(boardId);
     this.fadeTokens.delete(boardId);
-    this.linkActions.clear(boardId);
     this.shortcuts.clearShortcut(boardId);
   }
 
