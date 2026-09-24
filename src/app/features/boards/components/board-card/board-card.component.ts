@@ -16,7 +16,7 @@ import { FormsModule } from '@angular/forms';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { ConnectedPosition, OverlayModule } from '@angular/cdk/overlay';
-import { Board, Group, Track } from '../../../../api/generated';
+import { Board, Group, LinkedBoardMode, Track } from '../../../../api/generated';
 import { BoardPlayerYtDeckComponent } from '../board-player-yt-deck/board-player-yt-deck.component';
 import { PLAYLIST_CROSSFADE_MS } from '../../utils/crossfade';
 import { parseYoutubeId } from '../../../../shared/utils/youtube-id';
@@ -41,11 +41,7 @@ import {
   hasProfanity,
 } from '../../../../shared/validators/profanity.validator';
 import { UiCharCounterComponent } from '../../../../shared/ui/char-counter/ui-char-counter.component';
-import {
-  LinkedBoardAction,
-  LinkedBoardChoice,
-  LinkedBoardSelection,
-} from '../../models/linked-board-choice';
+import { LinkedBoardChoice, LinkedBoardSelection } from '../../models/linked-board-choice';
 
 export interface PlaylistOptions {
   random: boolean;
@@ -117,8 +113,6 @@ export class BoardCardComponent implements OnInit {
   readonly sequentialWindows = input(false);
   /** Boards of the session this board can hand playback over to (may include itself). */
   readonly linkedBoardChoices = input<LinkedBoardChoice[]>([]);
-  /** What happens with the linked board after this one ends. */
-  readonly linkedBoardAction = input<LinkedBoardAction>('start');
   /** Paused by another board's pause-and-resume action; resumes when that one ends. */
   readonly heldForResume = input(false);
 
@@ -516,10 +510,15 @@ export class BoardCardComponent implements OnInit {
 
   /** The board started/resumed after this one ends; null when unset or gone. */
   readonly linkedBoard = computed(() => {
-    const id = this.board().linkedBoardId;
+    const id = this.board().linkedBoard?.boardId;
     if (id == null) return null;
     return this.linkTargets().find(choice => choice.id === id) ?? null;
   });
+
+  /** What happens with the linked board after this one ends. */
+  readonly linkedBoardMode = computed(
+    () => this.board().linkedBoard?.mode ?? LinkedBoardMode.Start,
+  );
 
   /** The chain only fires when playback actually ends, i.e. with loop off. */
   readonly afterEndBlockedByLoop = computed(() => this.loopMode() !== 'off');
@@ -529,19 +528,19 @@ export class BoardCardComponent implements OnInit {
     () => !this.playlistMode() && !this.afterEndBlockedByLoop() && this.linkedBoard() != null,
   );
 
-  readonly afterEndValue = computed<LinkedBoardAction | null>(() =>
-    this.linkedBoard() ? this.linkedBoardAction() : null,
+  readonly afterEndValue = computed<LinkedBoardMode | null>(() =>
+    this.linkedBoard() ? this.linkedBoardMode() : null,
   );
 
   readonly afterEndOptions = computed<UiSelectOption[]>(() => {
     const targets = this.linkTargets();
     const linked = this.linkedBoard();
-    const current = this.linkedBoardAction();
+    const current = this.linkedBoardMode();
     const subOptions = targets.map(choice => ({ label: choice.name, value: choice.id }));
 
     // Each action is a category: picking it opens the board list ("More" flyout).
     const actionOption = (
-      action: LinkedBoardAction,
+      action: LinkedBoardMode,
       genericKey: string,
       namedKey: string,
     ): UiSelectOption => ({
@@ -558,8 +557,16 @@ export class BoardCardComponent implements OnInit {
     });
 
     const options = [
-      actionOption('start', 'stages.card.afterEndStartAnother', 'stages.card.afterEndStart'),
-      actionOption('resume', 'stages.card.afterEndResumeAnother', 'stages.card.afterEndResume'),
+      actionOption(
+        LinkedBoardMode.Start,
+        'stages.card.afterEndStartAnother',
+        'stages.card.afterEndStart',
+      ),
+      actionOption(
+        LinkedBoardMode.Resume,
+        'stages.card.afterEndResumeAnother',
+        'stages.card.afterEndResume',
+      ),
     ];
     // With no other boards both rows would read "No other stages" — show one.
     return targets.length === 0 ? options.slice(0, 1) : options;
@@ -573,7 +580,7 @@ export class BoardCardComponent implements OnInit {
     if (this.afterEndBlockedByLoop()) return this.t('stages.card.afterEndLoopHint');
     const linked = this.linkedBoard();
     if (!linked) return null;
-    return this.linkedBoardAction() === 'resume'
+    return this.linkedBoardMode() === LinkedBoardMode.Resume
       ? this.t('stages.card.afterEndResumeHint', { name: linked.name })
       : this.t('stages.card.afterEndHint');
   });
@@ -581,7 +588,7 @@ export class BoardCardComponent implements OnInit {
   readonly afterEndChip = computed(() => {
     const linked = this.linkedBoard();
     if (!this.afterEndActive() || !linked) return null;
-    const resume = this.linkedBoardAction() === 'resume';
+    const resume = this.linkedBoardMode() === LinkedBoardMode.Resume;
     const params = { name: linked.name };
     return {
       label: this.t(resume ? 'stages.card.afterEndResumeChip' : 'stages.card.afterEndChip', params),
@@ -900,17 +907,18 @@ export class BoardCardComponent implements OnInit {
   }
 
   /** Only "Nothing" commits directly; the actions commit via their board sub-option. */
-  onAfterEndChange(value: LinkedBoardAction | null): void {
-    if (value == null && this.board().linkedBoardId != null) {
-      this.linkedBoardChange.emit({ boardId: null, action: this.linkedBoardAction() });
+  onAfterEndChange(value: LinkedBoardMode | null): void {
+    if (value == null && this.board().linkedBoard != null) {
+      this.linkedBoardChange.emit({ boardId: null, mode: this.linkedBoardMode() });
     }
   }
 
   onAfterEndBoardSelected(event: UiSelectSubOptionEvent): void {
     const boardId = event.sub.value as string;
-    const action = event.parent.value as LinkedBoardAction;
-    if (boardId !== this.board().linkedBoardId || action !== this.linkedBoardAction()) {
-      this.linkedBoardChange.emit({ boardId, action });
+    const mode = event.parent.value as LinkedBoardMode;
+    const current = this.board().linkedBoard;
+    if (boardId !== current?.boardId || mode !== current?.mode) {
+      this.linkedBoardChange.emit({ boardId, mode });
     }
   }
 
