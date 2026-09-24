@@ -44,8 +44,8 @@
       <ui-list-toolbar
         [(search)]="search"
         [searchPlaceholder]="'groups.searchPlaceholder' | transloco"
-        [filterValue]="filterMode()"
-        [filterOptions]="filterOptions"
+        [filterValue]="effectiveFilter()"
+        [filterOptions]="filterOptions()"
         (filterValueChange)="setFilterMode($event)"
         [sortValue]="sortMode()"
         [sortOptions]="sortOptions"

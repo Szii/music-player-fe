@@ -813,6 +813,7 @@
     "sessionTip": "Only the tracks and groups of this session",
     "libraryTip": "Everything in your library",
     "confirmRemoveGroup": "\"{{name}}\" is selected on {{stages}}. Removing it from the session clears it from those stages.",
-    "confirmRemoveTrack": "\"{{name}}\" is selected on {{stages}}. Removing it from the session clears it from those stages."
+    "confirmRemoveTrack": "\"{{name}}\" is selected on {{stages}}. Removing it from the session clears it from those stages.",
+    "notInSession": "Not in session"
   }
 }

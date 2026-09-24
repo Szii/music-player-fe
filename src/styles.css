@@ -936,6 +936,11 @@ input[type="range"].app-range--seek::-webkit-slider-thumb {
   color: inherit;
 }
 
+.app-entity-list__subtitle.app-text-button {
+  color: var(--app-text-muted);
+  font-size: 0.9rem;
+}
+
 .app-text-button:hover {
   text-decoration: underline;
 }

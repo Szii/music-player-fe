@@ -15,17 +15,19 @@
   gap: 10px;
 }
 
-@media (max-width: 330px) {
+@media (max-width: 640px) {
   .workshop-page__desktop-action {
     display: none;
   }
 
   .workshop-page__mobile-action {
     display: flex;
-    flex-wrap: wrap;
     gap: 10px;
-    justify-content: flex-start;
     margin-top: -6px;
     margin-bottom: 18px;
+  }
+
+  .workshop-page__mobile-action normal-button {
+    flex: 1 1 0;
   }
 }

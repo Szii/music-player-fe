@@ -813,6 +813,7 @@
     "sessionTip": "Jen skladby a skupiny tohoto sezení",
     "libraryTip": "Vše ve vaší knihovně",
     "confirmRemoveGroup": "„{{name}}“ je vybraná na scénách {{stages}}. Odebráním ze sezení z nich zmizí.",
-    "confirmRemoveTrack": "„{{name}}“ je vybraná na scénách {{stages}}. Odebráním ze sezení z nich zmizí."
+    "confirmRemoveTrack": "„{{name}}“ je vybraná na scénách {{stages}}. Odebráním ze sezení z nich zmizí.",
+    "notInSession": "Mimo sezení"
   }
 }
