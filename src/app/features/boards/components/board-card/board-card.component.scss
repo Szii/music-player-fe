@@ -67,15 +67,18 @@
 }
 
 .board-card__title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  min-width: 0;
   font-family: var(--app-font-heading);
   font-size: 1rem;
   font-weight: 700;
   line-height: 1.2;
   color: var(--app-heading);
   letter-spacing: 0.02em;
-  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: break-word;
   cursor: text;
 }
 
