@@ -22,6 +22,16 @@
       (clicked)="createForm.open()"
     />
   } @else {
+    @if (scopeOptions(); as options) {
+      <ui-segmented
+        class="groups-page__scope"
+        [options]="options"
+        [value]="effectiveScope()"
+        [ariaLabel]="'scope.label' | transloco"
+        (valueChange)="setScope($event)"
+      />
+    }
+
     <ui-list-toolbar
       [(search)]="search"
       [searchPlaceholder]="'groups.searchPlaceholder' | transloco"
@@ -32,7 +42,7 @@
       [sortOptions]="sortOptions"
       (sortValueChange)="setSortMode($event)"
       [filteredCount]="filteredGroups().length"
-      [totalCount]="groups().length"
+      [totalCount]="scopeTotal()"
     />
 
     @if (filteredGroups().length > 0) {
@@ -42,12 +52,19 @@
             [group]="group"
             [tracks]="tracks()"
             [updating]="updatingGroupId() === group.id"
+            [hasSession]="sessionName() != null"
+            [inSession]="isInSession(group)"
+            [showSessionBadge]="effectiveScope() === 'library'"
+            (addToSessionRequested)="addToSession($event)"
+            (removeFromSessionRequested)="removeFromSession($event)"
             (deleteRequested)="deleteGroup($event)"
             (renameRequested)="renameGroup($event)"
             (editTracksRequested)="openTrackEditor($event)"
           />
         }
       </div>
+    } @else if (effectiveScope() === 'session' && sessionGroupIds().size === 0) {
+      <p class="app-empty-note">{{ 'scope.sessionEmptyGroups' | transloco }}</p>
     } @else {
       <p class="app-empty-note">{{ 'groups.noMatches' | transloco }}</p>
     }
@@ -57,6 +74,7 @@
     <app-group-tracks-editor
       [group]="group"
       [tracks]="tracks()"
+      [sessionTrackIds]="sessionName() != null ? scopedTrackIds() : null"
       [saving]="updatingGroupId() === group.id"
       (cancel)="closeTrackEditor()"
       (save)="saveGroupTracks($event)"

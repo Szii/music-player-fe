@@ -1,11 +1,11 @@
 :host {
   display: block;
-}
-
-.app-navbar {
   position: sticky;
   top: 0;
   z-index: 1000;
+}
+
+.app-navbar {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.08)),
     linear-gradient(90deg, #1e0804 0%, #58180d 50%, #7a2010 100%);
@@ -42,6 +42,16 @@
   display: flex;
   align-items: center;
   min-width: 0;
+}
+
+.app-navbar__session-inline {
+  display: none;
+}
+
+/* The session sheet lives inside the navbar's stacking context; lift the navbar
+   above the bottom nav while it is open so the sheet can cover it. */
+:host:has(.sd-host--open) {
+  z-index: 1001;
 }
 
 .app-navbar__brand-link {
@@ -201,6 +211,23 @@
   display: none;
 }
 
+/* Between the phone layout and full desktop the four labelled links no longer fit
+   beside the session picker, so they collapse to icons (labels stay for AT). */
+@media (min-width: 901px) and (max-width: 1180px) {
+  .app-navbar__link {
+    padding-inline: 0.6rem;
+  }
+
+  .app-navbar__link-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
 @media (max-width: 900px) {
   /* The four primary destinations move out of the top bar into the bottom bar. */
   .app-navbar__links {
@@ -297,5 +324,38 @@
     background: #c9a44c;
     box-shadow: 0 0 5px rgba(201, 164, 76, 0.9);
     animation: navbar-playing-pulse 1.4s ease-in-out infinite;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-navbar__inner {
+    padding-inline: 0.75rem;
+    gap: 0.5rem;
+  }
+
+  .app-navbar__actions {
+    gap: 0.35rem;
+  }
+
+  .app-navbar__brand {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+  }
+
+  .app-navbar__session-inline {
+    display: inline-flex;
+  }
+
+  .app-navbar__session {
+    display: none;
+  }
+
+  .app-navbar__brand-link {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: clamp(0.7rem, 3.4vw, 0.9rem);
+    letter-spacing: 0.03em;
   }
 }

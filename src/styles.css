@@ -122,7 +122,6 @@
   --app-modal-backdrop:
     radial-gradient(ellipse at center, rgba(88, 24, 13, 0.12), transparent 60%),
     linear-gradient(180deg, rgba(10, 5, 2, 0.62), rgba(10, 5, 2, 0.72));
-  --app-modal-backdrop-blur: 3px;
   --app-modal-surface: var(--app-parchment);
 }
 
@@ -958,7 +957,7 @@ input[type="range"].app-range--seek::-webkit-slider-thumb {
 
 .app-subscriber-stat__star {
   color: var(--app-secondary);
-  font-size: 1rem;
+  font-size: 0.95rem;
 }
 
 .app-subscriber-stat__count {

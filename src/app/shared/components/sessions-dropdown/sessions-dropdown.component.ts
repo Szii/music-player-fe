@@ -1,34 +1,33 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  DestroyRef,
   ElementRef,
   computed,
   effect,
   inject,
+  input,
   signal,
   viewChild,
 } from '@angular/core';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 
 import { SessionResponse } from '../../../api/generated';
 import { SessionsStore } from '../../../core/services/sessions-store.service';
-import { ToastService } from '../../features/toast/toast.service';
-import { httpErrorMessage } from '../../utils/http-error';
+import { SessionActionsService } from '../../../core/services/session-actions.service';
 import { ConfirmDialogService } from '../../features/confirm-dialog/confirm-dialog.service';
-import { PromptDialogService } from '../../features/prompt-dialog/prompt-dialog.service';
 import { BoardPlaybackService } from '../../../core/services/board-playback.service';
 import { ScrollLockService } from '../../../core/services/scroll-lock.service';
 import { IconButtonComponent } from '../../ui/buttons/ui-icon-button.component';
 import { BottomSheetDragDirective } from '../../ui/bottom-sheet/bottom-sheet-drag.directive';
-import { FIELD_LIMITS } from '../../constants/field-limits';
 
 @Component({
   selector: 'app-sessions-dropdown',
   imports: [IconButtonComponent, BottomSheetDragDirective, TranslocoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
+    '[class.sd-inline]': "variant() === 'inline'",
+    '[class.sd-host--open]': 'isOpen()',
     '(document:click)': 'onDocumentClick($event)',
     '(document:keydown.escape)': 'onEscape()',
   },
@@ -37,16 +36,16 @@ import { FIELD_LIMITS } from '../../constants/field-limits';
 })
 export class SessionsDropdownComponent {
   private readonly store = inject(SessionsStore);
-  private readonly toast = inject(ToastService);
   private readonly transloco = inject(TranslocoService);
+  private readonly actions = inject(SessionActionsService);
   private readonly confirmDialog = inject(ConfirmDialogService);
-  private readonly promptDialog = inject(PromptDialogService);
-  private readonly destroyRef = inject(DestroyRef);
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly boardPlayback = inject(BoardPlaybackService);
   private readonly scrollLock = inject(ScrollLockService);
 
   private readonly sheetDrag = viewChild(BottomSheetDragDirective);
+
+  readonly variant = input<'button' | 'inline'>('button');
 
   readonly isOpen = signal(false);
 
@@ -66,8 +65,6 @@ export class SessionsDropdownComponent {
   readonly sessions = this.store.sessions;
   readonly selectedId = this.store.selectedSessionId;
   readonly selected = this.store.selectedSession;
-
-  readonly showTrigger = computed(() => this.sessions().length > 0);
 
   /** Read by `t()` so labels recompute when the language changes. */
   private readonly activeLang = toSignal(this.transloco.langChanges$, {
@@ -120,101 +117,45 @@ export class SessionsDropdownComponent {
     this.close();
   }
 
-  select(session: SessionResponse): void {
-    if (session.sessionId == null) return;
-      if (this.store.selectedSessionId() === session.sessionId) {
-        return;
-      }
+  async select(session: SessionResponse): Promise<void> {
+    const sessionId = session.sessionId;
+    if (sessionId == null) return;
+    if (this.store.selectedSessionId() === sessionId) {
+      this.close();
+      return;
+    }
+
+    this.close();
+
+    if (this.boardPlayback.isAnyPlaying()) {
+      const confirmed = await this.confirmDialog.confirm({
+        title: this.t('sessions.switchPlayingTitle'),
+        message: this.t('sessions.switchPlayingMessage', {
+          name: session.sessionName || this.t('sessions.untitled'),
+        }),
+        confirmText: this.t('sessions.switchPlayingConfirm'),
+        cancelText: this.t('common.cancel'),
+      });
+      if (!confirmed) return;
+    }
+
     this.boardPlayback.stopAll();
-    this.store.selectSession(session.sessionId);
-    this.close();
+    this.store.selectSession(sessionId);
   }
 
-  async startCreate(): Promise<void> {
+  startCreate(): void {
     this.close();
-    const name = await this.promptDialog.prompt({
-      title: this.t('sessions.new'),
-      placeholder: this.t('sessions.namePlaceholder'),
-      confirmText: this.t('common.create'),
-      cancelText: this.t('common.cancel'),
-      maxLength: FIELD_LIMITS.session.name,
-    });
-    if (!name) return;
-
-    this.store.createSession(name)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this.toast.success(this.t('sessions.created'));
-        },
-        error: err => {
-          console.error(err);
-          this.toast.error(httpErrorMessage(err, { fallback: this.t('sessions.createFailed') }));
-        },
-      });
+    this.actions.create();
   }
 
-  openCreate(): void {
-    this.startCreate();
+  startRename(session: SessionResponse): void {
+    this.close();
+    this.actions.rename(session);
   }
 
-  async startRename(session: SessionResponse): Promise<void> {
-    if (session.sessionId == null) return;
-    const sessionId = session.sessionId;
-    const description = session.sessionDescription;
-
+  confirmDelete(session: SessionResponse): void {
     this.close();
-    const name = await this.promptDialog.prompt({
-      title: this.t('sessions.rename'),
-      placeholder: this.t('sessions.namePlaceholder'),
-      initialValue: session.sessionName ?? '',
-      confirmText: this.t('common.save'),
-      cancelText: this.t('common.cancel'),
-      maxLength: FIELD_LIMITS.session.name,
-    });
-    if (!name) return;
-
-    this.store.renameSession(sessionId, name, description)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this.toast.success(this.t('sessions.renamed'));
-        },
-        error: err => {
-          console.error(err);
-          this.toast.error(httpErrorMessage(err, { fallback: this.t('sessions.renameFailed') }));
-        },
-      });
-  }
-
-  async confirmDelete(session: SessionResponse): Promise<void> {
-    if (session.sessionId == null) return;
-
-    const sessionId = session.sessionId;
-    const label = session.sessionName || this.t('sessions.thisSession');
-
-    this.close();
-    const confirmed = await this.confirmDialog.confirm({
-      title: this.t('sessions.delete'),
-      message: this.t('sessions.deleteConfirm', { name: label }),
-      confirmText: this.t('common.delete'),
-      cancelText: this.t('common.cancel'),
-      variant: 'danger',
-    });
-
-    if (!confirmed) return;
-
-    this.store.deleteSession(sessionId)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this.toast.success(this.t('sessions.deleted'));
-        },
-        error: err => {
-          console.error(err);
-          this.toast.error(httpErrorMessage(err, { fallback: this.t('sessions.deleteFailed') }));
-        },
-      });
+    this.actions.delete(session);
   }
 
   onDocumentClick(event: MouseEvent): void {

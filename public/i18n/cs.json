@@ -104,17 +104,17 @@
     "renameFailed": "Přejmenování sezení se nezdařilo.",
     "deleteFailed": "Smazání sezení se nezdařilo.",
     "deleteConfirm": "Smazat „{{name}}“ a všechny jeho scény? Tuto akci nelze vrátit zpět.",
-    "unknown": "Neznámé sezení"
+    "unknown": "Neznámé sezení",
+    "counts": "skladeb: {{tracks}} · skupin: {{groups}}",
+    "switchPlayingTitle": "Přepnout sezení?",
+    "switchPlayingMessage": "Přepnutím na {{name}} zastavíte vše, co právě hraje.",
+    "switchPlayingConfirm": "Přepnout"
   },
   "stages": {
     "title": "Scény",
     "loading": "Načítání scén…",
     "add": "Přidat scénu",
-    "create": "Vytvořit scénu",
     "createFirst": "Vytvořte v tomto sezení svou první scénu",
-    "name": "Název scény",
-    "namePlaceholder": "např. Atmosféra hospody",
-    "noTrackSelected": "— žádná skladba —",
     "card": {
       "play": "Přehrát scénu",
       "stop": "Zastavit přehrávání",
@@ -131,7 +131,6 @@
       "window": "Okno",
       "nowPlaying": "Právě hraje",
       "auto": "Automaticky",
-      "allTracks": "Všechny skladby",
       "noTrack": "Žádná skladba",
       "wholePlayback": "Celé přehrávání",
       "skipNext": "Přeskočit na další skladbu",
@@ -150,7 +149,7 @@
       "afterEndChooseStage": "Vyberte scénu ke spuštění",
       "afterEndNoStages": "V této relaci nejsou další scény",
       "afterEndHint": "Po skončení plynule přejde do vybrané scény",
-      "afterEndLoopHint": "Pro navázání další scény vypněte opakování v nastavení přehrávání",
+      "afterEndLoopHint": "Opakující se scéna nikdy neskončí.",
       "afterEndChip": "Poté {{name}}",
       "afterEndChipTip": "Po skončení přehrávání spustí {{name}}",
       "afterEndResumeAnother": "Pozastavit a obnovit",
@@ -159,7 +158,15 @@
       "afterEndResumeChip": "Obnovit {{name}}",
       "afterEndResumeChipTip": "Během přehrávání pozastaví {{name}} a po skončení ji obnoví",
       "paused": "Pozastaveno",
-      "pausedTip": "Pozastaveno jinou scénou — obnoví se, až ta skončí, nebo stiskněte přehrát"
+      "pausedTip": "Pozastaveno jinou scénou — obnoví se, až ta skončí, nebo stiskněte přehrát",
+      "pickFrom": "Vybírat z",
+      "scopeSession": "Sezení",
+      "scopeSessionTip": "Vybírat ze skladeb a skupin tohoto sezení",
+      "scopeLibrary": "Knihovna",
+      "scopeLibraryTip": "Vybírejte ze všech svých skladeb a skupin. Co vyberete, přidá se do tohoto sezení.",
+      "allSessionTracks": "Všechny skladby sezení",
+      "allLibraryTracks": "Všechny skladby knihovny",
+      "turnLoopOff": "Vypnout opakování"
     },
     "mode": {
       "single": "Single",
@@ -171,14 +178,15 @@
     "loop": {
       "off": "Vypnuto",
       "offTip": "Opakování: vypnuto",
-      "whole": "Celé",
       "wholeTip": "Opakování: celé přehrávání",
-      "sequence": "Sekvence",
       "sequenceTip": "Opakování: sekvence oken",
       "windowSequence": "Sekvence oken",
       "hintOff": "Přehraje jednou a skončí",
       "hintWhole": "Opakuje skladbu nebo vybrané okno",
-      "hintSequence": "Projde všechna okna a sekvenci opakuje"
+      "hintSequence": "Projde všechna okna a sekvenci opakuje",
+      "chipWhole": "Smyčka",
+      "chipSequence": "Sekvence",
+      "repeat": "Opakovat"
     },
     "random": {
       "shuffle": "Náhodně",
@@ -205,7 +213,6 @@
       "sequenceNeedsWindows": "Sekvence oken potřebuje na této skladbě alespoň dvě okna — přehrává se místo toho celá skladba v opakování."
     },
     "msg": {
-      "created": "Scéna vytvořena.",
       "deleted": "Scéna smazána.",
       "deleteConfirm": "Smazat scénu „{{name}}“?"
     },
@@ -228,7 +235,7 @@
       "restoreTrack": "Obnovení skladby se nezdařilo.",
       "group": "Změna skupiny se nezdařila.",
       "window": "Změna okna se nezdařila.",
-      "audio": "Přehrávání zvuku selhalo."
+      "audio": "Přehrávání se nepodařilo spustit. Zkuste to znovu, nebo skladbu otevřete na YouTube a ověřte, že je stále dostupná."
     },
     "crossfadeRegion": "Oblast prolnutí — nelze v ní přetáčet",
     "buffering": "načítání…"
@@ -395,7 +402,8 @@
       "failed": "Hledání na YouTube selhalo. Zkus to prosím znovu.",
       "loadMore": "Načíst další",
       "loadingMore": "Načítám další…"
-    }
+    },
+    "nameOptional": "Nepovinné. Když pole necháte prázdné, použije se název z YouTube."
   },
   "windows": {
     "title": "Okna",
@@ -527,7 +535,9 @@
     "windowsLabel": "Okna:",
     "arrange": "Přejmenovat a seřadit",
     "backToSelection": "Zpět na výběr",
-    "arrangeHint": "Přejmenujte položky pro tuto skupinu a přetažením změňte pořadí."
+    "arrangeHint": "Přejmenujte položky pro tuto skupinu a přetažením změňte pořadí.",
+    "previewEmpty": "Zatím žádné skladby",
+    "previewMore": "+{{count}} další"
   },
   "workshop": {
     "title": "Sdílení",
@@ -552,9 +562,9 @@
     "publishTitle": "Publikovat skladbu",
     "publishConfirm": "Publikovat „{{name}}“?",
     "unpublishTitle": "Zrušit publikování skladby",
-    "unpublishConfirm": "Zrušit publikování „{{name}}“?",
+    "unpublishConfirm": "Zrušit publikování „{{name}}“? Odběratelé o skladbu přijdou a zmizí z jejich skupin a scén.",
     "unsubscribeTitle": "Zrušit odběr skladby",
-    "unsubscribeConfirm": "Zrušit odběr „{{name}}“?",
+    "unsubscribeConfirm": "Zrušit odběr „{{name}}“? Skladba zmizí i z vašich skupin, scén a sezení.",
     "msg": {
       "published": "Skladba publikována.",
       "unpublished": "Publikování skladby zrušeno.",
@@ -654,28 +664,18 @@
     "next": "Další",
     "overview": {
       "title": "Vítejte v Sound Master’s Lair",
-      "body": "Sound Master’s Lair je soundboard pro vaše sezení. Vytvoříte si knihovnu skladeb z YouTube a přehráváte je živě na <strong>scénách</strong> přímo během hraní.<br><br>Přehrát skladbu je opravdu tak jednoduché: najděte ji na YouTube, přidejte ji do své sbírky a pak ji kdykoli vyberte na scéně a stiskněte <strong>přehrát</strong>.",
+      "body": "Sound Master’s Lair je soundboard pro vaše sezení. Vytvoříte si knihovnu skladeb z YouTube a přehráváte je živě na <strong>scénách</strong> přímo během hraní.<br><br>V tomto krátkém průvodci si ukážeme, jak si od začátku nastavit sezení: přidat skladby, roztřídit je do skupin a přehrát je na scénách.",
       "alt": "Domovská stránka s kartami Skladby, Scény, Skupiny a Sdílení"
-    },
-    "intro": {
-      "title": "Co vás v průvodci čeká",
-      "body": "V tomto krátkém průvodci si ukážeme, jak si od začátku nastavit vlastní scénu a co dalšího přitom můžete udělat.",
-      "alt": "Stránka Scény se třemi scénami, které hrají současně, každá s vlastní skupinou, skladbou a oknem"
     },
     "welcome": {
       "title": "Skladby",
-      "body": "Skladby tvoří vaši knihovnu. Každá z nich je video z YouTube, které jste přidali, připravené k přehrání na kterékoli scéně.<br><br>Začněte přidáním první skladby.",
-      "alt": "Prázdná stránka Skladby s kartou „Vytvořte svou první skladbu“"
-    },
-    "addTrack": {
-      "title": "Přidání skladby",
-      "body": "Zadejte <strong>název</strong> a vložte <strong>odkaz na YouTube</strong>, nebo prohledejte Youtube ručně. Víc k dostání zvuku do knihovny nepotřebujete.",
-      "alt": "Dialog Přidat skladbu s polem názvu a odkazem na YouTube"
+      "body": "Skladby tvoří vaši knihovnu. Každá z nich je video z YouTube, které jste přidali, připravené k přehrání na kterékoli scéně.<br><br>Stiskněte <strong>+</strong>, zadejte <strong>název</strong> a vložte <strong>odkaz na YouTube</strong>, nebo YouTube rovnou prohledejte. Skladba se hned zařadí do <strong>aktuálního sezení</strong>.<br><br>Přepínačem <strong>sezení / Knihovna</strong> nad seznamem zobrazíte jen toto sezení, nebo vše, co máte.",
+      "alt": "Dialog Přidat skladbu s polem pro odkaz na YouTube a nepovinným názvem"
     },
     "manageTracks": {
       "title": "Správa skladeb",
-      "body": "Každá skladba má <strong>vlastní sadu akcí</strong>. Odtud můžete upravit její detaily, upravit <strong>okna smyček</strong>, otevřít zdroj na YouTube nebo ji smazat.",
-      "alt": "Seznam skladeb s otevřenou nabídkou řádku"
+      "body": "Každá skladba má <strong>vlastní sadu akcí</strong>. Odtud můžete upravit její detaily, upravit <strong>okna smyček</strong>, otevřít zdroj na YouTube, <strong>přidat ji do sezení nebo ji z něj odebrat</strong>, případně ji smazat.<br><br>Štítek <strong>V sezení</strong> označuje skladby aktuálního sezení. <strong>Přes skupinu</strong> znamená, že skladba v sezení je, protože ji obsahuje některá z jeho skupin.",
+      "alt": "Seznam skladeb se štítky V sezení a otevřenou nabídkou řádku s akcemi Upravit okna a Odebrat ze sezení"
     },
     "windows": {
       "title": "Okna smyček",
@@ -684,38 +684,23 @@
     },
     "groups": {
       "title": "Skupiny",
-      "body": "Skupiny třídí skladby podle nálady nebo scény, například boj, podkres nebo hospoda. Díky nim se v rozsáhlé knihovně vyznáte i uprostřed hry.<br><br>Začněte vytvořením první skupiny.",
-      "alt": "Prázdná stránka Skupiny s kartou „Vytvořte svou první skupinu“"
-    },
-    "groupName": {
-      "title": "Pojmenování skupiny",
-      "body": "Dejte skupině krátký název, který hned poznáte.",
-      "alt": "Dialog Vytvořit skupinu s polem názvu"
-    },
-    "groupTracks": {
-      "title": "Přidání skladeb do skupiny",
-      "body": "Vyhledejte a vyberte skladby, které do této skupiny patří. Skladba může být <strong>ve více skupinách</strong>.",
-      "alt": "Dialog Upravit skladby s vyhledáváním a výběrem skladeb"
+      "body": "Skupiny třídí skladby podle nálady nebo scény, například boj, podkres nebo hospoda. Díky nim se v rozsáhlé knihovně vyznáte i uprostřed hry.<br><br>Vytvořte skupinu, dejte jí krátký název a přes <strong>Upravit skladby</strong> vyberte, co do ní patří. Skladba může být <strong>ve více skupinách</strong>.<br><br>Nová skupina se zařadí do aktuálního sezení a z její nabídky ji přidáte i do dalších sezení.",
+      "alt": "Dialog Upravit skladby s vyhledáváním skladeb a výběrem oken smyček"
     },
     "sessions": {
       "title": "Sezení",
-      "body": "<strong>Sezení</strong> obsahuje scény pro jednu hru. Berte ho jako nastavení, ke kterému se můžete kdykoli vrátit.<br><br>Můžete si držet <strong>více sezení</strong> pro různé hry. Začněte vytvořením prvního sezení.",
-      "alt": "Stránka Scény s kartou „Vytvořte své první sezení“"
+      "body": "<strong>Sezení</strong> je jedna hra: její <strong>scény</strong> a k tomu <strong>skladby a skupiny</strong>, které jste pro ni vybrali. Celá knihovna zůstává společná, ale každé sezení ukazuje jen to, co potřebuje, takže se i v rozsáhlé knihovně vyznáte uprostřed hry.<br><br>Sezení přepnete nebo vytvoříte ve <strong>výběru sezení</strong> v horní liště. Začněte vytvořením prvního sezení.",
+      "alt": "Otevřený výběr sezení v horní liště se seznamem sezení, počty skladeb a skupin a tlačítkem Nové sezení"
     },
     "stages": {
       "title": "Scény",
-      "body": "<strong>Scéna</strong> je vaše hrací plocha. Každá scéna přehrává jednu skladbu nebo celou skupinu, nezávisle na ostatních a jen když jí to řeknete.<br><br>Začněte vytvořením první scény.",
-      "alt": "Sezení s kartou „Vytvořte svou první scénu“"
-    },
-    "createStage": {
-      "title": "Vytvoření scény",
-      "body": "Pojmenujte scénu. Můžete rovnou vybrat i skladbu, se kterou začne, ale kdykoli ji později změníte.",
-      "alt": "Dialog Vytvořit scénu s polem názvu a výběrem skladby"
+      "body": "<strong>Scéna</strong> je vaše hrací plocha. Každá scéna přehrává jednu skladbu nebo celou skupinu, nezávisle na ostatních a jen když jí to řeknete.<br><br>Scénu přidáte tlačítkem <strong>+</strong>. Vytvoří se hned, takže stačí napsat její název.",
+      "alt": "Stránka Scény se dvěma hrajícími scénami a otevřeným výběrem skladby"
     },
     "playStage": {
       "title": "Přehrávání scény",
-      "body": "Stiskněte <strong>přehrát</strong> a scéna se rozjede. <strong>Skupinu</strong>, <strong>skladbu</strong> i <strong>okno</strong> můžete měnit i během přehrávání.<br><br>Přepnutím do režimu <strong>playlist</strong> přehrajete všechny skladby vybrané skupiny.",
-      "alt": "Přehrávač scény s výběrem skupiny, skladby a okna"
+      "body": "Stiskněte <strong>přehrát</strong> a scéna se rozjede. <strong>Skupinu</strong>, <strong>skladbu</strong> i <strong>okno</strong> můžete měnit i během přehrávání.<br><br>Přepnutím do režimu <strong>playlist</strong> přehrajete všechny skladby vybrané skupiny.<br><br>Výběry nabízejí obsah tohoto sezení. Přepnutím na <strong>Knihovnu</strong> vybíráte ze všeho, co máte, a co vyberete, přidá se do sezení.",
+      "alt": "Přehrávač scény s přepínači Single/Playlist a Sezení/Knihovna, výběrem skupiny a skladby a posuvníkem"
     },
     "settings": {
       "title": "Nastavení přehrávání",
@@ -750,7 +735,9 @@
       "q7": "Přehrávání na pozadí nerespektuje prolnutí",
       "a7": "Některé prohlížeče, například Safari, prostě neumožňují zpracovat více zvukových streamů najednou. V takovém případě zkuste jiný prohlížeč. Aplikace byla úspěšně otestována na: <strong>Chrome, Edge, Brave a Firefox</strong>",
       "q8": "Přehrávání na pozadí nefunguje vůbec",
-      "a8": "To je hlavně problém YouTube IFrame API na mobilních zařízeních. IFrame API neposkytuje surový audio element, který by operační systém mohl zpracovat. Existuje však workaround: zkuste <strong>minimalizovat okno prohlížeče</strong>, aby zůstalo v popředí, nebo <strong>zapnout režim pro počítače</strong>."
+      "a8": "To je hlavně problém YouTube IFrame API na mobilních zařízeních. IFrame API neposkytuje surový audio element, který by operační systém mohl zpracovat. Existuje však workaround: zkuste <strong>minimalizovat okno prohlížeče</strong>, aby zůstalo v popředí, nebo <strong>zapnout režim pro počítače</strong>.",
+      "q9": "Ve výběru na scéně chybí skladba",
+      "a9": "Scény nabízejí jen <strong>skladby a skupiny aktuálního sezení</strong>. Přepněte scénu na <strong>Knihovnu</strong> a vyberte skladbu tam, nebo ji přidejte do sezení z nabídky řádku na stránce <strong>Skladby</strong>."
     }
   },
   "toast": {
@@ -760,5 +747,30 @@
     "error": "Chyba",
     "warning": "Upozornění",
     "info": "Informace"
+  },
+  "scope": {
+    "library": "Celá knihovna",
+    "inSession": "V sezení",
+    "inThisSession": "V tomto sezení",
+    "addToSession": "Přidat do sezení",
+    "removeFromSession": "Odebrat ze sezení",
+    "sessionEmptyTracks": "Toto sezení zatím nemá žádné skladby. Přepněte na Celou knihovnu a nějaké přidejte, nebo nějakou vyberte na scéně.",
+    "sessionEmptyGroups": "Toto sezení zatím nemá žádné skupiny. Přepněte na Celou knihovnu a nějaké přidejte, nebo vytvořte novou.",
+    "msg": {
+      "trackAdded": "Skladba přidána do sezení.",
+      "trackRemoved": "Skladba odebrána ze sezení.",
+      "groupAdded": "Skupina přidána do sezení.",
+      "groupRemoved": "Skupina odebrána ze sezení.",
+      "inSessionViaGroup": "Tato skladba je v sezení přes {{groups}}. Odeberte ji z této skupiny, nebo odeberte skupinu ze sezení."
+    },
+    "err": {
+      "add": "Přidání do sezení se nezdařilo.",
+      "remove": "Odebrání ze sezení se nezdařilo."
+    },
+    "label": "Zobrazit",
+    "sessionTip": "Jen skladby a skupiny tohoto sezení",
+    "libraryTip": "Vše ve vaší knihovně",
+    "confirmRemoveGroup": "„{{name}}“ je vybraná na scénách {{stages}}. Odebráním ze sezení z nich zmizí.",
+    "confirmRemoveTrack": "„{{name}}“ je vybraná na scénách {{stages}}. Odebráním ze sezení z nich zmizí."
   }
 }

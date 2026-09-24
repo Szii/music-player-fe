@@ -31,16 +31,23 @@ import {
 import { persistentSignal } from '../../../../shared/utils/persistent-signal';
 import { GroupsStore } from '../../../../core/services/groups-store.service';
 import { TracksStore } from '../../../../core/services/tracks-store.service';
+import { SessionsStore } from '../../../../core/services/sessions-store.service';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { UiCreateCtaComponent } from '../../../../shared/ui/create-cta/ui-create-cta.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { UiListToolbarComponent } from '../../../../shared/ui/list-toolbar/ui-list-toolbar.component';
+import {
+  UiSegmentedComponent,
+  UiSegmentedOption,
+} from '../../../../shared/ui/segmented/ui-segmented.component';
 import { FooterComponent } from '../../../../shared/components/footer/footer.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 import { httpErrorMessage } from '../../../../shared/utils/http-error';
 
 type GroupFilterMode = 'all' | 'empty' | 'withTracks';
+
+type GroupScope = 'session' | 'library';
 
 type GroupSortMode =
   | 'nameAsc'
@@ -58,6 +65,7 @@ type GroupSortMode =
     UiCreateCtaComponent,
     UiPageTitleComponent,
     UiListToolbarComponent,
+    UiSegmentedComponent,
     FooterComponent,
     TranslocoPipe,
   ],
@@ -82,6 +90,7 @@ export class GroupsPageComponent implements OnInit {
 
   private readonly groupsStore = inject(GroupsStore);
   private readonly tracksStore = inject(TracksStore);
+  private readonly sessionsStore = inject(SessionsStore);
   private readonly toast = inject(ToastService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly router = inject(Router);
@@ -110,6 +119,29 @@ export class GroupsPageComponent implements OnInit {
     return this.groupsStore.groups().find(group => group.id === id) ?? null;
   });
 
+  readonly sessionName = computed(() => {
+    const session = this.sessionsStore.selectedSession();
+    if (session == null) return null;
+    return session.sessionName || this.t('sessions.untitled');
+  });
+  readonly sessionGroupIds = this.sessionsStore.sessionGroupIds;
+  readonly scopedTrackIds = this.sessionsStore.scopedTrackIds;
+
+  readonly scope = persistentSignal<GroupScope>('mpf:groups:scope', 'session');
+
+  readonly effectiveScope = computed<GroupScope>(() =>
+    this.sessionName() == null ? 'library' : this.scope(),
+  );
+
+  readonly scopeOptions = computed<UiSegmentedOption<GroupScope>[] | null>(() => {
+    const name = this.sessionName();
+    if (name == null) return null;
+    return [
+      { label: name, value: 'session', title: this.t('scope.sessionTip') },
+      { label: this.t('scope.library'), value: 'library', title: this.t('scope.libraryTip') },
+    ];
+  });
+
   readonly search = signal('');
   readonly filterMode = persistentSignal<GroupFilterMode>('mpf:groups:filter', 'all');
   readonly sortMode = persistentSignal<GroupSortMode>('mpf:groups:sort', 'nameAsc');
@@ -127,12 +159,22 @@ export class GroupsPageComponent implements OnInit {
     { label: this.t('sort.tracksDesc'), value: 'tracksDesc' },
   ];
 
+  readonly scopeTotal = computed(() => {
+    if (this.effectiveScope() === 'library') return this.groupsStore.groups().length;
+    const ids = this.sessionGroupIds();
+    return this.groupsStore.groups().filter(group => group.id != null && ids.has(group.id)).length;
+  });
+
   readonly filteredGroups = computed<Group[]>(() => {
     const query = this.search().trim().toLowerCase();
     const filter = this.filterMode();
     const sort = this.sortMode();
+    const sessionOnly = this.effectiveScope() === 'session';
+    const sessionGroupIds = this.sessionGroupIds();
 
     const matching = this.groupsStore.groups().filter(group => {
+      if (sessionOnly && (group.id == null || !sessionGroupIds.has(group.id))) return false;
+
       const trackCount = trackIdsOf(group).length;
 
       const matchesSearch =
@@ -154,7 +196,7 @@ export class GroupsPageComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    forkJoin([this.groupsStore.load(), this.tracksStore.load()])
+    forkJoin([this.groupsStore.load(), this.tracksStore.load(), this.sessionsStore.load()])
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe();
   }
@@ -167,11 +209,27 @@ export class GroupsPageComponent implements OnInit {
     this.sortMode.set(value as GroupSortMode);
   }
 
+  setScope(value: GroupScope): void {
+    this.scope.set(value);
+  }
+
+  isInSession(group: Group): boolean {
+    return group.id != null && this.sessionGroupIds().has(group.id);
+  }
+
   createGroup(request: GroupRequest): void {
-    this.groupsStore.create(request)
+    const sessionId = this.sessionsStore.selectedSessionId();
+
+    this.groupsStore.create({ ...request, sessionId })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => this.createFormRef?.reset(),
+        next: group => {
+          if (sessionId != null && group.id != null) {
+            this.sessionsStore.noteAdded(sessionId, { groupId: group.id });
+          }
+          this.createFormRef?.reset();
+          this.openTrackEditor(group);
+        },
         error: (err: unknown) => {
           console.error(err);
           this.toast.error(httpErrorMessage(err, { fallback: this.t('groups.err.create') }));
@@ -257,6 +315,54 @@ export class GroupsPageComponent implements OnInit {
         error: (err: unknown) => {
           console.error(err);
           this.toast.error(httpErrorMessage(err, { fallback: this.t('groups.err.update') }));
+        },
+      });
+  }
+
+  addToSession(group: Group): void {
+    const sessionId = this.sessionsStore.selectedSessionId();
+    if (sessionId == null || group.id == null) return;
+
+    this.sessionsStore.addGroup(sessionId, group.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.toast.success(this.t('scope.msg.groupAdded')),
+        error: (err: unknown) => {
+          console.error(err);
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('scope.err.add') }));
+        },
+      });
+  }
+
+  async removeFromSession(group: Group): Promise<void> {
+    const sessionId = this.sessionsStore.selectedSessionId();
+    const groupId = group.id;
+    if (sessionId == null || groupId == null) return;
+
+    const stages = this.sessionsStore.selectedSessionStageNames(
+      board => board.selectedGroup?.id === groupId,
+    );
+    if (stages.length > 0) {
+      const confirmed = await this.confirmDialog.confirm({
+        title: this.t('scope.removeFromSession'),
+        message: this.t('scope.confirmRemoveGroup', {
+          name: group.listName || this.t('common.groupNum', { id: groupId }),
+          stages: stages.join(', '),
+        }),
+        confirmText: this.t('scope.removeFromSession'),
+        cancelText: this.t('common.cancel'),
+        variant: 'danger',
+      });
+      if (!confirmed) return;
+    }
+
+    this.sessionsStore.removeGroup(sessionId, groupId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.toast.success(this.t('scope.msg.groupRemoved')),
+        error: (err: unknown) => {
+          console.error(err);
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('scope.err.remove') }));
         },
       });
   }

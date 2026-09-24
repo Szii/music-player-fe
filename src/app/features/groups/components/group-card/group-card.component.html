@@ -6,6 +6,9 @@
     </span>
 
     <div class="group-card__header-actions">
+      @if (hasSession() && inSession() && showSessionBadge()) {
+        <ui-chip variant="primary" size="sm">{{ 'scope.inSession' | transloco }}</ui-chip>
+      }
       <ui-chip
         class="group-card__count"
         [variant]="trackCount() > 0 ? 'success' : 'gold'"
@@ -24,6 +27,8 @@
       />
     </div>
   </div>
+
+  <p class="group-card__preview" [title]="preview()">{{ preview() }}</p>
 </div>
 
 @if (renameOpen()) {
@@ -51,7 +56,7 @@
       }
     </div>
 
-    <normal-button dialog-footer type="button" variant="secondary" (clicked)="closeRename()">
+    <normal-button dialog-footer type="button" variant="ghost" (clicked)="closeRename()">
       {{ 'common.cancel' | transloco }}
     </normal-button>
 

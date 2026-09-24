@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { forkJoin } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 
 import { TrackTableComponent } from '../../components/track-table/track-table.component';
@@ -30,11 +31,15 @@ import {
   UpdateTrackRequestV2,
 } from '../../../../api/generated';
 import { parseYoutubeId } from '../../../../shared/utils/youtube-id';
+import { truncateAtWord } from '../../../../shared/utils/text';
+import { FIELD_LIMITS } from '../../../../shared/constants/field-limits';
 import {
   YoutubeMetadataError,
   YoutubeMetadataService,
 } from '../../../../core/services/youtube-metadata.service';
 import { TracksStore } from '../../../../core/services/tracks-store.service';
+import { SessionsStore } from '../../../../core/services/sessions-store.service';
+import { GroupsStore } from '../../../../core/services/groups-store.service';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { UiCreateCtaComponent } from '../../../../shared/ui/create-cta/ui-create-cta.component';
@@ -76,6 +81,8 @@ export class TracksPageComponent implements OnInit {
   @ViewChild(TrackFormComponent) private trackForm?: TrackFormComponent;
 
   private readonly tracksStore = inject(TracksStore);
+  private readonly sessionsStore = inject(SessionsStore);
+  private readonly groupsStore = inject(GroupsStore);
   private readonly ytMetadata = inject(YoutubeMetadataService);
   private readonly toast = inject(ToastService);
   private readonly confirmDialog = inject(ConfirmDialogService);
@@ -84,6 +91,14 @@ export class TracksPageComponent implements OnInit {
 
   readonly tracks = this.tracksStore.tracks;
   readonly loading = this.tracksStore.loading;
+
+  readonly sessionName = computed(() => {
+    const session = this.sessionsStore.selectedSession();
+    if (session == null) return null;
+    return session.sessionName || this.t('sessions.untitled');
+  });
+  readonly sessionTrackIds = this.sessionsStore.sessionTrackIds;
+  readonly scopedTrackIds = this.sessionsStore.scopedTrackIds;
 
   readonly errorMessage = computed(() => {
     const messages: string[] = [];
@@ -116,7 +131,9 @@ export class TracksPageComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    this.tracksStore.load().pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
+    forkJoin([this.tracksStore.load(), this.sessionsStore.load(), this.groupsStore.load()])
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe();
   }
 
   saveTrack(event: TrackFormEvent): void {
@@ -136,7 +153,7 @@ export class TracksPageComponent implements OnInit {
       const existing = this.findTrack(editingId);
 
       if (existing?.trackLink === event.trackLink) {
-        this.runUpdate(editingId, { trackName: event.trackName });
+        this.runUpdate(editingId, { trackName: event.trackName.trim() || existing.trackName });
         return;
       }
     }
@@ -154,7 +171,7 @@ export class TracksPageComponent implements OnInit {
 
         if (editingId != null) {
           const body: UpdateTrackRequestV2 = {
-            trackName: event.trackName,
+            trackName: event.trackName.trim() || truncateAtWord(meta.title, FIELD_LIMITS.track.name),
             trackOriginalName: meta.title,
             trackLink: event.trackLink,
             duration,
@@ -165,10 +182,11 @@ export class TracksPageComponent implements OnInit {
         }
 
         const body: CreateTrackRequestV2 = {
-          trackName: event.trackName,
+          trackName: event.trackName.trim() || truncateAtWord(meta.title, FIELD_LIMITS.track.name),
           trackOriginalName: meta.title,
           trackLink: event.trackLink,
           duration,
+          sessionId: this.sessionsStore.selectedSessionId(),
         };
 
         this.runCreate(body);
@@ -187,7 +205,10 @@ export class TracksPageComponent implements OnInit {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: () => {
+        next: track => {
+          if (body.sessionId != null && track.id != null) {
+            this.sessionsStore.noteAdded(body.sessionId, { trackId: track.id });
+          }
           this.trackForm?.close();
           this.toast.success(this.t('tracks.msg.created'));
         },
@@ -277,6 +298,71 @@ export class TracksPageComponent implements OnInit {
           this.toast.error(httpErrorMessage(err, { fallback: this.t('tracks.err.delete') }));
         },
       });
+  }
+
+  onAddToSession(track: Track): void {
+    const sessionId = this.sessionsStore.selectedSessionId();
+    if (sessionId == null || track.id == null) return;
+
+    this.sessionsStore.addTrack(sessionId, track.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.toast.success(this.t('scope.msg.trackAdded')),
+        error: (err: unknown) => {
+          console.error(err);
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('scope.err.add') }));
+        },
+      });
+  }
+
+  async onRemoveFromSession(track: Track): Promise<void> {
+    const sessionId = this.sessionsStore.selectedSessionId();
+    const trackId = track.id;
+    if (sessionId == null || trackId == null) return;
+
+    const viaGroups = this.sessionGroupsContaining(trackId);
+    if (!this.sessionsStore.sessionTrackIds().has(trackId) && viaGroups.length > 0) {
+      this.toast.warning(this.t('scope.msg.inSessionViaGroup', { groups: viaGroups.join(', ') }), 6000);
+      return;
+    }
+
+    const stages = viaGroups.length > 0
+      ? []
+      : this.sessionsStore.selectedSessionStageNames(board => board.selectedTrack?.id === trackId);
+    if (stages.length > 0) {
+      const confirmed = await this.confirmDialog.confirm({
+        title: this.t('scope.removeFromSession'),
+        message: this.t('scope.confirmRemoveTrack', {
+          name: track.trackName || track.trackOriginalName || trackId,
+          stages: stages.join(', '),
+        }),
+        confirmText: this.t('scope.removeFromSession'),
+        cancelText: this.t('common.cancel'),
+        variant: 'danger',
+      });
+      if (!confirmed) return;
+    }
+
+    this.sessionsStore.removeTrack(sessionId, trackId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.toast.success(this.t('scope.msg.trackRemoved')),
+        error: (err: unknown) => {
+          console.error(err);
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('scope.err.remove') }));
+        },
+      });
+  }
+
+  private sessionGroupsContaining(trackId: string): string[] {
+    const groupIds = this.sessionsStore.sessionGroupIds();
+    return this.groupsStore.groups()
+      .filter(group =>
+        group.id != null
+        && groupIds.has(group.id)
+        && (group.tracks ?? []).some(item => item.id === trackId),
+      )
+      .map(group => group.listName || this.t('common.groupNum', { id: group.id }));
   }
 
   async onWindows(track: Track): Promise<void> {

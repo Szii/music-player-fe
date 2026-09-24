@@ -26,8 +26,8 @@
       <ui-list-toolbar
         [(search)]="search"
         [searchPlaceholder]="'groups.searchTracksPlaceholder' | transloco"
-        [filterValue]="filterMode()"
-        [filterOptions]="filterOptions"
+        [filterValue]="effectiveFilterMode()"
+        [filterOptions]="filterOptions()"
         (filterValueChange)="setFilterMode($event)"
         [filteredCount]="filteredTracks().length"
         [totalCount]="tracks().length"
@@ -273,7 +273,7 @@
   <normal-button
     dialog-footer
     type="button"
-    variant="secondary"
+    variant="ghost"
     (clicked)="cancel.emit()"
   >
     {{ 'common.cancel' | transloco }}

@@ -13,41 +13,45 @@
   align-items: center;
   gap: 0.55rem;
   min-height: 2.3rem;
-  padding: 0.35rem 0.75rem;
-  border: 1px solid var(--app-border-color-soft);
-  background: #faf4e4;
-  color: var(--app-text);
+  padding: 0.3rem 0.7rem;
+  border: 1px solid rgba(201, 164, 76, 0.85);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0)),
+    rgba(255, 255, 255, 0.03);
+  color: #fff8ee;
   border-radius: var(--app-radius-sm);
   font-family: var(--app-font-heading);
-  font-size: 0.85rem;
-  letter-spacing: 0.03em;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
   cursor: pointer;
-  transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease,
-    box-shadow 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
   max-width: 260px;
 }
 
-.sd__trigger:hover {
-  background: #f5edd8;
-  border-color: var(--app-border-color);
+.sd__trigger:hover,
+.sd--open .sd__trigger {
+  background:
+    linear-gradient(180deg, rgba(201, 164, 76, 0.16), rgba(201, 164, 76, 0.07)),
+    rgba(255, 255, 255, 0.04);
+  border-color: rgba(201, 164, 76, 1);
 }
 
 .sd__trigger:focus-visible {
   outline: none;
-  border-color: var(--app-primary);
-  box-shadow: var(--app-focus-ring);
+  box-shadow:
+    0 0 0 3px rgba(255, 228, 186, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
-.sd--open .sd__trigger {
-  border-color: var(--app-primary);
-  box-shadow: var(--app-focus-ring);
+.sd__icon {
+  flex-shrink: 0;
+  width: 1.05rem;
+  height: 1.05rem;
+  color: #e9c979;
 }
 
 .sd__label {
-  max-width: 200px;
+  max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -56,7 +60,7 @@
 .sd__arrow {
   display: inline-flex;
   align-items: center;
-  color: var(--app-primary);
+  color: #e9c979;
   transition: transform 0.18s ease;
 }
 
@@ -104,6 +108,20 @@
   padding: 8px 10px;
   border-radius: var(--app-radius-sm);
   font-size: 14px;
+}
+
+.sd__item-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+
+.sd__item-meta {
+  font-size: 12px;
+  color: var(--app-text-muted);
 }
 
 .sd__item-name {
@@ -192,6 +210,15 @@
    tap targets — instead of a narrow popover anchored to the (near-edge) trigger.
    Matches ui-select and the board-settings menu. */
 @media (max-width: 640px) {
+  .sd__trigger {
+    gap: 0.4rem;
+    padding: 0.3rem 0.55rem;
+  }
+
+  .sd__label {
+    display: none;
+  }
+
   /* Dim the page behind so the sheet reads as one clean layer on top. */
   .sd__scrim {
     display: block;
@@ -269,4 +296,46 @@
 @keyframes sd-scrim-in {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+:host(.sd-inline) .sd__trigger {
+  min-height: 0;
+  max-width: 100%;
+  padding: 0;
+  gap: 0.3rem;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: #e9c979;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+}
+
+:host(.sd-inline) .sd__trigger:hover,
+:host(.sd-inline) .sd--open .sd__trigger {
+  background: none;
+  color: #ffe8a8;
+}
+
+:host(.sd-inline) .sd__trigger:focus-visible {
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px rgba(255, 228, 186, 0.35);
+}
+
+:host(.sd-inline) .sd__icon {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+:host(.sd-inline) .sd__label {
+  display: block;
+  max-width: 100%;
+}
+
+:host(.sd-inline) {
+  max-width: 100%;
+}
+
+:host(.sd-inline) .sd {
+  max-width: 100%;
 }

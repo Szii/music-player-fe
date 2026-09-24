@@ -25,6 +25,8 @@ import {
   hasProfanity,
 } from '../../../../shared/validators/profanity.validator';
 
+const PREVIEW_ITEMS = 3;
+
 export interface RenameEvent {
   group: Group;
   newName: string;
@@ -64,8 +66,13 @@ export class GroupCardComponent {
   readonly group = input.required<Group>();
   readonly tracks = input<Track[]>([]);
   readonly updating = input(false);
+  readonly hasSession = input(false);
+  readonly inSession = input(false);
+  readonly showSessionBadge = input(true);
 
   readonly deleteRequested = output<Group>();
+  readonly addToSessionRequested = output<Group>();
+  readonly removeFromSessionRequested = output<Group>();
   readonly renameRequested = output<RenameEvent>();
   readonly editTracksRequested = output<Group>();
 
@@ -78,6 +85,19 @@ export class GroupCardComponent {
 
   readonly trackCount = computed(() => this.group().tracks?.length ?? 0);
 
+  readonly preview = computed(() => {
+    const items = [...(this.group().tracks ?? [])]
+      .sort((a, b) => (a.positionWithinGroup ?? 0) - (b.positionWithinGroup ?? 0));
+    if (items.length === 0) return this.t('groups.previewEmpty');
+
+    const shown = items
+      .slice(0, PREVIEW_ITEMS)
+      .map(item => item.trackName || item.trackOriginalName || '—')
+      .join(' · ');
+    const rest = items.length - PREVIEW_ITEMS;
+    return rest > 0 ? `${shown} ${this.t('groups.previewMore', { count: rest })}` : shown;
+  });
+
   readonly trackCountLabel = computed(() => {
     const count = this.trackCount();
     return this.t('groups.trackCount', { count });
@@ -85,11 +105,21 @@ export class GroupCardComponent {
 
   menuItems(): ActionMenuItem[] {
     const busy = this.updating();
-    return [
+    const items: ActionMenuItem[] = [
       { id: 'tracks', label: this.t('groups.editTracks'), disabled: busy },
       { id: 'rename', label: this.t('groups.rename'), disabled: busy },
-      { id: 'delete', label: this.t('groups.delete'), variant: 'danger', disabled: busy },
     ];
+
+    if (this.hasSession()) {
+      items.push(
+        this.inSession()
+          ? { id: 'removeFromSession', label: this.t('scope.removeFromSession'), disabled: busy }
+          : { id: 'addToSession', label: this.t('scope.addToSession'), disabled: busy },
+      );
+    }
+
+    items.push({ id: 'delete', label: this.t('groups.delete'), variant: 'danger', disabled: busy });
+    return items;
   }
 
   onMenuSelect(id: string): void {
@@ -102,6 +132,12 @@ export class GroupCardComponent {
         break;
       case 'delete':
         this.deleteRequested.emit(this.group());
+        break;
+      case 'addToSession':
+        this.addToSessionRequested.emit(this.group());
+        break;
+      case 'removeFromSession':
+        this.removeFromSessionRequested.emit(this.group());
         break;
     }
   }

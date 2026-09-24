@@ -82,3 +82,13 @@ ui-list-toolbar {
 .app-entity-list__item.is-subscribed .app-entity-list__title {
   color: var(--app-text-muted);
 }
+
+.track-table__scope {
+  margin-bottom: 12px;
+}
+
+.col-status__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}

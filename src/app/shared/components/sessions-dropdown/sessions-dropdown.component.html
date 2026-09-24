@@ -1,89 +1,99 @@
+<div class="sd" [class.sd--open]="isOpen()">
+  <button
+    type="button"
+    class="sd__trigger"
+    [attr.aria-expanded]="isOpen()"
+    aria-haspopup="menu"
+    [attr.aria-label]="('sessions.title' | transloco) + ': ' + triggerLabel()"
+    [title]="triggerLabel()"
+    (click)="toggle()"
+  >
+    <svg class="sd__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+      stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 3 3 7.5l9 4.5 9-4.5L12 3Z" />
+      <path d="m3 12 9 4.5 9-4.5" />
+      <path d="m3 16.5 9 4.5 9-4.5" />
+    </svg>
+    <span class="sd__label">{{ triggerLabel() }}</span>
+    <span class="sd__arrow" aria-hidden="true">
+      <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
+        <path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.6"
+          stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </span>
+  </button>
 
-@if (showTrigger()) {
-  <div class="sd" [class.sd--open]="isOpen()">
-    <button
-      type="button"
-      class="sd__trigger"
-      [attr.aria-expanded]="isOpen()"
-      aria-haspopup="menu"
-      (click)="toggle()"
-    >
-      <span class="sd__label">{{ triggerLabel() }}</span>
-      <span class="sd__arrow" aria-hidden="true">
-        <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
-          <path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.6"
-            stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-      </span>
-    </button>
+  @if (isOpen()) {
+    <div class="sd__scrim" aria-hidden="true" (pointerdown)="onScrimDown($event)"></div>
+    <div #sheetEl class="app-popover-surface sd__panel" role="menu">
+      <button
+        type="button"
+        class="sd__handle"
+        [appBottomSheetDrag]="sheetEl"
+        (dismiss)="dismissSheet()"
+        [attr.aria-label]="'common.close' | transloco"
+      >
+        <span class="sd__handle-bar" aria-hidden="true"></span>
+      </button>
 
-    @if (isOpen()) {
-      <div class="sd__scrim" aria-hidden="true" (pointerdown)="onScrimDown($event)"></div>
-      <div #sheetEl class="app-popover-surface sd__panel" role="menu">
-        <button
-          type="button"
-          class="sd__handle"
-          [appBottomSheetDrag]="sheetEl"
-          (dismiss)="dismissSheet()"
-          [attr.aria-label]="'common.close' | transloco"
-        >
-          <span class="sd__handle-bar" aria-hidden="true"></span>
-        </button>
+      <div class="app-popover-header">{{ 'sessions.title' | transloco }}</div>
 
-        <div class="app-popover-header">{{ 'sessions.title' | transloco }}</div>
-
-        @if (sessions().length === 0) {
-          <div class="sd__empty">{{ 'sessions.empty' | transloco }}</div>
-        } @else {
-          <ul class="sd__list">
-            @for (s of sessions(); track s.sessionId) {
-              <li
-                class="sd__item"
-                [class.sd__item--selected]="s.sessionId === selectedId()"
+      @if (sessions().length === 0) {
+        <div class="sd__empty">{{ 'sessions.empty' | transloco }}</div>
+      } @else {
+        <ul class="sd__list">
+          @for (s of sessions(); track s.sessionId) {
+            <li
+              class="sd__item"
+              [class.sd__item--selected]="s.sessionId === selectedId()"
+            >
+              <button
+                type="button"
+                class="app-popover-item sd__item-select"
+                [class.app-popover-item--selected]="s.sessionId === selectedId()"
+                (click)="select(s)"
+                [attr.aria-current]="s.sessionId === selectedId() ? 'true' : null"
               >
-                <button
-                  type="button"
-                  class="app-popover-item sd__item-select"
-                  [class.app-popover-item--selected]="s.sessionId === selectedId()"
-                  (click)="select(s)"
-                  [attr.aria-current]="s.sessionId === selectedId() ? 'true' : null"
-                >
+                <span class="sd__item-text">
                   <span class="sd__item-name">{{ s.sessionName || ('sessions.untitled' | transloco) }}</span>
-                  @if (s.sessionId === selectedId()) {
-                    <span class="sd__item-check" aria-hidden="true">✓</span>
-                  }
-                </button>
+                  <span class="sd__item-meta">
+                    {{ 'sessions.counts' | transloco: { tracks: s.trackIds?.length ?? 0, groups: s.groupIds?.length ?? 0 } }}
+                  </span>
+                </span>
+                @if (s.sessionId === selectedId()) {
+                  <span class="sd__item-check" aria-hidden="true">✓</span>
+                }
+              </button>
 
-                <div class="sd__item-actions">
-                  <app-icon-button
-                    icon="edit"
-                    size="xs"
-                    variant="ghost"
-                    [label]="'sessions.rename' | transloco"
-                    (clicked)="startRename(s)"
-                  />
-                  <app-icon-button
-                    icon="delete"
-                    size="xs"
-                    variant="ghost"
-                    [label]="'sessions.delete' | transloco"
-                    (clicked)="confirmDelete(s)"
-                  />
-                </div>
-              </li>
-            }
-          </ul>
-        }
+              <div class="sd__item-actions">
+                <app-icon-button
+                  icon="edit"
+                  size="xs"
+                  variant="ghost"
+                  [label]="'sessions.rename' | transloco"
+                  (clicked)="startRename(s)"
+                />
+                <app-icon-button
+                  icon="delete"
+                  size="xs"
+                  variant="ghost"
+                  [label]="'sessions.delete' | transloco"
+                  (clicked)="confirmDelete(s)"
+                />
+              </div>
+            </li>
+          }
+        </ul>
+      }
 
-        <button
-          type="button"
-          class="sd__create"
-          (click)="startCreate()"
-        >
-          <span class="sd__create-plus" aria-hidden="true">＋</span>
-          <span>{{ 'sessions.new' | transloco }}</span>
-        </button>
-      </div>
-    }
-  </div>
-}
+      <button
+        type="button"
+        class="sd__create"
+        (click)="startCreate()"
+      >
+        <span class="sd__create-plus" aria-hidden="true">＋</span>
+        <span>{{ 'sessions.new' | transloco }}</span>
+      </button>
+    </div>
+  }
+</div>

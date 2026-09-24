@@ -22,6 +22,7 @@ import {
 } from '../../components/my-tracks/my-tracks.component';
 import { TrackCatalogComponent } from '../../components/track-catalog/track-catalog.component';
 import { TracksStore } from '../../../../core/services/tracks-store.service';
+import { SessionsStore } from '../../../../core/services/sessions-store.service';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
@@ -59,6 +60,7 @@ export class WorkshopPageComponent implements OnInit {
   }
 
   private readonly tracksStore = inject(TracksStore);
+  private readonly sessionsStore = inject(SessionsStore);
   private readonly toast = inject(ToastService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly destroyRef = inject(DestroyRef);
@@ -203,13 +205,20 @@ export class WorkshopPageComponent implements OnInit {
 
     this.busyTrackId.set(track.id ?? null);
 
-    this.tracksStore.subscribe(shareCode)
+    const sessionId = this.sessionsStore.selectedSessionId();
+
+    this.tracksStore.subscribe(shareCode, sessionId)
       .pipe(
         finalize(() => this.busyTrackId.set(null)),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: () => this.toast.success(this.t('workshop.msg.subscribed')),
+        next: () => {
+          if (sessionId != null && track.id != null) {
+            this.sessionsStore.noteAdded(sessionId, { trackId: track.id });
+          }
+          this.toast.success(this.t('workshop.msg.subscribed'));
+        },
         error: (err: unknown) => {
           console.error(err);
 

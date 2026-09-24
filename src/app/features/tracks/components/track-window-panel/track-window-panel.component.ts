@@ -33,6 +33,7 @@ import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empt
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 import { UiDialogShellComponent } from '../../../../shared/ui/dialog-shell/ui-dialog-shell.component';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
+import { formatDuration } from '../../../../shared/utils/duration';
 
 export interface WindowSaveEvent {
   trackId: string;
@@ -500,10 +501,7 @@ export class TrackWindowsPanelComponent implements OnDestroy {
   }
 
   formatTime(totalSeconds: number): string {
-    const safe = Math.max(0, Math.floor(totalSeconds));
-    const m = Math.floor(safe / 60);
-    const s = safe % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
+    return formatDuration(totalSeconds);
   }
 
   formatFade(ms: number): string {

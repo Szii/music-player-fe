@@ -98,6 +98,8 @@ export class BoardCardComponent implements OnInit {
 
   readonly board = input.required<Board>();
   readonly availableGroups = input<Group[]>([]);
+  readonly libraryGroups = input<Group[]>([]);
+  readonly libraryTracks = input<Track[]>([]);
   readonly status = input<'STOPPED' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'ERROR'>('STOPPED');
   readonly selectedWindowId = input<string | null>(null);
   readonly masterVolume = input(1);
@@ -381,17 +383,11 @@ export class BoardCardComponent implements OnInit {
 
   // Always-present loop ribbon. In playlist mode each track plays to its end, so
   // looping is fixed to "whole track".
-  readonly loopRibbonLabel = computed(() => {
-    if (this.playlistMode()) return this.t('stages.loop.whole');
-    switch (this.loopMode()) {
-      case 'whole':
-        return this.t('stages.loop.whole');
-      case 'sequence':
-        return this.t('stages.loop.sequence');
-      default:
-        return this.t('stages.loop.off');
-    }
-  });
+  readonly showLoopChip = computed(() => !this.playlistMode() && this.loopMode() !== 'off');
+
+  readonly loopRibbonLabel = computed(() =>
+    this.t(this.loopMode() === 'sequence' ? 'stages.loop.chipSequence' : 'stages.loop.chipWhole'),
+  );
 
   /** Full loop wording for the chip tooltip — the visible label is iconified. */
   readonly loopRibbonTooltip = computed(() => {
@@ -438,8 +434,12 @@ export class BoardCardComponent implements OnInit {
     );
   });
 
-  readonly currentGroupLabel = computed(() =>
-    this.board().selectedGroup?.listName || this.t('stages.card.allTracks'),
+  readonly currentGroupLabel = computed(() => this.board().selectedGroup?.listName ?? null);
+
+  readonly showWindowChip = computed(() => !this.playlistMode() && this.selectedWindow() != null);
+
+  readonly allTracksLabel = computed(() =>
+    this.t(this.browseLibrary() ? 'stages.card.allLibraryTracks' : 'stages.card.allSessionTracks'),
   );
 
   readonly currentWindowLabel = computed(() => {
@@ -477,7 +477,7 @@ export class BoardCardComponent implements OnInit {
 
   readonly loopModeChoices = computed<{ value: LoopMode; label: string; disabled?: boolean }[]>(() => [
     { value: 'off', label: this.t('stages.loop.off') },
-    { value: 'whole', label: this.t('stages.card.wholePlayback') },
+    { value: 'whole', label: this.t('stages.loop.repeat') },
     // Disable sequencing when the track lacks the windows to step through.
     {
       value: 'sequence',
@@ -600,9 +600,11 @@ export class BoardCardComponent implements OnInit {
   });
 
 
+  readonly browseLibrary = signal(false);
+
   readonly groupOptions = computed(() =>
     // A group with no tracks has nothing to select or play, so disable it.
-    this.availableGroups().map(g => ({
+    (this.browseLibrary() ? this.libraryGroups() : this.availableGroups()).map(g => ({
       label: g.listName || this.t('common.groupNum', { id: g.id }),
       value: g.id,
       disabled: (g.tracks?.length ?? 0) === 0,
@@ -624,7 +626,8 @@ export class BoardCardComponent implements OnInit {
     const groupId = board.selectedGroup?.id ?? null;
 
     if (groupId == null) {
-      return [...(board.availableTracks ?? [])].sort(byGroupPosition);
+      const tracks = this.browseLibrary() ? this.libraryTracks() : (board.availableTracks ?? []);
+      return [...tracks].sort(byGroupPosition);
     }
 
     // Prefer the group from the groups store: it comes from the /groups endpoint,
@@ -632,7 +635,8 @@ export class BoardCardComponent implements OnInit {
     // board/session response's selectedGroup.tracks is only a fallback — it can
     // arrive alphabetical and without positions.
     const source =
-      this.availableGroups().find(g => g.id === groupId)?.tracks
+      this.libraryGroups().find(g => g.id === groupId)?.tracks
+      ?? this.availableGroups().find(g => g.id === groupId)?.tracks
       ?? board.selectedGroup?.tracks
       ?? [];
 
@@ -720,9 +724,20 @@ export class BoardCardComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.browseLibrary.set(readLibraryPreference(this.board().id));
+
     this.destroyRef.onDestroy(() => {
       this.endShortcutCapture();
     });
+  }
+
+  setBrowseLibrary(value: boolean): void {
+    this.browseLibrary.set(value);
+    writeLibraryPreference(this.board().id, value);
+  }
+
+  turnLoopOff(): void {
+    this.loopModeChange.emit('off');
   }
 
   toggleCaptureShortcut(): void {
@@ -790,6 +805,10 @@ export class BoardCardComponent implements OnInit {
 
   toggleExpanded(): void {
     this.setExpanded(!this.expanded());
+  }
+
+  expand(): void {
+    this.setExpanded(true);
   }
 
   private setExpanded(expanded: boolean): void {
@@ -1006,4 +1025,28 @@ function clampPct(v: number): number {
   return Number.isFinite(n)
     ? Math.max(0, Math.min(Math.round(n), 100))
     : 100;
+}
+
+const LIBRARY_PREFERENCE_PREFIX = 'mpf:stages:library:';
+
+function readLibraryPreference(boardId: string | undefined): boolean {
+  if (boardId == null) return false;
+  try {
+    return localStorage.getItem(LIBRARY_PREFERENCE_PREFIX + boardId) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeLibraryPreference(boardId: string | undefined, value: boolean): void {
+  if (boardId == null) return;
+  try {
+    if (value) {
+      localStorage.setItem(LIBRARY_PREFERENCE_PREFIX + boardId, '1');
+    } else {
+      localStorage.removeItem(LIBRARY_PREFERENCE_PREFIX + boardId);
+    }
+  } catch {
+    // Storage may be unavailable (private mode); the toggle just won't persist.
+  }
 }

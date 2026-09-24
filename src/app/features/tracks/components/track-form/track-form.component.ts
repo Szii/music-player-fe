@@ -7,6 +7,7 @@ import {
   input,
   output,
   signal,
+  viewChild,
 } from '@angular/core';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -27,6 +28,7 @@ import {
   YoutubeSearchService,
 } from '../../../../core/services/youtube-search.service';
 import { YoutubeSearchComponent } from '../youtube-search/youtube-search.component';
+import { truncateAtWord } from '../../../../shared/utils/text';
 
 export interface TrackFormEvent {
   trackName: string;
@@ -85,6 +87,8 @@ export class TrackFormComponent {
   private readonly youtubeSearch = inject(YoutubeSearchService);
 
   readonly linkSource = signal<TrackLinkSource>('link');
+
+  private readonly youtubeSearchRef = viewChild(YoutubeSearchComponent);
   /** Searching only makes sense while creating, and only with a key configured. */
   readonly canSearch = computed(
     () => this.youtubeSearch.available && !this.isEditing(),
@@ -161,6 +165,9 @@ export class TrackFormComponent {
 
   setLinkSource(source: TrackLinkSource): void {
     this.linkSource.set(source);
+    if (source === 'search') {
+      setTimeout(() => this.youtubeSearchRef()?.focus());
+    }
   }
 
   /** Fills the form from a search hit and returns to the link view to confirm. */
@@ -169,7 +176,7 @@ export class TrackFormComponent {
       trackLink: result.link,
       trackName:
         this.form.controls.trackName.value.trim() ||
-        result.title.slice(0, this.limits.name),
+        truncateAtWord(result.title, this.limits.name),
     });
     this.linkSource.set('link');
   }

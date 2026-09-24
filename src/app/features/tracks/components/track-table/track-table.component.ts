@@ -15,6 +15,10 @@ import {
   UiDataTableComponent,
 } from '../../../../shared/ui/data-table/ui-data-table.component';
 import { UiListToolbarComponent } from '../../../../shared/ui/list-toolbar/ui-list-toolbar.component';
+import {
+  UiSegmentedComponent,
+  UiSegmentedOption,
+} from '../../../../shared/ui/segmented/ui-segmented.component';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 import {
   ActionMenuItem,
@@ -23,6 +27,7 @@ import {
 import { PreviewButtonComponent } from '../../../../shared/ui/preview-button/preview-button.component';
 import { persistentSignal } from '../../../../shared/utils/persistent-signal';
 import { previewMidpointS } from '../../../../shared/utils/preview';
+import { formatDuration } from '../../../../shared/utils/duration';
 
 type TrackFilterMode =
   | 'all'
@@ -34,6 +39,10 @@ type TrackFilterMode =
 
 type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
 
+type TrackScope = 'session' | 'library';
+
+type SessionMembership = 'direct' | 'viaGroup' | null;
+
 @Component({
   selector: 'app-track-table',
   standalone: true,
@@ -41,6 +50,7 @@ type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
   imports: [
     UiDataTableComponent,
     UiListToolbarComponent,
+    UiSegmentedComponent,
     UiChipComponent,
     UiActionMenuComponent,
     PreviewButtonComponent,
@@ -64,12 +74,31 @@ export class TrackTableComponent {
 
   readonly tracks = input<Track[]>([]);
   readonly loading = input(false);
+  readonly sessionName = input<string | null>(null);
+  readonly sessionTrackIds = input<ReadonlySet<string>>(new Set());
+  readonly scopedTrackIds = input<ReadonlySet<string>>(new Set());
 
   readonly edit = output<Track>();
   readonly remove = output<Track>();
   readonly windows = output<Track>();
+  readonly addToSession = output<Track>();
+  readonly removeFromSession = output<Track>();
 
   readonly search = signal('');
+  readonly scope = persistentSignal<TrackScope>('mpf:tracks:scope', 'session');
+
+  readonly effectiveScope = computed<TrackScope>(() =>
+    this.sessionName() == null ? 'library' : this.scope(),
+  );
+
+  readonly scopeOptions = computed<UiSegmentedOption<TrackScope>[] | null>(() => {
+    const name = this.sessionName();
+    if (name == null) return null;
+    return [
+      { label: name, value: 'session', title: this.t('scope.sessionTip') },
+      { label: this.t('scope.library'), value: 'library', title: this.t('scope.libraryTip') },
+    ];
+  });
   readonly filterMode = persistentSignal<TrackFilterMode>('mpf:tracks:filter', 'all');
   readonly sortMode = persistentSignal<TrackSortMode>('mpf:tracks:sort', 'nameAsc');
 
@@ -89,24 +118,44 @@ export class TrackTableComponent {
     { label: this.t('sort.durationDesc'), value: 'durationDesc' },
   ];
 
-  readonly columns: UiDataTableColumn[] = [
-    { label: this.t('tracks.col.name'), className: 'col-name', width: '180px' },
-    { label: this.t('tracks.original'), className: 'col-original' },
-    { label: this.t('tracks.owner'), className: 'col-owner', width: '120px' },
+  /** Owner only tells something once a subscribed track is in the list. */
+  readonly showOwner = computed(() => this.filteredTracks().some(track => this.isSubscribed(track)));
+
+  readonly showStatus = computed(() =>
+    this.filteredTracks().some(track => this.isSubscribed(track) || this.showSessionBadge(track)),
+  );
+
+  readonly columns = computed<UiDataTableColumn[]>(() => [
+    { label: this.t('tracks.col.name'), className: 'col-name' },
+    { label: this.t('tracks.original'), className: 'col-original', width: '30%' },
+    ...(this.showOwner()
+      ? [{ label: this.t('tracks.owner'), className: 'col-owner', width: '120px' }]
+      : []),
     { label: this.t('tracks.col.duration'), className: 'col-duration', width: '110px' },
-    { label: this.t('tracks.col.status'), className: 'col-status', width: '150px' },
+    ...(this.showStatus()
+      ? [{ label: this.t('tracks.col.status'), className: 'col-status', width: '150px' }]
+      : []),
     { label: '', className: 'col-actions', width: '96px' },
-  ];
+  ]);
+
+  readonly scopeTotal = computed(() => {
+    if (this.effectiveScope() === 'library') return this.tracks().length;
+    const scoped = this.scopedTrackIds();
+    return this.tracks().filter(track => track.id != null && scoped.has(track.id)).length;
+  });
 
   readonly filteredTracks = computed(() => {
     const query = this.search().trim().toLowerCase();
     const filter = this.filterMode();
     const sort = this.sortMode();
+    const sessionOnly = this.effectiveScope() === 'session';
+    const scoped = this.scopedTrackIds();
 
     const filtered = this.tracks().filter(track => {
+      const matchesScope = !sessionOnly || (track.id != null && scoped.has(track.id));
       const matchesSearch = !query || this.matchesSearch(track, query);
       const matchesFilter = this.matchesFilter(track, filter);
-      return matchesSearch && matchesFilter;
+      return matchesScope && matchesSearch && matchesFilter;
     });
 
     return [...filtered].sort((a, b) => this.compareTracks(a, b, sort));
@@ -120,6 +169,20 @@ export class TrackTableComponent {
     this.sortMode.set(value as TrackSortMode);
   }
 
+  setScope(value: TrackScope): void {
+    this.scope.set(value);
+  }
+
+  showSessionBadge(track: Track): boolean {
+    return this.effectiveScope() === 'library' && this.membership(track) != null;
+  }
+
+  membership(track: Track): SessionMembership {
+    if (this.sessionName() == null || track.id == null) return null;
+    if (this.sessionTrackIds().has(track.id)) return 'direct';
+    return this.scopedTrackIds().has(track.id) ? 'viaGroup' : null;
+  }
+
   trackByTrackId = (index: number, track: Track): number | string => track.id ?? index;
 
   menuItems(track: Track): ActionMenuItem[] {
@@ -131,6 +194,14 @@ export class TrackTableComponent {
 
     if (track.trackLink) {
       items.push({ id: 'open', label: this.t('tracks.openSource'), href: track.trackLink });
+    }
+
+    if (this.sessionName() != null) {
+      items.push(
+        this.membership(track) != null
+          ? { id: 'removeFromSession', label: this.t('scope.removeFromSession') }
+          : { id: 'addToSession', label: this.t('scope.addToSession') },
+      );
     }
 
     items.push({ id: 'delete', label: this.t('tracks.delete'), variant: 'danger', disabled: subscribed });
@@ -149,6 +220,12 @@ export class TrackTableComponent {
       case 'delete':
         this.remove.emit(track);
         break;
+      case 'addToSession':
+        this.addToSession.emit(track);
+        break;
+      case 'removeFromSession':
+        this.removeFromSession.emit(track);
+        break;
     }
   }
 
@@ -166,10 +243,7 @@ export class TrackTableComponent {
   }
 
   formatDuration(seconds?: number): string {
-    if (seconds == null) return '—';
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
+    return formatDuration(seconds);
   }
 
   private matchesSearch(track: Track, query: string): boolean {

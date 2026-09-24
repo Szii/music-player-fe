@@ -31,6 +31,7 @@ import { UiListToolbarComponent } from '../../../../shared/ui/list-toolbar/ui-li
 import { PreviewButtonComponent } from '../../../../shared/ui/preview-button/preview-button.component';
 import { persistentSignal } from '../../../../shared/utils/persistent-signal';
 import { previewMidpointS as midpointS } from '../../../../shared/utils/preview';
+import { formatDuration } from '../../../../shared/utils/duration';
 
 export interface GroupTracksSaveEvent {
   group: Group;
@@ -38,7 +39,7 @@ export interface GroupTracksSaveEvent {
   items: GroupTrackRequest[];
 }
 
-type TrackFilterMode = 'all' | 'selected';
+type TrackFilterMode = 'all' | 'selected' | 'session';
 type EditorMode = 'select' | 'arrange';
 
 /** One ordered entry in the group: a whole track or one of its windows. */
@@ -88,6 +89,7 @@ export class GroupTracksEditorComponent {
 
   readonly group = input.required<Group>();
   readonly tracks = input<Track[]>([]);
+  readonly sessionTrackIds = input<ReadonlySet<string> | null>(null);
   readonly saving = input(false);
 
   readonly cancel = output<void>();
@@ -112,10 +114,18 @@ export class GroupTracksEditorComponent {
     () => new Set(this.items().map(item => item.trackId)),
   );
 
-  readonly filterOptions = [
+  readonly filterOptions = computed(() => [
     { label: this.t('common.all'), value: 'all' },
     { label: this.t('groups.selectedOnly'), value: 'selected' },
-  ];
+    ...(this.sessionTrackIds() != null
+      ? [{ label: this.t('scope.inThisSession'), value: 'session' }]
+      : []),
+  ]);
+
+  readonly effectiveFilterMode = computed<TrackFilterMode>(() => {
+    const mode = this.filterMode();
+    return mode === 'session' && this.sessionTrackIds() == null ? 'all' : mode;
+  });
 
   readonly selectedCount = computed(() => this.items().length);
 
@@ -127,12 +137,15 @@ export class GroupTracksEditorComponent {
 
   readonly filteredTracks = computed(() => {
     const q = this.search().trim().toLowerCase();
-    const mode = this.filterMode();
+    const mode = this.effectiveFilterMode();
     const selected = this.selectedTrackIds();
+    const inSession = this.sessionTrackIds();
 
     return this.tracks().filter(track => {
       const matchesFilter =
-        mode === 'all' || (track.id != null && selected.has(track.id));
+        mode === 'all' ||
+        (mode === 'selected' && track.id != null && selected.has(track.id)) ||
+        (mode === 'session' && track.id != null && inSession != null && inSession.has(track.id));
 
       if (!matchesFilter) return false;
       if (!q) return true;
@@ -326,18 +339,7 @@ export class GroupTracksEditorComponent {
   }
 
   formatDuration(seconds?: number): string {
-    if (seconds == null) return '—';
-
-    const safe = Math.max(0, Math.floor(seconds));
-    const h = Math.floor(safe / 3600);
-    const m = Math.floor((safe % 3600) / 60);
-    const s = safe % 60;
-
-    if (h > 0) {
-      return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-    }
-
-    return `${m}:${String(s).padStart(2, '0')}`;
+    return formatDuration(seconds);
   }
 
   trackById(_index: number, track: Track): string | number {

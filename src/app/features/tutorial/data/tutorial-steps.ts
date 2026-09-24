@@ -17,22 +17,16 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
     alt: 'tutorial.overview.alt',
   },
   {
-    title: 'tutorial.intro.title',
-    body: 'tutorial.intro.body',
-    image: '/tutorial/promo.webp',
-    alt: 'tutorial.intro.alt',
+    title: 'tutorial.sessions.title',
+    body: 'tutorial.sessions.body',
+    image: '/tutorial/session-create.webp',
+    alt: 'tutorial.sessions.alt',
   },
   {
     title: 'tutorial.welcome.title',
     body: 'tutorial.welcome.body',
-    image: '/tutorial/tracks-create.webp',
-    alt: 'tutorial.welcome.alt',
-  },
-  {
-    title: 'tutorial.addTrack.title',
-    body: 'tutorial.addTrack.body',
     image: '/tutorial/track-create-popup.webp',
-    alt: 'tutorial.addTrack.alt',
+    alt: 'tutorial.welcome.alt',
   },
   {
     title: 'tutorial.manageTracks.title',
@@ -49,38 +43,14 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
   {
     title: 'tutorial.groups.title',
     body: 'tutorial.groups.body',
-    image: '/tutorial/group-create.webp',
-    alt: 'tutorial.groups.alt',
-  },
-  {
-    title: 'tutorial.groupName.title',
-    body: 'tutorial.groupName.body',
-    image: '/tutorial/groups-create-popup.webp',
-    alt: 'tutorial.groupName.alt',
-  },
-  {
-    title: 'tutorial.groupTracks.title',
-    body: 'tutorial.groupTracks.body',
     image: '/tutorial/groups-add-track.webp',
-    alt: 'tutorial.groupTracks.alt',
-  },
-  {
-    title: 'tutorial.sessions.title',
-    body: 'tutorial.sessions.body',
-    image: '/tutorial/session-create.webp',
-    alt: 'tutorial.sessions.alt',
+    alt: 'tutorial.groups.alt',
   },
   {
     title: 'tutorial.stages.title',
     body: 'tutorial.stages.body',
-    image: '/tutorial/boards-create.webp',
+    image: '/tutorial/promo.webp',
     alt: 'tutorial.stages.alt',
-  },
-  {
-    title: 'tutorial.createStage.title',
-    body: 'tutorial.createStage.body',
-    image: '/tutorial/boards-create-popup.webp',
-    alt: 'tutorial.createStage.alt',
   },
   {
     title: 'tutorial.playStage.title',
@@ -118,6 +88,7 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
       { question: 'tutorial.faq.q6', answer: 'tutorial.faq.a6' },
       { question: 'tutorial.faq.q7', answer: 'tutorial.faq.a7' },
       { question: 'tutorial.faq.q8', answer: 'tutorial.faq.a8' },
+      { question: 'tutorial.faq.q9', answer: 'tutorial.faq.a9' },
     ],
   },
 ];
