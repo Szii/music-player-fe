@@ -11,10 +11,10 @@
   </ui-page-title>
 
   <div class="workshop-page__mobile-action">
-    <normal-button type="button" variant="secondary" (clicked)="openMySubscriptions()">
+    <normal-button type="button" variant="secondary" [fullWidth]="true" (clicked)="openMySubscriptions()">
       {{ 'workshop.mySubscriptions' | transloco }}
     </normal-button>
-    <normal-button type="button" (clicked)="openMySessions()">
+    <normal-button type="button" [fullWidth]="true" (clicked)="openMySessions()">
       {{ 'workshop.mySessions' | transloco }}
     </normal-button>
   </div>

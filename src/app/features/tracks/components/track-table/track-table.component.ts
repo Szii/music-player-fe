@@ -29,7 +29,7 @@ import { persistentSignal } from '../../../../shared/utils/persistent-signal';
 import { previewMidpointS } from '../../../../shared/utils/preview';
 import { formatDuration } from '../../../../shared/utils/duration';
 
-type TrackFilterMode = 'all' | 'withWindows' | 'withoutWindows';
+type TrackFilterMode = 'all' | 'withWindows' | 'withoutWindows' | 'notInSession';
 
 type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
 
@@ -96,11 +96,20 @@ export class TrackTableComponent {
   readonly filterMode = persistentSignal<TrackFilterMode>('mpf:tracks:filter', 'all');
   readonly sortMode = persistentSignal<TrackSortMode>('mpf:tracks:sort', 'nameAsc');
 
-  readonly filterOptions = [
+  private readonly canFilterBySession = computed(() =>
+    this.sessionName() != null && this.effectiveScope() === 'library',
+  );
+
+  readonly filterOptions = computed(() => [
     { label: this.t('tracks.filter.all'), value: 'all' },
     { label: this.t('tracks.filter.withWindows'), value: 'withWindows' },
     { label: this.t('tracks.filter.withoutWindows'), value: 'withoutWindows' },
-  ];
+    ...(this.canFilterBySession() ? [{ label: this.t('scope.notInSession'), value: 'notInSession' }] : []),
+  ]);
+
+  readonly effectiveFilter = computed<TrackFilterMode>(() =>
+    this.filterMode() === 'notInSession' && !this.canFilterBySession() ? 'all' : this.filterMode(),
+  );
 
   readonly sortOptions = [
     { label: this.t('sort.nameAsc'), value: 'nameAsc' },
@@ -131,7 +140,7 @@ export class TrackTableComponent {
 
   readonly filteredTracks = computed(() => {
     const query = this.search().trim().toLowerCase();
-    const filter = this.filterMode();
+    const filter = this.effectiveFilter();
     const sort = this.sortMode();
     const sessionOnly = this.effectiveScope() === 'session';
     const scoped = this.scopedTrackIds();
@@ -245,6 +254,8 @@ export class TrackTableComponent {
         return (track.trackWindows?.length ?? 0) > 0;
       case 'withoutWindows':
         return (track.trackWindows?.length ?? 0) === 0;
+      case 'notInSession':
+        return this.membership(track) == null;
       case 'all':
       default:
         return true;

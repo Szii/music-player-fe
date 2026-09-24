@@ -47,7 +47,7 @@ import { ToastService } from '../../../../shared/features/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/features/confirm-dialog/confirm-dialog.service';
 import { httpErrorMessage } from '../../../../shared/utils/http-error';
 
-type GroupFilterMode = 'all' | 'empty' | 'withTracks';
+type GroupFilterMode = 'all' | 'empty' | 'withTracks' | 'notInSession';
 
 type GroupScope = 'session' | 'library';
 
@@ -151,11 +151,20 @@ export class GroupsPageComponent implements OnInit {
   readonly filterMode = persistentSignal<GroupFilterMode>('mpf:groups:filter', 'all');
   readonly sortMode = persistentSignal<GroupSortMode>('mpf:groups:sort', 'nameAsc');
 
-  readonly filterOptions = [
+  private readonly canFilterBySession = computed(() =>
+    this.sessionName() != null && this.effectiveScope() === 'library',
+  );
+
+  readonly filterOptions = computed(() => [
     { label: this.t('groups.filter.all'), value: 'all' },
     { label: this.t('groups.withTracks'), value: 'withTracks' },
     { label: this.t('groups.filter.empty'), value: 'empty' },
-  ];
+    ...(this.canFilterBySession() ? [{ label: this.t('scope.notInSession'), value: 'notInSession' }] : []),
+  ]);
+
+  readonly effectiveFilter = computed<GroupFilterMode>(() =>
+    this.filterMode() === 'notInSession' && !this.canFilterBySession() ? 'all' : this.filterMode(),
+  );
 
   readonly sortOptions = [
     { label: this.t('sort.nameAsc'), value: 'nameAsc' },
@@ -172,7 +181,7 @@ export class GroupsPageComponent implements OnInit {
 
   readonly filteredGroups = computed<Group[]>(() => {
     const query = this.search().trim().toLowerCase();
-    const filter = this.filterMode();
+    const filter = this.effectiveFilter();
     const sort = this.sortMode();
     const sessionOnly = this.effectiveScope() === 'session';
     const sessionGroupIds = this.sessionGroupIds();
@@ -192,7 +201,8 @@ export class GroupsPageComponent implements OnInit {
       const matchesFilter =
         filter === 'all' ||
         (filter === 'empty' && trackCount === 0) ||
-        (filter === 'withTracks' && trackCount > 0);
+        (filter === 'withTracks' && trackCount > 0) ||
+        (filter === 'notInSession' && !this.isInSession(group));
 
       return matchesSearch && matchesFilter;
     });
