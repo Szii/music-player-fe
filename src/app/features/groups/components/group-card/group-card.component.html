@@ -6,18 +6,20 @@
     </span>
 
     <div class="group-card__header-actions">
-      @if (hasSession() && inSession() && showSessionBadge()) {
-        <ui-chip variant="primary" size="sm">{{ 'scope.inSession' | transloco }}</ui-chip>
-      }
-      <ui-chip
-        class="group-card__count"
-        [variant]="trackCount() > 0 ? 'success' : 'gold'"
-        size="sm"
-        shape="hex"
-        [dot]="true"
-      >
-        {{ trackCountLabel() }}
-      </ui-chip>
+      <div class="group-card__chips">
+        @if (hasSession() && inSession() && showSessionBadge()) {
+          <ui-chip variant="primary" size="sm">{{ 'scope.inSession' | transloco }}</ui-chip>
+        }
+        <ui-chip
+          class="group-card__count"
+          [variant]="trackCount() > 0 ? 'success' : 'gold'"
+          size="sm"
+          shape="hex"
+          [dot]="true"
+        >
+          {{ trackCountLabel() }}
+        </ui-chip>
+      </div>
 
       <ui-action-menu
         [items]="menuItems()"

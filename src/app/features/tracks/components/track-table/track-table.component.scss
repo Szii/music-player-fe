@@ -73,3 +73,17 @@ ui-list-toolbar {
   justify-content: center;
   gap: 4px;
 }
+
+.app-entity-list__head {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+.app-entity-list__head .app-entity-list__title {
+  flex-basis: 100%;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: break-word;
+}

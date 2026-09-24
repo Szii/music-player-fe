@@ -31,21 +31,25 @@
 .group-card__header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 14px;
+  grid-template-areas:
+    'title menu'
+    'chips menu';
+  align-items: start;
+  gap: 6px 14px;
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
 }
 
 .group-card__title {
+  grid-area: title;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   font-weight: 700;
   font-size: 1.05rem;
   line-height: 1.25;
@@ -53,9 +57,19 @@
 }
 
 .group-card__header-actions {
+  display: contents;
+}
+
+.group-card__header-actions > ui-action-menu {
+  grid-area: menu;
+}
+
+.group-card__chips {
+  grid-area: chips;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -79,8 +93,6 @@
   color: var(--app-danger);
 }
 
-/* Chip stays top-right with the title ellipsizing (same as the shared
-   entity-list head), so the header needs no narrow-screen collapse. */
 @media (max-width: 640px) {
   .group-card {
     padding: 18px 20px;
