@@ -34,7 +34,9 @@
       <div class="board-card__summary-content">
         <div class="board-card__summary-top">
           <div class="board-card__title-wrap">
-            @if (!renaming()) {
+            @if (locked()) {
+              <span class="board-card__title">{{ board().name || ('stages.card.unnamed' | transloco) }}</span>
+            } @else if (!renaming()) {
               <span
                 class="board-card__title"
                 [title]="'stages.card.renameHint' | transloco"
@@ -192,13 +194,15 @@
     </div>
 
     <div class="board-card__summary-actions">
-      <app-icon-button
-        icon="delete"
-        [label]="'stages.card.delete' | transloco"
-        variant="danger"
-        size="md"
-        (clicked)="delete.emit()"
-      />
+      @if (!locked()) {
+        <app-icon-button
+          icon="delete"
+          [label]="'stages.card.delete' | transloco"
+          variant="danger"
+          size="md"
+          (clicked)="delete.emit()"
+        />
+      }
 
       <button
         #chevronBtn
@@ -235,7 +239,8 @@
               type="button"
               class="board-mode-switch__btn"
               [class.board-mode-switch__btn--active]="!playlistMode()"
-              [title]="'stages.mode.singleTitle' | transloco"
+              [disabled]="locked()"
+              [title]="(locked() ? 'stages.card.lockedHint' : 'stages.mode.singleTitle') | transloco"
               (mousedown)="$event.preventDefault()"
               (click)="setPlaylistTab(false)">
               ♫ {{ 'stages.mode.single' | transloco }}
@@ -244,40 +249,42 @@
               type="button"
               class="board-mode-switch__btn"
               [class.board-mode-switch__btn--active]="playlistMode()"
-              [disabled]="!canUsePlaylist() && !playlistMode()"
-              [attr.title]="playlistButtonTitle()"
+              [disabled]="locked() || (!canUsePlaylist() && !playlistMode())"
+              [attr.title]="locked() ? ('stages.card.lockedHint' | transloco) : playlistButtonTitle()"
               (mousedown)="$event.preventDefault()"
               (click)="setPlaylistTab(true)">
               ♫ {{ 'stages.mode.playlist' | transloco }}
             </button>
           </div>
 
-          <div
-            class="board-mode-switch"
-            role="group"
-            [attr.aria-label]="'stages.card.pickFrom' | transloco"
-          >
-            <button
-              type="button"
-              class="board-mode-switch__btn"
-              [class.board-mode-switch__btn--active]="!browseLibrary()"
-              [attr.aria-pressed]="!browseLibrary()"
-              [title]="'stages.card.scopeSessionTip' | transloco"
-              (mousedown)="$event.preventDefault()"
-              (click)="setBrowseLibrary(false)">
-              ◉ {{ 'stages.card.scopeSession' | transloco }}
-            </button>
-            <button
-              type="button"
-              class="board-mode-switch__btn"
-              [class.board-mode-switch__btn--active]="browseLibrary()"
-              [attr.aria-pressed]="browseLibrary()"
-              [title]="'stages.card.scopeLibraryTip' | transloco"
-              (mousedown)="$event.preventDefault()"
-              (click)="setBrowseLibrary(true)">
-              ▤ {{ 'stages.card.scopeLibrary' | transloco }}
-            </button>
-          </div>
+          @if (!locked()) {
+            <div
+              class="board-mode-switch"
+              role="group"
+              [attr.aria-label]="'stages.card.pickFrom' | transloco"
+            >
+              <button
+                type="button"
+                class="board-mode-switch__btn"
+                [class.board-mode-switch__btn--active]="!browseLibrary()"
+                [attr.aria-pressed]="!browseLibrary()"
+                [title]="'stages.card.scopeSessionTip' | transloco"
+                (mousedown)="$event.preventDefault()"
+                (click)="setBrowseLibrary(false)">
+                ◉ {{ 'stages.card.scopeSession' | transloco }}
+              </button>
+              <button
+                type="button"
+                class="board-mode-switch__btn"
+                [class.board-mode-switch__btn--active]="browseLibrary()"
+                [attr.aria-pressed]="browseLibrary()"
+                [title]="'stages.card.scopeLibraryTip' | transloco"
+                (mousedown)="$event.preventDefault()"
+                (click)="setBrowseLibrary(true)">
+                ▤ {{ 'stages.card.scopeLibrary' | transloco }}
+              </button>
+            </div>
+          }
           </div>
 
           <div class="board-card__header-actions">
@@ -324,6 +331,9 @@
                   <div class="board-settings-menu__title">
                     {{ 'stages.settings.title' | transloco }}
                   </div>
+                  @if (locked()) {
+                    <p class="board-settings-menu__locked">{{ 'stages.settings.lockedHint' | transloco }}</p>
+                  }
 
                   <div class="board-settings-menu__items">
                     @if (playlistMode()) {
@@ -339,6 +349,7 @@
                         <input
                           type="checkbox"
                           [checked]="playlistOptions().random"
+                          [disabled]="locked()"
                           (change)="onPlaylistRandomToggle()" />
                       </label>
                     } @else {
@@ -352,7 +363,7 @@
                         <ui-inline-select
                           class="board-loop-select"
                           [ariaLabel]="'stages.settings.loopMode' | transloco"
-                          [options]="loopModeChoices()"
+                          [options]="loopModeOptions()"
                           [value]="loopMode()"
                           (valueChange)="onLoopModeSelected($event)" />
                       </div>
@@ -370,6 +381,7 @@
                       <input
                         type="checkbox"
                         [checked]="board().overplay ?? false"
+                        [disabled]="locked()"
                         (change)="toggleOverplay.emit()" />
                     </label>
 
@@ -434,9 +446,12 @@
         </div>
 
         <div class="board-card__controls">
-          <div class="board-field">
+          <div class="board-field" [attr.title]="locked() ? ('stages.card.lockedHint' | transloco) : null">
             <span class="board-field__label">
               {{ 'stages.card.group' | transloco }}
+              @if (locked()) {
+                <span class="board-field__lock" aria-hidden="true">🔒︎</span>
+              }
               @if (groupDesynced()) {
                 <span
                   class="board-field__desync"
@@ -453,6 +468,7 @@
               [navigateUpWhenClosed]="true"
               [options]="groupOptions()"
               [nullOption]="allTracksLabel()"
+              [disabled]="locked()"
               [ngModel]="board().selectedGroup?.id ?? null"
               [ngModelOptions]="{ standalone: true }"
               (ngModelChange)="groupChange.emit($event)"
@@ -523,9 +539,14 @@
 
           @if (!playlistMode()) {
             <div class="board-after-end">
-              <div class="board-field board-after-end__field">
+              <div
+                class="board-field board-after-end__field"
+                [attr.title]="locked() ? ('stages.card.lockedHint' | transloco) : null">
                 <span class="board-field__label" [id]="afterEndLabelId">
                   {{ 'stages.card.afterEnd' | transloco }}
+                  @if (locked()) {
+                    <span class="board-field__lock" aria-hidden="true">🔒︎</span>
+                  }
                 </span>
                 <ui-select
                   class="board-control"
@@ -534,7 +555,7 @@
                   [enableSearch]="false"
                   [options]="afterEndOptions()"
                   [nullOption]="'stages.card.afterEndNothing' | transloco"
-                  [disabled]="afterEndBlockedByLoop()"
+                  [disabled]="locked() || afterEndBlockedByLoop()"
                   [ngModel]="afterEndValue()"
                   [ngModelOptions]="{ standalone: true }"
                   (ngModelChange)="onAfterEndChange($event)"
@@ -547,7 +568,7 @@
               @if (afterEndHint(); as hint) {
                 <p class="board-after-end__hint" [id]="afterEndHintId">
                   {{ hint }}
-                  @if (afterEndBlockedByLoop()) {
+                  @if (afterEndBlockedByLoop() && !locked()) {
                     <button
                       type="button"
                       class="board-after-end__action"

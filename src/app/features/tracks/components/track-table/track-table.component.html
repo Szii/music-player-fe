@@ -51,7 +51,7 @@
         [tableClass]="'app-table--tracks'"
       >
         <ng-template let-track>
-          <tr [class.track-row--subscribed]="isSubscribed(track)">
+          <tr>
             <td class="col-name">
               <span
                 class="cell-text cell-text--strong cell-text--wrap"
@@ -70,14 +70,6 @@
               </span>
             </td>
 
-            @if (showOwner()) {
-              <td class="col-owner">
-                <span class="cell-text cell-text--muted cell-text--truncate">
-                  {{ track.owner?.name || '—' }}
-                </span>
-              </td>
-            }
-
             <td class="col-duration col-num">
               {{ formatDuration(track.duration) }}
             </td>
@@ -85,9 +77,6 @@
             @if (showStatus()) {
               <td class="col-status">
                 <div class="col-status__chips">
-                  @if (isSubscribed(track)) {
-                    <ui-chip variant="success" size="sm" shape="hex" [dot]="true">{{ 'tracks.subscribed' | transloco }}</ui-chip>
-                  }
                   @if (showSessionBadge(track)) {
                     <ui-chip variant="primary" size="sm">{{ 'scope.inSession' | transloco }}</ui-chip>
                   }
@@ -118,17 +107,11 @@
            truncated with an ellipsis to signal it continues. -->
       <ul class="app-entity-list" role="list">
         @for (track of filteredTracks(); track trackByTrackId($index, track)) {
-          <li
-            class="app-entity-list__item"
-            [class.is-subscribed]="isSubscribed(track)"
-          >
+          <li class="app-entity-list__item">
             <div class="app-entity-list__head">
               <span class="app-entity-list__title" [title]="displayName(track)">
                 {{ displayName(track) }}
               </span>
-              @if (isSubscribed(track)) {
-                <ui-chip variant="success" size="sm" shape="hex" [dot]="true">{{ 'tracks.subscribed' | transloco }}</ui-chip>
-              }
               @if (showSessionBadge(track)) {
                 <ui-chip variant="primary" size="sm">{{ 'scope.inSession' | transloco }}</ui-chip>
               }
@@ -141,8 +124,6 @@
             }
 
             <div class="app-entity-list__meta">
-              <span>{{ track.owner?.name || '—' }}</span>
-              <span class="app-entity-list__sep" aria-hidden="true">·</span>
               <span>{{ formatDuration(track.duration) }}</span>
               <!-- "Open" is intentionally omitted here: it's already in the
                    kebab menu (menuItems adds "Open source ↗"). -->

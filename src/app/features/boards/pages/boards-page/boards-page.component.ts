@@ -1,4 +1,4 @@
-import { Component, DestroyRef, ElementRef, OnDestroy, OnInit, QueryList, ViewChild, ViewChildren, computed, effect, inject, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, OnDestroy, OnInit, QueryList, ViewChild, ViewChildren, computed, effect, inject, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { Subject, forkJoin, of } from 'rxjs';
@@ -125,8 +125,10 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   private readonly groupsStore = inject(GroupsStore);
 
   readonly boards = signal<Board[]>([]);
-  readonly tracks = this.tracksStore.tracks;
-  readonly groups = this.groupsStore.groups;
+  readonly subscription = this.sessionsStore.selectedSubscription;
+  readonly readOnly = computed(() => this.subscription() != null);
+  readonly tracks = computed(() => this.subscription()?.tracks ?? this.tracksStore.tracks());
+  readonly groups = computed(() => this.subscription()?.groups ?? this.groupsStore.groups());
   readonly loading = signal(false);
   readonly errorMessage = signal('');
   readonly createBoardSubmitting = signal(false);
@@ -281,6 +283,42 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       }
       this.boards.set(surviving);
     });
+
+    effect(() => {
+      if (!this.sessionsStore.loaded()) return;
+      const shared = this.sessionsStore.sessions().filter(s => s.readOnly && s.sessionId != null);
+
+      untracked(() => {
+        for (const session of shared) {
+          const local = this.boards().filter(b => b.sessionId === session.sessionId);
+          if (!sameBoardIds(local, session.boards ?? [])) {
+            this.replaceSessionBoards(session);
+          }
+        }
+      });
+    });
+  }
+
+  updateSharedSession(): void {
+    const session = this.sessionsStore.selectedSession();
+    if (session) this.sessionActions.update(session);
+  }
+
+  private replaceSessionBoards(session: SessionResponse): void {
+    const sessionId = session.sessionId;
+    if (sessionId == null) return;
+
+    for (const stale of this.boards()) {
+      if (stale.sessionId !== sessionId || stale.id == null) continue;
+      this.clearBoard(stale.id);
+      this.removeBoardLocalState(stale.id);
+    }
+
+    const fresh = this.stampSessionId(session.boards ?? [], sessionId);
+    this.prepareBoards(fresh);
+    this.boards.update(current =>
+      this.sortBoards([...current.filter(b => b.sessionId !== sessionId), ...fresh]),
+    );
   }
 
   ngOnInit(): void {
@@ -2089,6 +2127,12 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     });
   }
 
+}
+
+function sameBoardIds(a: Board[], b: Board[]): boolean {
+  if (a.length !== b.length) return false;
+  const ids = new Set(a.map(board => board.id));
+  return b.every(board => ids.has(board.id));
 }
 
 function clampPct(value: number | null | undefined): number {

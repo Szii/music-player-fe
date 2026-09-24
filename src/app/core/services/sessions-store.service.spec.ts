@@ -1,8 +1,8 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Observable, of } from 'rxjs';
+import { Observable, Subject, of } from 'rxjs';
 
-import { SessionsResponse, SessionsService } from '../../api/generated';
+import { SessionsResponse, SessionsService, ShareService } from '../../api/generated';
 import { SessionService } from '../auth/session.service';
 import { SessionsStore } from './sessions-store.service';
 import { GroupsStore } from './groups-store.service';
@@ -19,22 +19,25 @@ class SessionsServiceStub {
 }
 
 class SessionServiceStub {
-  readonly logout$ = new Observable<void>();
+  readonly logout$ = new Subject<void>();
 }
 
 describe('SessionsStore.load', () => {
   let api: SessionsServiceStub;
+  let session: SessionServiceStub;
   let store: SessionsStore;
 
   beforeEach(() => {
     localStorage.clear();
     api = new SessionsServiceStub();
+    session = new SessionServiceStub();
 
     TestBed.configureTestingModule({
       providers: [
         SessionsStore,
         { provide: SessionsService, useValue: api },
-        { provide: SessionService, useValue: new SessionServiceStub() },
+        { provide: ShareService, useValue: {} },
+        { provide: SessionService, useValue: session },
         { provide: GroupsStore, useValue: { groups: signal([]) } },
       ],
     });
@@ -65,6 +68,20 @@ describe('SessionsStore.load', () => {
     expect(emitted?.sessions?.length).toBe(2);
     expect(store.hasSessions()).toBe(true);
     expect(store.selectedSessionId()).toBe('7');
+  });
+
+  it('restores the selected session after logging out and back in', () => {
+    api.response = { sessions: [{ sessionId: '7' }, { sessionId: '9' }] };
+    store.load().subscribe();
+
+    store.selectSession('9');
+    TestBed.flushEffects();
+    session.logout$.next();
+    TestBed.flushEffects();
+
+    store.load().subscribe();
+
+    expect(store.selectedSessionId()).toBe('9');
   });
 
   // On cold start the navbar's profile menu and the always-alive boards page both

@@ -108,7 +108,24 @@
     "counts": "tracks: {{tracks}} · groups: {{groups}}",
     "switchPlayingTitle": "Switch session?",
     "switchPlayingMessage": "Switching to {{name}} stops everything that is playing.",
-    "switchPlayingConfirm": "Switch"
+    "switchPlayingConfirm": "Switch",
+    "shared": {
+      "badge": "Shared",
+      "updateBadge": "Update available",
+      "unsubscribe": "Unsubscribe",
+      "unsubscribeConfirm": "Unsubscribe from \"{{name}}\"? The session and its stages are removed from your account.",
+      "unsubscribed": "Unsubscribed from session.",
+      "update": "Update",
+      "updated": "Session updated.",
+      "syncFailed": "Syncing the session failed.",
+      "banner": "Shared by {{owner}} · v{{version}}",
+      "noStages": "This shared session has no stages.",
+      "readOnlyHint": "Stages of a shared session are read-only apart from playback.",
+      "updateTo": "Update to v{{version}}",
+      "unpublishedShort": "no longer published",
+      "stagesOnly": "“{{name}}” is shared by {{owner}}. Its tracks and groups are available on its stages.",
+      "stagesOnlyTitle": "Shared session"
+    }
   },
   "stages": {
     "title": "Stages",
@@ -166,7 +183,8 @@
       "scopeLibraryTip": "Pick from all your tracks and groups. Whatever you pick is added to this session.",
       "allSessionTracks": "All session tracks",
       "allLibraryTracks": "All library tracks",
-      "turnLoopOff": "Turn loop off"
+      "turnLoopOff": "Turn loop off",
+      "lockedHint": "Set by the session owner"
     },
     "mode": {
       "single": "Single",
@@ -206,7 +224,8 @@
       "shortcutHint": "Toggle play/stop from the keyboard",
       "shortcutCapturing": "Press a key combination (Esc to cancel)",
       "listening": "Listening…",
-      "noShortcut": "None"
+      "noShortcut": "None",
+      "lockedHint": "This stage comes from a shared session. Only the keyboard shortcut can be changed."
     },
     "warn": {
       "emptyGroup": "This group has no tracks to play. Pick a group that has tracks.",
@@ -297,7 +316,7 @@
       "groups": "Groups",
       "tracks": "Tracks",
       "sessions": "Sessions",
-      "subscribedTracks": "Subscribed tracks",
+      "subscribedSessions": "Subscribed sessions",
       "perSessionBoards": "Per-session stage quotas ({{count}})",
       "perTrackWindows": "Per-track window quotas ({{count}})",
       "noSessions": "No active sessions yet.",
@@ -348,7 +367,6 @@
     "invalidValue": "Invalid value.",
     "original": "Original name",
     "owner": "Owner",
-    "subscribed": "Subscribed",
     "own": "Own",
     "stopPlaybackTitle": "Stop playback?",
     "stopPlaybackMessage": "Opening the window editor will stop all playing stages. Continue?",
@@ -361,10 +379,8 @@
     },
     "filter": {
       "all": "All tracks",
-      "own": "My tracks",
       "withWindows": "With windows",
-      "withoutWindows": "Without windows",
-      "published": "Published"
+      "withoutWindows": "Without windows"
     },
     "msg": {
       "created": "Track created.",
@@ -374,7 +390,6 @@
     },
     "err": {
       "loadOwn": "Loading your tracks failed.",
-      "loadSubscribed": "Loading subscribed tracks failed.",
       "create": "Creating track failed.",
       "update": "Updating track failed.",
       "delete": "Deleting track failed.",
@@ -516,7 +531,6 @@
     "noTracksTitle": "No tracks available yet",
     "noTracksMsg": "Add a track of your own, or subscribe to one shared by another user, then come back to add it to this group.",
     "addTrack": "Add a track",
-    "browseWorkshop": "Browse shared tracks",
     "deleteConfirm": "Delete group \"{{name}}\"?",
     "msg": {
       "deleted": "Group deleted.",
@@ -542,15 +556,18 @@
   "workshop": {
     "title": "Sharing",
     "loading": "Loading…",
-    "myTracks": "My tracks",
-    "myTracksSubtitle": "Publish your tracks so other users can find and subscribe to them.",
-    "searchMyTracks": "Search tracks by name",
-    "searchShared": "Search shared tracks",
-    "emptyMsg": "Add a track first, then you can publish it here for other users to find and subscribe to.",
+    "mySessions": "My sessions",
+    "mySessionsSubtitle": "Publish your sessions so other users can subscribe to them. Subscribers get a read-only copy and can update it whenever you publish a new version.",
+    "searchMySessions": "Search sessions",
+    "searchShared": "Search shared sessions",
+    "emptyMsg": "Create a session first, then you can publish it here.",
+    "noOwnSessions": "No sessions yet",
     "published": "Published",
     "unpublished": "Private",
-    "inscribed": "Subscribed",
     "publish": "Publish",
+    "publishUpdate": "Publish update",
+    "publishUpdateConfirm": "Publish the current state of \"{{name}}\" as version {{version}}? Subscribers will be offered the update.",
+    "editDescription": "Edit description",
     "unpublish": "Unpublish",
     "subscribe": "Subscribe",
     "unsubscribe": "Unsubscribe",
@@ -558,31 +575,54 @@
     "subscriberCount": "subscribers: {{count}}",
     "description": "Description",
     "optional": "(optional)",
-    "descriptionPlaceholder": "What is this track for?",
-    "publishTitle": "Publish track",
+    "descriptionPlaceholder": "What is this session for?",
+    "publishTitle": "Publish session",
+    "publishHint": "Subscribers get the session as it is now. Later changes reach them only when you publish an update.",
     "publishConfirm": "Publish \"{{name}}\"?",
-    "unpublishTitle": "Unpublish track",
-    "unpublishConfirm": "Unpublish \"{{name}}\"? Its subscribers lose access, and it disappears from their groups and stages.",
-    "unsubscribeTitle": "Unsubscribe from track",
-    "unsubscribeConfirm": "Unsubscribe from \"{{name}}\"? It is also removed from your groups, stages and sessions.",
+    "unpublishTitle": "Unpublish session",
+    "unpublishConfirm": "Unpublish \"{{name}}\"? It disappears from the catalog. Current subscribers keep their copy but get no more updates.",
+    "filter": {
+      "all": "All sessions"
+    },
+    "sort": {
+      "updatedDesc": "Recently updated"
+    },
+    "col": {
+      "session": "Session",
+      "content": "Content",
+      "version": "Version"
+    },
+    "content": "stages: {{boards}} · tracks: {{tracks}} · groups: {{groups}}",
+    "noMatches": "No sessions match your search.",
     "msg": {
-      "published": "Track published.",
-      "unpublished": "Track unpublished.",
-      "subscribed": "Subscribed to track.",
-      "unsubscribed": "Unsubscribed from track.",
-      "alreadyPublished": "Track is already published.",
-      "alreadySubscribed": "Already subscribed or invalid code."
+      "published": "Session published.",
+      "updatePublished": "New version published.",
+      "descriptionSaved": "Description saved.",
+      "unpublished": "Session unpublished.",
+      "subscribed": "Subscribed to \"{{name}}\". It is now selected.",
+      "catalogStale": "The catalog was out of date and has been reloaded."
     },
     "err": {
-      "loadPublished": "Loading published tracks failed.",
-      "loadData": "Loading sharing data failed.",
+      "loadPublished": "Loading published sessions failed.",
       "publish": "Publishing failed.",
+      "description": "Saving the description failed.",
       "unpublish": "Unpublishing failed.",
-      "subscribe": "Subscribe failed.",
-      "unsubscribe": "Unsubscribing failed.",
-      "noShareCode": "No share code available."
+      "subscribe": "Subscribe failed."
     },
-    "nothingPublished": "Nothing is published right now."
+    "mySubscriptions": "My subscriptions",
+    "mySubscriptionsSubtitle": "Sessions you subscribed to. Update them when the owner publishes a new version, or restore them to undo your changes.",
+    "noSubscriptions": "You are not subscribed to any session yet.",
+    "nothingToSubscribe": "There is nothing new to subscribe to right now.",
+    "goToStages": "Go to stages",
+    "publishedVersion": "Published · v{{version}}",
+    "notPublishable": "Not ready",
+    "notPublishableHint": "Add at least one stage and one track to publish this session.",
+    "subscriptionStatus": {
+      "removed": "Removed by owner",
+      "unpublished": "No longer published",
+      "update": "Update available",
+      "current": "Up to date"
+    }
   },
   "auth": {
     "login": "Login",
@@ -709,8 +749,8 @@
     },
     "workshop": {
       "title": "Sharing",
-      "body": "Happy with a track and the windows you set on it? <strong>Publish</strong> it so other Sound Masters can subscribe to it, and browse what they have published.",
-      "alt": "Sharing \"My tracks\" dialog listing tracks with publish status and subscribers"
+      "body": "Built a session you are proud of? Open <strong>My sessions</strong> and <strong>publish</strong> it, so other Sound Masters can subscribe to its stages, tracks, groups and windows exactly as you set them up.<br><br>Subscribing adds the session to your <strong>session picker</strong>. Its stages are ready to play, but everything else is read-only, and its tracks never mix into your own library.<br><br>Improved your session? <strong>Publish an update</strong>. Subscribers see <strong>Update</strong> on their stages and get the new version in one click.",
+      "alt": "Sharing page listing published sessions with their owner, content, subscribers and status"
     },
     "profile": {
       "title": "Your profile",
@@ -726,8 +766,8 @@
       "a2": "No. A stage won't play until you hit start. You can even select a different group to prepare a new track selection while the stage is still playing, without changing the actual playback.",
       "q3": "What happens if I hit play on a stage while another stage is playing?",
       "a3": "By default the other stage stops while playback crossfades into the new one, so only one stage plays at a time. Enable <strong>Overplay</strong> in a stage’s playback settings to let it play <em>in parallel</em> with others instead.",
-      "q4": "Can other users edit the tracks I publish?",
-      "a4": "No. Other Sound Masters can subscribe to and play your published tracks. Only you can edit the original.",
+      "q4": "Can subscribers change a session I publish?",
+      "a4": "No. They can play its stages and adjust the volume and the playing track for themselves, but the stages, their modes, tracks and groups stay as you set them. Your own session is never touched.",
       "q5": "My track or window ends too abruptly and looping doesn't sound nice",
       "a5": "Go to <strong>Tracks</strong>, select the <strong>Edit windows</strong> option for the specific track and update the crossfade length for the window or the whole track.",
       "q6": "Sequence loop mode is not selectable on some tracks",
@@ -737,7 +777,9 @@
       "q8": "Background looping does not work at all",
       "a8": "This is mainly a problem with the YouTube IFrame API on mobile devices. The IFrame API does not provide a raw audio element that the underlying OS can process. But don't worry, there are workarounds. Try to <strong>minimise the browser window</strong> so it stays in focus, or <strong>turn on desktop mode</strong>.",
       "q9": "A track is missing from the stage pickers",
-      "a9": "Stages only list the <strong>tracks and groups of the current session</strong>. Switch the stage to <strong>Library</strong> and pick it there, or add it to the session from its row menu on the <strong>Tracks</strong> page."
+      "a9": "Stages only list the <strong>tracks and groups of the current session</strong>. Switch the stage to <strong>Library</strong> and pick it there, or add it to the session from its row menu on the <strong>Tracks</strong> page.",
+      "q10": "How do I remove a shared session?",
+      "a10": "Open the <strong>session picker</strong> and choose <strong>Unsubscribe</strong> next to it. This works even after the owner stops publishing it."
     }
   },
   "toast": {

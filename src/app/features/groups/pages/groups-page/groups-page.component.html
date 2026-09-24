@@ -2,71 +2,81 @@
 <div class="app-page group-page">
   <ui-page-title [title]="'groups.title' | transloco" />
 
-  <app-create-group-form
-    #createForm
-    [showTrigger]="groups().length > 0"
-    (groupCreateRequested)="createGroup($event)"
-  />
-
-  @if (errorMessage()) {
-    <ui-alert variant="danger">
-      {{ errorMessage() }}
-    </ui-alert>
-  }
-
-  @if (loading()) {
-    <div class="app-muted groups-page__loading">{{ 'groups.loading' | transloco }}</div>
-  } @else if (groups().length === 0) {
-    <ui-create-cta
-      [label]="'groups.createFirst' | transloco"
-      (clicked)="createForm.open()"
-    />
+  @if (subscription(); as sub) {
+    <ui-empty-state
+      [title]="'sessions.shared.stagesOnlyTitle' | transloco"
+      [message]="'sessions.shared.stagesOnly' | transloco: { name: sessionName(), owner: sub.owner?.name ?? '—' }"
+      [actions]="true"
+    >
+      <normal-button type="button" (clicked)="goToStages()">{{ 'workshop.goToStages' | transloco }}</normal-button>
+    </ui-empty-state>
   } @else {
-    @if (scopeOptions(); as options) {
-      <ui-segmented
-        class="groups-page__scope"
-        [options]="options"
-        [value]="effectiveScope()"
-        [ariaLabel]="'scope.label' | transloco"
-        (valueChange)="setScope($event)"
-      />
+    <app-create-group-form
+      #createForm
+      [showTrigger]="groups().length > 0"
+      (groupCreateRequested)="createGroup($event)"
+    />
+
+    @if (errorMessage()) {
+      <ui-alert variant="danger">
+        {{ errorMessage() }}
+      </ui-alert>
     }
 
-    <ui-list-toolbar
-      [(search)]="search"
-      [searchPlaceholder]="'groups.searchPlaceholder' | transloco"
-      [filterValue]="filterMode()"
-      [filterOptions]="filterOptions"
-      (filterValueChange)="setFilterMode($event)"
-      [sortValue]="sortMode()"
-      [sortOptions]="sortOptions"
-      (sortValueChange)="setSortMode($event)"
-      [filteredCount]="filteredGroups().length"
-      [totalCount]="scopeTotal()"
-    />
-
-    @if (filteredGroups().length > 0) {
-      <div class="groups-list" role="list">
-        @for (group of filteredGroups(); track group.id) {
-          <app-group-card
-            [group]="group"
-            [tracks]="tracks()"
-            [updating]="updatingGroupId() === group.id"
-            [hasSession]="sessionName() != null"
-            [inSession]="isInSession(group)"
-            [showSessionBadge]="effectiveScope() === 'library'"
-            (addToSessionRequested)="addToSession($event)"
-            (removeFromSessionRequested)="removeFromSession($event)"
-            (deleteRequested)="deleteGroup($event)"
-            (renameRequested)="renameGroup($event)"
-            (editTracksRequested)="openTrackEditor($event)"
-          />
-        }
-      </div>
-    } @else if (effectiveScope() === 'session' && sessionGroupIds().size === 0) {
-      <p class="app-empty-note">{{ 'scope.sessionEmptyGroups' | transloco }}</p>
+    @if (loading()) {
+      <div class="app-muted groups-page__loading">{{ 'groups.loading' | transloco }}</div>
+    } @else if (groups().length === 0) {
+      <ui-create-cta
+        [label]="'groups.createFirst' | transloco"
+        (clicked)="createForm.open()"
+      />
     } @else {
-      <p class="app-empty-note">{{ 'groups.noMatches' | transloco }}</p>
+      @if (scopeOptions(); as options) {
+        <ui-segmented
+          class="groups-page__scope"
+          [options]="options"
+          [value]="effectiveScope()"
+          [ariaLabel]="'scope.label' | transloco"
+          (valueChange)="setScope($event)"
+        />
+      }
+
+      <ui-list-toolbar
+        [(search)]="search"
+        [searchPlaceholder]="'groups.searchPlaceholder' | transloco"
+        [filterValue]="filterMode()"
+        [filterOptions]="filterOptions"
+        (filterValueChange)="setFilterMode($event)"
+        [sortValue]="sortMode()"
+        [sortOptions]="sortOptions"
+        (sortValueChange)="setSortMode($event)"
+        [filteredCount]="filteredGroups().length"
+        [totalCount]="scopeTotal()"
+      />
+
+      @if (filteredGroups().length > 0) {
+        <div class="groups-list" role="list">
+          @for (group of filteredGroups(); track group.id) {
+            <app-group-card
+              [group]="group"
+              [tracks]="tracks()"
+              [updating]="updatingGroupId() === group.id"
+              [hasSession]="sessionName() != null"
+              [inSession]="isInSession(group)"
+              [showSessionBadge]="effectiveScope() === 'library'"
+              (addToSessionRequested)="addToSession($event)"
+              (removeFromSessionRequested)="removeFromSession($event)"
+              (deleteRequested)="deleteGroup($event)"
+              (renameRequested)="renameGroup($event)"
+              (editTracksRequested)="openTrackEditor($event)"
+            />
+          }
+        </div>
+      } @else if (effectiveScope() === 'session' && sessionGroupIds().size === 0) {
+        <p class="app-empty-note">{{ 'scope.sessionEmptyGroups' | transloco }}</p>
+      } @else {
+        <p class="app-empty-note">{{ 'groups.noMatches' | transloco }}</p>
+      }
     }
   }
 
@@ -79,7 +89,6 @@
       (cancel)="closeTrackEditor()"
       (save)="saveGroupTracks($event)"
       (addTrack)="goToAddTrack()"
-      (browseWorkshop)="goToWorkshop()"
     />
   }
 

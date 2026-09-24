@@ -205,6 +205,7 @@
 
 .board-card__summary-actions {
   display: flex;
+  align-self: end;
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
@@ -378,6 +379,10 @@
 .board-mode-switch__btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.board-mode-switch__btn--active:disabled {
+  opacity: 0.85;
 }
 
 .board-card__menu-wrap {
@@ -624,6 +629,19 @@
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: var(--app-heading);
+}
+
+.board-field__lock {
+  margin-left: 4px;
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.board-settings-menu__locked {
+  margin: 6px 4px 2px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--app-text-muted);
 }
 
 .board-field__desync {

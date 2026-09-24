@@ -45,8 +45,9 @@
       class="app-popover-surface sel__panel"
       [style.top]="panel.top != null ? panel.top + 'px' : 'auto'"
       [style.bottom]="panel.bottom != null ? panel.bottom + 'px' : 'auto'"
-      [style.left.px]="panel.left"
-      [style.width.px]="panel.width"
+      [style.left]="panel.left != null ? panel.left + 'px' : 'auto'"
+      [style.right]="panel.right != null ? panel.right + 'px' : 'auto'"
+      [style.min-width.px]="panel.minWidth"
       [style.max-height.px]="panel.maxHeight"
     >
       <button

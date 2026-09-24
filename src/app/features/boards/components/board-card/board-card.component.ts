@@ -117,6 +117,7 @@ export class BoardCardComponent implements OnInit {
   readonly linkedBoardChoices = input<LinkedBoardChoice[]>([]);
   /** Paused by another board's pause-and-resume action; resumes when that one ends. */
   readonly heldForResume = input(false);
+  readonly locked = input(false);
 
   readonly isPlaying = computed(() => this.status() === 'PLAYING');
 
@@ -439,7 +440,7 @@ export class BoardCardComponent implements OnInit {
   readonly showWindowChip = computed(() => !this.playlistMode() && this.selectedWindow() != null);
 
   readonly allTracksLabel = computed(() =>
-    this.t(this.browseLibrary() ? 'stages.card.allLibraryTracks' : 'stages.card.allSessionTracks'),
+    this.t(this.fromLibrary() ? 'stages.card.allLibraryTracks' : 'stages.card.allSessionTracks'),
   );
 
   readonly currentWindowLabel = computed(() => {
@@ -485,6 +486,12 @@ export class BoardCardComponent implements OnInit {
       disabled: !this.canSequenceWindows(),
     },
   ]);
+
+  readonly loopModeOptions = computed(() =>
+    this.locked()
+      ? this.loopModeChoices().map(choice => ({ ...choice, disabled: true }))
+      : this.loopModeChoices(),
+  );
 
   /** Current single-track loop behaviour, derived from the board flags. */
   readonly loopMode = computed<LoopMode>(() => {
@@ -602,9 +609,11 @@ export class BoardCardComponent implements OnInit {
 
   readonly browseLibrary = signal(false);
 
+  readonly fromLibrary = computed(() => !this.locked() && this.browseLibrary());
+
   readonly groupOptions = computed(() =>
     // A group with no tracks has nothing to select or play, so disable it.
-    (this.browseLibrary() ? this.libraryGroups() : this.availableGroups()).map(g => ({
+    (this.fromLibrary() ? this.libraryGroups() : this.availableGroups()).map(g => ({
       label: g.listName || this.t('common.groupNum', { id: g.id }),
       value: g.id,
       disabled: (g.tracks?.length ?? 0) === 0,
@@ -626,7 +635,7 @@ export class BoardCardComponent implements OnInit {
     const groupId = board.selectedGroup?.id ?? null;
 
     if (groupId == null) {
-      const tracks = this.browseLibrary() ? this.libraryTracks() : (board.availableTracks ?? []);
+      const tracks = this.fromLibrary() ? this.libraryTracks() : (board.availableTracks ?? []);
       return [...tracks].sort(byGroupPosition);
     }
 
@@ -737,6 +746,7 @@ export class BoardCardComponent implements OnInit {
   }
 
   turnLoopOff(): void {
+    if (this.locked()) return;
     this.loopModeChange.emit('off');
   }
 
@@ -817,6 +827,7 @@ export class BoardCardComponent implements OnInit {
   }
 
   startRename(): void {
+    if (this.locked()) return;
     this.renameValue.set(this.board().name || '');
     this.renaming.set(true);
     setTimeout(() => this.renameInputRef?.nativeElement.select(), 0);
@@ -892,12 +903,12 @@ export class BoardCardComponent implements OnInit {
    * a "Single" click and keeps its current loop mode.
    */
   setPlaylistTab(playlist: boolean): void {
-    if (playlist === this.playlistMode()) return;
+    if (this.locked() || playlist === this.playlistMode()) return;
     this.modeChange.emit(playlist ? 'playlist' : 'single');
   }
 
   onLoopModeSelected(mode: string): void {
-    if (mode === this.loopMode()) return;
+    if (this.locked() || mode === this.loopMode()) return;
     this.loopModeChange.emit(mode as LoopMode);
   }
 
@@ -942,6 +953,7 @@ export class BoardCardComponent implements OnInit {
   }
 
   onPlaylistRandomToggle(): void {
+    if (this.locked()) return;
     this.playlistOptionsChange.emit({
       ...this.playlistOptions(),
       random: !this.playlistOptions().random,

@@ -65,21 +65,35 @@ export class SessionActionsService {
     if (session.sessionId == null) return;
     const sessionId = session.sessionId;
     const label = session.sessionName || this.t('sessions.thisSession');
+    const subscribed = session.readOnly === true;
 
     const confirmed = await this.confirmDialog.confirm({
-      title: this.t('sessions.delete'),
-      message: this.t('sessions.deleteConfirm', { name: label }),
-      confirmText: this.t('common.delete'),
+      title: this.t(subscribed ? 'sessions.shared.unsubscribe' : 'sessions.delete'),
+      message: this.t(subscribed ? 'sessions.shared.unsubscribeConfirm' : 'sessions.deleteConfirm', { name: label }),
+      confirmText: this.t(subscribed ? 'sessions.shared.unsubscribe' : 'common.delete'),
       cancelText: this.t('common.cancel'),
       variant: 'danger',
     });
     if (!confirmed) return;
 
     this.store.deleteSession(sessionId).subscribe({
-      next: () => this.toast.success(this.t('sessions.deleted')),
+      next: () => this.toast.success(this.t(subscribed ? 'sessions.shared.unsubscribed' : 'sessions.deleted')),
       error: err => {
         console.error(err);
         this.toast.error(httpErrorMessage(err, { fallback: this.t('sessions.deleteFailed') }));
+      },
+    });
+  }
+
+  update(session: SessionResponse): void {
+    const subscription = session.subscription;
+    if (session.sessionId == null || !subscription?.restorable || !subscription.updateAvailable) return;
+
+    this.store.sync(session.sessionId).subscribe({
+      next: () => this.toast.success(this.t('sessions.shared.updated')),
+      error: err => {
+        console.error(err);
+        this.toast.error(httpErrorMessage(err, { fallback: this.t('sessions.shared.syncFailed') }));
       },
     });
   }

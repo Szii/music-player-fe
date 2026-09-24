@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 
@@ -41,6 +42,8 @@ import { TracksStore } from '../../../../core/services/tracks-store.service';
 import { SessionsStore } from '../../../../core/services/sessions-store.service';
 import { GroupsStore } from '../../../../core/services/groups-store.service';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
+import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
+import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empty-state.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { UiCreateCtaComponent } from '../../../../shared/ui/create-cta/ui-create-cta.component';
 import { ToastService } from '../../../../shared/features/toast/toast.service';
@@ -56,6 +59,8 @@ import { FooterComponent } from '../../../../shared/components/footer/footer.com
     TrackFormComponent,
     TrackWindowsPanelComponent,
     UiAlertComponent,
+    NormalButtonComponent,
+    UiEmptyStateComponent,
     UiCreateCtaComponent,
     UiPageTitleComponent,
     FooterComponent,
@@ -88,8 +93,10 @@ export class TracksPageComponent implements OnInit {
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly boardPlayback = inject(BoardPlaybackService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly router = inject(Router);
 
   readonly tracks = this.tracksStore.tracks;
+  readonly subscription = this.sessionsStore.selectedSubscription;
   readonly loading = this.tracksStore.loading;
 
   readonly sessionName = computed(() => {
@@ -104,7 +111,6 @@ export class TracksPageComponent implements OnInit {
     const messages: string[] = [];
 
     if (this.tracksStore.ownFailed()) messages.push(this.t('tracks.err.loadOwn'));
-    if (this.tracksStore.subscribedFailed()) messages.push(this.t('tracks.err.loadSubscribed'));
 
     return messages.join(' ');
   });
@@ -134,6 +140,10 @@ export class TracksPageComponent implements OnInit {
     forkJoin([this.tracksStore.load(), this.sessionsStore.load(), this.groupsStore.load()])
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe();
+  }
+
+  goToStages(): void {
+    void this.router.navigate(['/boards']);
   }
 
   saveTrack(event: TrackFormEvent): void {
@@ -257,7 +267,7 @@ export class TracksPageComponent implements OnInit {
     this.editTrackName.set(track.trackName ?? '');
     this.editTrackLink.set(track.trackLink ?? '');
     this.editLockTrackLink.set(
-      (track.trackWindows?.length ?? 0) > 0 || track.trackShare != null,
+      (track.trackWindows?.length ?? 0) > 0,
     );
   }
 

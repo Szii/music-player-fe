@@ -29,13 +29,7 @@ import { persistentSignal } from '../../../../shared/utils/persistent-signal';
 import { previewMidpointS } from '../../../../shared/utils/preview';
 import { formatDuration } from '../../../../shared/utils/duration';
 
-type TrackFilterMode =
-  | 'all'
-  | 'own'
-  | 'subscribed'
-  | 'withWindows'
-  | 'withoutWindows'
-  | 'published';
+type TrackFilterMode = 'all' | 'withWindows' | 'withoutWindows';
 
 type TrackSortMode = 'nameAsc' | 'nameDesc' | 'durationAsc' | 'durationDesc';
 
@@ -104,11 +98,8 @@ export class TrackTableComponent {
 
   readonly filterOptions = [
     { label: this.t('tracks.filter.all'), value: 'all' },
-    { label: this.t('tracks.filter.own'), value: 'own' },
-    { label: this.t('tracks.subscribed'), value: 'subscribed' },
     { label: this.t('tracks.filter.withWindows'), value: 'withWindows' },
     { label: this.t('tracks.filter.withoutWindows'), value: 'withoutWindows' },
-    { label: this.t('tracks.filter.published'), value: 'published' },
   ];
 
   readonly sortOptions = [
@@ -118,19 +109,13 @@ export class TrackTableComponent {
     { label: this.t('sort.durationDesc'), value: 'durationDesc' },
   ];
 
-  /** Owner only tells something once a subscribed track is in the list. */
-  readonly showOwner = computed(() => this.filteredTracks().some(track => this.isSubscribed(track)));
-
   readonly showStatus = computed(() =>
-    this.filteredTracks().some(track => this.isSubscribed(track) || this.showSessionBadge(track)),
+    this.filteredTracks().some(track => this.showSessionBadge(track)),
   );
 
   readonly columns = computed<UiDataTableColumn[]>(() => [
     { label: this.t('tracks.col.name'), className: 'col-name' },
     { label: this.t('tracks.original'), className: 'col-original', width: '30%' },
-    ...(this.showOwner()
-      ? [{ label: this.t('tracks.owner'), className: 'col-owner', width: '120px' }]
-      : []),
     { label: this.t('tracks.col.duration'), className: 'col-duration', width: '110px' },
     ...(this.showStatus()
       ? [{ label: this.t('tracks.col.status'), className: 'col-status', width: '150px' }]
@@ -186,10 +171,9 @@ export class TrackTableComponent {
   trackByTrackId = (index: number, track: Track): number | string => track.id ?? index;
 
   menuItems(track: Track): ActionMenuItem[] {
-    const subscribed = this.isSubscribed(track);
     const items: ActionMenuItem[] = [
-      { id: 'edit', label: this.t('tracks.edit'), disabled: subscribed },
-      { id: 'windows', label: this.t('tracks.editWindows'), disabled: subscribed },
+      { id: 'edit', label: this.t('tracks.edit') },
+      { id: 'windows', label: this.t('tracks.editWindows') },
     ];
 
     if (track.trackLink) {
@@ -204,7 +188,7 @@ export class TrackTableComponent {
       );
     }
 
-    items.push({ id: 'delete', label: this.t('tracks.delete'), variant: 'danger', disabled: subscribed });
+    items.push({ id: 'delete', label: this.t('tracks.delete'), variant: 'danger' });
 
     return items;
   }
@@ -238,10 +222,6 @@ export class TrackTableComponent {
     return previewMidpointS(track.duration);
   }
 
-  isSubscribed(track: Track): boolean {
-    return track.owned === false;
-  }
-
   formatDuration(seconds?: number): string {
     return formatDuration(seconds);
   }
@@ -251,7 +231,6 @@ export class TrackTableComponent {
       track.trackName,
       track.trackOriginalName,
       track.trackLink,
-      track.owner?.name,
     ]
       .filter(Boolean)
       .join(' ')
@@ -261,19 +240,11 @@ export class TrackTableComponent {
   }
 
   private matchesFilter(track: Track, filterMode: TrackFilterMode): boolean {
-    const subscribed = this.isSubscribed(track);
-
     switch (filterMode) {
-      case 'own':
-        return !subscribed;
-      case 'subscribed':
-        return subscribed;
       case 'withWindows':
         return (track.trackWindows?.length ?? 0) > 0;
       case 'withoutWindows':
         return (track.trackWindows?.length ?? 0) === 0;
-      case 'published':
-        return track.trackShare != null && !subscribed;
       case 'all':
       default:
         return true;

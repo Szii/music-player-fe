@@ -1,0 +1,117 @@
+<div class="section">
+  @if (shares().length > 0) {
+    <ui-list-toolbar
+      [(search)]="search"
+      [searchPlaceholder]="'workshop.searchShared' | transloco"
+      [sortValue]="sortMode()"
+      [sortOptions]="sortOptions"
+      (sortValueChange)="setSortMode($event)"
+      [filteredCount]="filteredShares().length"
+      [totalCount]="shares().length"
+    />
+  }
+
+  @if (filteredShares().length > 0) {
+    <ui-data-table
+      class="app-table-desktop-only"
+      [rows]="filteredShares()"
+      [columns]="columns"
+      [trackBy]="trackById"
+      [maxHeight]="'min(52dvh, 620px)'"
+      [tableClass]="'app-table--workshop'"
+    >
+      <ng-template let-share>
+        <tr>
+          <td class="col-title">
+            <span class="cell-text cell-text--strong cell-text--truncate" [title]="displayName(share)">
+              {{ displayName(share) }}
+            </span>
+            @if (share.description; as description) {
+              <button
+                type="button"
+                class="cell-text cell-text--muted cell-text--truncate session-catalog__desc app-text-button"
+                [title]="description"
+                (click)="openDescription(share)"
+              >
+                {{ description }}
+              </button>
+            }
+          </td>
+
+          <td class="col-owner">
+            <span class="cell-text cell-text--muted">{{ share.owner?.name ?? '—' }}</span>
+          </td>
+
+          <td class="col-content">
+            <span class="cell-text cell-text--muted">{{ contentLabel(share) }}</span>
+          </td>
+
+          <td class="col-subscribers">
+            <span class="app-subscriber-stat" [title]="subscriberTitle(share)" [attr.aria-label]="subscriberTitle(share)">
+              <ui-icon class="app-subscriber-stat__star" name="users" />
+              <span class="app-subscriber-stat__count">{{ share.subscriberCount ?? 0 }}</span>
+            </span>
+          </td>
+
+          <td class="col-actions">
+            <normal-button
+              type="button"
+              size="sm"
+              [loading]="busyShareId() === share.id"
+              [disabled]="busyShareId() === share.id"
+              (clicked)="subscribe.emit(share)"
+            >
+              {{ 'workshop.subscribe' | transloco }}
+            </normal-button>
+          </td>
+        </tr>
+      </ng-template>
+    </ui-data-table>
+
+    <ul class="session-catalog-mobile-list app-entity-list" role="list">
+      @for (share of filteredShares(); track trackById($index, share)) {
+        <li class="app-entity-list__item">
+          <div class="app-entity-list__head">
+            <span class="app-entity-list__title" [title]="displayName(share)">{{ displayName(share) }}</span>
+            <normal-button
+              type="button"
+              size="sm"
+              [loading]="busyShareId() === share.id"
+              [disabled]="busyShareId() === share.id"
+              (clicked)="subscribe.emit(share)"
+            >
+              {{ 'workshop.subscribe' | transloco }}
+            </normal-button>
+          </div>
+
+          @if (share.description; as description) {
+            <button
+              type="button"
+              class="app-entity-list__subtitle app-text-button"
+              [title]="description"
+              (click)="openDescription(share)"
+            >
+              {{ description }}
+            </button>
+          }
+
+          <div class="app-entity-list__meta session-catalog__mobile-meta">
+            <span class="session-catalog__owner">{{ share.owner?.name ?? '—' }}</span>
+
+            <div class="session-catalog__stats-row">
+              <span>{{ contentLabel(share) }}</span>
+              <span class="app-subscriber-stat" [title]="subscriberTitle(share)" [attr.aria-label]="subscriberTitle(share)">
+                <ui-icon class="app-subscriber-stat__star" name="users" />
+                <span class="app-subscriber-stat__count">{{ share.subscriberCount ?? 0 }}</span>
+              </span>
+            </div>
+          </div>
+        </li>
+      }
+    </ul>
+  } @else if (shares().length === 0) {
+    <p class="app-empty-note">{{ 'workshop.nothingToSubscribe' | transloco }}</p>
+  } @else {
+    <p class="app-empty-note">{{ 'workshop.noMatches' | transloco }}</p>
+  }
+</div>

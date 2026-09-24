@@ -48,10 +48,13 @@ let nextSelectId = 0;
 interface PanelRect {
   top: number | null;
   bottom: number | null;
-  left: number;
-  width: number;
+  left: number | null;
+  right: number | null;
+  minWidth: number;
   maxHeight: number;
 }
+
+const PANEL_MAX_WIDTH = 360;
 
 @Component({
   selector: 'ui-select',
@@ -165,19 +168,6 @@ export class UiSelectComponent implements ControlValueAccessor {
   readonly isNullValue = computed(() => {
     const v = this.currentValue();
     return v === null || v === undefined;
-  });
-
-  readonly panelStyle = computed(() => {
-    const r = this.panelRect();
-    if (!r) return { display: 'none' };
-    return {
-      position: 'fixed',
-      top: r.top != null ? `${r.top}px` : 'auto',
-      bottom: r.bottom != null ? `${r.bottom}px` : 'auto',
-      left: `${r.left}px`,
-      width: `${r.width}px`,
-      'max-height': `${r.maxHeight}px`,
-    };
   });
 
   private readonly activeLang = toSignal(this.transloco.langChanges$, {
@@ -747,23 +737,15 @@ export class UiSelectComponent implements ControlValueAccessor {
     const openUpward = spaceAbove > spaceBelow && spaceBelow < MAX_HEIGHT;
     const availableSpace = openUpward ? spaceAbove : spaceBelow;
     const maxHeight = Math.min(MAX_HEIGHT, availableSpace);
+    const alignRight = r.left + Math.max(r.width, PANEL_MAX_WIDTH) > window.innerWidth - GAP;
 
-    if (openUpward) {
-      this.panelRect.set({
-        top: null,
-        bottom: vh - r.top + GAP,
-        left: r.left,
-        width: r.width,
-        maxHeight,
-      });
-    } else {
-      this.panelRect.set({
-        top: r.bottom + GAP,
-        bottom: null,
-        left: r.left,
-        width: r.width,
-        maxHeight,
-      });
-    }
+    this.panelRect.set({
+      top: openUpward ? null : r.bottom + GAP,
+      bottom: openUpward ? vh - r.top + GAP : null,
+      left: alignRight ? null : r.left,
+      right: alignRight ? window.innerWidth - r.right : null,
+      minWidth: r.width,
+      maxHeight,
+    });
   }
 }

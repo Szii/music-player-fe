@@ -33,6 +33,8 @@ import { GroupsStore } from '../../../../core/services/groups-store.service';
 import { TracksStore } from '../../../../core/services/tracks-store.service';
 import { SessionsStore } from '../../../../core/services/sessions-store.service';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
+import { NormalButtonComponent } from '../../../../shared/ui/buttons/normal-button.component';
+import { UiEmptyStateComponent } from '../../../../shared/ui/empty-state/ui-empty-state.component';
 import { UiCreateCtaComponent } from '../../../../shared/ui/create-cta/ui-create-cta.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
 import { UiListToolbarComponent } from '../../../../shared/ui/list-toolbar/ui-list-toolbar.component';
@@ -62,6 +64,8 @@ type GroupSortMode =
     GroupCardComponent,
     GroupTracksEditorComponent,
     UiAlertComponent,
+    NormalButtonComponent,
+    UiEmptyStateComponent,
     UiCreateCtaComponent,
     UiPageTitleComponent,
     UiListToolbarComponent,
@@ -97,6 +101,7 @@ export class GroupsPageComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly groups = this.groupsStore.groups;
+  readonly subscription = this.sessionsStore.selectedSubscription;
   readonly tracks = this.tracksStore.tracks;
   readonly loading = computed(() => this.groupsStore.loading() || this.tracksStore.loading());
 
@@ -375,14 +380,13 @@ export class GroupsPageComponent implements OnInit {
     this.editingGroupId.set(null);
   }
 
+  goToStages(): void {
+    void this.router.navigate(['/boards']);
+  }
+
   goToAddTrack(): void {
     this.closeTrackEditor();
     this.router.navigate(['/tracks']);
-  }
-
-  goToWorkshop(): void {
-    this.closeTrackEditor();
-    this.router.navigate(['/workshop']);
   }
 
   private saveGroup(

@@ -2,6 +2,11 @@ import { Injectable, signal } from '@angular/core';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
+export interface ToastAction {
+  label: string;
+  run: () => void;
+}
+
 export interface ToastItem {
   id: number;
   type: ToastType;
@@ -10,6 +15,7 @@ export interface ToastItem {
   createdAt: number;
   /** True while the toast plays its exit animation before being removed. */
   leaving: boolean;
+  action?: ToastAction;
 }
 
 interface ToastTimer {
@@ -37,6 +43,7 @@ export class ToastService {
     message: string,
     type: ToastType = 'info',
     durationMs = 3200,
+    action?: ToastAction,
   ): number {
     const id = this.nextId++;
     const toast: ToastItem = {
@@ -46,6 +53,7 @@ export class ToastService {
       durationMs,
       createdAt: Date.now(),
       leaving: false,
+      action,
     };
 
     this.toasts.update(current => [...current, toast]);
@@ -55,8 +63,8 @@ export class ToastService {
     return id;
   }
 
-  success(message: string, durationMs = 2600): number {
-    return this.show(message, 'success', durationMs);
+  success(message: string, durationMs = 2600, action?: ToastAction): number {
+    return this.show(message, 'success', durationMs, action);
   }
 
   error(message: string, durationMs = 4200): number {

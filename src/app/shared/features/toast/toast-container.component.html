@@ -22,6 +22,11 @@
         <div class="toast__content">
           <div class="toast__title">{{ title(toast) | transloco }}</div>
           <div class="toast__message">{{ toast.message }}</div>
+          @if (toast.action; as action) {
+            <button type="button" class="toast__action" (click)="runAction(toast.id, action)">
+              {{ action.label }}
+            </button>
+          }
         </div>
 
         <button

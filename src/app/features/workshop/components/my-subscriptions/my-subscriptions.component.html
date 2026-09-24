@@ -1,0 +1,81 @@
+<ui-dialog-shell
+  [title]="'workshop.mySubscriptions' | transloco"
+  [subtitle]="'workshop.mySubscriptionsSubtitle' | transloco"
+  titleId="my-subscriptions-title"
+  size="wide"
+  (closed)="close.emit()"
+>
+  @if (sessions().length > 0) {
+    <ui-list-toolbar
+      [(search)]="search"
+      [searchPlaceholder]="'workshop.searchMySessions' | transloco"
+      [filteredCount]="filteredSessions().length"
+      [totalCount]="sessions().length"
+    />
+  }
+
+  @if (filteredSessions().length > 0) {
+    <ui-data-table
+      class="my-subscriptions-table"
+      [rows]="filteredSessions()"
+      [columns]="columns"
+      [trackBy]="trackById"
+      [maxHeight]="'min(58dvh, 680px)'"
+      [tableClass]="'app-table--workshop'"
+    >
+      <ng-template let-session>
+        <tr>
+          <td class="col-title">
+            <span class="cell-text cell-text--strong cell-text--truncate" [title]="displayName(session)">
+              {{ displayName(session) }}
+            </span>
+          </td>
+
+          <td class="col-owner">
+            <span class="cell-text cell-text--muted cell-text--truncate">{{ session.subscription?.owner?.name ?? '—' }}</span>
+          </td>
+
+          <td class="col-version col-num">{{ versionLabel(session) }}</td>
+
+          <td class="col-status">
+            <ui-chip [variant]="statusVariant(session)" size="sm" shape="hex" [dot]="true">{{ statusLabel(session) }}</ui-chip>
+          </td>
+
+          <td class="col-actions">
+            <ui-action-menu
+              [items]="menuItems(session)"
+              [triggerLabel]="'common.actionsFor' | transloco: { name: displayName(session) }"
+              (select)="onMenuSelect(session, $event)"
+            />
+          </td>
+        </tr>
+      </ng-template>
+    </ui-data-table>
+
+    <ul class="my-subscriptions-mobile-list app-entity-list" role="list">
+      @for (session of filteredSessions(); track trackById($index, session)) {
+        <li class="app-entity-list__item">
+          <div class="app-entity-list__head">
+            <span class="app-entity-list__title" [title]="displayName(session)">{{ displayName(session) }}</span>
+            <ui-chip [variant]="statusVariant(session)" size="sm" shape="hex" [dot]="true">{{ statusLabel(session) }}</ui-chip>
+          </div>
+
+          <div class="app-entity-list__meta">
+            <span>{{ session.subscription?.owner?.name ?? '—' }}</span>
+            <span>{{ versionLabel(session) }}</span>
+            <ui-action-menu
+              class="my-subscriptions__menu"
+              [items]="menuItems(session)"
+              [triggerLabel]="'common.actionsFor' | transloco: { name: displayName(session) }"
+              (select)="onMenuSelect(session, $event)"
+            />
+          </div>
+        </li>
+      }
+    </ul>
+  } @else if (sessions().length === 0) {
+    <p class="app-empty-note">{{ 'workshop.noSubscriptions' | transloco }}</p>
+  } @else {
+    <p class="app-empty-note">{{ 'workshop.noMatches' | transloco }}</p>
+  }
+</ui-dialog-shell>

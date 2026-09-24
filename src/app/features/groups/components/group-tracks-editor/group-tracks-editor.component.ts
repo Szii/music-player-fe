@@ -95,7 +95,6 @@ export class GroupTracksEditorComponent {
   readonly cancel = output<void>();
   readonly save = output<GroupTracksSaveEvent>();
   readonly addTrack = output<void>();
-  readonly browseWorkshop = output<void>();
 
   readonly search = signal('');
   readonly filterMode = persistentSignal<TrackFilterMode>('mpf:groups:editor:filter', 'all');

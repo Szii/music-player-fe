@@ -1,27 +1,20 @@
 import { TestBed } from '@angular/core/testing';
 import { Observable, Subject, of } from 'rxjs';
 
-import { MusicTracksService, ShareService, Track } from '../../api/generated';
+import { MusicTracksService, Track } from '../../api/generated';
 import { SessionService } from '../auth/session.service';
 import { TracksStore } from './tracks-store.service';
 
 /** Only the members TracksStore touches, with call counts so we can prove dedupe. */
 class MusicTracksServiceStub {
   own: Track[] = [];
-  subscribed: Track[] = [];
   updated: Track = {};
 
   ownCalls = 0;
-  subscribedCalls = 0;
 
   getUserTracks(): Observable<Track[]> {
     this.ownCalls++;
     return of(this.own);
-  }
-
-  getUserSubscribedTracks(): Observable<Track[]> {
-    this.subscribedCalls++;
-    return of(this.subscribed);
   }
 
   updateTrack(): Observable<Track> {
@@ -46,7 +39,6 @@ describe('TracksStore', () => {
       providers: [
         TracksStore,
         { provide: MusicTracksService, useValue: api },
-        { provide: ShareService, useValue: {} },
         { provide: SessionService, useValue: session },
       ],
     });
@@ -54,13 +46,12 @@ describe('TracksStore', () => {
     store = TestBed.inject(TracksStore);
   });
 
-  it('merges own and subscribed tracks, dropping duplicates', () => {
+  it('holds the tracks the user owns', () => {
     api.own = [{ id: '1' }, { id: '2' }];
-    api.subscribed = [{ id: '2' }, { id: '3' }];
 
     store.load().subscribe();
 
-    expect(store.tracks().map(t => t.id)).toEqual(['1', '2', '3']);
+    expect(store.tracks().map(t => t.id)).toEqual(['1', '2']);
   });
 
   // The whole point of the store: five pages asking for the library must not
@@ -72,7 +63,6 @@ describe('TracksStore', () => {
     store.load().subscribe();
 
     expect(api.ownCalls).toBe(1);
-    expect(api.subscribedCalls).toBe(1);
   });
 
   it('re-fetches when refresh() is called explicitly', () => {

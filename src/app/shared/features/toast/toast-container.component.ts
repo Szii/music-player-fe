@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
-import { ToastItem, ToastService } from './toast.service';
+import { ToastAction, ToastItem, ToastService } from './toast.service';
 
 @Component({
   selector: 'app-toast-container',
@@ -11,6 +11,11 @@ import { ToastItem, ToastService } from './toast.service';
 })
 export class ToastContainerComponent {
   readonly toastService = inject(ToastService);
+
+  runAction(id: number, action: ToastAction): void {
+    action.run();
+    this.toastService.dismiss(id);
+  }
 
   /** Errors and warnings interrupt the screen reader; info/success wait. */
   isUrgent(toast: ToastItem): boolean {
