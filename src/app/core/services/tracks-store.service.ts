@@ -11,6 +11,7 @@ import {
   UpdateTrackRequestV2,
 } from '../../api/generated';
 import { SessionService } from '../auth/session.service';
+import { GroupsStore } from './groups-store.service';
 
 const FRESH_FOR_MS = 60_000;
 
@@ -18,6 +19,7 @@ const FRESH_FOR_MS = 60_000;
 export class TracksStore {
   private readonly api = inject(MusicTracksService);
   private readonly session = inject(SessionService);
+  private readonly groupsStore = inject(GroupsStore);
 
   private readonly own = signal<Track[]>([]);
 
@@ -78,37 +80,55 @@ export class TracksStore {
 
   updateTrack(trackId: string, body: UpdateTrackRequestV2): Observable<Track> {
     return this.api.updateTrack({ trackId, updateTrackRequestV2: body }).pipe(
-      tap(track => this.upsert(trackId, track)),
+      tap(track => {
+        this.upsert(trackId, track);
+        this.groupsStore.invalidate();
+      }),
     );
   }
 
   deleteTrack(trackId: string): Observable<unknown> {
     return this.api.deleteTrack({ trackId }).pipe(
-      tap(() => this.removeById(trackId)),
+      tap(() => {
+        this.removeById(trackId);
+        this.groupsStore.dropTrack(trackId);
+      }),
     );
   }
 
   createWindow(trackId: string, body: TrackWindowRequest): Observable<Track> {
     return this.api.createTrackWindow({ trackId, trackWindowRequest: body }).pipe(
-      tap(track => this.upsert(trackId, track)),
+      tap(track => {
+        this.upsert(trackId, track);
+        this.groupsStore.invalidate();
+      }),
     );
   }
 
   updateWindow(trackId: string, windowId: string, body: TrackWindowRequest): Observable<Track> {
     return this.api.updateTrackWindow({ trackId, windowId, trackWindowRequest: body }).pipe(
-      tap(track => this.upsert(trackId, track)),
+      tap(track => {
+        this.upsert(trackId, track);
+        this.groupsStore.invalidate();
+      }),
     );
   }
 
   deleteWindow(trackId: string, windowId: string): Observable<Track> {
     return this.api.deleteTrackWindow({ trackId, windowId }).pipe(
-      tap(track => this.upsert(trackId, track)),
+      tap(track => {
+        this.upsert(trackId, track);
+        this.groupsStore.dropWindow(windowId);
+      }),
     );
   }
 
   reorderWindows(trackId: string, body: ReorderTrackWindowsRequest): Observable<Track> {
     return this.api.reorderTrackWindows({ trackId, reorderTrackWindowsRequest: body }).pipe(
-      tap(track => this.upsert(trackId, track)),
+      tap(track => {
+        this.upsert(trackId, track);
+        this.groupsStore.invalidate();
+      }),
     );
   }
 

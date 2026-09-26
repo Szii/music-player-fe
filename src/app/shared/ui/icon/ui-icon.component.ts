@@ -11,6 +11,7 @@ export type UiIconName =
   | 'overlap'
   | 'keyboard'
   | 'then'
+  | 'hourglass'
   | 'users';
 
 @Component({

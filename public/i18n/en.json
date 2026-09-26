@@ -136,9 +136,12 @@
       "play": "Play stage",
       "stop": "Stop playback",
       "volume": "Stage volume",
+      "anyTrack": "Any track",
       "unnamed": "Unnamed stage",
       "rename": "Rename stage",
       "renameHint": "Double-click to rename",
+      "reorderHandle": "Reorder {{name}} (drag, or use arrow keys)",
+      "reorderHint": "Drag to reorder",
       "delete": "Delete stage",
       "expand": "Expand stage",
       "collapse": "Collapse stage",
@@ -160,13 +163,12 @@
       "playlistTitle": "Play through the selected group",
       "playlistEmpty": "This group has no tracks to play",
       "afterEnd": "After playback ends",
-      "afterEndNothing": "Nothing",
+      "endStop": "Stop",
       "afterEndStart": "Start {{name}}",
       "afterEndStartAnother": "Start a stage",
       "afterEndChooseStage": "Choose a stage to start",
       "afterEndNoStages": "No other stages in this session",
       "afterEndHint": "Crossfades into the chosen stage when this one finishes",
-      "afterEndLoopHint": "A looping stage never ends.",
       "afterEndChip": "Then {{name}}",
       "afterEndChipTip": "After playback ends, starts {{name}}",
       "afterEndResumeAnother": "Pause & resume",
@@ -183,7 +185,6 @@
       "scopeLibraryTip": "Pick from all your tracks and groups. Whatever you pick is added to this session.",
       "allSessionTracks": "All session tracks",
       "allLibraryTracks": "All library tracks",
-      "turnLoopOff": "Turn loop off",
       "lockedHint": "Set by the session owner"
     },
     "mode": {
@@ -193,17 +194,32 @@
       "playlist": "Playlist",
       "playlistTip": "Playlist mode"
     },
+    "gap": {
+      "chip": "Pause {{value}}",
+      "chipWaiting": "Next in {{value}}",
+      "chipTip": "Pause between plays: {{value}}",
+      "from": "From",
+      "to": "to",
+      "minAria": "Shortest pause in seconds",
+      "maxAria": "Longest pause in seconds",
+      "rangeHint": "Picked at random in this range; use the same value for a fixed pause.",
+      "label": "Pause between plays",
+      "hintLoop": "Silence before the track plays again",
+      "hintPlaylist": "Silence before the next track",
+      "random": "{{range}} (random)",
+      "waiting": "Pausing before the next play"
+    },
     "loop": {
       "off": "Off",
       "offTip": "Loop: off",
       "wholeTip": "Loop: whole playback",
-      "sequenceTip": "Loop: window sequence",
-      "windowSequence": "Window sequence",
+      "sequenceTip": "Loop: next window",
+      "windowSequence": "Next window",
       "hintOff": "Plays once, then stops",
       "hintWhole": "Loops the track or selected window",
-      "hintSequence": "Steps through every window, looping the sequence",
+      "hintSequence": "When a window ends, the next one plays; after the last it starts over",
       "chipWhole": "Loop",
-      "chipSequence": "Sequence",
+      "chipSequence": "Next window",
       "repeat": "Repeat"
     },
     "random": {
@@ -224,8 +240,7 @@
       "shortcutHint": "Toggle play/stop from the keyboard",
       "shortcutCapturing": "Press a key combination (Esc to cancel)",
       "listening": "Listening…",
-      "noShortcut": "None",
-      "lockedHint": "This stage comes from a shared session. Only the keyboard shortcut can be changed."
+      "noShortcut": "None"
     },
     "warn": {
       "emptyGroup": "This group has no tracks to play. Pick a group that has tracks.",
@@ -236,6 +251,9 @@
       "deleteConfirm": "Delete stage \"{{name}}\"?"
     },
     "err": {
+      "playlistTrack": "Switching the track failed.",
+      "repeatGap": "Saving the pause failed.",
+      "reorder": "Reordering stages failed.",
       "loadSessions": "Loading sessions failed.",
       "loadTracks": "Loading tracks failed.",
       "loadGroups": "Loading groups failed.",

@@ -7,6 +7,7 @@ import {
   GroupRequest,
   GroupTrackRef,
   MusicGroupsService,
+  Track,
 } from '../../api/generated';
 import { SessionService } from '../auth/session.service';
 
@@ -108,6 +109,27 @@ export class GroupsStore {
     return this.api.deleteGroup({ groupId }).pipe(
       tap(() => this.items.update(current => current.filter(g => g.id !== groupId))),
     );
+  }
+
+  dropTrack(trackId: string): void {
+    this.dropItems(item => item.id === trackId);
+  }
+
+  dropWindow(windowId: string): void {
+    this.dropItems(item => item.windowId === windowId);
+  }
+
+  invalidate(): void {
+    this.fetchedAt = 0;
+  }
+
+  private dropItems(matches: (item: Track) => boolean): void {
+    this.items.update(current =>
+      current.map(group =>
+        group.tracks?.some(matches) ? { ...group, tracks: group.tracks.filter(item => !matches(item)) } : group,
+      ),
+    );
+    this.invalidate();
   }
 
   private reset(): void {
