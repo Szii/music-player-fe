@@ -3,15 +3,18 @@
   class="board-card"
   [class.board-card--playing]="isPlaying()"
   [class.board-card--expanded]="expanded()"
+  [class.board-card--waiting]="waiting()"
   (dblclick)="onCardActivate($event)">
 
   <div class="board-card__summary">
+    <ng-content select="[boardDragHandle]" />
     <div class="board-card__summary-left">
       <div class="board-card__transport">
         <div
           class="board-card__play-wrap"
           [class.board-card__play-wrap--playlist]="playlistMode()"
-          [class.board-card__play-wrap--playing]="isPlaying()">
+          [class.board-card__play-wrap--playing]="isPlaying()"
+          [attr.title]="waiting() ? ('stages.gap.waiting' | transloco) : null">
           <ui-play-button
             size="md"
             [playing]="isPlaying()"
@@ -106,6 +109,20 @@
               >
                 <ui-icon class="ribbon-ico" [name]="randomIconName()" />
                 {{ randomRibbonLabel() }}
+              </ui-chip>
+            }
+
+            @if (pauseChip(); as chip) {
+              <ui-chip
+                class="board-pause-chip"
+                [class.board-pause-chip--waiting]="chip.waiting"
+                [variant]="chip.waiting ? 'crimson' : 'gold'"
+                size="sm"
+                shape="hex"
+                [tooltip]="chip.tooltip"
+              >
+                <ui-icon class="ribbon-ico" name="hourglass" />
+                {{ chip.label }}
               </ui-chip>
             }
 
@@ -331,12 +348,9 @@
                   <div class="board-settings-menu__title">
                     {{ 'stages.settings.title' | transloco }}
                   </div>
-                  @if (locked()) {
-                    <p class="board-settings-menu__locked">{{ 'stages.settings.lockedHint' | transloco }}</p>
-                  }
 
                   <div class="board-settings-menu__items">
-                    @if (playlistMode()) {
+                    @if (playlistMode() && !locked()) {
                       <label class="board-settings-item">
                         <div class="board-settings-item__copy">
                           <span class="board-settings-item__label">
@@ -349,41 +363,76 @@
                         <input
                           type="checkbox"
                           [checked]="playlistOptions().random"
-                          [disabled]="locked()"
                           (change)="onPlaylistRandomToggle()" />
                       </label>
-                    } @else {
-                      <div class="board-settings-item board-settings-item--loop-mode">
-                        <div class="board-settings-item__copy">
-                          <span class="board-settings-item__label">
-                            {{ 'stages.settings.loopMode' | transloco }}
-                          </span>
-                          <span class="board-settings-item__hint">{{ loopModeHint() }}</span>
-                        </div>
-                        <ui-inline-select
-                          class="board-loop-select"
-                          [ariaLabel]="'stages.settings.loopMode' | transloco"
-                          [options]="loopModeOptions()"
-                          [value]="loopMode()"
-                          (valueChange)="onLoopModeSelected($event)" />
+                    }
+
+                    @if (repeatGapAvailable() && (!locked() || repeatGapEnabled())) {
+                      <div class="board-settings-gap">
+                        <label class="board-settings-item">
+                          <div class="board-settings-item__copy">
+                            <span class="board-settings-item__label">
+                              {{ 'stages.gap.label' | transloco }}
+                            </span>
+                            <span class="board-settings-item__hint">{{ repeatGapHint() }}</span>
+                          </div>
+                          @if (!locked()) {
+                            <input
+                              type="checkbox"
+                              [checked]="repeatGapEnabled()"
+                              (change)="onRepeatGapToggle()" />
+                          }
+                        </label>
+
+                        @if (repeatGapEnabled()) {
+                          <div class="board-gap-range">
+                            <label class="board-gap-range__field">
+                              <span>{{ 'stages.gap.from' | transloco }}</span>
+                              <input
+                                class="app-input app-input--number board-gap-range__input"
+                                type="number"
+                                inputmode="numeric"
+                                min="0"
+                                [attr.max]="maxRepeatGapSec"
+                                [value]="repeatGap().minSec"
+                                [attr.aria-label]="'stages.gap.minAria' | transloco"
+                                (change)="onRepeatGapEdit('min', $event)" />
+                            </label>
+                            <label class="board-gap-range__field">
+                              <span>{{ 'stages.gap.to' | transloco }}</span>
+                              <input
+                                class="app-input app-input--number board-gap-range__input"
+                                type="number"
+                                inputmode="numeric"
+                                min="1"
+                                [attr.max]="maxRepeatGapSec"
+                                [value]="repeatGap().maxSec"
+                                [attr.aria-label]="'stages.gap.maxAria' | transloco"
+                                (change)="onRepeatGapEdit('max', $event)" />
+                            </label>
+                            <span class="board-gap-range__unit">s</span>
+                            <p class="board-gap-range__hint">{{ 'stages.gap.rangeHint' | transloco }}</p>
+                          </div>
+                        }
                       </div>
                     }
 
-                    <label class="board-settings-item">
-                      <div class="board-settings-item__copy">
-                        <span class="board-settings-item__label">
-                          {{ 'stages.card.overplay' | transloco }}
-                        </span>
-                        <span class="board-settings-item__hint">
-                          {{ 'stages.settings.overplayHint' | transloco }}
-                        </span>
-                      </div>
-                      <input
-                        type="checkbox"
-                        [checked]="board().overplay ?? false"
-                        [disabled]="locked()"
-                        (change)="toggleOverplay.emit()" />
-                    </label>
+                    @if (!locked()) {
+                      <label class="board-settings-item">
+                        <div class="board-settings-item__copy">
+                          <span class="board-settings-item__label">
+                            {{ 'stages.card.overplay' | transloco }}
+                          </span>
+                          <span class="board-settings-item__hint">
+                            {{ 'stages.settings.overplayHint' | transloco }}
+                          </span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          [checked]="board().overplay ?? false"
+                          (change)="toggleOverplay.emit()" />
+                      </label>
+                    }
 
                     <div class="board-settings-item board-settings-item--shortcut">
                       <div class="board-settings-item__copy">
@@ -502,7 +551,19 @@
               />
             } @else {
               <div class="board-now-playing">
-                <div class="board-control board-field__readonly">{{ currentTrackLabel() }}</div>
+                <ui-select
+                  class="board-control"
+                  [navigateUpWhenClosed]="true"
+                  [enableSearch]="false"
+                  [options]="playlistTrackOptions()"
+                  [nullOption]="isPlaying() ? undefined : ('stages.card.anyTrack' | transloco)"
+                  [ngModel]="board().selectedTrack?.id ?? null"
+                  [ngModelOptions]="{ standalone: true }"
+                  (ngModelChange)="onPlaylistTrackPicked($event)"
+                  (navigatePrev)="focusGroup()"
+                  (navigateUp)="focusChevron()"
+                  (escape)="focusChevron()"
+                />
                 <button
                   type="button"
                   class="board-skip-btn"
@@ -551,32 +612,21 @@
                 <ui-select
                   class="board-control"
                   [ariaLabelledBy]="afterEndLabelId"
-                  [ariaDescribedBy]="afterEndHint() ? afterEndHintId : null"
+                  [ariaDescribedBy]="afterEndHintId"
                   [enableSearch]="false"
-                  [options]="afterEndOptions()"
-                  [nullOption]="'stages.card.afterEndNothing' | transloco"
-                  [disabled]="locked() || afterEndBlockedByLoop()"
-                  [ngModel]="afterEndValue()"
+                  [options]="endBehaviorOptions()"
+                  [nullOption]="'stages.card.endStop' | transloco"
+                  [disabled]="locked()"
+                  [ngModel]="endBehaviorValue()"
                   [ngModelOptions]="{ standalone: true }"
-                  (ngModelChange)="onAfterEndChange($event)"
-                  (subOptionSelected)="onAfterEndBoardSelected($event)"
+                  (ngModelChange)="onEndBehaviorChange($event)"
+                  (subOptionSelected)="onEndBehaviorBoardSelected($event)"
                   (navigateUp)="focusChevron()"
                   (escape)="focusChevron()"
                 />
               </div>
 
-              @if (afterEndHint(); as hint) {
-                <p class="board-after-end__hint" [id]="afterEndHintId">
-                  {{ hint }}
-                  @if (afterEndBlockedByLoop() && !locked()) {
-                    <button
-                      type="button"
-                      class="board-after-end__action"
-                      (click)="turnLoopOff()"
-                    >{{ 'stages.card.turnLoopOff' | transloco }}</button>
-                  }
-                </p>
-              }
+              <p class="board-after-end__hint" [id]="afterEndHintId">{{ endBehaviorHint() }}</p>
             </div>
           }
         </div>

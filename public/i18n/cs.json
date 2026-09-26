@@ -136,9 +136,12 @@
       "play": "Přehrát scénu",
       "stop": "Zastavit přehrávání",
       "volume": "Hlasitost scény",
+      "anyTrack": "Libovolná stopa",
       "unnamed": "Nepojmenovaná scéna",
       "rename": "Přejmenovat scénu",
       "renameHint": "Dvojklikem přejmenujete",
+      "reorderHandle": "Změnit pořadí: {{name}} (přetáhněte nebo použijte šipky)",
+      "reorderHint": "Přetažením změníte pořadí",
       "delete": "Smazat scénu",
       "expand": "Rozbalit scénu",
       "collapse": "Sbalit scénu",
@@ -160,13 +163,12 @@
       "playlistTitle": "Přehrát celou vybranou skupinu",
       "playlistEmpty": "Tato skupina nemá žádné skladby k přehrání",
       "afterEnd": "Po skončení přehrávání",
-      "afterEndNothing": "Nic",
+      "endStop": "Zastavit",
       "afterEndStart": "Spustit {{name}}",
       "afterEndStartAnother": "Spustit scénu",
       "afterEndChooseStage": "Vyberte scénu ke spuštění",
       "afterEndNoStages": "V této relaci nejsou další scény",
       "afterEndHint": "Po skončení plynule přejde do vybrané scény",
-      "afterEndLoopHint": "Opakující se scéna nikdy neskončí.",
       "afterEndChip": "Poté {{name}}",
       "afterEndChipTip": "Po skončení přehrávání spustí {{name}}",
       "afterEndResumeAnother": "Pozastavit a obnovit",
@@ -183,7 +185,6 @@
       "scopeLibraryTip": "Vybírejte ze všech svých skladeb a skupin. Co vyberete, přidá se do tohoto sezení.",
       "allSessionTracks": "Všechny skladby sezení",
       "allLibraryTracks": "Všechny skladby knihovny",
-      "turnLoopOff": "Vypnout opakování",
       "lockedHint": "Nastavuje autor sezení"
     },
     "mode": {
@@ -193,17 +194,32 @@
       "playlist": "Playlist",
       "playlistTip": "Režim playlistu"
     },
+    "gap": {
+      "chip": "Pauza {{value}}",
+      "chipWaiting": "Další za {{value}}",
+      "chipTip": "Pauza mezi přehráními: {{value}}",
+      "from": "Od",
+      "to": "do",
+      "minAria": "Nejkratší pauza v sekundách",
+      "maxAria": "Nejdelší pauza v sekundách",
+      "rangeHint": "Vybírá se náhodně z tohoto rozsahu; pro pevnou pauzu zadejte stejnou hodnotu.",
+      "label": "Pauza mezi přehráními",
+      "hintLoop": "Ticho, než se stopa přehraje znovu",
+      "hintPlaylist": "Ticho před další stopou",
+      "random": "{{range}} (náhodně)",
+      "waiting": "Pauza před dalším přehráním"
+    },
     "loop": {
       "off": "Vypnuto",
       "offTip": "Opakování: vypnuto",
       "wholeTip": "Opakování: celé přehrávání",
-      "sequenceTip": "Opakování: sekvence oken",
-      "windowSequence": "Sekvence oken",
+      "sequenceTip": "Opakování: další okno",
+      "windowSequence": "Další okno",
       "hintOff": "Přehraje jednou a skončí",
       "hintWhole": "Opakuje skladbu nebo vybrané okno",
-      "hintSequence": "Projde všechna okna a sekvenci opakuje",
+      "hintSequence": "Po skončení okna hraje další; po posledním začne znovu od prvního",
       "chipWhole": "Smyčka",
-      "chipSequence": "Sekvence",
+      "chipSequence": "Další okno",
       "repeat": "Opakovat"
     },
     "random": {
@@ -224,8 +240,7 @@
       "shortcutHint": "Spustit/zastavit přehrávání klávesou",
       "shortcutCapturing": "Stiskněte kombinaci kláves (Esc zruší)",
       "listening": "Naslouchám…",
-      "noShortcut": "Žádná",
-      "lockedHint": "Tato scéna pochází ze sdíleného sezení. Změnit lze jen klávesovou zkratku."
+      "noShortcut": "Žádná"
     },
     "warn": {
       "emptyGroup": "Tato skupina nemá žádné skladby k přehrání. Vyberte skupinu se skladbami.",
@@ -236,6 +251,9 @@
       "deleteConfirm": "Smazat scénu „{{name}}“?"
     },
     "err": {
+      "playlistTrack": "Přepnutí stopy se nezdařilo.",
+      "repeatGap": "Uložení pauzy se nezdařilo.",
+      "reorder": "Změna pořadí scén se nezdařila.",
       "loadSessions": "Načtení sezení se nezdařilo.",
       "loadTracks": "Načtení skladeb se nezdařilo.",
       "loadGroups": "Načtení skupin se nezdařilo.",

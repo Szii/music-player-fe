@@ -18,6 +18,110 @@
   gap: 6px;
 }
 
+.board-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  width: 1.25rem;
+  margin: -4px 0 -4px -6px;
+  padding: 0;
+  border: none;
+  border-radius: var(--app-radius-xs);
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: grab;
+  touch-action: none;
+  opacity: 0.55;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.board-drag-handle svg {
+  width: 16px;
+  height: 16px;
+}
+
+.board-drag-handle:hover,
+.board-drag-handle:focus-visible {
+  outline: none;
+  opacity: 1;
+  background: var(--app-primary-soft);
+  color: var(--app-primary);
+}
+
+.board-page--dragging,
+.board-page--dragging * {
+  cursor: grabbing !important;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.boards-list app-board-card {
+  transition: opacity 0.15s ease, filter 0.15s ease;
+}
+
+.boards-list app-board-card.board-drag-source {
+  border-radius: var(--app-radius-md);
+  outline: 2px dashed var(--app-primary);
+  outline-offset: -1px;
+  opacity: 0.4;
+  filter: grayscale(0.5);
+}
+
+.board-drag-preview {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  pointer-events: none;
+  box-shadow: 0 10px 28px rgba(40, 14, 6, 0.28), 0 2px 6px rgba(40, 14, 6, 0.18);
+  transform: scale(1.02);
+  transform-origin: center;
+}
+
+.board-drag-preview--card {
+  padding: 0 14px 0 8px;
+  border: 1px solid var(--app-primary);
+  border-left-width: 4px;
+  border-radius: var(--app-radius-md);
+  background: var(--app-parchment);
+  color: var(--app-heading);
+  font-family: var(--app-font-heading);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.board-drag-preview--tab {
+  justify-content: center;
+  padding: 6px 14px;
+  border: 1px solid #3d1008;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #6a1e10 0%, #58180d 100%);
+  color: #fff8ee;
+  font-family: var(--app-font-heading);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  transform: scale(1.08);
+}
+
+.board-drag-preview__grip {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  color: var(--app-primary);
+}
+
+.board-drag-preview__label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 /* Board-name tabs — only shown for the phone carousel. */
 .boards-tabs {
   display: none;
@@ -27,6 +131,7 @@
   /* Phone (≤sm): boards become a horizontal swipe carousel with a name-tab
      strip on top; the active board lights up, the rest are greyed. */
   .boards-tabs {
+    position: relative;
     display: flex;
     gap: 6px;
     overflow-x: auto;
@@ -56,7 +161,22 @@
     text-overflow: ellipsis;
     opacity: 0.55;
     cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
     transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+
+  .boards-tab.boards-tab--drag-source {
+    opacity: 0.4;
+    border-style: dashed;
+    border-color: var(--app-primary);
+    background: var(--app-primary-soft);
+    color: var(--app-primary);
+  }
+
+  .board-drag-handle {
+    display: none;
   }
 
   .boards-tab--active {

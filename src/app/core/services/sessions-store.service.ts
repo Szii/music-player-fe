@@ -260,6 +260,12 @@ export class SessionsStore {
     );
   }
 
+  reorderBoards(sessionId: string, boardIds: string[]): Observable<SessionResponse> {
+    return this.api.reorderSessionBoards({ sessionId, reorderSessionBoardsRequest: { boardIds } }).pipe(
+      tap(session => this.upsertSessionLocal(session)),
+    );
+  }
+
   removeGroup(sessionId: string, groupId: string): Observable<SessionResponse> {
     return this.api.removeGroupFromSession({ sessionId, groupId }).pipe(
       tap(session => this.upsertSessionLocal(session)),

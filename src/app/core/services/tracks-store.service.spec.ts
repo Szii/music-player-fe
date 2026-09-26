@@ -3,6 +3,7 @@ import { Observable, Subject, of } from 'rxjs';
 
 import { MusicTracksService, Track } from '../../api/generated';
 import { SessionService } from '../auth/session.service';
+import { GroupsStore } from './groups-store.service';
 import { TracksStore } from './tracks-store.service';
 
 /** Only the members TracksStore touches, with call counts so we can prove dedupe. */
@@ -20,6 +21,23 @@ class MusicTracksServiceStub {
   updateTrack(): Observable<Track> {
     return of(this.updated);
   }
+
+  deleteTrack(): Observable<unknown> {
+    return of(null);
+  }
+}
+
+class GroupsStoreStub {
+  droppedTrackIds: string[] = [];
+  invalidations = 0;
+
+  dropTrack(trackId: string): void {
+    this.droppedTrackIds.push(trackId);
+  }
+
+  invalidate(): void {
+    this.invalidations++;
+  }
 }
 
 class SessionServiceStub {
@@ -29,17 +47,20 @@ class SessionServiceStub {
 describe('TracksStore', () => {
   let api: MusicTracksServiceStub;
   let session: SessionServiceStub;
+  let groups: GroupsStoreStub;
   let store: TracksStore;
 
   beforeEach(() => {
     api = new MusicTracksServiceStub();
     session = new SessionServiceStub();
+    groups = new GroupsStoreStub();
 
     TestBed.configureTestingModule({
       providers: [
         TracksStore,
         { provide: MusicTracksService, useValue: api },
         { provide: SessionService, useValue: session },
+        { provide: GroupsStore, useValue: groups },
       ],
     });
 
@@ -101,5 +122,24 @@ describe('TracksStore', () => {
 
     store.load().subscribe();
     expect(api.ownCalls).toBe(2);
+  });
+
+  it('drops a deleted track from the cached groups', () => {
+    api.own = [{ id: '1' }, { id: '2' }];
+    store.load().subscribe();
+
+    store.deleteTrack('1').subscribe();
+
+    expect(store.tracks().map(t => t.id)).toEqual(['2']);
+    expect(groups.droppedTrackIds).toEqual(['1']);
+  });
+
+  it('marks the cached groups stale when a track changes', () => {
+    api.own = [{ id: '1' }];
+    store.load().subscribe();
+
+    store.updateTrack('1', {}).subscribe();
+
+    expect(groups.invalidations).toBe(1);
   });
 });

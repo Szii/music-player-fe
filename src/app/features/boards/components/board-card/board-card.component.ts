@@ -30,7 +30,6 @@ import { UiVolumeSliderComponent } from '../../../../shared/ui/volume-slider/ui-
 import { UiPlayButtonComponent } from '../../../../shared/ui/play-button/ui-play-button.component';
 import { UiChipComponent } from '../../../../shared/ui/chip/ui-chip.component';
 import { UiIconComponent, UiIconName } from '../../../../shared/ui/icon/ui-icon.component';
-import { UiInlineSelectComponent } from '../../../../shared/ui/inline-select/ui-inline-select.component';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { BoardShortcutsService } from '../../../../core/services/board-shortcuts.service';
 import { ScrollLockService } from '../../../../core/services/scroll-lock.service';
@@ -49,12 +48,46 @@ export interface PlaylistOptions {
 
 export type PlaybackMode = 'single' | 'playlist' | 'sequence';
 
+export interface RepeatGap {
+  minSec: number;
+  maxSec: number;
+}
+
+const DEFAULT_REPEAT_GAP: RepeatGap = { minSec: 10, maxSec: 30 };
+const MAX_REPEAT_GAP_SEC = 3600;
+
+function clampGapSeconds(value: number, min: number): number {
+  return Number.isFinite(value) ? Math.min(MAX_REPEAT_GAP_SEC, Math.max(min, Math.round(value))) : min;
+}
+
+function formatSeconds(seconds: number): string {
+  if (seconds < 60) return `${seconds} s`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return rest === 0 ? `${minutes} min` : `${minutes} min ${rest} s`;
+}
+
+function formatRepeatGapRange(gap: RepeatGap): string {
+  if (gap.minSec === gap.maxSec) return formatSeconds(gap.minSec);
+  if (gap.maxSec < 60) return `${gap.minSec}–${gap.maxSec} s`;
+  if (gap.minSec % 60 === 0 && gap.maxSec % 60 === 0) return `${gap.minSec / 60}–${gap.maxSec / 60} min`;
+  return `${formatSeconds(gap.minSec)} – ${formatSeconds(gap.maxSec)}`;
+}
+
 /**
  * Loop behaviour for single-track (non-playlist) playback, chosen from the
  * Playback-settings dropdown. `sequence` steps through the track's windows in
  * order; the others loop (or don't loop) the whole track / selected window.
  */
 export type LoopMode = 'off' | 'whole' | 'sequence';
+
+export interface EndBehavior {
+  loop: LoopMode;
+  linkedBoard: LinkedBoardSelection | null;
+}
+
+const END_REPEAT = 'repeat';
+const END_SEQUENCE = 'sequence';
 
 let nextCardId = 0;
 
@@ -71,7 +104,6 @@ let nextCardId = 0;
     UiPlayButtonComponent,
     UiChipComponent,
     UiIconComponent,
-    UiInlineSelectComponent,
     UiAlertComponent,
     BottomSheetDragDirective,
     UiCharCounterComponent,
@@ -118,8 +150,11 @@ export class BoardCardComponent implements OnInit {
   /** Paused by another board's pause-and-resume action; resumes when that one ends. */
   readonly heldForResume = input(false);
   readonly locked = input(false);
+  readonly waitingUntil = input<number | null>(null);
+  readonly waiting = computed(() => this.waitingUntil() != null);
+  private readonly now = signal(Date.now());
 
-  readonly isPlaying = computed(() => this.status() === 'PLAYING');
+  readonly isPlaying = computed(() => this.status() === 'PLAYING' || this.waiting());
 
   /** YouTube video id parsed from the selected track's link. */
   readonly selectedVideoId = computed(() =>
@@ -131,7 +166,7 @@ export class BoardCardComponent implements OnInit {
   readonly trackChange = output<string | null>();
   readonly windowChange = output<string | null>();
   readonly trackWithWindowChange = output<{ trackId: string | null; windowId: string | null }>();
-  readonly loopModeChange = output<LoopMode>();
+  readonly endBehaviorChange = output<EndBehavior>();
   readonly toggleOverplay = output<void>();
   readonly play = output<void>();
   readonly stop = output<void>();
@@ -140,7 +175,9 @@ export class BoardCardComponent implements OnInit {
   readonly audioError = output<void>();
   readonly modeChange = output<PlaybackMode>();
   readonly playlistOptionsChange = output<PlaylistOptions>();
+  readonly repeatGapChange = output<RepeatGap>();
   readonly skipNext = output<void>();
+  readonly playlistTrackPick = output<string | null>();
   readonly volumePreviewChange = output<number>();
   readonly volumeCommit = output<number>();
   readonly rename = output<string>();
@@ -148,7 +185,6 @@ export class BoardCardComponent implements OnInit {
   readonly navigateBoardDown = output<void>();
   readonly requestPlay = output<void>();
   /** The After-playback action changed (board null = do nothing). */
-  readonly linkedBoardChange = output<LinkedBoardSelection>();
   /** Non-repeating playback is a couple of seconds from its crossfade point. */
   readonly endApproaching = output<void>();
   /** The player's audio actually started (after load/buffer or resume). */
@@ -325,7 +361,46 @@ export class BoardCardComponent implements OnInit {
   readonly effectiveRepeat = computed(() => {
     if (this.playlistMode()) return false;
     if (this.sequentialWindows()) return !this.canSequenceWindows();
-    return this.board().repeat ?? false;
+    return (this.board().repeat ?? false) && this.repeatGap().maxSec === 0;
+  });
+
+  readonly repeatGap = computed<RepeatGap>(() => {
+    const minSec = Math.max(0, this.board().repeatGapMinSec ?? 0);
+    return { minSec, maxSec: Math.max(minSec, this.board().repeatGapMaxSec ?? 0) };
+  });
+
+  readonly repeatGapAvailable = computed(() => this.playlistMode() || this.loopMode() === 'whole');
+
+  readonly repeatGapEnabled = computed(() => this.repeatGap().maxSec > 0);
+
+  readonly maxRepeatGapSec = MAX_REPEAT_GAP_SEC;
+
+  readonly repeatGapHint = computed(() =>
+    this.t(this.playlistMode() ? 'stages.gap.hintPlaylist' : 'stages.gap.hintLoop'),
+  );
+
+  private repeatGapLabel(gap: RepeatGap): string {
+    const range = formatRepeatGapRange(gap);
+    return gap.minSec === gap.maxSec ? range : this.t('stages.gap.random', { range });
+  }
+
+  readonly pauseChip = computed(() => {
+    if (!this.repeatGapAvailable() || !this.repeatGapEnabled()) return null;
+    const gap = this.repeatGap();
+    const tooltip = this.t('stages.gap.chipTip', { value: this.repeatGapLabel(gap) });
+    const until = this.waitingUntil();
+    if (until == null) {
+      return { label: this.t('stages.gap.chip', { value: formatRepeatGapRange(gap) }), tooltip, waiting: false };
+    }
+    const seconds = Math.max(0, Math.ceil((until - this.now()) / 1000));
+    return { label: this.t('stages.gap.chipWaiting', { value: formatSeconds(seconds) }), tooltip, waiting: true };
+  });
+
+  private readonly waitingTicker = effect(onCleanup => {
+    if (this.waitingUntil() == null) return;
+    this.now.set(Date.now());
+    const timer = setInterval(() => this.now.set(Date.now()), 1000);
+    onCleanup(() => clearInterval(timer));
   });
 
   /** The board's selection is a group window item (a specific window chosen from
@@ -425,6 +500,26 @@ export class BoardCardComponent implements OnInit {
     return this.getPlaylistCandidates(this.board().selectedGroup?.id ?? null).length > 0;
   });
 
+  readonly playlistTrackOptions = computed<UiSelectOption[]>(() => {
+    const playable = new Set((this.board().availableTracks ?? []).map(track => track.id));
+    const seen = new Set<string>();
+    return this.orderedAvailableTracks().flatMap(track => {
+      if (track.id == null || isWindowItem(track) || !playable.has(track.id) || seen.has(track.id)) return [];
+      seen.add(track.id);
+      return [{
+        label: track.trackName || track.trackOriginalName || this.t('common.trackNum', { id: track.id }),
+        value: track.id,
+      }];
+    });
+  });
+
+  onPlaylistTrackPicked(trackId: string | null): void {
+    const current = this.board().selectedTrack?.id ?? null;
+    if (trackId !== current || (trackId != null && this.waiting())) {
+      this.playlistTrackPick.emit(trackId);
+    }
+  }
+
   readonly currentTrackLabel = computed(() => {
     const track = this.board().selectedTrack;
     if (!track) return '—';
@@ -476,38 +571,10 @@ export class BoardCardComponent implements OnInit {
     () => this.sequentialWindows() && this.canSequenceWindows(),
   );
 
-  readonly loopModeChoices = computed<{ value: LoopMode; label: string; disabled?: boolean }[]>(() => [
-    { value: 'off', label: this.t('stages.loop.off') },
-    { value: 'whole', label: this.t('stages.loop.repeat') },
-    // Disable sequencing when the track lacks the windows to step through.
-    {
-      value: 'sequence',
-      label: this.t('stages.loop.windowSequence'),
-      disabled: !this.canSequenceWindows(),
-    },
-  ]);
-
-  readonly loopModeOptions = computed(() =>
-    this.locked()
-      ? this.loopModeChoices().map(choice => ({ ...choice, disabled: true }))
-      : this.loopModeChoices(),
-  );
-
   /** Current single-track loop behaviour, derived from the board flags. */
   readonly loopMode = computed<LoopMode>(() => {
     if (this.sequentialWindows()) return 'sequence';
     return this.board().repeat ? 'whole' : 'off';
-  });
-
-  readonly loopModeHint = computed(() => {
-    switch (this.loopMode()) {
-      case 'whole':
-        return this.t('stages.loop.hintWhole');
-      case 'sequence':
-        return this.t('stages.loop.hintSequence');
-      default:
-        return this.t('stages.loop.hintOff');
-    }
   });
 
   /** Other boards this one can continue into when its playback ends. */
@@ -527,26 +594,29 @@ export class BoardCardComponent implements OnInit {
     () => this.board().linkedBoard?.mode ?? LinkedBoardMode.Start,
   );
 
-  /** The chain only fires when playback actually ends, i.e. with loop off. */
-  readonly afterEndBlockedByLoop = computed(() => this.loopMode() !== 'off');
-
   /** Linked and able to fire right now — drives the summary chip. */
   readonly afterEndActive = computed(
-    () => !this.playlistMode() && !this.afterEndBlockedByLoop() && this.linkedBoard() != null,
+    () => !this.playlistMode() && this.loopMode() === 'off' && this.linkedBoard() != null,
   );
 
-  readonly afterEndValue = computed<LinkedBoardMode | null>(() =>
-    this.linkedBoard() ? this.linkedBoardMode() : null,
-  );
+  readonly endBehaviorValue = computed<string | null>(() => {
+    switch (this.loopMode()) {
+      case 'whole':
+        return END_REPEAT;
+      case 'sequence':
+        return END_SEQUENCE;
+      default:
+        return this.linkedBoard() ? this.linkedBoardMode() : null;
+    }
+  });
 
-  readonly afterEndOptions = computed<UiSelectOption[]>(() => {
+  readonly endBehaviorOptions = computed<UiSelectOption[]>(() => {
     const targets = this.linkTargets();
     const linked = this.linkedBoard();
-    const current = this.linkedBoardMode();
+    const current = this.endBehaviorValue();
     const subOptions = targets.map(choice => ({ label: choice.name, value: choice.id }));
 
-    // Each action is a category: picking it opens the board list ("More" flyout).
-    const actionOption = (
+    const linkOption = (
       action: LinkedBoardMode,
       genericKey: string,
       namedKey: string,
@@ -563,33 +633,39 @@ export class BoardCardComponent implements OnInit {
       subOptions,
     });
 
-    const options = [
-      actionOption(
-        LinkedBoardMode.Start,
-        'stages.card.afterEndStartAnother',
-        'stages.card.afterEndStart',
-      ),
-      actionOption(
-        LinkedBoardMode.Resume,
-        'stages.card.afterEndResumeAnother',
-        'stages.card.afterEndResume',
-      ),
+    const links = [
+      linkOption(LinkedBoardMode.Start, 'stages.card.afterEndStartAnother', 'stages.card.afterEndStart'),
+      linkOption(LinkedBoardMode.Resume, 'stages.card.afterEndResumeAnother', 'stages.card.afterEndResume'),
     ];
-    // With no other boards both rows would read "No other stages" — show one.
-    return targets.length === 0 ? options.slice(0, 1) : options;
+
+    return [
+      { label: this.t('stages.loop.repeat'), value: END_REPEAT },
+      {
+        label: this.t('stages.loop.windowSequence'),
+        value: END_SEQUENCE,
+        disabled: !this.canSequenceWindows() && current !== END_SEQUENCE,
+      },
+      ...(targets.length === 0 ? links.slice(0, 1) : links),
+    ];
   });
 
   private readonly cardUid = nextCardId++;
   readonly afterEndLabelId = `board-after-end-label-${this.cardUid}`;
   readonly afterEndHintId = `board-after-end-hint-${this.cardUid}`;
 
-  readonly afterEndHint = computed(() => {
-    if (this.afterEndBlockedByLoop()) return this.t('stages.card.afterEndLoopHint');
-    const linked = this.linkedBoard();
-    if (!linked) return null;
-    return this.linkedBoardMode() === LinkedBoardMode.Resume
-      ? this.t('stages.card.afterEndResumeHint', { name: linked.name })
-      : this.t('stages.card.afterEndHint');
+  readonly endBehaviorHint = computed(() => {
+    switch (this.endBehaviorValue()) {
+      case END_REPEAT:
+        return this.t('stages.loop.hintWhole');
+      case END_SEQUENCE:
+        return this.t('stages.loop.hintSequence');
+      case LinkedBoardMode.Start:
+        return this.t('stages.card.afterEndHint');
+      case LinkedBoardMode.Resume:
+        return this.t('stages.card.afterEndResumeHint', { name: this.linkedBoard()?.name ?? '' });
+      default:
+        return this.t('stages.loop.hintOff');
+    }
   });
 
   readonly afterEndChip = computed(() => {
@@ -743,11 +819,6 @@ export class BoardCardComponent implements OnInit {
   setBrowseLibrary(value: boolean): void {
     this.browseLibrary.set(value);
     writeLibraryPreference(this.board().id, value);
-  }
-
-  turnLoopOff(): void {
-    if (this.locked()) return;
-    this.loopModeChange.emit('off');
   }
 
   toggleCaptureShortcut(): void {
@@ -907,9 +978,15 @@ export class BoardCardComponent implements OnInit {
     this.modeChange.emit(playlist ? 'playlist' : 'single');
   }
 
-  onLoopModeSelected(mode: string): void {
-    if (this.locked() || mode === this.loopMode()) return;
-    this.loopModeChange.emit(mode as LoopMode);
+  onEndBehaviorChange(value: string | null): void {
+    if (this.locked() || value === this.endBehaviorValue()) return;
+    if (value === END_REPEAT) {
+      this.endBehaviorChange.emit({ loop: 'whole', linkedBoard: null });
+    } else if (value === END_SEQUENCE) {
+      this.endBehaviorChange.emit({ loop: 'sequence', linkedBoard: null });
+    } else if (value == null) {
+      this.endBehaviorChange.emit({ loop: 'off', linkedBoard: null });
+    }
   }
 
   /**
@@ -937,18 +1014,30 @@ export class BoardCardComponent implements OnInit {
   }
 
   /** Only "Nothing" commits directly; the actions commit via their board sub-option. */
-  onAfterEndChange(value: LinkedBoardMode | null): void {
-    if (value == null && this.board().linkedBoard != null) {
-      this.linkedBoardChange.emit({ boardId: null, mode: this.linkedBoardMode() });
-    }
-  }
-
-  onAfterEndBoardSelected(event: UiSelectSubOptionEvent): void {
+  onEndBehaviorBoardSelected(event: UiSelectSubOptionEvent): void {
+    if (this.locked()) return;
     const boardId = event.sub.value as string;
     const mode = event.parent.value as LinkedBoardMode;
     const current = this.board().linkedBoard;
-    if (boardId !== current?.boardId || mode !== current?.mode) {
-      this.linkedBoardChange.emit({ boardId, mode });
+    if (this.loopMode() === 'off' && boardId === current?.boardId && mode === current?.mode) return;
+    this.endBehaviorChange.emit({ loop: 'off', linkedBoard: { boardId, mode } });
+  }
+
+  onRepeatGapToggle(): void {
+    if (this.locked()) return;
+    this.repeatGapChange.emit(this.repeatGapEnabled() ? { minSec: 0, maxSec: 0 } : DEFAULT_REPEAT_GAP);
+  }
+
+  onRepeatGapEdit(edge: 'min' | 'max', event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const current = this.repeatGap();
+    const value = clampGapSeconds(Number(input.value), edge === 'min' ? 0 : 1);
+    const next = edge === 'min'
+      ? { minSec: value, maxSec: Math.max(value, current.maxSec, 1) }
+      : { minSec: Math.min(current.minSec, value), maxSec: value };
+    input.value = String(edge === 'min' ? next.minSec : next.maxSec);
+    if (next.minSec !== current.minSec || next.maxSec !== current.maxSec) {
+      this.repeatGapChange.emit(next);
     }
   }
 

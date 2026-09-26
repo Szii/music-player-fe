@@ -1,5 +1,5 @@
 
-<div class="app-page board-page">
+<div class="app-page board-page" [class.board-page--dragging]="draggingBoardId() != null">
   <ui-page-title [title]="'stages.title' | transloco" />
 
   @if (errorMessage()) {
@@ -57,16 +57,31 @@
           <button
             type="button"
             class="boards-tab"
+            [attr.data-board-tab-id]="board.id"
+            [style.order]="boardOrder(board, 'tab')"
             [class.boards-tab--active]="activeBoardIndex() === i"
-            (click)="scrollToBoard(i)"
+            [class.boards-tab--drag-source]="isDragSource(board, 'tab')"
+            (touchstart)="onBoardTabTouchStart(board, $event)"
+            (touchmove)="onBoardTabTouchMove($event)"
+            (touchend)="onBoardTabTouchEnd($event, true)"
+            (touchcancel)="onBoardTabTouchEnd($event, false)"
+            (pointerdown)="onBoardTabPointerDown(board, $event)"
+            (pointermove)="onBoardTabPointerMove($event)"
+            (pointerup)="onBoardTabPointerUp($event, true)"
+            (pointercancel)="onBoardTabPointerUp($event, false)"
+            (contextmenu)="onBoardTabContextMenu($event)"
+            (click)="onBoardTabClick(i)"
           >{{ board.name || ('common.stageIndex' | transloco: { index: i + 1 }) }}</button>
         }
       </div>
 
       <div class="boards-list-wrap">
         <div class="boards-list" #boardsList (scroll)="onBoardsScroll()">
-          @for (board of sessionBoards(); track board.id) {
+          @for (board of cardBoards(); track board.id) {
             <app-board-card
+              [attr.data-board-id]="board.id"
+              [style.order]="boardOrder(board, 'card')"
+              [class.board-drag-source]="isDragSource(board, 'card')"
               [board]="board"
               [availableGroups]="getGroupsForBoard(board)"
               [libraryGroups]="groups()"
@@ -82,12 +97,13 @@
               [linkedBoardChoices]="linkedBoardChoices()"
               [heldForResume]="isHeldForResume(board)"
               [locked]="readOnly()"
+              [waitingUntil]="boardWaitingUntil(board.id)"
               (delete)="deleteBoard(board)"
               (groupChange)="onGroupSelectionChange(board, $event)"
               (trackChange)="onTrackSelectionChange(board, $event)"
               (windowChange)="onWindowSelectionChange(board, $event)"
               (trackWithWindowChange)="onTrackWithWindowChange(board, $event)"
-              (loopModeChange)="onLoopModeChange(board, $event)"
+              (endBehaviorChange)="onEndBehaviorChange(board, $event)"
               (toggleOverplay)="toggleOverplay(board)"
               (play)="playBoardTrack(board)"
               (stop)="stopBoardTrack(board)"
@@ -98,19 +114,61 @@
               (audioError)="onAudioError(board)"
               (modeChange)="onModeChange(board, $event)"
               (playlistOptionsChange)="onPlaylistOptionsChange(board, $event)"
+              (repeatGapChange)="onRepeatGapChange(board, $event)"
               (skipNext)="onPlaylistSkip(board)"
+              (playlistTrackPick)="onPlaylistTrackPick(board, $event)"
               (volumePreviewChange)="onBoardVolumePreview(board, $event)"
               (volumeCommit)="onBoardVolumeCommit(board, $event)"
               (rename)="onBoardRename(board, $event)"
               (navigateBoardUp)="focusBoardByOffset(board, -1)"
               (navigateBoardDown)="focusBoardByOffset(board, 1)"
               (requestPlay)="onBoardRequestPlay(board)"
-              (linkedBoardChange)="onLinkedBoardChange(board, $event)"
-            />
+            >
+              <button
+                type="button"
+                class="board-drag-handle"
+                boardDragHandle
+                [attr.aria-label]="'stages.card.reorderHandle' | transloco: { name: board.name || ('stages.card.unnamed' | transloco) }"
+                [title]="'stages.card.reorderHint' | transloco"
+                (pointerdown)="startBoardDrag(board, $event)"
+                (pointermove)="onBoardPointerMove($event)"
+                (pointerup)="onBoardPointerUp($event, true)"
+                (pointercancel)="onBoardPointerUp($event, false)"
+                (keydown)="onBoardHandleKeydown(board, $event)"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" />
+                  <circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" />
+                  <circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" />
+                </svg>
+              </button>
+            </app-board-card>
           }
         </div>
       </div>
     }
+  }
+
+  @if (boardDrag(); as drag) {
+    <div
+      class="board-drag-preview"
+      [class.board-drag-preview--card]="drag.kind === 'card'"
+      [class.board-drag-preview--tab]="drag.kind === 'tab'"
+      [style.left.px]="drag.left"
+      [style.top.px]="drag.top"
+      [style.width.px]="drag.width"
+      [style.height.px]="drag.height"
+      aria-hidden="true"
+    >
+      @if (drag.kind === 'card') {
+        <svg class="board-drag-preview__grip" viewBox="0 0 24 24" fill="currentColor">
+          <circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" />
+          <circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" />
+          <circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" />
+        </svg>
+      }
+      <span class="board-drag-preview__label">{{ drag.label }}</span>
+    </div>
   }
 
   <app-footer />

@@ -1,6 +1,7 @@
 import { Component, DestroyRef, ElementRef, OnDestroy, OnInit, QueryList, ViewChild, ViewChildren, computed, effect, inject, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { moveItemInArray } from '@angular/cdk/drag-drop';
 import { Subject, forkJoin, of } from 'rxjs';
 import {
   catchError,
@@ -33,8 +34,10 @@ import {
   PlaylistOptions,
   PlaybackMode,
   LoopMode,
+  RepeatGap,
+  EndBehavior,
 } from '../../components/board-card/board-card.component';
-import { LinkedBoardChoice, LinkedBoardSelection } from '../../models/linked-board-choice';
+import { LinkedBoardChoice } from '../../models/linked-board-choice';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
@@ -76,6 +79,46 @@ interface PendingHandoff {
 
 /** Longest wait for a handoff target's audio before fading it in regardless. */
 const LINKED_HANDOFF_START_TIMEOUT_MS = 4000;
+
+const CARD_DRAG_PREVIEW_HEIGHT = 52;
+const DRAG_AUTOSCROLL_EDGE_PX = 72;
+const TAB_DRAG_LONG_PRESS_MS = 300;
+const TAB_DRAG_TOUCH_SLOP_PX = 10;
+const TAB_DRAG_MOUSE_SLOP_PX = 4;
+const TAB_CLICK_SUPPRESS_MS = 400;
+
+type BoardDragKind = 'card' | 'tab';
+type BoardDragInput = 'pointer' | 'touch';
+
+interface BoardDrag {
+  kind: BoardDragKind;
+  boardId: string;
+  label: string;
+  order: string[];
+  pointer: number;
+  grab: number;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+interface BoardDragRuntime {
+  input: BoardDragInput;
+  id: number;
+  frame: number | null;
+  scroller: HTMLElement;
+}
+
+interface PendingTabDrag {
+  board: Board;
+  tab: HTMLElement;
+  input: BoardDragInput;
+  id: number;
+  startX: number;
+  startY: number;
+  timer: ReturnType<typeof setTimeout> | null;
+}
 
 interface VolumeCommit {
   boardId: string;
@@ -149,6 +192,17 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     return this.boards().filter(b => b.sessionId === sessionId);
   });
 
+  readonly cardBoards = computed<Board[]>(() =>
+    [...this.sessionBoards()].sort((a, b) => (a.id ?? '').localeCompare(b.id ?? '')),
+  );
+
+  readonly boardDrag = signal<BoardDrag | null>(null);
+  readonly draggingBoardId = computed(() => this.boardDrag()?.boardId ?? null);
+
+  private dragRuntime: BoardDragRuntime | null = null;
+  private pendingTabDrag: PendingTabDrag | null = null;
+  private suppressTabClick = false;
+
   /**
    * Boards of the selected session that can be linked for the After-playback
    * action (named as in the tabs). A board without a selected track has nothing
@@ -186,6 +240,329 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       this.activeBoardIndex.set(idx);
       this.scrollActiveTabIntoView(idx);
     }
+  }
+
+  onBoardTabClick(index: number): void {
+    if (this.suppressTabClick) return;
+    this.scrollToBoard(index);
+  }
+
+  onBoardTabContextMenu(event: Event): void {
+    if (this.pendingTabDrag != null || this.boardDrag() != null) event.preventDefault();
+  }
+
+  onBoardTabTouchStart(board: Board, event: TouchEvent): void {
+    this.clearPendingTabDrag();
+    const touch = event.changedTouches[0];
+    if (board.id == null || !touch || event.touches.length > 1 || this.boardDrag() != null) return;
+
+    const pending: PendingTabDrag = {
+      board,
+      tab: event.currentTarget as HTMLElement,
+      input: 'touch',
+      id: touch.identifier,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      timer: null,
+    };
+    pending.timer = setTimeout(() => this.activateTabDrag(pending.startX), TAB_DRAG_LONG_PRESS_MS);
+    this.pendingTabDrag = pending;
+  }
+
+  onBoardTabTouchMove(event: TouchEvent): void {
+    const runtime = this.dragRuntime;
+    if (runtime?.input === 'touch') {
+      const touch = findTouch(event.changedTouches, runtime.id);
+      if (!touch) return;
+      if (event.cancelable) event.preventDefault();
+      this.moveBoardDragTo(touch.clientX, touch.clientY);
+      return;
+    }
+
+    const pending = this.pendingTabDrag;
+    const touch = pending?.input === 'touch' ? findTouch(event.changedTouches, pending.id) : undefined;
+    if (pending && touch && Math.hypot(touch.clientX - pending.startX, touch.clientY - pending.startY) > TAB_DRAG_TOUCH_SLOP_PX) {
+      this.clearPendingTabDrag();
+    }
+  }
+
+  onBoardTabTouchEnd(event: TouchEvent, commit: boolean): void {
+    const pending = this.pendingTabDrag;
+    if (pending?.input === 'touch' && findTouch(event.changedTouches, pending.id)) {
+      this.clearPendingTabDrag();
+      return;
+    }
+
+    const runtime = this.dragRuntime;
+    if (runtime?.input === 'touch' && findTouch(event.changedTouches, runtime.id)) {
+      if (event.cancelable) event.preventDefault();
+      this.finishBoardDrag(commit);
+    }
+  }
+
+  onBoardTabPointerDown(board: Board, event: PointerEvent): void {
+    if (event.pointerType === 'touch' || board.id == null || event.button !== 0 || this.boardDrag() != null) return;
+    this.clearPendingTabDrag();
+    this.pendingTabDrag = {
+      board,
+      tab: event.currentTarget as HTMLElement,
+      input: 'pointer',
+      id: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      timer: null,
+    };
+  }
+
+  onBoardTabPointerMove(event: PointerEvent): void {
+    if (event.pointerType === 'touch') return;
+    const pending = this.pendingTabDrag;
+    if (pending?.input === 'pointer' && pending.id === event.pointerId) {
+      if (Math.hypot(event.clientX - pending.startX, event.clientY - pending.startY) > TAB_DRAG_MOUSE_SLOP_PX) {
+        this.activateTabDrag(event.clientX);
+      }
+      return;
+    }
+    this.onBoardPointerMove(event);
+  }
+
+  onBoardTabPointerUp(event: PointerEvent, commit: boolean): void {
+    if (event.pointerType === 'touch') return;
+    if (this.pendingTabDrag?.input === 'pointer' && this.pendingTabDrag.id === event.pointerId) {
+      this.clearPendingTabDrag();
+      return;
+    }
+    this.onBoardPointerUp(event, commit);
+  }
+
+  isDragSource(board: Board, kind: BoardDragKind): boolean {
+    const drag = this.boardDrag();
+    return drag?.kind === kind && drag.boardId === board.id;
+  }
+
+  boardOrder(board: Board, kind: BoardDragKind): number {
+    const drag = this.boardDrag();
+    const ids = drag?.kind === kind ? drag.order : this.sessionBoardIds();
+    return ids.indexOf(board.id ?? '');
+  }
+
+  startBoardDrag(board: Board, event: PointerEvent): void {
+    if (board.id == null || event.button !== 0 || this.boardDrag() != null) return;
+    const list = this.boardsListRef?.nativeElement;
+    const card = this.boardDragItem('card', board.id);
+    if (!list || !card) return;
+
+    event.preventDefault();
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+
+    const rect = card.getBoundingClientRect();
+    const grab = Math.min(Math.max(event.clientY - rect.top, 16), CARD_DRAG_PREVIEW_HEIGHT - 16);
+    this.beginBoardDrag({
+      kind: 'card',
+      boardId: board.id,
+      label: this.boardLabel(board),
+      order: this.sessionBoardIds(),
+      pointer: event.clientY,
+      grab,
+      left: rect.left,
+      top: event.clientY - grab,
+      width: rect.width,
+      height: CARD_DRAG_PREVIEW_HEIGHT,
+    }, { input: 'pointer', id: event.pointerId, frame: null, scroller: scrollParent(list) });
+  }
+
+  onBoardPointerMove(event: PointerEvent): void {
+    const runtime = this.dragRuntime;
+    if (runtime?.input !== 'pointer' || runtime.id !== event.pointerId) return;
+    this.moveBoardDragTo(event.clientX, event.clientY);
+  }
+
+  onBoardPointerUp(event: PointerEvent, commit: boolean): void {
+    const runtime = this.dragRuntime;
+    if (runtime?.input !== 'pointer' || runtime.id !== event.pointerId) return;
+    this.finishBoardDrag(commit);
+  }
+
+  onBoardHandleKeydown(board: Board, event: KeyboardEvent): void {
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const ids = this.sessionBoardIds();
+    const from = ids.indexOf(board.id ?? '');
+    const to = from + (event.key === 'ArrowUp' ? -1 : 1);
+    if (from < 0 || to < 0 || to >= ids.length) return;
+    moveItemInArray(ids, from, to);
+    this.applyBoardOrder(ids);
+    const handle = event.currentTarget as HTMLElement;
+    setTimeout(() => handle.scrollIntoView({ block: 'nearest' }));
+  }
+
+  private activateTabDrag(pointerX: number): void {
+    const pending = this.pendingTabDrag;
+    const tabs = this.boardsTabsRef?.nativeElement;
+    this.clearPendingTabDrag();
+    if (!pending || !tabs || pending.board.id == null || this.boardDrag() != null) return;
+
+    if (pending.input === 'pointer') {
+      try {
+        pending.tab.setPointerCapture(pending.id);
+      } catch {
+        return;
+      }
+    } else {
+      navigator.vibrate?.(10);
+    }
+    this.suppressTabClick = true;
+
+    const rect = pending.tab.getBoundingClientRect();
+    const grab = pointerX - rect.left;
+    this.beginBoardDrag({
+      kind: 'tab',
+      boardId: pending.board.id,
+      label: this.boardLabel(pending.board),
+      order: this.sessionBoardIds(),
+      pointer: pointerX,
+      grab,
+      left: pointerX - grab,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+    }, { input: pending.input, id: pending.id, frame: null, scroller: tabs });
+  }
+
+  private clearPendingTabDrag(): void {
+    if (this.pendingTabDrag?.timer != null) clearTimeout(this.pendingTabDrag.timer);
+    this.pendingTabDrag = null;
+  }
+
+  private beginBoardDrag(drag: BoardDrag, runtime: BoardDragRuntime): void {
+    this.boardDrag.set(drag);
+    this.dragRuntime = runtime;
+    runtime.frame = requestAnimationFrame(() => this.boardDragTick());
+  }
+
+  private moveBoardDragTo(x: number, y: number): void {
+    const drag = this.boardDrag();
+    if (!drag) return;
+    const pointer = drag.kind === 'card' ? y : x;
+    this.boardDrag.set({
+      ...drag,
+      pointer,
+      ...(drag.kind === 'card' ? { top: pointer - drag.grab } : { left: pointer - drag.grab }),
+    });
+    this.updateBoardDragTarget();
+  }
+
+  private finishBoardDrag(commit: boolean): void {
+    const drag = this.boardDrag();
+    if (this.dragRuntime?.frame != null) cancelAnimationFrame(this.dragRuntime.frame);
+    this.dragRuntime = null;
+    this.boardDrag.set(null);
+    if (drag?.kind === 'tab') setTimeout(() => (this.suppressTabClick = false), TAB_CLICK_SUPPRESS_MS);
+    if (commit && drag) this.applyBoardOrder(drag.order);
+  }
+
+  private boardDragTick(): void {
+    const drag = this.boardDrag();
+    const runtime = this.dragRuntime;
+    if (!drag || !runtime) return;
+
+    const scroller = runtime.scroller;
+    const vertical = drag.kind === 'card';
+    const bounds = scroller === document.scrollingElement
+      ? { top: 0, bottom: window.innerHeight, left: 0, right: window.innerWidth }
+      : scroller.getBoundingClientRect();
+    const start = vertical ? bounds.top : bounds.left;
+    const end = vertical ? bounds.bottom : bounds.right;
+    const edge = Math.min(DRAG_AUTOSCROLL_EDGE_PX, (end - start) / 4);
+    const step = drag.pointer < start + edge
+      ? -Math.ceil((start + edge - drag.pointer) / 4)
+      : drag.pointer > end - edge
+        ? Math.ceil((drag.pointer - (end - edge)) / 4)
+        : 0;
+    if (step !== 0) {
+      scroller.scrollBy(vertical ? 0 : step, vertical ? step : 0);
+      this.updateBoardDragTarget();
+    }
+    runtime.frame = requestAnimationFrame(() => this.boardDragTick());
+  }
+
+  private updateBoardDragTarget(): void {
+    const drag = this.boardDrag();
+    if (!drag) return;
+
+    const vertical = drag.kind === 'card';
+    const others = drag.order.filter(id => id !== drag.boardId);
+    let index = 0;
+    for (const id of others) {
+      const rect = this.boardDragItem(drag.kind, id)?.getBoundingClientRect();
+      if (!rect) continue;
+      const middle = vertical ? rect.top + rect.height / 2 : rect.left + rect.width / 2;
+      if (middle < drag.pointer) index++;
+    }
+
+    const order = [...others];
+    order.splice(index, 0, drag.boardId);
+    if (!sameOrder(order, drag.order)) this.boardDrag.set({ ...drag, order });
+  }
+
+  private boardDragItem(kind: BoardDragKind, boardId: string): HTMLElement | null {
+    const container = kind === 'card' ? this.boardsListRef?.nativeElement : this.boardsTabsRef?.nativeElement;
+    const attribute = kind === 'card' ? 'data-board-id' : 'data-board-tab-id';
+    return container?.querySelector<HTMLElement>(`[${attribute}="${boardId}"]`) ?? null;
+  }
+
+  private boardLabel(board: Board): string {
+    const index = this.sessionBoards().findIndex(item => item.id === board.id);
+    return board.name || this.t('common.stageIndex', { index: index + 1 });
+  }
+
+  private applyBoardOrder(boardIds: string[]): void {
+    const sessionId = this.sessionsStore.selectedSessionId();
+    const previous = this.sessionBoardIds();
+    if (sessionId == null || sameOrder(boardIds, previous)) return;
+
+    const activeId = this.sessionBoards()[this.activeBoardIndex()]?.id;
+    this.setBoardPositions(sessionId, boardIds);
+    this.keepActiveBoard(activeId);
+
+    this.sessionsStore.reorderBoards(sessionId, boardIds)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        error: (err: unknown) => {
+          console.error(err);
+          this.setBoardPositions(sessionId, previous);
+          this.keepActiveBoard(activeId);
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('stages.err.reorder') }));
+        },
+      });
+  }
+
+  private setBoardPositions(sessionId: string, boardIds: string[]): void {
+    const positions = new Map(boardIds.map((id, index) => [id, index + 1]));
+    this.boards.update(current =>
+      this.sortBoards(current.map(board =>
+        board.sessionId === sessionId && board.id != null && positions.has(board.id)
+          ? { ...board, position: positions.get(board.id) }
+          : board,
+      )),
+    );
+  }
+
+  private keepActiveBoard(boardId: string | undefined): void {
+    const index = this.sessionBoards().findIndex(board => board.id === boardId);
+    if (boardId == null || index < 0) return;
+    this.activeBoardIndex.set(index);
+    setTimeout(() => {
+      const el = this.boardsListRef?.nativeElement;
+      if (el && el.clientWidth > 0) el.scrollTo({ left: index * el.clientWidth, behavior: 'instant' });
+      this.scrollActiveTabIntoView(index);
+    });
+  }
+
+  private sessionBoardIds(): string[] {
+    return this.sessionBoards().flatMap(board => (board.id == null ? [] : [board.id]));
   }
 
   scrollToBoard(index: number): void {
@@ -251,6 +628,9 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   private fadeTokenSeq = 0;
   private readonly fadeCleanupTimers = new Set<ReturnType<typeof setTimeout>>();
 
+  private readonly repeatGapTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly waitingBoards = signal<ReadonlyMap<string, number>>(new Map());
+
   private readonly fadeStateVersion = signal(0);
   /** Bumped whenever the locally-selected window changes without a `boards()`
       update (e.g. a sequence-mode advance), so template getters re-read the
@@ -260,6 +640,11 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   private readonly volumeCommit$ = new Subject<VolumeCommit>();
 
   constructor() {
+    this.destroyRef.onDestroy(() => {
+      this.clearPendingTabDrag();
+      if (this.dragRuntime?.frame != null) cancelAnimationFrame(this.dragRuntime.frame);
+    });
+
     effect(() => {
       if (!this.sessionsStore.loaded()) return;
 
@@ -338,7 +723,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     const board = this.boards().find(item => item.id === boardId);
     if (!board) return;
 
-    if (this.isBoardPlaying(boardId)) {
+    if (this.isBoardPlaying(boardId) || this.isBoardWaiting(boardId)) {
       this.stopBoardTrack(board);
     } else {
       this.playBoardTrack(board);
@@ -347,6 +732,8 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.clearFadeCleanupTimers();
+    for (const timer of this.repeatGapTimers.values()) clearTimeout(timer);
+    this.repeatGapTimers.clear();
     for (const targetId of [...this.pendingHandoffs.keys()]) this.dropHandoff(targetId);
     this.volumeCommit$.complete();
   }
@@ -505,7 +892,15 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
    * change, and entering/leaving sequence reuses the player's window-change
    * crossfade so playback continues uninterrupted.
    */
-  onLoopModeChange(board: Board, mode: LoopMode): void {
+  onEndBehaviorChange(board: Board, behavior: EndBehavior): void {
+    const selection = behavior.linkedBoard;
+    const linkedBoard: LinkedBoard | null = selection?.boardId == null
+      ? null
+      : { boardId: selection.boardId, mode: selection.mode };
+    this.onLoopModeChange(board, behavior.loop, { linkedBoard });
+  }
+
+  private onLoopModeChange(board: Board, mode: LoopMode, extra: Partial<BoardUpdateRequest> = {}): void {
     if (board.id == null) return;
     const boardId = board.id;
 
@@ -527,6 +922,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       this.updateBoard(
         board,
         {
+          ...extra,
           playlistMode: false,
           sequenceMode: true,
           repeat,
@@ -546,7 +942,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       this.selectedWindowByBoard.set(boardId, null);
       this.updateBoard(
         board,
-        { sequenceMode: false, repeat, selectedWindowId: undefined },
+        { ...extra, sequenceMode: false, repeat, selectedWindowId: undefined },
         this.t('stages.err.loopMode'),
       );
       return;
@@ -555,7 +951,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     // Plain off ↔ whole repeat change — preserve any user-selected window.
     this.updateBoard(
       board,
-      { sequenceMode: false, repeat },
+      { ...extra, sequenceMode: false, repeat },
       this.t('stages.err.loopMode'),
     );
   }
@@ -692,18 +1088,34 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     this.updateBoard(board, { name }, this.t('stages.err.rename'));
   }
 
-  onLinkedBoardChange(board: Board, selection: LinkedBoardSelection): void {
-    const linkedBoard: LinkedBoard | null = selection.boardId == null
-      ? null
-      : { boardId: selection.boardId, mode: selection.mode };
-    this.updateBoard(board, { linkedBoard }, this.t('stages.err.linkedBoard'));
-  }
-
   /** Paused by another board's pause-and-resume action (not a handoff warm-up). */
   isHeldForResume(board: Board): boolean {
     return board.id != null
       && this.boardStatuses.get(board.id) === 'PAUSED'
       && !this.pendingHandoffs.has(board.id);
+  }
+
+  onRepeatGapChange(board: Board, gap: RepeatGap): void {
+    const boardId = board.id;
+    this.updateBoard(
+      board,
+      { repeatGapMinSec: gap.minSec, repeatGapMaxSec: gap.maxSec },
+      this.t('stages.err.repeatGap'),
+      () => {
+        const fresh = boardId != null ? this.findBoard(boardId) : null;
+        if (fresh?.id != null && this.isBoardWaiting(fresh.id) && this.repeatGapFor(fresh) == null) {
+          this.finishRepeatGap(fresh.id);
+        }
+      },
+    );
+  }
+
+  boardWaitingUntil(boardId: string | undefined): number | null {
+    return boardId != null ? (this.waitingBoards().get(boardId) ?? null) : null;
+  }
+
+  isBoardWaiting(boardId: string | undefined): boolean {
+    return boardId != null && this.waitingBoards().has(boardId);
   }
 
   onPlaylistOptionsChange(board: Board, options: PlaylistOptions): void {
@@ -724,6 +1136,58 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       const step = order.findIndex(i => tracks[i]?.id === currentTrackId);
       if (step >= 0) this.playlistIndexByBoard.set(boardId, step);
     }
+  }
+
+  onPlaylistTrackPick(board: Board, trackId: string | null): void {
+    const boardId = board.id;
+    if (boardId == null || !board.playlistMode) return;
+    if (this.playlistAdvanceInFlightBoardIds.has(boardId)) return;
+    if (trackId == null) {
+      if (!this.isBoardActive(boardId) && !this.isBoardWaiting(boardId) && board.selectedTrack != null) {
+        this.updateBoard(board, { selectedTrackId: undefined }, this.t('stages.err.playlistTrack'));
+      }
+      return;
+    }
+    if (trackId === board.selectedTrack?.id) {
+      if (this.isBoardWaiting(boardId)) this.playBoardTrack(board);
+      return;
+    }
+
+    const tracks = board.availableTracks ?? [];
+    const trackIndex = tracks.findIndex(track => track.id === trackId);
+    if (trackIndex < 0) return;
+
+    if (!this.playlistOrderByBoard.has(boardId)) {
+      this.regeneratePlaylistOrder(boardId, tracks, board.shuffle ?? false);
+    }
+    const step = this.playlistOrderByBoard.get(boardId)!.indexOf(trackIndex);
+    if (step >= 0) this.playlistIndexByBoard.set(boardId, step);
+
+    const wasWaiting = this.isBoardWaiting(boardId);
+    if (wasWaiting) this.cancelRepeatGap(boardId);
+    this.playlistAdvanceInFlightBoardIds.add(boardId);
+
+    this.boardsApi.updateUserBoard({
+      boardId,
+      boardUpdateRequest: this.baseUpdate(board, { selectedTrackId: trackId }),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: updated => {
+          this.playlistAdvanceInFlightBoardIds.delete(boardId);
+          this.streamUrlsByBoard.delete(boardId);
+          this.upsertBoard(updated);
+          const fresh = this.findBoard(boardId);
+          if (wasWaiting && fresh) this.playBoardTrack(fresh);
+          this.syncPlayingState();
+        },
+        error: (err: unknown) => {
+          this.playlistAdvanceInFlightBoardIds.delete(boardId);
+          console.error(err);
+          this.syncPlayingState();
+          this.toast.error(httpErrorMessage(err, { fallback: this.t('stages.err.playlistTrack') }));
+        },
+      });
   }
 
   onPlaylistSkip(board: Board): void {
@@ -1000,6 +1464,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   playBoardTrack(board: Board): void {
     if (board.id == null) return;
     const targetId = board.id;
+    this.cancelRepeatGap(targetId);
 
     // Playing a board that is being warmed up for a linked handoff: fade it in now.
     if (this.pendingHandoffs.has(targetId)) {
@@ -1017,6 +1482,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     const status = this.boardStatuses.get(targetId);
     const wasPlaying = status === 'PLAYING';
     const displaced = this.displacedBy(board);
+    this.cancelDisplacedRepeatGaps(board);
 
     if (!wasPlaying) {
       this.prepareStart(board, status === 'PAUSED');
@@ -1188,6 +1654,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     if (board.id == null) return;
 
     if (board.playlistMode) {
+      if (this.repeatGapFor(board) != null) return;
       // Advance ahead of the track end so the next track crossfades in while the
       // current one is still playing, instead of gapping after it has stopped.
       this.advancePlaylist(board, true, true);
@@ -1245,6 +1712,8 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
   onAudioEnded(board: Board): void {
     if (board.id == null) return;
+
+    if (this.startRepeatGap(board)) return;
 
     if (board.playlistMode) {
       // If nearEnd already kicked off the advance/crossfade, advancePlaylist
@@ -1368,6 +1837,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     if (!this.isBoardPlaying(targetId)) {
       this.resumeSilently(targetId);
     }
+    this.cancelDisplacedRepeatGaps(target);
 
     this.applyPlayCrossfade(
       targetId,
@@ -1604,6 +2074,12 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   }
 
   onGlobalKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape' && (this.boardDrag() != null || this.pendingTabDrag != null)) {
+      event.preventDefault();
+      this.clearPendingTabDrag();
+      this.finishBoardDrag(false);
+      return;
+    }
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
 
     // Only start board traversal when nothing is focused (i.e. focus on body).
@@ -1612,7 +2088,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     const active = document.activeElement;
     if (active != null && active !== document.body) return;
 
-    const cards = this.boardCards?.toArray() ?? [];
+    const cards = this.cardsInDisplayOrder();
     if (cards.length === 0) return;
 
     event.preventDefault();
@@ -1621,11 +2097,16 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   }
 
   focusBoardByOffset(board: Board, delta: number): void {
-    const cards = this.boardCards?.toArray() ?? [];
+    const cards = this.cardsInDisplayOrder();
     const idx = cards.findIndex(c => c.board().id === board.id);
     if (idx < 0) return;
     const target = cards[idx + delta];
     target?.focusChevron();
+  }
+
+  private cardsInDisplayOrder(): BoardCardComponent[] {
+    const cards = this.boardCards?.toArray() ?? [];
+    return this.sessionBoards().flatMap(board => cards.filter(card => card.board().id === board.id));
   }
 
   getSelectedWindowId(board: Board): string | null {
@@ -1868,7 +2349,64 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     };
   }
 
+  private repeatGapFor(board: Board): RepeatGap | null {
+    const minSec = Math.max(0, board.repeatGapMinSec ?? 0);
+    const maxSec = Math.max(minSec, board.repeatGapMaxSec ?? 0);
+    if (maxSec === 0) return null;
+    const loopsSingle = (board.repeat ?? false) && !this.getSequentialWindows(board);
+    return board.playlistMode || loopsSingle ? { minSec, maxSec } : null;
+  }
+
+  private startRepeatGap(board: Board): boolean {
+    const boardId = board.id;
+    const gap = boardId != null ? this.repeatGapFor(board) : null;
+    if (boardId == null || gap == null || !this.isBoardPlaying(boardId)) return false;
+
+    this.cancelRepeatGap(boardId);
+    this.cancelHandoffsInvolving(boardId);
+    this.boardStatuses.set(boardId, 'STOPPED');
+    this.streamUrlsByBoard.delete(boardId);
+
+    const delayMs = Math.round((gap.minSec + Math.random() * (gap.maxSec - gap.minSec)) * 1000);
+    this.repeatGapTimers.set(boardId, setTimeout(() => this.finishRepeatGap(boardId), delayMs));
+    this.waitingBoards.update(waiting => new Map(waiting).set(boardId, Date.now() + delayMs));
+    this.syncPlayingState();
+    if (board.playlistMode) this.advancePlaylist(board, false);
+    return true;
+  }
+
+  private finishRepeatGap(boardId: string): void {
+    this.cancelRepeatGap(boardId);
+    const board = this.findBoard(boardId);
+    if (board != null && (board.playlistMode || (board.repeat ?? false))) {
+      this.playBoardTrack(board);
+    }
+    this.syncPlayingState();
+  }
+
+  private cancelRepeatGap(boardId: string): void {
+    const timer = this.repeatGapTimers.get(boardId);
+    if (timer != null) clearTimeout(timer);
+    this.repeatGapTimers.delete(boardId);
+    if (this.waitingBoards().has(boardId)) {
+      this.waitingBoards.update(waiting => {
+        const next = new Map(waiting);
+        next.delete(boardId);
+        return next;
+      });
+    }
+  }
+
+  private cancelDisplacedRepeatGaps(board: Board): void {
+    if (board.overplay ?? false) return;
+    for (const waitingId of this.waitingBoards().keys()) {
+      if (waitingId === board.id || (this.findBoard(waitingId)?.overplay ?? false)) continue;
+      this.clearBoard(waitingId);
+    }
+  }
+
   private clearBoard(boardId: string): void {
+    this.cancelRepeatGap(boardId);
     this.cancelHandoffsInvolving(boardId);
     this.boardStatuses.set(boardId, 'STOPPED');
     this.streamUrlsByBoard.delete(boardId);
@@ -1965,6 +2503,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   }
 
   private removeBoardLocalState(boardId: string): void {
+    this.cancelRepeatGap(boardId);
     this.boardStatuses.delete(boardId);
     this.streamUrlsByBoard.delete(boardId);
     this.selectedWindowByBoard.delete(boardId);
@@ -2053,7 +2592,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
   }
 
   private syncPlayingState(): void {
-    const anyPlaying = this.boards().some(b =>
+    const anyPlaying = this.waitingBoards().size > 0 || this.boards().some(b =>
       b.id != null && this.isBoardPlaying(b.id),
     );
     this.boardPlayback.setPlaying(anyPlaying);
@@ -2105,7 +2644,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     this.clearFadeCleanupTimers();
 
     for (const board of this.boards()) {
-      if (board.id == null || !this.isBoardActive(board.id)) continue;
+      if (board.id == null || (!this.isBoardActive(board.id) && !this.isBoardWaiting(board.id))) continue;
       this.clearBoard(board.id);
     }
   }
@@ -2121,12 +2660,28 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
   private sortBoards(boards: Board[]): Board[] {
     return [...boards].sort((a, b) => {
-      const nameA = a.name ?? '';
-      const nameB = b.name ?? '';
-      return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+      const byPosition = (a.position ?? Number.MAX_SAFE_INTEGER) - (b.position ?? Number.MAX_SAFE_INTEGER);
+      if (byPosition !== 0) return byPosition;
+      return (a.name ?? '').localeCompare(b.name ?? '', undefined, { sensitivity: 'base' });
     });
   }
 
+}
+
+function findTouch(touches: TouchList, identifier: number): Touch | undefined {
+  return Array.from(touches).find(touch => touch.identifier === identifier);
+}
+
+function sameOrder(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((id, index) => id === b[index]);
+}
+
+function scrollParent(element: HTMLElement): HTMLElement {
+  for (let node = element.parentElement; node != null; node = node.parentElement) {
+    const overflowY = getComputedStyle(node).overflowY;
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) return node;
+  }
+  return (document.scrollingElement as HTMLElement | null) ?? document.documentElement;
 }
 
 function sameBoardIds(a: Board[], b: Board[]): boolean {
