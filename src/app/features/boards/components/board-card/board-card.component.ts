@@ -41,6 +41,7 @@ import {
 } from '../../../../shared/validators/profanity.validator';
 import { UiCharCounterComponent } from '../../../../shared/ui/char-counter/ui-char-counter.component';
 import { LinkedBoardChoice, LinkedBoardSelection } from '../../models/linked-board-choice';
+import { PlaylistItemRef, byGroupPosition, isWindowItem, itemKeyOf, itemRefOf, playlistItems } from '../../utils/group-items';
 
 export interface PlaylistOptions {
   random: boolean;
@@ -177,7 +178,7 @@ export class BoardCardComponent implements OnInit {
   readonly playlistOptionsChange = output<PlaylistOptions>();
   readonly repeatGapChange = output<RepeatGap>();
   readonly skipNext = output<void>();
-  readonly playlistTrackPick = output<string | null>();
+  readonly playlistTrackPick = output<PlaylistItemRef | null>();
   readonly volumePreviewChange = output<number>();
   readonly volumeCommit = output<number>();
   readonly rename = output<string>();
@@ -323,7 +324,7 @@ export class BoardCardComponent implements OnInit {
   });
 
   readonly hasSelectedWindow = computed(() =>
-    !this.playlistMode() && !this.sequenceUnavailable() && this.selectedWindow() != null,
+    !this.sequenceUnavailable() && this.selectedWindow() != null,
   );
 
   readonly selectedWindowStart = computed(() =>
@@ -500,29 +501,52 @@ export class BoardCardComponent implements OnInit {
     return this.getPlaylistCandidates(this.board().selectedGroup?.id ?? null).length > 0;
   });
 
+  readonly playlistItems = computed(() =>
+    playlistItems(this.board(), [...this.libraryGroups(), ...this.availableGroups()]),
+  );
+
+  readonly playlistItemKey = computed(() => {
+    const track = this.board().selectedTrack;
+    if (track?.id == null) return null;
+    const windowId = this.selectedWindowId();
+    const windowKey = windowId != null ? `${track.id}::${windowId}` : null;
+    const keys = this.playlistItems().map(itemKeyOf);
+    if (windowKey != null && keys.includes(windowKey)) return windowKey;
+    return keys.includes(track.id) ? track.id : null;
+  });
+
   readonly playlistTrackOptions = computed<UiSelectOption[]>(() => {
-    const playable = new Set((this.board().availableTracks ?? []).map(track => track.id));
     const seen = new Set<string>();
-    return this.orderedAvailableTracks().flatMap(track => {
-      if (track.id == null || isWindowItem(track) || !playable.has(track.id) || seen.has(track.id)) return [];
-      seen.add(track.id);
+    return this.playlistItems().flatMap(item => {
+      const key = itemKeyOf(item);
+      if (seen.has(key)) return [];
+      seen.add(key);
       return [{
-        label: track.trackName || track.trackOriginalName || this.t('common.trackNum', { id: track.id }),
-        value: track.id,
+        label: this.itemLabel(item),
+        value: key,
+        tag: isWindowItem(item) ? this.t('common.window') : undefined,
       }];
     });
   });
 
-  onPlaylistTrackPicked(trackId: string | null): void {
-    const current = this.board().selectedTrack?.id ?? null;
-    if (trackId !== current || (trackId != null && this.waiting())) {
-      this.playlistTrackPick.emit(trackId);
-    }
+  onPlaylistTrackPicked(key: string | null): void {
+    if (key === this.playlistItemKey() && !(key != null && this.waiting())) return;
+    const item = key == null ? null : this.playlistItems().find(candidate => itemKeyOf(candidate) === key);
+    this.playlistTrackPick.emit(item ? itemRefOf(item) : null);
+  }
+
+  private itemLabel(item: Track): string {
+    return item.trackName || item.trackOriginalName || this.t('common.trackNum', { id: item.id });
   }
 
   readonly currentTrackLabel = computed(() => {
     const track = this.board().selectedTrack;
     if (!track) return '—';
+    if (this.playlistMode()) {
+      const key = this.playlistItemKey();
+      const item = key == null ? null : this.playlistItems().find(candidate => itemKeyOf(candidate) === key);
+      if (item) return this.itemLabel(item);
+    }
     return (
       track.trackName ||
       track.trackOriginalName ||
@@ -1107,20 +1131,6 @@ export class BoardCardComponent implements OnInit {
 }
 
 /** Sort comparator: a group's items by their 1-based position (0 outside a group). */
-function byGroupPosition(a: Track, b: Track): number {
-  return (a.positionWithinGroup ?? 0) - (b.positionWithinGroup ?? 0);
-}
-
-/** Within a group, a track entry that stands in for one of its windows. */
-function isWindowItem(t: Track): boolean {
-  return t.isWindow === true && t.windowId != null;
-}
-
-/** Distinguishes a whole-track entry from each of its window items. */
-function itemKeyOf(t: Track): string {
-  return isWindowItem(t) ? `${t.id}::${t.windowId}` : `${t.id ?? ''}`;
-}
-
 function clampPct(v: number): number {
   const n = Number(v);
   return Number.isFinite(n)

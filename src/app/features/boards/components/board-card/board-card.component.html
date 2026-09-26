@@ -557,7 +557,7 @@
                   [enableSearch]="false"
                   [options]="playlistTrackOptions()"
                   [nullOption]="isPlaying() ? undefined : ('stages.card.anyTrack' | transloco)"
-                  [ngModel]="board().selectedTrack?.id ?? null"
+                  [ngModel]="playlistItemKey()"
                   [ngModelOptions]="{ standalone: true }"
                   (ngModelChange)="onPlaylistTrackPicked($event)"
                   (navigatePrev)="focusGroup()"

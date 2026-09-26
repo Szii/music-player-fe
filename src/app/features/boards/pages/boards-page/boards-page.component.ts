@@ -38,6 +38,7 @@ import {
   EndBehavior,
 } from '../../components/board-card/board-card.component';
 import { LinkedBoardChoice } from '../../models/linked-board-choice';
+import { PlaylistItemRef, itemKeyOf, itemRefKey, itemRefOf, playlistItems } from '../../utils/group-items';
 import { UiAlertComponent } from '../../../../shared/ui/alert/ui-alert.component';
 import { IconButtonComponent } from '../../../../shared/ui/buttons/ui-icon-button.component';
 import { UiPageTitleComponent } from '../../../../shared/ui/page-title/ui-page-title.component';
@@ -985,7 +986,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       });
       this.sequentialWindowsByBoard.delete(boardId);
       this.selectedWindowByBoard.delete(boardId);
-      this.regeneratePlaylistOrder(boardId, board.availableTracks ?? [], board.shuffle ?? false);
+      this.regeneratePlaylistOrder(boardId, this.playlistItemsOf(board), board.shuffle ?? false);
       this.updateBoard(
         board,
         {
@@ -1127,40 +1128,44 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     // Rebuild the play order for the new mode immediately so the next track (and
     // the skip button) honours it. Anchor the cursor at the currently-playing
     // track so toggling shuffle does not jump or repeat.
-    const tracks = board.availableTracks ?? [];
-    this.regeneratePlaylistOrder(boardId, tracks, options.random);
+    const items = this.playlistItemsOf(board);
+    this.regeneratePlaylistOrder(boardId, items, options.random);
 
-    const currentTrackId = board.selectedTrack?.id ?? null;
+    const currentKey = this.currentPlaylistKey(board);
     const order = this.playlistOrderByBoard.get(boardId);
-    if (order && currentTrackId != null) {
-      const step = order.findIndex(i => tracks[i]?.id === currentTrackId);
+    if (order && currentKey != null) {
+      const step = order.findIndex(i => items[i] != null && itemKeyOf(items[i]) === currentKey);
       if (step >= 0) this.playlistIndexByBoard.set(boardId, step);
     }
   }
 
-  onPlaylistTrackPick(board: Board, trackId: string | null): void {
+  onPlaylistTrackPick(board: Board, ref: PlaylistItemRef | null): void {
     const boardId = board.id;
     if (boardId == null || !board.playlistMode) return;
     if (this.playlistAdvanceInFlightBoardIds.has(boardId)) return;
-    if (trackId == null) {
+    if (ref == null) {
       if (!this.isBoardActive(boardId) && !this.isBoardWaiting(boardId) && board.selectedTrack != null) {
-        this.updateBoard(board, { selectedTrackId: undefined }, this.t('stages.err.playlistTrack'));
+        this.updateBoard(
+          board,
+          { selectedTrackId: undefined, selectedWindowId: undefined },
+          this.t('stages.err.playlistTrack'),
+        );
       }
       return;
     }
-    if (trackId === board.selectedTrack?.id) {
+    if (itemRefKey(ref) === this.currentPlaylistKey(board)) {
       if (this.isBoardWaiting(boardId)) this.playBoardTrack(board);
       return;
     }
 
-    const tracks = board.availableTracks ?? [];
-    const trackIndex = tracks.findIndex(track => track.id === trackId);
-    if (trackIndex < 0) return;
+    const items = this.playlistItemsOf(board);
+    const itemIndex = items.findIndex(item => itemKeyOf(item) === itemRefKey(ref));
+    if (itemIndex < 0) return;
 
     if (!this.playlistOrderByBoard.has(boardId)) {
-      this.regeneratePlaylistOrder(boardId, tracks, board.shuffle ?? false);
+      this.regeneratePlaylistOrder(boardId, items, board.shuffle ?? false);
     }
-    const step = this.playlistOrderByBoard.get(boardId)!.indexOf(trackIndex);
+    const step = this.playlistOrderByBoard.get(boardId)!.indexOf(itemIndex);
     if (step >= 0) this.playlistIndexByBoard.set(boardId, step);
 
     const wasWaiting = this.isBoardWaiting(boardId);
@@ -1169,7 +1174,10 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
 
     this.boardsApi.updateUserBoard({
       boardId,
-      boardUpdateRequest: this.baseUpdate(board, { selectedTrackId: trackId }),
+      boardUpdateRequest: this.baseUpdate(board, {
+        selectedTrackId: ref.trackId,
+        selectedWindowId: ref.windowId ?? undefined,
+      }),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -1188,6 +1196,20 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
           this.toast.error(httpErrorMessage(err, { fallback: this.t('stages.err.playlistTrack') }));
         },
       });
+  }
+
+  private playlistItemsOf(board: Board): Track[] {
+    return playlistItems(board, this.groups());
+  }
+
+  private currentPlaylistKey(board: Board): string | null {
+    const trackId = board.selectedTrack?.id;
+    if (trackId == null) return null;
+    const windowId = (board.id != null ? this.selectedWindowByBoard.get(board.id) : null) ?? board.selectedWindow?.id ?? null;
+    const keys = this.playlistItemsOf(board).map(itemKeyOf);
+    const windowKey = windowId != null ? `${trackId}::${windowId}` : null;
+    if (windowKey != null && keys.includes(windowKey)) return windowKey;
+    return keys.includes(trackId) ? trackId : null;
   }
 
   onPlaylistSkip(board: Board): void {
@@ -1223,7 +1245,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
           this.syncSessionScope(updated);
 
           if (updated.playlistMode && updated.id != null) {
-            this.regeneratePlaylistOrder(updated.id, updated.availableTracks ?? [], updated.shuffle ?? false);
+            this.regeneratePlaylistOrder(updated.id, this.playlistItemsOf(updated), updated.shuffle ?? false);
           }
 
           // Playlist, playing: immediately switch playback into the new group
@@ -2177,15 +2199,15 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     // run only one advance at a time so a track isn't skipped.
     if (this.playlistAdvanceInFlightBoardIds.has(boardId)) return;
 
-    const availableTracks = board.availableTracks ?? [];
+    const items = this.playlistItemsOf(board);
 
-    if (!availableTracks.length) {
+    if (!items.length) {
       this.clearBoard(boardId);
       return;
     }
 
     if (!this.playlistOrderByBoard.has(boardId)) {
-      this.regeneratePlaylistOrder(boardId, availableTracks, board.shuffle ?? false);
+      this.regeneratePlaylistOrder(boardId, items, board.shuffle ?? false);
     }
 
     let order = this.playlistOrderByBoard.get(boardId)!;
@@ -2198,7 +2220,7 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
       // random so every track plays once before any repeats, but the order
       // differs each cycle. Avoid replaying the just-finished track back-to-back.
       if (board.shuffle ?? false) {
-        this.regeneratePlaylistOrder(boardId, availableTracks, true);
+        this.regeneratePlaylistOrder(boardId, items, true);
         order = this.playlistOrderByBoard.get(boardId)!;
         if (order.length > 1 && order[0] === lastPlayedIndex) {
           [order[0], order[1]] = [order[1], order[0]];
@@ -2210,14 +2232,15 @@ export class BoardsPageComponent implements OnInit, OnDestroy {
     this.playlistIndexByBoard.set(boardId, nextStep);
 
     const nextTrackIndex = order[nextStep];
-    const nextTrack = availableTracks[nextTrackIndex] ?? availableTracks[0];
+    const nextItem = itemRefOf(items[nextTrackIndex] ?? items[0]);
 
     this.playlistAdvanceInFlightBoardIds.add(boardId);
 
     this.boardsApi.updateUserBoard({
       boardId,
       boardUpdateRequest: this.baseUpdate(board, {
-        selectedTrackId: nextTrack.id ?? undefined,
+        selectedTrackId: nextItem.trackId,
+        selectedWindowId: nextItem.windowId ?? undefined,
       }),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
